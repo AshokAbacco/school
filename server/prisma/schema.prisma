@@ -13,6 +13,14 @@ enum StaffRole {
   TEACHER
 }
 
+model Parent {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
 model User {
   id        String    @id @default(uuid())
   name      String
@@ -22,20 +30,137 @@ model User {
   createdAt DateTime  @default(now())
 }
 
+// ─────────────────────────────────────────────────────────────
+//  Student  (login / auth table — unchanged core, relations added)
+// ─────────────────────────────────────────────────────────────
 model Student {
   id        String   @id @default(uuid())
   name      String
   email     String   @unique
   password  String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  personalInfo StudentPersonalInfo?
+  documents    StudentDocumentInfo[]
 }
 
-
-
-model Parent {
+// ─────────────────────────────────────────────────────────────
+//  StudentPersonalInfo
+//  Sections: Personal · Contact · Academic · Parent/Guardian · Health
+// ─────────────────────────────────────────────────────────────
+model StudentPersonalInfo {
   id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ── Relation ──────────────────────────────────────────────
+  studentId String  @unique
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  // ── Personal Information ───────────────────────────────────
+  firstName    String
+  lastName     String
+  dateOfBirth  DateTime?
+  gender       Gender?
+  profileImage String? // Cloudflare R2 / CDN URL
+
+  // ── Contact Information ────────────────────────────────────
+  phone   String?
+  address String?
+  city    String?
+  state   String?
+  zipCode String?
+
+  // ── Academic Information ───────────────────────────────────
+  grade         String
+  className     String // e.g. "A", "B" — "class" is a reserved word in Prisma
+  admissionDate DateTime
+  status        StudentStatus @default(ACTIVE)
+
+  // ── Parent / Guardian ──────────────────────────────────────
+  parentName       String?
+  parentEmail      String?
+  parentPhone      String?
+  emergencyContact String?
+
+  // ── Health Information ─────────────────────────────────────
+  bloodGroup        BloodGroup?
+  medicalConditions String? // free text / comma-separated
+  allergies         String?
+
+  @@map("student_personal_info")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  StudentDocumentInfo
+//  One row per document; file stored in Cloudflare R2,
+//  only the document name / metadata lives here.
+// ─────────────────────────────────────────────────────────────
+model StudentDocumentInfo {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ── Relation ──────────────────────────────────────────────
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  // ── Document Details ───────────────────────────────────────
+  documentName  DocumentType // enum — standard docs
+  customLabel   String? // used when documentName = CUSTOM
+  fileKey       String // Cloudflare R2 object key  e.g. "students/uuid/aadhar.pdf"
+  fileUrl       String // Public / signed CDN URL
+  fileType      String // MIME type  e.g. "application/pdf"
+  fileSizeBytes Int?
+  isVerified    Boolean      @default(false)
+  verifiedAt    DateTime?
+  uploadedAt    DateTime     @default(now())
+
+  @@map("student_document_info")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Enums
+// ─────────────────────────────────────────────────────────────
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  SUSPENDED
+}
+
+enum BloodGroup {
+  A_POS  @map("A+")
+  A_NEG  @map("A-")
+  B_POS  @map("B+")
+  B_NEG  @map("B-")
+  O_POS  @map("O+")
+  O_NEG  @map("O-")
+  AB_POS @map("AB+")
+  AB_NEG @map("AB-")
+}
+
+enum DocumentType {
+  AADHAR_CARD // Aadhar / national ID
+  BIRTH_CERTIFICATE
+  PASSBOOK // Bank passbook
+  TRANSFER_CERTIFICATE
+  MARKSHEET
+  MIGRATION_CERTIFICATE
+  CHARACTER_CERTIFICATE
+  MEDICAL_CERTIFICATE
+  PASSPORT
+  CASTE_CERTIFICATE
+  INCOME_CERTIFICATE
+  PHOTO
+  CUSTOM // user-defined label stored in customLabel
 }

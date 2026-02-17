@@ -12,11 +12,13 @@ import {
   Phone,
 } from "lucide-react";
 import PageLayout from "../../components/PageLayout";
+import AddStudent from "./AddStudents";
 
 function StudentsList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterGrade, setFilterGrade] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [openModal, setOpenModal] = useState(false);
 
   const students = [
     {
@@ -138,10 +140,12 @@ function StudentsList() {
               <Download className="w-4 h-4" />
               <span className="hidden sm:inline">Export</span>
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-              <Plus className="w-4 h-4" />
-              <span>Add Student</span>
-            </button>
+              <button
+                onClick={() => setOpenModal(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+              >
+                + Add Student
+              </button>
           </div>
         </div>
 
@@ -345,6 +349,19 @@ function StudentsList() {
             </div>
           </div>
         </div>
+
+              {/* Modal Popup */}
+      {openModal && (
+        <div
+          className="fixed inset-0 bg-black/50 bg-opacity-50 flex justify-center items-start z-50 p-4 overflow-y-auto"
+          onClick={(e) => { if (e.target === e.currentTarget) setOpenModal(false); }}
+        >
+          <div className="bg-gray-100 w-full max-w-5xl rounded-xl shadow-2xl my-6">
+            <AddStudent closeModal={() => setOpenModal(false)} />
+          </div>
+        </div>
+      )}
+
       </div>
     </PageLayout>
   );
