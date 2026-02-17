@@ -1,5 +1,5 @@
 //server\server.js
-import app from "./src/app.js";
+import app from "./src/app.js"; //login related
 
 const PORT = process.env.PORT || 5000;
 
