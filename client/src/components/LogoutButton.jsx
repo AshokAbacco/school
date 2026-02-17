@@ -10,7 +10,7 @@ function LogoutButton() {
     <button
       onClick={handleLogout}
       style={{
-        padding: "8px 16px",
+        padding: "8px 75px",
         borderRadius: "6px",
         border: "none",
         background: "#ef4444",

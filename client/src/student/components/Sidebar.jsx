@@ -1,21 +1,21 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Users, BookOpen, GraduationCap, ClipboardCheck, FileText, DollarSign, Settings, X } from 'lucide-react';
+import { Home, User, BookOpen, GraduationCap, CalendarCheck, BarChart3, Clock, Activity, X, Award, School } from 'lucide-react';
 
 function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
   
   const menuItems = [
-    { icon: Home, label: 'Dashboard', href: '/dashboard' },
-    { icon: Users, label: 'Students', href: '/students' },
-    { icon: GraduationCap, label: 'Teachers', href: '/teachers' },
-    { icon: BookOpen, label: 'Classes', href: '/classes' },
-    { icon: ClipboardCheck, label: 'Attendance', href: '/attendance' },
-    { icon: FileText, label: 'Exams', href: '/exams' },
-    { icon: DollarSign, label: 'Finance', href: '/finance' },
-    { icon: Settings, label: 'Settings', href: '/settings' },
+    { icon: Home, label: "Dashboard", href: "/dashboard" },
+    { icon: User, label: "Profile", href: "/profile" },
+    { icon: CalendarCheck, label: "Attendance", href: "/attendance" },
+    { icon: BarChart3, label: "Marks & Results", href: "/marks" },
+    { icon: Clock, label: "Time Table", href: "/time-table" },
+    { icon: Activity, label: "Activities", href: "/activites" },
+    { icon: Award, label: "Certificates", href: "/certicates" },
+    // { icon: School, label: "ClassRoom", href: "/settings" },
   ];
-  
+    
   const isActive = (href) => {
     return location.pathname === href || location.pathname.startsWith(href + '/');
   };
