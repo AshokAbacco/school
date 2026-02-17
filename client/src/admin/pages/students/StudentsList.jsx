@@ -1,28 +1,122 @@
-import React, { useState } from 'react';
-import { Search, Filter, Download, Plus, MoreVertical, Edit, Trash2, Eye, Mail, Phone } from 'lucide-react';
-import PageLayout from '../../components/PageLayout';
+import React, { useState } from "react";
+import {
+  Search,
+  Filter,
+  Download,
+  Plus,
+  MoreVertical,
+  Edit,
+  Trash2,
+  Eye,
+  Mail,
+  Phone,
+} from "lucide-react";
+import PageLayout from "../../components/PageLayout";
 
 function StudentsList() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterGrade, setFilterGrade] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterGrade, setFilterGrade] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
 
   const students = [
-    { id: 1, name: 'Emma Wilson', email: 'emma.wilson@school.com', phone: '+1 234-567-8901', grade: '10th', class: '10-A', status: 'Active', avatar: 'EW', admissionDate: '2023-08-15' },
-    { id: 2, name: 'Liam Brown', email: 'liam.brown@school.com', phone: '+1 234-567-8902', grade: '9th', class: '9-B', status: 'Active', avatar: 'LB', admissionDate: '2024-01-10' },
-    { id: 3, name: 'Olivia Davis', email: 'olivia.davis@school.com', phone: '+1 234-567-8903', grade: '11th', class: '11-C', status: 'Active', avatar: 'OD', admissionDate: '2022-08-20' },
-    { id: 4, name: 'Noah Martinez', email: 'noah.martinez@school.com', phone: '+1 234-567-8904', grade: '8th', class: '8-A', status: 'Inactive', avatar: 'NM', admissionDate: '2024-08-05' },
-    { id: 5, name: 'Ava Johnson', email: 'ava.johnson@school.com', phone: '+1 234-567-8905', grade: '10th', class: '10-B', status: 'Active', avatar: 'AJ', admissionDate: '2023-09-01' },
-    { id: 6, name: 'Ethan Garcia', email: 'ethan.garcia@school.com', phone: '+1 234-567-8906', grade: '9th', class: '9-A', status: 'Active', avatar: 'EG', admissionDate: '2024-01-15' },
-    { id: 7, name: 'Sophia Miller', email: 'sophia.miller@school.com', phone: '+1 234-567-8907', grade: '11th', class: '11-A', status: 'Active', avatar: 'SM', admissionDate: '2022-08-25' },
-    { id: 8, name: 'Mason Rodriguez', email: 'mason.rod@school.com', phone: '+1 234-567-8908', grade: '8th', class: '8-B', status: 'Active', avatar: 'MR', admissionDate: '2024-08-10' },
+    {
+      id: 1,
+      name: "Emma Wilson",
+      email: "emma.wilson@school.com",
+      phone: "+1 234-567-8901",
+      grade: "10th",
+      class: "10-A",
+      status: "Active",
+      avatar: "EW",
+      admissionDate: "2023-08-15",
+    },
+    {
+      id: 2,
+      name: "Liam Brown",
+      email: "liam.brown@school.com",
+      phone: "+1 234-567-8902",
+      grade: "9th",
+      class: "9-B",
+      status: "Active",
+      avatar: "LB",
+      admissionDate: "2024-01-10",
+    },
+    {
+      id: 3,
+      name: "Olivia Davis",
+      email: "olivia.davis@school.com",
+      phone: "+1 234-567-8903",
+      grade: "11th",
+      class: "11-C",
+      status: "Active",
+      avatar: "OD",
+      admissionDate: "2022-08-20",
+    },
+    {
+      id: 4,
+      name: "Noah Martinez",
+      email: "noah.martinez@school.com",
+      phone: "+1 234-567-8904",
+      grade: "8th",
+      class: "8-A",
+      status: "Inactive",
+      avatar: "NM",
+      admissionDate: "2024-08-05",
+    },
+    {
+      id: 5,
+      name: "Ava Johnson",
+      email: "ava.johnson@school.com",
+      phone: "+1 234-567-8905",
+      grade: "10th",
+      class: "10-B",
+      status: "Active",
+      avatar: "AJ",
+      admissionDate: "2023-09-01",
+    },
+    {
+      id: 6,
+      name: "Ethan Garcia",
+      email: "ethan.garcia@school.com",
+      phone: "+1 234-567-8906",
+      grade: "9th",
+      class: "9-A",
+      status: "Active",
+      avatar: "EG",
+      admissionDate: "2024-01-15",
+    },
+    {
+      id: 7,
+      name: "Sophia Miller",
+      email: "sophia.miller@school.com",
+      phone: "+1 234-567-8907",
+      grade: "11th",
+      class: "11-A",
+      status: "Active",
+      avatar: "SM",
+      admissionDate: "2022-08-25",
+    },
+    {
+      id: 8,
+      name: "Mason Rodriguez",
+      email: "mason.rod@school.com",
+      phone: "+1 234-567-8908",
+      grade: "8th",
+      class: "8-B",
+      status: "Active",
+      avatar: "MR",
+      admissionDate: "2024-08-10",
+    },
   ];
 
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         student.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesGrade = filterGrade === 'all' || student.grade === filterGrade;
-    const matchesStatus = filterStatus === 'all' || student.status.toLowerCase() === filterStatus.toLowerCase();
+  const filteredStudents = students.filter((student) => {
+    const matchesSearch =
+      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesGrade = filterGrade === "all" || student.grade === filterGrade;
+    const matchesStatus =
+      filterStatus === "all" ||
+      student.status.toLowerCase() === filterStatus.toLowerCase();
     return matchesSearch && matchesGrade && matchesStatus;
   });
 
@@ -32,8 +126,12 @@ function StudentsList() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Students List</h1>
-            <p className="text-gray-500 mt-1">Manage and view all student records</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+              Students List
+            </h1>
+            <p className="text-gray-500 mt-1">
+              Manage and view all student records
+            </p>
           </div>
           <div className="flex gap-3">
             <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
@@ -43,7 +141,6 @@ function StudentsList() {
             <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
               <Plus className="w-4 h-4" />
               <span>Add Student</span>
-              
             </button>
           </div>
         </div>
@@ -121,12 +218,24 @@ function StudentsList() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Student</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell">Contact</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Grade</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden lg:table-cell">Class</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Student
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell">
+                    Contact
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Grade
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden lg:table-cell">
+                    Class
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -138,8 +247,12 @@ function StudentsList() {
                           {student.avatar}
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-800">{student.name}</p>
-                          <p className="text-sm text-gray-500 md:hidden">{student.email}</p>
+                          <p className="font-semibold text-gray-800">
+                            {student.name}
+                          </p>
+                          <p className="text-sm text-gray-500 md:hidden">
+                            {student.email}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -156,7 +269,9 @@ function StudentsList() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-medium text-gray-800">{student.grade}</span>
+                      <span className="text-sm font-medium text-gray-800">
+                        {student.grade}
+                      </span>
                     </td>
                     <td className="px-6 py-4 hidden lg:table-cell">
                       <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
@@ -164,23 +279,34 @@ function StudentsList() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        student.status === 'Active' 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-red-100 text-red-700'
-                      }`}>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          student.status === "Active"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                        }`}
+                      >
                         {student.status}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <button className="p-2 hover:bg-blue-50 rounded-lg transition group" title="View Details">
+                        <button
+                          className="p-2 hover:bg-blue-50 rounded-lg transition group"
+                          title="View Details"
+                        >
                           <Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-600" />
                         </button>
-                        <button className="p-2 hover:bg-green-50 rounded-lg transition group" title="Edit">
+                        <button
+                          className="p-2 hover:bg-green-50 rounded-lg transition group"
+                          title="Edit"
+                        >
                           <Edit className="w-4 h-4 text-gray-400 group-hover:text-green-600" />
                         </button>
-                        <button className="p-2 hover:bg-red-50 rounded-lg transition group" title="Delete">
+                        <button
+                          className="p-2 hover:bg-red-50 rounded-lg transition group"
+                          title="Delete"
+                        >
                           <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-red-600" />
                         </button>
                         <button className="p-2 hover:bg-gray-100 rounded-lg transition">
@@ -197,7 +323,8 @@ function StudentsList() {
           {/* Pagination */}
           <div className="px-6 py-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-600">
-              Showing <span className="font-semibold">1-8</span> of <span className="font-semibold">{students.length}</span> students
+              Showing <span className="font-semibold">1-8</span> of{" "}
+              <span className="font-semibold">{students.length}</span> students
             </p>
             <div className="flex gap-2">
               <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">

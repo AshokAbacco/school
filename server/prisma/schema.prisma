@@ -30,6 +30,8 @@ model Student {
   createdAt DateTime @default(now())
 }
 
+
+
 model Parent {
   id        String   @id @default(uuid())
   name      String
