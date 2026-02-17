@@ -1,8 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './dashboard/Dashboard';
-// import StudentsList from './pages/students/StudentsList';
-// import AddStudents from './pages/students/AddStudents';
+import Profile from './pages/profile';
+import Attendance from './pages/attendance/Attendance';
+import Marks from './pages/marks/Marks';
+import TimeTable from './pages/TimeTable/TimeTable';
+import ActivitiesPage from './pages/Activities/ActivitiesPage';
+import CertificatesPage from './pages/Certificates/CertificatesPage';
+
 
 function App() {
   return (
@@ -11,10 +16,13 @@ function App() {
         {/* Dashboard Route */}
         <Route path="/" element={<Dashboard />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/attendance" element={<Attendance />} />
+        <Route path="/marks" element={<Marks />} />
+        <Route path="/time-table" element={<TimeTable />} />
+        <Route path="/activites" element={<ActivitiesPage />} />
+        <Route path="/certicates" element={<CertificatesPage />} />
         
-        {/* Students Routes */}
-        {/* <Route path="/students" element={<StudentsList />} />
-        <Route path="/students/add" element={<AddStudents />} /> */}
         
         {/* Redirect any unknown route to dashboard */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
