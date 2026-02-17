@@ -103,20 +103,28 @@ model StudentDocumentInfo {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // ── Relation ──────────────────────────────────────────────
+  // Relation
   studentId String
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  // ── Document Details ───────────────────────────────────────
-  documentName  DocumentType // enum — standard docs
-  customLabel   String? // used when documentName = CUSTOM
-  fileKey       String // Cloudflare R2 object key  e.g. "students/uuid/aadhar.pdf"
-  fileUrl       String // Public / signed CDN URL
-  fileType      String // MIME type  e.g. "application/pdf"
+  // Document Details
+  documentName DocumentType
+  customLabel  String?
+
+  // Permanent storage pointer (REAL reference)
+  fileKey String // e.g. students/{studentId}/{uuid}.pdf
+
+  // Temporary signed URL (NEVER trusted, regenerated on each request)
+  fileUrl String? // last generated signed URL cache
+
+  fileType      String
   fileSizeBytes Int?
-  isVerified    Boolean      @default(false)
-  verifiedAt    DateTime?
-  uploadedAt    DateTime     @default(now())
+
+  // Verification workflow
+  isVerified Boolean   @default(false)
+  verifiedAt DateTime?
+
+  uploadedAt DateTime @default(now())
 
   @@map("student_document_info")
 }

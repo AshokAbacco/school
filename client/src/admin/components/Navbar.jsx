@@ -24,13 +24,6 @@ function Navbar({ onMenuClick }) {
     setIsLogoutModalOpen(true);
   };
 
-  const handleConfirmLogout = () => {
-    // Add your logout logic here
-    console.log('User logged out');
-    // Example: navigate to login page, clear tokens, etc.
-    window.location.href = '/';
-    setIsLogoutModalOpen(false);
-  };
 
   const handleCancelLogout = () => {
     setIsLogoutModalOpen(false);
