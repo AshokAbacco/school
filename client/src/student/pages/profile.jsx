@@ -1,25 +1,48 @@
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Calendar, Award, BookOpen, User, Users, FileText, Download, Heart, Activity, Droplet, Ruler, Weight } from 'lucide-react';
+import {
+  Mail, Phone, MapPin, Calendar, Award, BookOpen, User, Users,
+  FileText, Download, Heart, Activity, Droplet, Ruler, Weight
+} from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 
 function Profile() {
   const [activeTab, setActiveTab] = useState('personalinfo');
 
-  const InfoCard = ({ icon: Icon, label, value, color = 'blue' }) => (
-    <div className={`bg-gradient-to-r from-${color}-50 to-${color}-100 p-4 rounded-xl border-l-4 border-${color}-600 hover:shadow-md transition`}>
-      <div className="flex items-center gap-3">
-        <div className={`bg-${color}-600 p-2 rounded-lg`}>
-          <Icon className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <div className="text-xs text-gray-500 font-medium">{label}</div>
-          <div className="text-gray-800 font-bold">{value}</div>
+  const InfoCard = ({ icon: Icon, label, value, color = "blue" }) => {
+    if (!Icon) return null; // safety check
+
+    const colorStyles = {
+      blue: {
+        gradient: "from-blue-50 to-blue-100",
+        border: "border-blue-600",
+        bg: "bg-blue-600",
+      },
+      red: {
+        gradient: "from-red-50 to-red-100",
+        border: "border-red-600",
+        bg: "bg-red-600",
+      },
+    };
+
+    const styles = colorStyles[color] || colorStyles.blue;
+
+    return (
+      <div className={`bg-gradient-to-r ${styles.gradient} p-4 rounded-xl border-l-4 ${styles.border} hover:shadow-md transition`}>
+        <div className="flex items-center gap-3">
+          <div className={`${styles.bg} p-2 rounded-lg`}>
+            <Icon className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 font-medium">{label}</div>
+            <div className="text-gray-800 font-bold">{value}</div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
-  const DocumentCard = ({ icon: Icon, label, status, date, statusColor }) => {
+
+  const DocumentCard = ({ icon: label, status, date, statusColor }) => {
     const colors = { green: 'bg-green-100 text-green-700', yellow: 'bg-yellow-100 text-yellow-700', red: 'bg-red-100 text-red-700' };
     return (
       <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-xl border-l-4 border-blue-600 hover:shadow-md transition">
@@ -92,7 +115,7 @@ function Profile() {
   );
 
   const renderContent = () => {
-    switch(activeTab) {
+    switch (activeTab) {
       case 'personalinfo': return <PersonalInfoContent />;
       case 'documentinfo': return <DocumentInfoContent />;
       case 'health': return <HealthContent />;
