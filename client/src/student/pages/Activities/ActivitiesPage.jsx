@@ -105,9 +105,9 @@ function Activities() {
 
   const colorClasses = {
     blue: 'from-blue-500 to-blue-600 border-blue-500',
-    blue: 'from-blue-500 to-blue-600 border-blue-500',
-    blue: 'from-blue-500 to-blue-600 border-blue-500',
-    blue: 'from-blue-500 to-blue-600 border-blue-500',
+    // blue: 'from-blue-500 to-blue-600 border-blue-500',
+    // blue: 'from-blue-500 to-blue-600 border-blue-500',
+    // blue: 'from-blue-500 to-blue-600 border-blue-500',
     green: 'from-green-500 to-green-600 border-green-500',
     indigo: 'from-indigo-500 to-indigo-600 border-indigo-500',
     red: 'from-red-500 to-red-600 border-red-500',

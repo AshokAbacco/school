@@ -87,13 +87,13 @@ function Certificates() {
 
   const colorClasses = {
     blue: 'from-blue-500 to-blue-600 border-blue-500',
-    blue: 'from-blue-500 to-blue-600 border-blue-500',
+    // blue: 'from-blue-500 to-blue-600 border-blue-500',
     purple: 'from-purple-500 to-purple-600 border-purple-500',
     green: 'from-green-500 to-green-600 border-green-500',
     teal: 'from-teal-500 to-teal-600 border-teal-500',
     pink: 'from-pink-500 to-pink-600 border-pink-500',
     indigo: 'from-indigo-500 to-indigo-600 border-indigo-500',
-    blue: 'from-blue-500 to-blue-600 border-blue-500',
+    // blue: 'from-blue-500 to-blue-600 border-blue-500',
   };
 
   return (
@@ -167,15 +167,15 @@ function Certificates() {
                 className={`relative rounded-xl border-l-4 ${colorClasses[cert.color]} bg-gradient-to-br from-gray-50 to-white p-5 hover:shadow-lg transition overflow-hidden`}
               >
                 <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-r ${colorClasses[cert.color]} opacity-10 rounded-bl-full`}></div>
-                
+
                 <div className="relative">
                   <div className={`inline-flex p-3 rounded-lg bg-gradient-to-r ${colorClasses[cert.color]} mb-3`}>
                     <Icon className="w-6 h-6 text-white" />
                   </div>
-                  
+
                   <h3 className="font-bold text-gray-800 text-lg mb-2">{cert.title}</h3>
                   <p className="text-sm text-gray-600 mb-3">{cert.description}</p>
-                  
+
                   <div className="space-y-2 mb-4">
                     <div className="flex items-center gap-2 text-xs text-gray-500">
                       <Award className="w-4 h-4" />
