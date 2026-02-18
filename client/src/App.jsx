@@ -1,6 +1,9 @@
+// client/src/App.jsx
 import "./App.css";
 import { getAuth } from "./auth/storage";
 import Login from "./auth/Login";
+import Register from "./auth/Register";
+import { useState } from "react";
 
 import AdminRoutes from "./admin/Routes";
 import StudentRoutes from "./student/Routes";
@@ -9,40 +12,34 @@ import TeacherRoutes from "./teacher/Routes";
 import ParentRoutes from "./parent/Routes";
 
 function App() {
+  const [view, setView] = useState("login"); // "login" | "register"
   const auth = getAuth();
 
-  // not logged in
+  // ── Not logged in → show Login or Register ──────────────────
   if (!auth) {
-    return <Login />;
+    if (view === "register") {
+      return <Register onSwitchToLogin={() => setView("login")} />;
+    }
+    return <Login onSwitchToRegister={() => setView("register")} />;
   }
 
-  // student login
-  if (auth.accountType === "student") {
-    return <StudentRoutes />;
-  }
+  // ── Logged in → route by accountType + role ─────────────────
 
-  // parent login
-  if (auth.accountType === "parent") {
-    return <ParentRoutes />;
-  }
+  if (auth.accountType === "student") return <StudentRoutes />;
 
-  // staff login → check role
+  if (auth.accountType === "parent") return <ParentRoutes />;
+
+  if (auth.accountType === "superAdmin") return <SuperAdminRoutes />;
+
   if (auth.accountType === "staff") {
-    if (auth.role === "ADMIN") {
-      return <AdminRoutes />;
-    }
-
-    if (auth.role === "TEACHER") {
-      return <TeacherRoutes />;
-    }
-
-    if (auth.role === "SUPER_ADMIN") {
-      return <SuperAdminRoutes />;
-    }
+    if (auth.role === "ADMIN") return <AdminRoutes />;
+    if (auth.role === "TEACHER") return <TeacherRoutes />;
+    // SUPER_ADMIN role inside staff (legacy fallback)
+    if (auth.role === "SUPER_ADMIN") return <SuperAdminRoutes />;
   }
 
-  // fallback
-  return <Login />;
+  // fallback — clear bad auth and show login
+  return <Login onSwitchToRegister={() => setView("register")} />;
 }
 
 export default App;
