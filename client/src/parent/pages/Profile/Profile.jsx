@@ -5,7 +5,7 @@ const Profile = () => {
 
     const tabs = [
         { id: "personal", label: "Personal Info" },
-        { id: "academic", label: "Academic Info" },
+        { id: "academic", label: "Document" },
         { id: "health", label: "Health" },
     ];
 
