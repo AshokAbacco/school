@@ -1,428 +1,184 @@
-// studentController.js
-// Handles: Student auth · PersonalInfo CRUD · Document upload/delete via Cloudflare R2
-
-import { PrismaClient } from "@prisma/client";
+// controllers/studentController.js
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import {
-  S3Client,
-  PutObjectCommand,
-  DeleteObjectCommand,
-  GetObjectCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { v4 as uuidv4 } from "uuid";
+import { PrismaClient } from "@prisma/client";
+// import { uploadToR2, deleteFromR2 } from "../lib/r2.js"; // see lib/r2.js below
 
 const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || "change-me";
 
-// ─── Cloudflare R2 client ────────────────────────────────────────────────────
-const r2 = new S3Client({
-  region: "auto",
-  endpoint: process.env.CLOUDFLARE_R2_ENDPOINT, // https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-  credentials: {
-    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID,
-    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
-  },
-});
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-const BUCKET = process.env.CLOUDFLARE_R2_BUCKET_NAME;
-const PUBLIC_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL; // e.g. https://pub-xxx.r2.dev
+/** Normalise enum-style strings → upper-snake for Prisma */
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+const toEnum = (v) => (v ? v.toUpperCase().replace(/\s+/g, "_") : undefined);
 
-const generateToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
-  });
-
-const uploadToR2 = async (fileBuffer, mimeType, folder, originalName) => {
-  const ext = originalName.split(".").pop();
-  const fileKey = `${folder}/${uuidv4()}.${ext}`;
-
-  await r2.send(
-    new PutObjectCommand({
-      Bucket: BUCKET,
-      Key: fileKey,
-      Body: fileBuffer,
-      ContentType: mimeType,
-    })
-  );
-
-  const fileUrl = `${PUBLIC_URL}/${fileKey}`;
-  return { fileKey, fileUrl };
+// ADD THIS:
+const toBloodGroupEnum = (v) => {
+  if (!v) return undefined;
+  return v
+    .toUpperCase()
+    .replace(/\+/g, "_PLUS")
+    .replace(/-/g, "_MINUS");
+  // "A+"  → "A_PLUS"
+  // "AB-" → "AB_MINUS"
+  // "O+"  → "O_PLUS"  etc.
 };
+ 
+/** Strip undefined values so Prisma doesn't complain about missing optionals */
+const compact = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== ""));
 
-const deleteFromR2 = async (fileKey) => {
-  await r2.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: fileKey }));
-};
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  AUTH
-// ═════════════════════════════════════════════════════════════════════════════
-
-// POST /api/students/register
+// ── registerStudent ────────────────────────────────────────────────────────
+/**
+ * POST /api/students/register
+ * Creates the auth row in `Student` table.
+ */
 export const registerStudent = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, firstName, lastName } = req.body;
 
-    if (!name || !email || !password)
+    if (!email || !password || !name) {
       return res.status(400).json({ message: "name, email and password are required" });
+    }
 
+    // Check duplicate
     const exists = await prisma.student.findUnique({ where: { email } });
-    if (exists)
-      return res.status(409).json({ message: "Email already registered" });
+    if (exists) {
+      return res.status(409).json({ message: "A student with this email already exists" });
+    }
 
-    const hashed = await bcrypt.hash(password, 12);
-
+    const hashed = await bcrypt.hash(password, 10);
     const student = await prisma.student.create({
       data: { name, email, password: hashed },
       select: { id: true, name: true, email: true, createdAt: true },
     });
 
-    res.status(201).json({
-      message: "Student registered successfully",
-      token: generateToken(student.id),
-      student,
-    });
+    const token = jwt.sign({ id: student.id, role: "student" }, JWT_SECRET, { expiresIn: "7d" });
+
+    return res.status(201).json({ student, token });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error("[registerStudent]", err);
+    return res.status(500).json({ message: "Server error", detail: err.message });
   }
 };
 
-// POST /api/students/login
-export const loginStudent = async (req, res) => {
+// ── savePersonalInfo ───────────────────────────────────────────────────────
+/**
+ * POST /api/students/:id/personal-info
+ * Upserts the StudentPersonalInfo row.
+ * Accepts multipart/form-data; req.file = profileImage (optional).
+ */
+export const savePersonalInfo = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { id: studentId } = req.params;
 
-    const student = await prisma.student.findUnique({ where: { email } });
-    if (!student)
-      return res.status(401).json({ message: "Invalid credentials" });
+    // Verify student exists
+    const student = await prisma.student.findUnique({ where: { id: studentId } });
+    if (!student) return res.status(404).json({ message: "Student not found" });
 
-    const match = await bcrypt.compare(password, student.password);
-    if (!match)
-      return res.status(401).json({ message: "Invalid credentials" });
+    const {
+      firstName, lastName, dateOfBirth, gender,
+      phone, address, city, state, zipCode,
+      grade, className, admissionDate, status,
+      parentName, parentEmail, parentPhone, emergencyContact,
+      bloodGroup, medicalConditions, allergies,
+    } = req.body;
 
-    const { password: _, ...safeStudent } = student;
-    res.json({
-      message: "Login successful",
-      token: generateToken(student.id),
-      student: safeStudent,
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
+    // Required personal info fields
+    if (!firstName || !lastName) {
+      return res.status(400).json({ message: "firstName and lastName are required" });
+    }
+    if (!grade || !className || !admissionDate) {
+      return res.status(400).json({ message: "grade, className and admissionDate are required" });
+    }
 
-// ═════════════════════════════════════════════════════════════════════════════
-//  STUDENTS — list / get / delete
-// ═════════════════════════════════════════════════════════════════════════════
+    // Profile photo upload (optional)
+    let profileImageUrl;
+    if (req.file) {
+      const key = `students/${studentId}/profile/${Date.now()}-${req.file.originalname}`;
+      profileImageUrl = await uploadToR2(key, req.file.buffer, req.file.mimetype);
+    }
 
-// GET /api/students
-export const getAllStudents = async (req, res) => {
-  try {
-    const { search, grade, status, page = 1, limit = 10 } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
-
-    const where = {
-      personalInfo: {
-        ...(grade   && { grade }),
-        ...(status  && { status }),
-        ...(search  && {
-          OR: [
-            { firstName: { contains: search, mode: "insensitive" } },
-            { lastName:  { contains: search, mode: "insensitive" } },
-          ],
-        }),
-      },
+        // ✅ Fix BloodGroup Enum Mapping
+    // ✅ Fix BloodGroup Enum Mapping
+    const bloodGroupMap = {
+    A_PLUS: "A_POS",
+    A_MINUS: "A_NEG",
+    B_PLUS: "B_POS",
+    B_MINUS: "B_NEG",
+    AB_PLUS: "AB_POS",
+    AB_MINUS: "AB_NEG",
+    O_PLUS: "O_POS",
+    O_MINUS: "O_NEG",
     };
 
-    const [students, total] = await prisma.$transaction([
-      prisma.student.findMany({
-        where,
-        skip,
-        take: Number(limit),
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          createdAt: true,
-          personalInfo: {
-            select: {
-              firstName: true, lastName: true, phone: true,
-              grade: true, className: true, status: true,
-              admissionDate: true, profileImage: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.student.count({ where }),
-    ]);
+    const fixedBloodGroup =
+    bloodGroupMap[toEnum(bloodGroup)] || toEnum(bloodGroup);
 
-    res.json({
-      data: students,
-      pagination: {
-        total,
-        page:  Number(page),
-        limit: Number(limit),
-        pages: Math.ceil(total / Number(limit)),
-      },
+    // Build data payload
+    const data = compact({
+    firstName,
+    lastName,
+    phone,
+    address,
+    city,
+    state,
+    zipCode,
+    grade,
+    className,
+
+    admissionDate: admissionDate ? new Date(admissionDate) : undefined,
+
+    status: toEnum(status) || "ACTIVE",
+
+    parentName,
+    parentEmail,
+    parentPhone,
+    emergencyContact,
+
+    // ✅ Fixed Enum Value
+    bloodGroup: fixedBloodGroup,
+
+    medicalConditions,
+    allergies,
     });
+
+    // Upsert so re-submitting (e.g. going back and re-saving) works cleanly
+    const personalInfo = await prisma.studentPersonalInfo.upsert({
+      where:  { studentId },
+      create: { studentId, ...data },
+      update: data,
+    });
+
+    return res.status(200).json({ personalInfo });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error("[savePersonalInfo]", err);
+    return res.status(500).json({ message: "Server error", detail: err.message });
   }
 };
 
-// GET /api/students/:id
-export const getStudentById = async (req, res) => {
-  try {
-    const student = await prisma.student.findUnique({
-      where: { id: req.params.id },
-      select: {
-        id: true, name: true, email: true, createdAt: true,
-        personalInfo: true,
-        documents: {
-          orderBy: { uploadedAt: "desc" },
-        },
-      },
-    });
-
-    if (!student)
-      return res.status(404).json({ message: "Student not found" });
-
-    res.json({ data: student });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// DELETE /api/students/:id
-export const deleteStudent = async (req, res) => {
-  try {
-    // Delete all R2 files first
-    const docs = await prisma.studentDocumentInfo.findMany({
-      where: { studentId: req.params.id },
-      select: { fileKey: true },
-    });
-
-    await Promise.all(docs.map((d) => deleteFromR2(d.fileKey)));
-
-    await prisma.student.delete({ where: { id: req.params.id } });
-
-    res.json({ message: "Student deleted successfully" });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  PERSONAL INFO
-// ═════════════════════════════════════════════════════════════════════════════
-
-// POST /api/students/:id/personal-info
-export const createPersonalInfo = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const student = await prisma.student.findUnique({ where: { id } });
-    if (!student)
-      return res.status(404).json({ message: "Student not found" });
-
-    const alreadyExists = await prisma.studentPersonalInfo.findUnique({
-      where: { studentId: id },
-    });
-    if (alreadyExists)
-      return res.status(409).json({ message: "Personal info already exists. Use PUT to update." });
-
-    const {
-      firstName, lastName, dateOfBirth, gender, phone,
-      address, city, state, zipCode,
-      grade, className, admissionDate, status,
-      parentName, parentEmail, parentPhone, emergencyContact,
-      bloodGroup, medicalConditions, allergies,
-    } = req.body;
-
-    if (!firstName || !lastName || !grade || !className || !admissionDate)
-      return res.status(400).json({ message: "firstName, lastName, grade, className and admissionDate are required" });
-
-    // Profile image upload (optional, multer field: profileImage)
-    let profileImage = null;
-    if (req.file) {
-      const { fileUrl } = await uploadToR2(
-        req.file.buffer,
-        req.file.mimetype,
-        `students/${id}/profile`,
-        req.file.originalname
-      );
-      profileImage = fileUrl;
-    }
-
-    const info = await prisma.studentPersonalInfo.create({
-      data: {
-        studentId: id,
-        firstName, lastName,
-        dateOfBirth:  dateOfBirth  ? new Date(dateOfBirth)  : null,
-        gender:       gender       || null,
-        profileImage,
-        phone, address, city, state, zipCode,
-        grade, className,
-        admissionDate: new Date(admissionDate),
-        status:        status || "ACTIVE",
-        parentName, parentEmail, parentPhone, emergencyContact,
-        bloodGroup:        bloodGroup        || null,
-        medicalConditions: medicalConditions || null,
-        allergies:         allergies         || null,
-      },
-    });
-
-    res.status(201).json({ message: "Personal info created", data: info });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// PUT /api/students/:id/personal-info
-export const updatePersonalInfo = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const existing = await prisma.studentPersonalInfo.findUnique({
-      where: { studentId: id },
-    });
-    if (!existing)
-      return res.status(404).json({ message: "Personal info not found. Use POST to create." });
-
-    const {
-      firstName, lastName, dateOfBirth, gender, phone,
-      address, city, state, zipCode,
-      grade, className, admissionDate, status,
-      parentName, parentEmail, parentPhone, emergencyContact,
-      bloodGroup, medicalConditions, allergies,
-    } = req.body;
-
-    // Handle profile image update
-    let profileImage = existing.profileImage;
-    if (req.file) {
-      const { fileUrl } = await uploadToR2(
-        req.file.buffer,
-        req.file.mimetype,
-        `students/${id}/profile`,
-        req.file.originalname
-      );
-      profileImage = fileUrl;
-    }
-
-    const updated = await prisma.studentPersonalInfo.update({
-      where: { studentId: id },
-      data: {
-        ...(firstName        && { firstName }),
-        ...(lastName         && { lastName }),
-        ...(dateOfBirth      && { dateOfBirth: new Date(dateOfBirth) }),
-        ...(gender           && { gender }),
-        profileImage,
-        ...(phone            && { phone }),
-        ...(address          && { address }),
-        ...(city             && { city }),
-        ...(state            && { state }),
-        ...(zipCode          && { zipCode }),
-        ...(grade            && { grade }),
-        ...(className        && { className }),
-        ...(admissionDate    && { admissionDate: new Date(admissionDate) }),
-        ...(status           && { status }),
-        ...(parentName       && { parentName }),
-        ...(parentEmail      && { parentEmail }),
-        ...(parentPhone      && { parentPhone }),
-        ...(emergencyContact && { emergencyContact }),
-        ...(bloodGroup       && { bloodGroup }),
-        ...(medicalConditions !== undefined && { medicalConditions }),
-        ...(allergies         !== undefined && { allergies }),
-      },
-    });
-
-    res.json({ message: "Personal info updated", data: updated });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// GET /api/students/:id/personal-info
-export const getPersonalInfo = async (req, res) => {
-  try {
-    const info = await prisma.studentPersonalInfo.findUnique({
-      where: { studentId: req.params.id },
-    });
-
-    if (!info)
-      return res.status(404).json({ message: "Personal info not found" });
-
-    res.json({ data: info });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  DOCUMENTS
-// ═════════════════════════════════════════════════════════════════════════════
-
-// POST /api/students/:id/documents
-// multipart/form-data  fields: documentName, customLabel (optional), file
-export const uploadDocument = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { documentName, customLabel } = req.body;
-
-    if (!req.file)
-      return res.status(400).json({ message: "No file uploaded" });
-
-    if (!documentName)
-      return res.status(400).json({ message: "documentName is required" });
-
-    const student = await prisma.student.findUnique({ where: { id } });
-    if (!student)
-      return res.status(404).json({ message: "Student not found" });
-
-    const { fileKey, fileUrl } = await uploadToR2(
-      req.file.buffer,
-      req.file.mimetype,
-      `students/${id}/documents`,
-      req.file.originalname
-    );
-
-    const doc = await prisma.studentDocumentInfo.create({
-      data: {
-        studentId: id,
-        documentName,
-        customLabel: documentName === "CUSTOM" ? customLabel : null,
-        fileKey,
-        fileUrl,
-        fileType:      req.file.mimetype,
-        fileSizeBytes: req.file.size,
-      },
-    });
-
-    res.status(201).json({ message: "Document uploaded", data: doc });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// POST /api/students/:id/documents/bulk
-// Upload multiple documents at once
-// multipart/form-data  files[] array + metadata[] JSON array
+// ── uploadDocumentsBulk ────────────────────────────────────────────────────
+/**
+ * POST /api/students/:id/documents/bulk
+ * req.files  — array of uploaded files (multer)
+ * req.body.metadata — JSON string: [{ documentName, customLabel }]
+ *
+ * documentName is one of the enum values from your Prisma schema, e.g.
+ *   "AADHAR_CARD" | "BIRTH_CERTIFICATE" | "MARKSHEET" | "TRANSFER_CERTIFICATE" | "CUSTOM"
+ */
 export const uploadDocumentsBulk = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id: studentId } = req.params;
 
-    const student = await prisma.student.findUnique({ where: { id } });
-    if (!student)
-      return res.status(404).json({ message: "Student not found" });
+    const student = await prisma.student.findUnique({ where: { id: studentId } });
+    if (!student) return res.status(404).json({ message: "Student not found" });
 
-    if (!req.files || req.files.length === 0)
-      return res.status(400).json({ message: "No files uploaded" });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "No files received" });
+    }
 
-    // metadata is a JSON array stringified by frontend
-    // e.g. [{ documentName: "AADHAR_CARD", customLabel: null }, ...]
     let metadata = [];
     try {
       metadata = JSON.parse(req.body.metadata || "[]");
@@ -430,103 +186,139 @@ export const uploadDocumentsBulk = async (req, res) => {
       return res.status(400).json({ message: "Invalid metadata JSON" });
     }
 
-    const results = await Promise.all(
-      req.files.map(async (file, idx) => {
-        const { documentName = "CUSTOM", customLabel = null } = metadata[idx] || {};
+    if (metadata.length !== req.files.length) {
+      return res.status(400).json({ message: "metadata array length must match files array length" });
+    }
 
-        const { fileKey, fileUrl } = await uploadToR2(
-          file.buffer,
-          file.mimetype,
-          `students/${id}/documents`,
-          file.originalname
-        );
+    // Upload each file to R2 and record in DB
+    const created = await Promise.all(
+      req.files.map(async (file, idx) => {
+        const { documentName, customLabel } = metadata[idx];
+        const key = `students/${studentId}/documents/${Date.now()}-${idx}-${file.originalname}`;
+        const fileUrl = await uploadToR2(key, file.buffer, file.mimetype);
 
         return prisma.studentDocumentInfo.create({
           data: {
-            studentId: id,
-            documentName,
-            customLabel: documentName === "CUSTOM" ? customLabel : null,
-            fileKey,
+            studentId,
+            documentName,          // enum value
+            customLabel:  customLabel || null,
             fileUrl,
-            fileType:      file.mimetype,
-            fileSizeBytes: file.size,
+            fileName:     file.originalname,
+            fileSize:     file.size,
+            mimeType:     file.mimetype,
+            r2Key:        key,
           },
         });
       })
     );
 
-    res.status(201).json({
-      message: `${results.length} document(s) uploaded`,
-      data: results,
-    });
+    return res.status(201).json({ documents: created });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    console.error("[uploadDocumentsBulk]", err);
+    return res.status(500).json({ message: "Server error", detail: err.message });
   }
 };
 
-// GET /api/students/:id/documents
-export const getDocuments = async (req, res) => {
+// ── getStudent ─────────────────────────────────────────────────────────────
+/**
+ * GET /api/students/:id
+ */
+export const getStudent = async (req, res) => {
   try {
+    const student = await prisma.student.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true, name: true, email: true, createdAt: true,
+        personalInfo: true,
+        documents: {
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+    if (!student) return res.status(404).json({ message: "Student not found" });
+    return res.json({ student });
+  } catch (err) {
+    console.error("[getStudent]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ── listStudents ───────────────────────────────────────────────────────────
+/**
+ * GET /api/students?page=1&limit=20&search=john
+ */
+export const listStudents = async (req, res) => {
+  try {
+    const page   = Math.max(1, parseInt(req.query.page  || "1"));
+    const limit  = Math.min(100, parseInt(req.query.limit || "20"));
+    const search = req.query.search?.trim() || "";
+
+    const where = search
+      ? {
+          OR: [
+            { name:  { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+            { personalInfo: { firstName: { contains: search, mode: "insensitive" } } },
+            { personalInfo: { lastName:  { contains: search, mode: "insensitive" } } },
+          ],
+        }
+      : {};
+
+    const [total, students] = await prisma.$transaction([
+      prisma.student.count({ where }),
+      prisma.student.findMany({
+        where,
+        skip:  (page - 1) * limit,
+        take:  limit,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true, name: true, email: true, createdAt: true,
+          personalInfo: {
+            select: {
+              firstName: true, lastName: true, grade: true,
+              className: true, status: true, profileImage: true,
+            },
+          },
+          _count: { select: { documents: true } },
+        },
+      }),
+    ]);
+
+    return res.json({ students, total, page, limit, pages: Math.ceil(total / limit) });
+  } catch (err) {
+    console.error("[listStudents]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ── deleteStudent ──────────────────────────────────────────────────────────
+/**
+ * DELETE /api/students/:id
+ * Cascades to personalInfo + documents via Prisma onDelete: Cascade.
+ * Also deletes R2 objects for documents.
+ */
+export const deleteStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Grab document R2 keys first
     const docs = await prisma.studentDocumentInfo.findMany({
-      where:   { studentId: req.params.id },
-      orderBy: { uploadedAt: "desc" },
+      where: { studentId: id },
+      select: { fileKey: true },
     });
 
-    res.json({ data: docs });
+    // Delete student (cascade clears personalInfo + documents rows)
+    await prisma.student.delete({ where: { id } });
+
+    // Clean up R2 objects in background — don't block the response
+    Promise.all(docs.map((d) => deleteFromR2(d.r2Key))).catch((e) =>
+      console.error("[deleteStudent] R2 cleanup error:", e)
+    );
+
+    return res.json({ message: "Student deleted" });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// GET /api/students/:id/documents/:docId/signed-url
-// Returns a short-lived signed URL for private R2 buckets
-export const getSignedDocumentUrl = async (req, res) => {
-  try {
-    const doc = await prisma.studentDocumentInfo.findFirst({
-      where: { id: req.params.docId, studentId: req.params.id },
-    });
-
-    if (!doc)
-      return res.status(404).json({ message: "Document not found" });
-
-    const command = new GetObjectCommand({ Bucket: BUCKET, Key: doc.fileKey });
-    const signedUrl = await getSignedUrl(r2, command, { expiresIn: 3600 }); // 1 hr
-
-    res.json({ signedUrl });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// PATCH /api/students/:id/documents/:docId/verify
-export const verifyDocument = async (req, res) => {
-  try {
-    const doc = await prisma.studentDocumentInfo.update({
-      where: { id: req.params.docId },
-      data:  { isVerified: true, verifiedAt: new Date() },
-    });
-
-    res.json({ message: "Document verified", data: doc });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// DELETE /api/students/:id/documents/:docId
-export const deleteDocument = async (req, res) => {
-  try {
-    const doc = await prisma.studentDocumentInfo.findFirst({
-      where: { id: req.params.docId, studentId: req.params.id },
-    });
-
-    if (!doc)
-      return res.status(404).json({ message: "Document not found" });
-
-    await deleteFromR2(doc.fileKey);
-    await prisma.studentDocumentInfo.delete({ where: { id: doc.id } });
-
-    res.json({ message: "Document deleted" });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    if (err.code === "P2025") return res.status(404).json({ message: "Student not found" });
+    console.error("[deleteStudent]", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };

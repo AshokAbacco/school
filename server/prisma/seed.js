@@ -6,7 +6,9 @@ const prisma = new PrismaClient();
 async function main() {
   const password = await bcrypt.hash("123456", 10);
 
+  // ─────────────────────────────────────────────
   // SUPER ADMIN
+  // ─────────────────────────────────────────────
   await prisma.user.create({
     data: {
       name: "Super Admin",
@@ -16,7 +18,9 @@ async function main() {
     },
   });
 
+  // ─────────────────────────────────────────────
   // ADMIN
+  // ─────────────────────────────────────────────
   await prisma.user.create({
     data: {
       name: "Admin User",
@@ -26,26 +30,56 @@ async function main() {
     },
   });
 
-  // TEACHER
+  // ─────────────────────────────────────────────
+  // TEACHER + TeacherProfile
+  // ─────────────────────────────────────────────
   await prisma.user.create({
     data: {
       name: "Teacher User",
       email: "teacher@school.com",
       password,
       role: "TEACHER",
+      teacherProfile: {
+        create: {
+          employeeCode: "TCH-001",
+          firstName: "Teacher",
+          lastName: "User",
+          department: "Mathematics",
+          designation: "Senior Teacher",
+          qualification: "M.Sc Mathematics",
+          experienceYears: 5,
+          joiningDate: new Date(),
+          employmentType: "FULL_TIME",
+          status: "ACTIVE",
+        },
+      },
     },
   });
 
-  // STUDENT
+  // ─────────────────────────────────────────────
+  // STUDENT + StudentPersonalInfo
+  // ─────────────────────────────────────────────
   await prisma.student.create({
     data: {
       name: "Student One",
       email: "student@school.com",
       password,
+      personalInfo: {
+        create: {
+          firstName: "Student",
+          lastName: "One",
+          grade: "10",
+          className: "A",
+          admissionDate: new Date(),
+          status: "ACTIVE",
+        },
+      },
     },
   });
 
+  // ─────────────────────────────────────────────
   // PARENT
+  // ─────────────────────────────────────────────
   await prisma.parent.create({
     data: {
       name: "Parent One",
@@ -54,9 +88,13 @@ async function main() {
     },
   });
 
-  console.log("Seed data inserted");
+  console.log("Seed data inserted successfully ✅");
 }
 
 main()
-  .catch((e) => console.error(e))
-  .finally(() => prisma.$disconnect());
+  .catch((e) => {
+    console.error(e);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

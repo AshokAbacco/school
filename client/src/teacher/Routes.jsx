@@ -1,12 +1,5 @@
-import Dashboard from "./dashboard/Dashboard"
-
 function App() {
-
-  return (
-  <div>
-    <Dashboard/>
-  </div>
-  )
+  return <div>teachers</div>;
 }
 
-export default App
+export default App;

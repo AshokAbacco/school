@@ -22,12 +22,21 @@ model Parent {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  name      String
-  email     String    @unique
-  password  String
-  role      StaffRole
-  createdAt DateTime  @default(now())
+  id          String    @id @default(uuid())
+  name        String
+  email       String    @unique
+  password    String
+  role        StaffRole
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  teacherProfile TeacherProfile?
+
+  @@index([role])
+  @@index([isActive])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -103,20 +112,28 @@ model StudentDocumentInfo {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // ── Relation ──────────────────────────────────────────────
+  // Relation
   studentId String
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  // ── Document Details ───────────────────────────────────────
-  documentName  DocumentType // enum — standard docs
-  customLabel   String? // used when documentName = CUSTOM
-  fileKey       String // Cloudflare R2 object key  e.g. "students/uuid/aadhar.pdf"
-  fileUrl       String // Public / signed CDN URL
-  fileType      String // MIME type  e.g. "application/pdf"
+  // Document Details
+  documentName DocumentType
+  customLabel  String?
+
+  // Permanent storage pointer (REAL reference)
+  fileKey String // e.g. students/{studentId}/{uuid}.pdf
+
+  // Temporary signed URL (NEVER trusted, regenerated on each request)
+  fileUrl String? // last generated signed URL cache
+
+  fileType      String
   fileSizeBytes Int?
-  isVerified    Boolean      @default(false)
-  verifiedAt    DateTime?
-  uploadedAt    DateTime     @default(now())
+
+  // Verification workflow
+  isVerified Boolean   @default(false)
+  verifiedAt DateTime?
+
+  uploadedAt DateTime @default(now())
 
   @@map("student_document_info")
 }
@@ -163,4 +180,137 @@ enum DocumentType {
   INCOME_CERTIFICATE
   PHOTO
   CUSTOM // user-defined label stored in customLabel
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Teacher Profile (Professional CRM Structure)
+// ─────────────────────────────────────────────────────────────
+model TeacherProfile {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ── Relation (Login Account) ───────────────────────────────
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // ── Basic Info ─────────────────────────────────────────────
+  employeeCode String    @unique
+  firstName    String
+  lastName     String
+  dateOfBirth  DateTime?
+  gender       Gender?
+  phone        String?
+  address      String?
+  city         String?
+  state        String?
+  zipCode      String?
+  profileImage String?
+
+  // ── Professional Info ─────────────────────────────────────
+  department      String
+  designation     String // e.g. Senior Teacher, HOD
+  qualification   String?
+  experienceYears Int?
+  joiningDate     DateTime
+  employmentType  EmploymentType
+  status          TeacherStatus  @default(ACTIVE)
+
+  // ── Payroll Info ───────────────────────────────────────────
+  salary        Decimal? @db.Decimal(10, 2)
+  bankAccountNo String?
+  bankName      String?
+  ifscCode      String?
+  panNumber     String?
+  aadhaarNumber String?
+
+  // ── Relations ──────────────────────────────────────────────
+  assignments TeacherAssignment[]
+  documents   TeacherDocument[]
+
+  @@index([department])
+  @@index([designation])
+  @@index([status])
+  @@index([joiningDate])
+  @@map("teacher_profiles")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Teacher Assignment (Classes & Subjects)
+// ─────────────────────────────────────────────────────────────
+model TeacherAssignment {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  grade     String
+  className String
+  subject   String
+
+  academicYear String
+
+  @@index([teacherId])
+  @@index([grade, className])
+  @@index([academicYear])
+  @@map("teacher_assignments")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Teacher Documents
+// ─────────────────────────────────────────────────────────────
+model TeacherDocument {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  documentType TeacherDocumentType
+  customLabel  String?
+
+  fileKey String
+  fileUrl String?
+
+  fileType      String
+  fileSizeBytes Int?
+
+  isVerified Boolean   @default(false)
+  verifiedAt DateTime?
+
+  @@index([teacherId])
+  @@index([documentType])
+  @@map("teacher_documents")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Enums
+// ─────────────────────────────────────────────────────────────
+
+enum TeacherStatus {
+  ACTIVE
+  ON_LEAVE
+  RESIGNED
+  TERMINATED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  TEMPORARY
+}
+
+enum TeacherDocumentType {
+  ID_PROOF
+  ADDRESS_PROOF
+  DEGREE_CERTIFICATE
+  EXPERIENCE_CERTIFICATE
+  CONTRACT_DOCUMENT
+  PAN_CARD
+  AADHAR_CARD
+  PHOTO
+  CUSTOM
 }
