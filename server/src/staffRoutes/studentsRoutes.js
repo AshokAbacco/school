@@ -9,6 +9,7 @@ import {
   getStudent,
   listStudents,
   deleteStudent,
+  viewStudentDocument,
 } from "../staffControlls/StudentsControlls.js";
 
 const router = express.Router();
@@ -41,19 +42,21 @@ router.post(
   "/:id/personal-info",
   authMiddleware,
   upload.single("profileImage"),
-  savePersonalInfo
+  savePersonalInfo,
 );
 
 router.post(
   "/:id/documents/bulk",
   authMiddleware,
   upload.array("files", 20),
-  uploadDocumentsBulk
+  uploadDocumentsBulk,
 );
 
 router.get("/", authMiddleware, listStudents);
 
 router.get("/:id", authMiddleware, getStudent);
+router.get("/documents/:documentId/view", authMiddleware, viewStudentDocument);
+
 router.delete("/:id", authMiddleware, deleteStudent);
 
 export default router;

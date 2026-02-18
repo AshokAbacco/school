@@ -1,5 +1,6 @@
 // server/src/staffRoutes/teachersRoutes.js
 import express from "express";
+import authMiddleware from "../middlewares/authMiddleware.js";
 import {
   getTeachers,
   getTeacherById,
@@ -8,16 +9,17 @@ import {
   deleteTeacher,
   addAssignment,
   removeAssignment,
-} from "../staffControlls/teacherController.js";//server\src\staffControlls\teacherController.js
+} from "../staffControlls/teacherController.js";
 
 const router = express.Router();
 
-router.get("/", getTeachers);
-router.get("/:id", getTeacherById);
-router.post("/", createTeacher);
-router.patch("/:id", updateTeacher);
-router.delete("/:id", deleteTeacher);
-router.post("/:id/assignments", addAssignment);
-router.delete("/:id/assignments/:aId", removeAssignment);
+// ✅ authMiddleware on ALL routes so req.user.schoolId is always available
+router.get("/", authMiddleware, getTeachers);
+router.get("/:id", authMiddleware, getTeacherById);
+router.post("/", authMiddleware, createTeacher);
+router.patch("/:id", authMiddleware, updateTeacher);
+router.delete("/:id", authMiddleware, deleteTeacher);
+router.post("/:id/assignments", authMiddleware, addAssignment);
+router.delete("/:id/assignments/:aId", authMiddleware, removeAssignment);
 
 export default router;
