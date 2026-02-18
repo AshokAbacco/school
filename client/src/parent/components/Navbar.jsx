@@ -78,7 +78,7 @@ function Navbar({ onMenuClick }) {
             <div className="relative pl-2 md:pl-4 border-l" ref={dropdownRef}>
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="text-right hidden md:block">
-                  <p className="font-semibold text-sm text-gray-800">Student  User</p>
+                  <p className="font-semibold text-sm text-gray-800">Parent User</p>
                   <p className="text-xs text-gray-500">Administrator</p>
                 </div>
                 <button
