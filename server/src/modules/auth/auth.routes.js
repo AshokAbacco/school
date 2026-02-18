@@ -1,20 +1,31 @@
-//server\src\modules\auth\auth.routes.js
-import express from "express";
+// server/src/modules/auth/auth.routes.js
+import { Router } from "express";
 import {
-  staffLoginController,
-  studentLoginController,
-  parentLoginController,
+  registerSuperAdmin,
+  loginSuperAdmin,
+  loginStaff,
+  loginStudent,
+  loginParent,
 } from "./auth.controller.js";
 
-const router = express.Router();
+const router = Router();
 
-// STAFF
-router.post("/staff/login", staffLoginController);
+// ── Super Admin ────────────────────────────────────────────────
+// POST /api/auth/super-admin/register  ← NEW (register university + super admin)
+router.post("/super-admin/register", registerSuperAdmin);
+// POST /api/auth/super-admin/login
+router.post("/super-admin/login", loginSuperAdmin);
 
-// STUDENT
-router.post("/student/login", studentLoginController);
+// ── Staff (Admin / Teacher) ────────────────────────────────────
+// POST /api/auth/staff/login
+router.post("/staff/login", loginStaff);
 
-// PARENT
-router.post("/parent/login", parentLoginController);
+// ── Student ────────────────────────────────────────────────────
+// POST /api/auth/student/login
+router.post("/student/login", loginStudent);
+
+// ── Parent ─────────────────────────────────────────────────────
+// POST /api/auth/parent/login
+router.post("/parent/login", loginParent);
 
 export default router;

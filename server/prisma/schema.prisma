@@ -7,140 +7,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  ENUMS
+// ═══════════════════════════════════════════════════════════════
+
 enum StaffRole {
   SUPER_ADMIN
   ADMIN
   TEACHER
 }
-
-model Parent {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-}
-
-model User {
-  id          String    @id @default(uuid())
-  name        String
-  email       String    @unique
-  password    String
-  role        StaffRole
-  isActive    Boolean   @default(true)
-  lastLoginAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  teacherProfile TeacherProfile?
-
-  @@index([role])
-  @@index([isActive])
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Student  (login / auth table — unchanged core, relations added)
-// ─────────────────────────────────────────────────────────────
-model Student {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  personalInfo StudentPersonalInfo?
-  documents    StudentDocumentInfo[]
-}
-
-// ─────────────────────────────────────────────────────────────
-//  StudentPersonalInfo
-//  Sections: Personal · Contact · Academic · Parent/Guardian · Health
-// ─────────────────────────────────────────────────────────────
-model StudentPersonalInfo {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // ── Relation ──────────────────────────────────────────────
-  studentId String  @unique
-  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-
-  // ── Personal Information ───────────────────────────────────
-  firstName    String
-  lastName     String
-  dateOfBirth  DateTime?
-  gender       Gender?
-  profileImage String? // Cloudflare R2 / CDN URL
-
-  // ── Contact Information ────────────────────────────────────
-  phone   String?
-  address String?
-  city    String?
-  state   String?
-  zipCode String?
-
-  // ── Academic Information ───────────────────────────────────
-  grade         String
-  className     String // e.g. "A", "B" — "class" is a reserved word in Prisma
-  admissionDate DateTime
-  status        StudentStatus @default(ACTIVE)
-
-  // ── Parent / Guardian ──────────────────────────────────────
-  parentName       String?
-  parentEmail      String?
-  parentPhone      String?
-  emergencyContact String?
-
-  // ── Health Information ─────────────────────────────────────
-  bloodGroup        BloodGroup?
-  medicalConditions String? // free text / comma-separated
-  allergies         String?
-
-  @@map("student_personal_info")
-}
-
-// ─────────────────────────────────────────────────────────────
-//  StudentDocumentInfo
-//  One row per document; file stored in Cloudflare R2,
-//  only the document name / metadata lives here.
-// ─────────────────────────────────────────────────────────────
-model StudentDocumentInfo {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relation
-  studentId String
-  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-
-  // Document Details
-  documentName DocumentType
-  customLabel  String?
-
-  // Permanent storage pointer (REAL reference)
-  fileKey String // e.g. students/{studentId}/{uuid}.pdf
-
-  // Temporary signed URL (NEVER trusted, regenerated on each request)
-  fileUrl String? // last generated signed URL cache
-
-  fileType      String
-  fileSizeBytes Int?
-
-  // Verification workflow
-  isVerified Boolean   @default(false)
-  verifiedAt DateTime?
-
-  uploadedAt DateTime @default(now())
-
-  @@map("student_document_info")
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Enums
-// ─────────────────────────────────────────────────────────────
 
 enum Gender {
   MALE
@@ -167,9 +42,9 @@ enum BloodGroup {
 }
 
 enum DocumentType {
-  AADHAR_CARD // Aadhar / national ID
+  AADHAR_CARD
   BIRTH_CERTIFICATE
-  PASSBOOK // Bank passbook
+  PASSBOOK
   TRANSFER_CERTIFICATE
   MARKSHEET
   MIGRATION_CERTIFICATE
@@ -179,115 +54,8 @@ enum DocumentType {
   CASTE_CERTIFICATE
   INCOME_CERTIFICATE
   PHOTO
-  CUSTOM // user-defined label stored in customLabel
+  CUSTOM
 }
-
-// ─────────────────────────────────────────────────────────────
-//  Teacher Profile (Professional CRM Structure)
-// ─────────────────────────────────────────────────────────────
-model TeacherProfile {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // ── Relation (Login Account) ───────────────────────────────
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // ── Basic Info ─────────────────────────────────────────────
-  employeeCode String    @unique
-  firstName    String
-  lastName     String
-  dateOfBirth  DateTime?
-  gender       Gender?
-  phone        String?
-  address      String?
-  city         String?
-  state        String?
-  zipCode      String?
-  profileImage String?
-
-  // ── Professional Info ─────────────────────────────────────
-  department      String
-  designation     String // e.g. Senior Teacher, HOD
-  qualification   String?
-  experienceYears Int?
-  joiningDate     DateTime
-  employmentType  EmploymentType
-  status          TeacherStatus  @default(ACTIVE)
-
-  // ── Payroll Info ───────────────────────────────────────────
-  salary        Decimal? @db.Decimal(10, 2)
-  bankAccountNo String?
-  bankName      String?
-  ifscCode      String?
-  panNumber     String?
-  aadhaarNumber String?
-
-  // ── Relations ──────────────────────────────────────────────
-  assignments TeacherAssignment[]
-  documents   TeacherDocument[]
-
-  @@index([department])
-  @@index([designation])
-  @@index([status])
-  @@index([joiningDate])
-  @@map("teacher_profiles")
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Teacher Assignment (Classes & Subjects)
-// ─────────────────────────────────────────────────────────────
-model TeacherAssignment {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-
-  teacherId String
-  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-
-  grade     String
-  className String
-  subject   String
-
-  academicYear String
-
-  @@index([teacherId])
-  @@index([grade, className])
-  @@index([academicYear])
-  @@map("teacher_assignments")
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Teacher Documents
-// ─────────────────────────────────────────────────────────────
-model TeacherDocument {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  teacherId String
-  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-
-  documentType TeacherDocumentType
-  customLabel  String?
-
-  fileKey String
-  fileUrl String?
-
-  fileType      String
-  fileSizeBytes Int?
-
-  isVerified Boolean   @default(false)
-  verifiedAt DateTime?
-
-  @@index([teacherId])
-  @@index([documentType])
-  @@map("teacher_documents")
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Enums
-// ─────────────────────────────────────────────────────────────
 
 enum TeacherStatus {
   ACTIVE
@@ -313,4 +81,382 @@ enum TeacherDocumentType {
   AADHAR_CARD
   PHOTO
   CUSTOM
+}
+
+enum SchoolType {
+  PRIMARY // Class 1–5
+  UPPER_PRIMARY // Class 6–8
+  HIGH_SCHOOL // Class 9–10
+  PUC // Class 11–12 / Pre-University
+  DEGREE // Undergraduate
+  POSTGRADUATE
+  OTHER
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  UNIVERSITY  (top-level tenant)
+//  One university = one Super Admin registration
+// ═══════════════════════════════════════════════════════════════
+
+model University {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique // e.g. "CHRIST_UNI"
+  address   String?
+  city      String?
+  state     String?
+  phone     String?
+  email     String?
+  website   String?
+  logoUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  superAdmins SuperAdmin[]
+  schools     School[]
+
+  @@index([code])
+  @@map("universities")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SUPER ADMIN  (registers a university, manages schools)
+//  Multiple super admins can belong to one university
+//  Each super admin can be scoped to certain schools
+// ═══════════════════════════════════════════════════════════════
+
+model SuperAdmin {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  password     String // bcrypt hashed
+  phone        String?
+  profileImage String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // University relation
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  // Which schools this super admin can manage (empty = all schools in the university)
+  schoolAccess SuperAdminSchoolAccess[]
+
+  @@index([universityId])
+  @@map("super_admins")
+}
+
+// Junction: which schools a super admin can access
+// If no rows exist for a super admin → they can access ALL schools in their university
+model SuperAdminSchoolAccess {
+  id           String     @id @default(uuid())
+  superAdminId String
+  superAdmin   SuperAdmin @relation(fields: [superAdminId], references: [id], onDelete: Cascade)
+  schoolId     String
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([superAdminId, schoolId])
+  @@map("super_admin_school_access")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SCHOOL  (Primary / High School / PUC / Degree etc.)
+//  Belongs to a University
+// ═══════════════════════════════════════════════════════════════
+
+model School {
+  id        String     @id @default(uuid())
+  name      String
+  code      String     @unique // e.g. "CHRIST_PRIMARY", "CHRIST_DEGREE"
+  type      SchoolType
+  address   String?
+  city      String?
+  state     String?
+  phone     String?
+  email     String?
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // University relation
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  // Relations
+  users            User[] // Admins & Teachers (staff)
+  students         Student[]
+  parents          Parent[]
+  teachers         TeacherProfile[]
+  superAdminAccess SuperAdminSchoolAccess[]
+
+  @@index([universityId])
+  @@index([type])
+  @@index([code])
+  @@map("schools")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PARENT  (scoped to a school)
+// ═══════════════════════════════════════════════════════════════
+
+model Parent {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  password  String
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // School scoping
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([email, schoolId]) // same email can exist in different schools
+  @@index([schoolId])
+  @@map("parents")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  USER  (Staff: ADMIN or TEACHER)
+// ═══════════════════════════════════════════════════════════════
+
+model User {
+  id          String    @id @default(uuid())
+  name        String
+  email       String
+  password    String
+  role        StaffRole // ADMIN or TEACHER (SUPER_ADMIN has separate table)
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // School scoping
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // Relations
+  teacherProfile TeacherProfile?
+
+  @@unique([email, schoolId]) // same email can exist in different schools
+  @@index([role])
+  @@index([isActive])
+  @@index([schoolId])
+  @@map("users")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  STUDENT  (auth table)
+// ═══════════════════════════════════════════════════════════════
+
+model Student {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  password  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // School scoping
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // Relations
+  personalInfo StudentPersonalInfo?
+  documents    StudentDocumentInfo[]
+
+  @@unique([email, schoolId])
+  @@index([schoolId])
+  @@map("students")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  STUDENT PERSONAL INFO
+// ═══════════════════════════════════════════════════════════════
+
+model StudentPersonalInfo {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentId String  @unique
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  // Personal
+  firstName    String
+  lastName     String
+  dateOfBirth  DateTime?
+  gender       Gender?
+  profileImage String?
+
+  // Contact
+  phone   String?
+  address String?
+  city    String?
+  state   String?
+  zipCode String?
+
+  // Academic
+  grade         String
+  className     String
+  admissionDate DateTime
+  rollNumber    String?
+  status        StudentStatus @default(ACTIVE)
+
+  // Parent / Guardian
+  parentName       String?
+  parentEmail      String?
+  parentPhone      String?
+  emergencyContact String?
+
+  // Health
+  bloodGroup        BloodGroup?
+  medicalConditions String?
+  allergies         String?
+
+  @@map("student_personal_info")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  STUDENT DOCUMENTS
+// ═══════════════════════════════════════════════════════════════
+
+model StudentDocumentInfo {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  documentName DocumentType
+  customLabel  String?
+
+  fileKey       String // Cloudflare R2 key
+  fileUrl       String? // signed URL cache (never trust, regenerate)
+  fileType      String
+  fileSizeBytes Int?
+
+  isVerified Boolean   @default(false)
+  verifiedAt DateTime?
+  uploadedAt DateTime  @default(now())
+
+  @@index([studentId])
+  @@map("student_document_info")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TEACHER PROFILE
+// ═══════════════════════════════════════════════════════════════
+
+model TeacherProfile {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Linked to User (login account)
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // School (denormalised for easy queries)
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // Basic Info
+  employeeCode String    @unique
+  firstName    String
+  lastName     String
+  dateOfBirth  DateTime?
+  gender       Gender?
+  phone        String?
+  address      String?
+  city         String?
+  state        String?
+  zipCode      String?
+  profileImage String?
+
+  // Professional Info
+  department      String
+  designation     String
+  qualification   String?
+  experienceYears Int?
+  joiningDate     DateTime
+  employmentType  EmploymentType
+  status          TeacherStatus  @default(ACTIVE)
+
+  // Payroll Info
+  salary        Decimal? @db.Decimal(10, 2)
+  bankAccountNo String?
+  bankName      String?
+  ifscCode      String?
+  panNumber     String?
+  aadhaarNumber String?
+
+  // Relations
+  assignments TeacherAssignment[]
+  documents   TeacherDocument[]
+
+  @@index([schoolId])
+  @@index([department])
+  @@index([status])
+  @@index([joiningDate])
+  @@map("teacher_profiles")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TEACHER ASSIGNMENTS
+// ═══════════════════════════════════════════════════════════════
+
+model TeacherAssignment {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  grade        String
+  className    String
+  subject      String
+  academicYear String
+
+  @@index([teacherId])
+  @@index([grade, className])
+  @@index([academicYear])
+  @@map("teacher_assignments")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TEACHER DOCUMENTS
+// ═══════════════════════════════════════════════════════════════
+
+model TeacherDocument {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  documentType TeacherDocumentType
+  customLabel  String?
+
+  fileKey       String
+  fileUrl       String?
+  fileType      String
+  fileSizeBytes Int?
+
+  isVerified Boolean   @default(false)
+  verifiedAt DateTime?
+
+  @@index([teacherId])
+  @@index([documentType])
+  @@map("teacher_documents")
 }

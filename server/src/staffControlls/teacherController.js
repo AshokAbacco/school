@@ -1,10 +1,10 @@
-// server/src/controllers/teacherController.js
+// server/src/staffControlls/teacherController.js
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import redisClient from "../utils/redis.js";
 
 const prisma = new PrismaClient();
-const CACHE_TTL = 300; // 5 min
+const CACHE_TTL = 300;
 const SALT_ROUNDS = 10;
 
 /* ─── helpers ─────────────────────────────────────────────── */
@@ -26,14 +26,23 @@ export async function getTeachers(req, res) {
       department = "",
     } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
-    const cacheKey = listKey({ page, limit, search, status, department });
 
-    // 1. Redis cache check
+    // Always scope to school from JWT
+    const schoolId = req.user?.schoolId;
+    const cacheKey = listKey({
+      page,
+      limit,
+      search,
+      status,
+      department,
+      schoolId,
+    });
+
     const cached = await redisClient.get(cacheKey);
     if (cached) return res.json({ ...JSON.parse(cached), fromCache: true });
 
-    // 2. Build Prisma where clause
     const where = {
+      ...(schoolId ? { schoolId } : {}),
       ...(status && { status }),
       ...(department && {
         department: { contains: department, mode: "insensitive" },
@@ -50,7 +59,6 @@ export async function getTeachers(req, res) {
       }),
     };
 
-    // 3. DB query
     const [data, total] = await prisma.$transaction([
       prisma.teacherProfile.findMany({
         where,
@@ -95,7 +103,6 @@ export async function getTeachers(req, res) {
       },
     };
 
-    // 4. Store in Redis
     await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(payload));
     res.json({ ...payload, fromCache: false });
   } catch (err) {
@@ -177,19 +184,33 @@ export async function createTeacher(req, res) {
       aadhaarNumber,
     } = req.body;
 
+    // ✅ schoolId from JWT — Admin creating teacher in their school
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) {
+      return res
+        .status(400)
+        .json({
+          error: "schoolId missing from token — ensure admin is logged in",
+        });
+    }
+
     const teacher = await prisma.$transaction(async (tx) => {
       const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
       const user = await tx.user.create({
         data: {
           name: name || `${firstName} ${lastName}`,
           email,
           password: hashedPassword,
           role: "TEACHER",
+          schoolId, // ✅ scoped to school
         },
       });
+
       return tx.teacherProfile.create({
         data: {
           userId: user.id,
+          schoolId, // ✅ denormalised for easy queries
           employeeCode,
           firstName,
           lastName,
@@ -220,10 +241,11 @@ export async function createTeacher(req, res) {
     await bustListCache();
     res.status(201).json({ data: teacher });
   } catch (err) {
-    if (err.code === "P2002")
+    if (err.code === "P2002") {
       return res
         .status(409)
         .json({ error: "Email or employee code already exists" });
+    }
     console.error("[createTeacher]", err);
     res.status(500).json({ error: "Failed to create teacher" });
   }
@@ -260,9 +282,7 @@ export async function updateTeacher(req, res) {
 
     const data = {};
     for (const key of allowed) {
-      if (req.body[key] !== undefined) {
-        data[key] = req.body[key];
-      }
+      if (req.body[key] !== undefined) data[key] = req.body[key];
     }
     if (data.dateOfBirth) data.dateOfBirth = new Date(data.dateOfBirth);
     if (data.experienceYears)
@@ -279,7 +299,7 @@ export async function updateTeacher(req, res) {
   }
 }
 
-/* ─── DELETE /api/teachers/:id  (soft delete) ───────────── */
+/* ─── DELETE /api/teachers/:id (soft delete) ────────────── */
 export async function deleteTeacher(req, res) {
   try {
     const { id } = req.params;

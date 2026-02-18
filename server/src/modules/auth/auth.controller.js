@@ -1,41 +1,35 @@
-//server\src\modules\auth\auth.controller.js
-import { loginStaff, loginStudent, loginParent } from "./auth.service.js";
+// server/src/modules/auth/auth.controller.js
+import {
+  registerSuperAdminService,
+  loginSuperAdminService,
+  loginStaffService,
+  loginStudentService,
+  loginParentService,
+} from "./auth.service.js";
 
-// STAFF LOGIN
-export const staffLoginController = async (req, res) => {
+const handle = (serviceFn) => async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    const result = await loginStaff(email, password);
-
-    res.json(result);
+    const result = await serviceFn(req.body);
+    return res.status(200).json({ success: true, ...result });
   } catch (err) {
-    res.status(401).json({ message: err.message });
+    const status = err.status || 500;
+    const message = err.message || "Server error";
+    console.error(`[auth] ${message}`, err);
+    return res.status(status).json({ success: false, message });
   }
 };
 
-// STUDENT LOGIN
-export const studentLoginController = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+// POST /api/auth/super-admin/register
+export const registerSuperAdmin = handle(registerSuperAdminService);
 
-    const result = await loginStudent(email, password);
+// POST /api/auth/super-admin/login
+export const loginSuperAdmin = handle(loginSuperAdminService);
 
-    res.json(result);
-  } catch (err) {
-    res.status(401).json({ message: err.message });
-  }
-};
+// POST /api/auth/staff/login
+export const loginStaff = handle(loginStaffService);
 
-// PARENT LOGIN
-export const parentLoginController = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+// POST /api/auth/student/login
+export const loginStudent = handle(loginStudentService);
 
-    const result = await loginParent(email, password);
-
-    res.json(result);
-  } catch (err) {
-    res.status(401).json({ message: err.message });
-  }
-};
+// POST /api/auth/parent/login
+export const loginParent = handle(loginParentService);

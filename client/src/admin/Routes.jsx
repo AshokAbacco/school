@@ -8,6 +8,7 @@ import {
 import Dashboard from "./dashboard/Dashboard";
 import StudentsList from "./pages/students/StudentsList";
 import AddStudents from "./pages/students/AddStudents";
+import StudentView from "./pages/students/StudentView";
 import TeachersPage from "./pages/teachers/TeachersPage";
 import ClassesList from "./pages/classes/ClassesList";
 import AttendanceList from "./pages/attendances/AttendanceList";
@@ -26,7 +27,7 @@ function App() {
         {/* Students Routes */}
         <Route path="/students" element={<StudentsList />} />
         <Route path="/students/add" element={<AddStudents />} />
-        <Route path="/students/:id"      element={<StudentView />} />
+        <Route path="/students/:id" element={<StudentView />} />
         <Route path="/students/:id/edit" element={<AddStudents />} />
 
         {/* Teachers routes */}
