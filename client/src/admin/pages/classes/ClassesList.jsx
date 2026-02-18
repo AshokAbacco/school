@@ -1,203 +1,193 @@
+// src/admin/pages/classes/ClassesList.jsx
+
 import React, { useState } from "react";
-import { Search, Filter, Download, Plus, LayoutGrid } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Download,
+  Eye,
+  Edit,
+  Trash2,
+} from "lucide-react";
+import AddClass from "./AddClass";
 import PageLayout from "../../components/PageLayout";
-import ClassStatsCards from "./components/ClassStatsCards";
-import ClassTableRow from "./components/ClassTableRow";
 
 function ClassesList() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterGrade, setFilterGrade] = useState("all");
+  const [openModal, setOpenModal] = useState(false);
 
-  const classes = [
+  // Dummy Data (later from backend)
+  const classesData = [
     {
       id: 1,
-      grade: "Grade 10",
-      section: "A",
-      teacherName: "Dr. Sarah Smith",
+      grade: "Class 10",
+      room: "101",
+      teacher: "Dr. Sarah Smith",
       students: 38,
       capacity: 40,
-      room: "101",
       status: "Active",
     },
     {
       id: 2,
-      grade: "Grade 10",
-      section: "B",
-      teacherName: "John Doe",
+      grade: "Class 9",
+      room: "102",
+      teacher: "John Doe",
       students: 35,
       capacity: 40,
-      room: "102",
       status: "Active",
     },
     {
       id: 3,
-      grade: "Grade 9",
-      section: "A",
-      teacherName: "Emily Johnson",
+      grade: "Class 8",
+      room: "103",
+      teacher: "Emily Johnson",
       students: 40,
       capacity: 40,
-      room: "103",
       status: "Full",
-    },
-    {
-      id: 4,
-      grade: "Grade 9",
-      section: "B",
-      teacherName: "Michael Brown",
-      students: 32,
-      capacity: 35,
-      room: "104",
-      status: "Active",
-    },
-    {
-      id: 5,
-      grade: "Grade 8",
-      section: "A",
-      teacherName: "Amanda Lector",
-      students: 28,
-      capacity: 35,
-      room: "105",
-      status: "Active",
-    },
-    {
-      id: 6,
-      grade: "Grade 12",
-      section: "Science",
-      teacherName: "Prof. Alan Grant",
-      students: 25,
-      capacity: 30,
-      room: "201",
-      status: "Active",
     },
   ];
 
-  const filteredClasses = classes.filter((cls) => {
-    const matchesSearch =
-      cls.grade.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cls.teacherName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesGrade =
-      filterGrade === "all" || cls.grade.includes(filterGrade);
-    return matchesSearch && matchesGrade;
-  });
-
   return (
     <PageLayout>
-      <div className="p-4 md:p-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-              Classes & Sections
-            </h1>
-            <p className="text-gray-500 mt-1">
-              Manage class structure, capacity, and subject assignments
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Export</span>
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">
-              <Plus className="w-4 h-4" />
-              <span>Add Class</span>
-            </button>
-          </div>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      {/* HEADER */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">
+            Classes & Sections
+          </h1>
+          <p className="text-gray-500">
+            Manage class structure, capacity, and teacher assignments
+          </p>
         </div>
 
-        {/* Stats Cards */}
-        <ClassStatsCards />
+        <div className="flex gap-3">
+          <button className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-100">
+            <Download size={18} />
+            Export
+          </button>
 
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by grade or teacher name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <select
-              value={filterGrade}
-              onChange={(e) => setFilterGrade(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="all">All Grades</option>
-              <option value="8">Grade 8</option>
-              <option value="9">Grade 9</option>
-              <option value="10">Grade 10</option>
-              <option value="12">Grade 12</option>
-            </select>
-
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-              <LayoutGrid className="w-4 h-4" />
-              <span>View Grid</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Classes Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Class Info
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell">
-                    Class Teacher
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Capacity
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredClasses.map((classItem) => (
-                  <ClassTableRow key={classItem.id} classItem={classItem} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="px-6 py-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-gray-600">
-              Showing{" "}
-              <span className="font-semibold">{filteredClasses.length}</span>{" "}
-              classes
-            </p>
-            <div className="flex gap-2">
-              <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
-                Previous
-              </button>
-              <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm">
-                1
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
-                2
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
-                Next
-              </button>
-            </div>
-          </div>
+          <button
+            onClick={() => setOpenModal(true)}
+            className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            <Plus size={18} />
+            Add Class
+          </button>
         </div>
       </div>
+
+      {/* STATS */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-6">
+        <StatCard title="Total Classes" value="24" />
+        <StatCard title="Total Sections" value="68" />
+        <StatCard title="Total Capacity" value="2400" />
+        <StatCard title="Available Seats" value="306" />
+      </div>
+
+      {/* SEARCH */}
+      <div className="bg-white p-4 rounded-xl shadow-sm flex items-center gap-3 mb-6">
+        <Search className="text-gray-400" size={18} />
+        <input
+          type="text"
+          placeholder="Search by grade or teacher..."
+          className="w-full outline-none text-gray-600"
+        />
+      </div>
+
+      {/* TABLE */}
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
+            <tr>
+              <th className="p-4 text-left">Class Info</th>
+              <th className="p-4 text-left">Teacher</th>
+              <th className="p-4 text-left">Capacity</th>
+              <th className="p-4 text-left">Status</th>
+              <th className="p-4 text-center">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {classesData.map((item) => (
+              <tr
+                key={item.id}
+                className="border-b hover:bg-gray-50"
+              >
+                <td className="p-4">
+                  <p className="font-semibold text-gray-800">
+                    {item.grade}
+                  </p>
+                  <p className="text-gray-500 text-xs">
+                    Room: {item.room}
+                  </p>
+                </td>
+
+                <td className="p-4 text-gray-700">
+                  {item.teacher}
+                </td>
+
+                <td className="p-4">
+                  <p className="font-medium">
+                    {item.students} / {item.capacity}
+                  </p>
+                  <div className="w-full bg-gray-200 h-2 rounded-full mt-2">
+                    <div
+                      className={`h-2 rounded-full ${
+                        item.students === item.capacity
+                          ? "bg-red-500"
+                          : "bg-green-500"
+                      }`}
+                      style={{
+                        width: `${
+                          (item.students / item.capacity) * 100
+                        }%`,
+                      }}
+                    ></div>
+                  </div>
+                </td>
+
+                <td className="p-4">
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      item.status === "Active"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-600"
+                    }`}
+                  >
+                    {item.status}
+                  </span>
+                </td>
+
+                <td className="p-4 flex justify-center gap-3 text-gray-500">
+                  <Eye className="cursor-pointer hover:text-indigo-600" />
+                  <Edit className="cursor-pointer hover:text-green-600" />
+                  <Trash2 className="cursor-pointer hover:text-red-600" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MODAL */}
+      {openModal && (
+        <AddClass closeModal={() => setOpenModal(false)} />
+      )}
+    </div>
     </PageLayout>
   );
 }
 
 export default ClassesList;
+
+/* SMALL COMPONENT */
+function StatCard({ title, value }) {
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-5">
+      <p className="text-gray-500 text-sm">{title}</p>
+      <h2 className="text-2xl font-bold text-gray-800 mt-2">
+        {value}
+      </h2>
+    </div>
+  );
+}

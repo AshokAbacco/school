@@ -1,126 +1,108 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  Search,
-  Filter,
-  Download,
-  Plus,
-  MoreVertical,
-  Edit,
-  Trash2,
-  Eye,
-  Mail,
-  Phone,
+  Search, Download, Plus, Edit, Trash2, Eye,
+  Mail, Phone, Loader2, AlertCircle, RefreshCw,
 } from "lucide-react";
 import PageLayout from "../../components/PageLayout";
 import AddStudent from "./AddStudents";
 
+const API_URL = import.meta.env.VITE_API_URL;
+const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
+
+const statusColor = (s = "") => {
+  switch (s.toUpperCase()) {
+    case "ACTIVE":    return "bg-green-100 text-green-700";
+    case "INACTIVE":  return "bg-red-100 text-red-700";
+    case "SUSPENDED": return "bg-orange-100 text-orange-700";
+    case "GRADUATED": return "bg-purple-100 text-purple-700";
+    default:          return "bg-gray-100 text-gray-600";
+  }
+};
+
 function StudentsList() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterGrade, setFilterGrade] = useState("all");
+  const navigate = useNavigate();
+
+  const [searchTerm, setSearchTerm]     = useState("");
+  const [filterGrade, setFilterGrade]   = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [openModal, setOpenModal] = useState(false);
+  const [openModal, setOpenModal]       = useState(false);
 
-  const students = [
-    {
-      id: 1,
-      name: "Emma Wilson",
-      email: "emma.wilson@school.com",
-      phone: "+1 234-567-8901",
-      grade: "10th",
-      class: "10-A",
-      status: "Active",
-      avatar: "EW",
-      admissionDate: "2023-08-15",
-    },
-    {
-      id: 2,
-      name: "Liam Brown",
-      email: "liam.brown@school.com",
-      phone: "+1 234-567-8902",
-      grade: "9th",
-      class: "9-B",
-      status: "Active",
-      avatar: "LB",
-      admissionDate: "2024-01-10",
-    },
-    {
-      id: 3,
-      name: "Olivia Davis",
-      email: "olivia.davis@school.com",
-      phone: "+1 234-567-8903",
-      grade: "11th",
-      class: "11-C",
-      status: "Active",
-      avatar: "OD",
-      admissionDate: "2022-08-20",
-    },
-    {
-      id: 4,
-      name: "Noah Martinez",
-      email: "noah.martinez@school.com",
-      phone: "+1 234-567-8904",
-      grade: "8th",
-      class: "8-A",
-      status: "Inactive",
-      avatar: "NM",
-      admissionDate: "2024-08-05",
-    },
-    {
-      id: 5,
-      name: "Ava Johnson",
-      email: "ava.johnson@school.com",
-      phone: "+1 234-567-8905",
-      grade: "10th",
-      class: "10-B",
-      status: "Active",
-      avatar: "AJ",
-      admissionDate: "2023-09-01",
-    },
-    {
-      id: 6,
-      name: "Ethan Garcia",
-      email: "ethan.garcia@school.com",
-      phone: "+1 234-567-8906",
-      grade: "9th",
-      class: "9-A",
-      status: "Active",
-      avatar: "EG",
-      admissionDate: "2024-01-15",
-    },
-    {
-      id: 7,
-      name: "Sophia Miller",
-      email: "sophia.miller@school.com",
-      phone: "+1 234-567-8907",
-      grade: "11th",
-      class: "11-A",
-      status: "Active",
-      avatar: "SM",
-      admissionDate: "2022-08-25",
-    },
-    {
-      id: 8,
-      name: "Mason Rodriguez",
-      email: "mason.rod@school.com",
-      phone: "+1 234-567-8908",
-      grade: "8th",
-      class: "8-B",
-      status: "Active",
-      avatar: "MR",
-      admissionDate: "2024-08-10",
-    },
-  ];
+  const [students, setStudents]     = useState([]);
+  const [stats, setStats]           = useState({ total:0, active:0, inactive:0, newThisMonth:0 });
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState("");
+  const [page, setPage]             = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal]           = useState(0);
+  const LIMIT = 10;
 
-  const filteredStudents = students.filter((student) => {
-    const matchesSearch =
-      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesGrade = filterGrade === "all" || student.grade === filterGrade;
-    const matchesStatus =
-      filterStatus === "all" ||
-      student.status.toLowerCase() === filterStatus.toLowerCase();
-    return matchesSearch && matchesGrade && matchesStatus;
+  // ── Fetch list ─────────────────────────────────────────────────────────────
+  const fetchStudents = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const params = new URLSearchParams({ page, limit: LIMIT });
+      if (searchTerm.trim()) params.set("search", searchTerm.trim());
+      const res  = await fetch(`${API_URL}/api/students?${params}`, { headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to fetch students");
+      setStudents(data.students || []);
+      setTotal(data.total || 0);
+      setTotalPages(data.pages || 1);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }, [page, searchTerm]);
+
+  // ── Fetch stats ────────────────────────────────────────────────────────────
+  const fetchStats = useCallback(async () => {
+    try {
+      const [allRes, activeRes, inactiveRes] = await Promise.all([
+        fetch(`${API_URL}/api/students?page=1&limit=1`,               { headers: authHeaders() }),
+        fetch(`${API_URL}/api/students?page=1&limit=1&status=ACTIVE`,  { headers: authHeaders() }),
+        fetch(`${API_URL}/api/students?page=1&limit=1&status=INACTIVE`,{ headers: authHeaders() }),
+      ]);
+      const [allData, activeData, inactiveData] = await Promise.all([
+        allRes.json(), activeRes.json(), inactiveRes.json(),
+      ]);
+      setStats({
+        total:        allData.total    || 0,
+        active:       activeData.total || 0,
+        inactive:     inactiveData.total || 0,
+        newThisMonth: 0,
+      });
+    } catch { /* non-critical */ }
+  }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+  useEffect(() => { fetchStudents(); }, [fetchStudents]);
+  useEffect(() => { setPage(1); }, [searchTerm, filterGrade, filterStatus]);
+
+  // ── Delete ─────────────────────────────────────────────────────────────────
+  const handleDelete = async (e, id, name) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API_URL}/api/students/${id}`, { method:"DELETE", headers: authHeaders() });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      fetchStudents(); fetchStats();
+    } catch (err) { alert(`Delete failed: ${err.message}`); }
+  };
+
+  // ── Client-side grade/status filter ───────────────────────────────────────
+  const filteredStudents = students.filter((s) => {
+    const grade  = s.personalInfo?.grade  || "";
+    const status = s.personalInfo?.status || "";
+    return (filterGrade  === "all" || grade  === filterGrade) &&
+           (filterStatus === "all" || status.toLowerCase() === filterStatus.toLowerCase());
   });
+
+  const avatarInitials = (s) => {
+    const first = s.personalInfo?.firstName || s.name || "";
+    const last  = s.personalInfo?.lastName  || "";
+    return `${first[0]||""}${last[0]||""}`.toUpperCase() || "?";
+  };
+  const displayName = (s) =>
+    s.personalInfo ? `${s.personalInfo.firstName} ${s.personalInfo.lastName}` : s.name;
 
   return (
     <PageLayout>
@@ -128,198 +110,156 @@ function StudentsList() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-              Students List
-            </h1>
-            <p className="text-gray-500 mt-1">
-              Manage and view all student records
-            </p>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Students List</h1>
+            <p className="text-gray-500 mt-1">Manage and view all student records</p>
           </div>
           <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Export</span>
+            <button onClick={fetchStudents} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition" title="Refresh">
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
             </button>
-              <button
-                onClick={() => setOpenModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg"
-              >
-                + Add Student
-              </button>
+            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+              <Download className="w-4 h-4" /><span className="hidden sm:inline">Export</span>
+            </button>
+            <button
+              onClick={() => setOpenModal(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+              <Plus className="w-4 h-4" /> Add Student
+            </button>
           </div>
         </div>
 
-        {/* Stats Cards */}
+        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-blue-500">
-            <p className="text-gray-500 text-sm">Total Students</p>
-            <p className="text-2xl font-bold text-gray-800 mt-1">2,847</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-500">
-            <p className="text-gray-500 text-sm">Active</p>
-            <p className="text-2xl font-bold text-gray-800 mt-1">2,654</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-yellow-500">
-            <p className="text-gray-500 text-sm">Inactive</p>
-            <p className="text-2xl font-bold text-gray-800 mt-1">193</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border-l-4 border-purple-500">
-            <p className="text-gray-500 text-sm">New This Month</p>
-            <p className="text-2xl font-bold text-gray-800 mt-1">124</p>
-          </div>
+          {[
+            { label:"Total Students", value:stats.total,        color:"blue"   },
+            { label:"Active",         value:stats.active,       color:"green"  },
+            { label:"Inactive",       value:stats.inactive,     color:"yellow" },
+            { label:"New This Month", value:stats.newThisMonth, color:"purple" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className={`bg-white rounded-xl shadow-sm p-4 border-l-4 border-${color}-500`}>
+              <p className="text-gray-500 text-sm">{label}</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{value.toLocaleString()}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Filters and Search */}
+        {/* Filters */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
           <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <input type="text" placeholder="Search by name or email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-
-            {/* Grade Filter */}
-            <select
-              value={filterGrade}
-              onChange={(e) => setFilterGrade(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
+            <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="all">All Grades</option>
-              <option value="8th">8th Grade</option>
-              <option value="9th">9th Grade</option>
-              <option value="10th">10th Grade</option>
-              <option value="11th">11th Grade</option>
-              <option value="12th">12th Grade</option>
+              {["Pre-K","Kindergarten","Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6","Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"].map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
-
-            {/* Status Filter */}
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+              <option value="SUSPENDED">Suspended</option>
+              <option value="GRADUATED">Graduated</option>
             </select>
-
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-              <Filter className="w-4 h-4" />
-              <span>More Filters</span>
-            </button>
           </div>
         </div>
 
-        {/* Students Table */}
+        {/* Error */}
+        {error && (
+          <div className="flex items-center gap-2 p-4 mb-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+            <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+          </div>
+        )}
+
+        {/* Table */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Student
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell">
-                    Contact
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Grade
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden lg:table-cell">
-                    Class
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  {[["Student",""],["Contact","hidden md:table-cell"],["Grade",""],["Class","hidden lg:table-cell"],["Status",""],["Actions",""]].map(([h,cls])=>(
+                    <th key={h} className={`px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider ${cls}`}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                          {student.avatar}
+                {loading ? (
+                  <tr><td colSpan={6} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3 text-gray-400">
+                      <Loader2 className="w-8 h-8 animate-spin text-blue-500"/>
+                      <p className="text-sm">Loading students…</p>
+                    </div>
+                  </td></tr>
+                ) : filteredStudents.length === 0 ? (
+                  <tr><td colSpan={6} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-2 text-gray-400">
+                      <Search className="w-8 h-8"/>
+                      <p className="text-sm font-medium">No students found</p>
+                      <p className="text-xs">Try adjusting your search or filters</p>
+                    </div>
+                  </td></tr>
+                ) : filteredStudents.map((student) => {
+                  const status = student.personalInfo?.status || "";
+                  const name   = displayName(student);
+                  return (
+                    <tr key={student.id}
+                      onClick={() => navigate(`/students/${student.id}`)}
+                      className="hover:bg-gray-50 transition cursor-pointer">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0 overflow-hidden bg-gradient-to-br from-blue-400 to-blue-600">
+                            {student.personalInfo?.profileImage
+                              ? <img src={student.personalInfo.profileImage} alt="" className="w-full h-full object-cover"/>
+                              : avatarInitials(student)}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-800">{name}</p>
+                            <p className="text-sm text-gray-500 md:hidden">{student.email}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-gray-800">
-                            {student.name}
-                          </p>
-                          <p className="text-sm text-gray-500 md:hidden">
-                            {student.email}
-                          </p>
+                      </td>
+                      <td className="px-6 py-4 hidden md:table-cell">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-sm text-gray-600"><Mail className="w-4 h-4 text-gray-400"/>{student.email}</div>
+                          {student.personalInfo?.phone && <div className="flex items-center gap-2 text-sm text-gray-600"><Phone className="w-4 h-4 text-gray-400"/>{student.personalInfo.phone}</div>}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 hidden md:table-cell">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Mail className="w-4 h-4 text-gray-400" />
-                          {student.email}
+                      </td>
+                      <td className="px-6 py-4"><span className="text-sm font-medium text-gray-800">{student.personalInfo?.grade || "—"}</span></td>
+                      <td className="px-6 py-4 hidden lg:table-cell">
+                        <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">{student.personalInfo?.className || "—"}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColor(status)}`}>
+                          {status ? status.charAt(0) + status.slice(1).toLowerCase() : "—"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          {/* View */}
+                          <button
+                            onClick={() => navigate(`/students/${student.id}`)}
+                            className="p-2 hover:bg-blue-50 rounded-lg transition group" title="View Details">
+                            <Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-600"/>
+                          </button>
+                          {/* Edit — navigates to /students/:id/edit */}
+                          <button
+                            onClick={() => navigate(`/students/${student.id}/edit`)}
+                            className="p-2 hover:bg-green-50 rounded-lg transition group" title="Edit">
+                            <Edit className="w-4 h-4 text-gray-400 group-hover:text-green-600"/>
+                          </button>
+                          {/* Delete */}
+                          <button
+                            onClick={(e) => handleDelete(e, student.id, name)}
+                            className="p-2 hover:bg-red-50 rounded-lg transition group" title="Delete">
+                            <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-red-600"/>
+                          </button>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Phone className="w-4 h-4 text-gray-400" />
-                          {student.phone}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-medium text-gray-800">
-                        {student.grade}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 hidden lg:table-cell">
-                      <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
-                        {student.class}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          student.status === "Active"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {student.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="p-2 hover:bg-blue-50 rounded-lg transition group"
-                          title="View Details"
-                        >
-                          <Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-600" />
-                        </button>
-                        <button
-                          className="p-2 hover:bg-green-50 rounded-lg transition group"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4 text-gray-400 group-hover:text-green-600" />
-                        </button>
-                        <button
-                          className="p-2 hover:bg-red-50 rounded-lg transition group"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-red-600" />
-                        </button>
-                        <button className="p-2 hover:bg-gray-100 rounded-lg transition">
-                          <MoreVertical className="w-4 h-4 text-gray-400" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -327,41 +267,29 @@ function StudentsList() {
           {/* Pagination */}
           <div className="px-6 py-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-gray-600">
-              Showing <span className="font-semibold">1-8</span> of{" "}
-              <span className="font-semibold">{students.length}</span> students
+              Showing <span className="font-semibold">{students.length}</span> of{" "}
+              <span className="font-semibold">{total}</span> students
             </p>
             <div className="flex gap-2">
-              <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
-                Previous
-              </button>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
-                1
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
-                2
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
-                3
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
-                Next
-              </button>
+              <button onClick={() => setPage((p) => Math.max(1,p-1))} disabled={page===1}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i+1).map((p) => (
+                <button key={p} onClick={() => setPage(p)}
+                  className={`px-4 py-2 rounded-lg transition text-sm ${page===p?"bg-blue-600 text-white":"border border-gray-300 hover:bg-gray-50"}`}>{p}</button>
+              ))}
+              <button onClick={() => setPage((p) => Math.min(totalPages,p+1))} disabled={page===totalPages}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
             </div>
           </div>
         </div>
 
-              {/* Modal Popup */}
-      {openModal && (
-        <div
-          className="fixed inset-0 bg-black/50 bg-opacity-50 flex justify-center items-start z-50 p-4 overflow-y-auto"
-          onClick={(e) => { if (e.target === e.currentTarget) setOpenModal(false); }}
-        >
-          <div className="bg-gray-100 w-full max-w-5xl rounded-xl shadow-2xl my-6">
-            <AddStudent closeModal={() => setOpenModal(false)} />
-          </div>
-        </div>
-      )}
-
+        {/* Add Student Modal */}
+        {openModal && (
+          <AddStudent
+            closeModal={() => setOpenModal(false)}
+            onSuccess={() => { fetchStudents(); fetchStats(); }}
+          />
+        )}
       </div>
     </PageLayout>
   );
