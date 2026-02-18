@@ -1,151 +1,367 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Search, Bell, Menu, Mail, ChevronDown, User, LogOut } from 'lucide-react';
-import LogoutButton from '../../components/LogoutButton';
+// client/src/admin/components/Navbar.jsx
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Search,
+  Bell,
+  Mail,
+  Menu,
+  ChevronDown,
+  User,
+  LogOut,
+} from "lucide-react";
+import LogoutButton from "../../components/LogoutButton";
 
-function Navbar({ onMenuClick }) {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+const font = { fontFamily: "'DM Sans', sans-serif" };
+
+const initials = (name = "AU") =>
+  name
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+export default function Navbar({ onMenuClick, user }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [logoutModal, setLogoutModal] = useState(false);
+  const [search, setSearch] = useState("");
   const dropdownRef = useRef(null);
 
-  // Close dropdown when clicking outside
+  const displayName = user?.name || "Admin User";
+  const displayRole = user?.role || "Administrator";
+
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
+    const h = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
+        setDropdownOpen(false);
     };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, []);
-
-  const handleLogoutClick = () => {
-    setIsDropdownOpen(false);
-    setIsLogoutModalOpen(true);
-  };
-
-
-  const handleCancelLogout = () => {
-    setIsLogoutModalOpen(false);
-  };
 
   return (
     <>
-      <header className="bg-white shadow-sm sticky top-0 z-30 border-b">
-        <div className="flex items-center justify-between px-4 py-3 md:px-6">
-          {/* Left Section */}
-          <div className="flex items-center gap-4">
-            {/* Mobile Menu Button */}
-            <button
-              onClick={onMenuClick}
-              className="md:hidden p-2 hover:bg-gray-100 rounded-lg transition"
-            >
-              <Menu className="w-6 h-6 text-gray-600" />
-            </button>
+      {/* ── Top bar ── */}
+      <header
+        className="sticky top-0 z-30 flex items-center justify-between h-16 px-6"
+        style={{
+          background: "#fff",
+          borderBottom: "1.5px solid #e8f1fb",
+          boxShadow: "0 1px 6px rgba(56,73,89,0.05)",
+          ...font,
+        }}
+      >
+        {/* Left */}
+        <div className="flex items-center gap-4">
+          {/* Hamburger — mobile */}
+          <button
+            onClick={onMenuClick}
+            className="md:hidden p-2 rounded-xl transition-colors"
+            style={{
+              color: "#6A89A7",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f8fd")}
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+          >
+            <Menu size={20} />
+          </button>
 
-            {/* Search Bar */}
-            <div className="relative hidden sm:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search students, teachers..."
-                className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-64 lg:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              />
-            </div>
+          {/* Search bar */}
+          <div className="relative hidden sm:flex items-center">
+            <Search
+              size={15}
+              className="absolute left-3 pointer-events-none"
+              style={{ color: "#6A89A7" }}
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search students, teachers…"
+              className="pl-9 pr-4 py-2 text-sm rounded-xl outline-none w-72 lg:w-96 transition-all"
+              style={{
+                border: "1.5px solid #BDDDFC",
+                background: "#f8fbff",
+                color: "#384959",
+                ...font,
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#88BDF2";
+                e.target.style.boxShadow = "0 0 0 3px rgba(136,189,242,0.15)";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#BDDDFC";
+                e.target.style.boxShadow = "none";
+              }}
+            />
           </div>
+        </div>
 
-          {/* Right Section */}
-          <div className="flex items-center gap-2 md:gap-4">
-            {/* Search Icon for Mobile */}
-            <button className="sm:hidden p-2 hover:bg-gray-100 rounded-lg transition">
-              <Search className="w-5 h-5 text-gray-600" />
-            </button>
+        {/* Right */}
+        <div className="flex items-center gap-1">
+          {/* Mobile search */}
+          <button
+            className="sm:hidden p-2 rounded-xl"
+            style={{
+              color: "#6A89A7",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            <Search size={18} />
+          </button>
 
-            {/* Messages */}
-            <button className="relative p-2 hover:bg-gray-100 rounded-lg transition">
-              <Mail className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
-            </button>
+          {/* Mail */}
+          <button
+            className="relative p-2 rounded-xl transition-colors"
+            style={{
+              color: "#6A89A7",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f8fd")}
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+          >
+            <Mail size={19} />
+            <span
+              className="absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-white"
+              style={{ background: "#88BDF2" }}
+            />
+          </button>
 
-            {/* Notifications */}
-            <button className="relative p-2 hover:bg-gray-100 rounded-lg transition">
-              <Bell className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
+          {/* Bell */}
+          <button
+            className="relative p-2 rounded-xl transition-colors mr-1"
+            style={{
+              color: "#6A89A7",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f8fd")}
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+          >
+            <Bell size={19} />
+            <span
+              className="absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-white"
+              style={{ background: "#ef4444" }}
+            />
+          </button>
 
-            {/* User Profile Dropdown */}
-            <div className="relative pl-2 md:pl-4 border-l" ref={dropdownRef}>
-              <div className="flex items-center gap-2 md:gap-3">
-                <div className="text-right hidden md:block">
-                  <p className="font-semibold text-sm text-gray-800">Student  User</p>
-                  <p className="text-xs text-gray-500">Administrator</p>
-                </div>
-                <button 
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="flex items-center gap-2 hover:bg-gray-100 p-1 rounded-lg transition"
+          {/* Divider */}
+          <div className="w-px h-7 mx-2" style={{ background: "#BDDDFC" }} />
+
+          {/* Profile */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setDropdownOpen((o) => !o)}
+              className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl transition-colors"
+              style={{ background: "none", border: "none", cursor: "pointer" }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "#f3f8fd")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+            >
+              {/* Name — desktop */}
+              <div className="hidden md:block text-right">
+                <p
+                  className="text-sm font-semibold leading-tight"
+                  style={{ color: "#384959" }}
                 >
-                  <div className="w-9 h-9 md:w-10 md:h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-                    AU
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-gray-600 hidden md:block transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
+                  {displayName}
+                </p>
+                <p className="text-[11px]" style={{ color: "#6A89A7" }}>
+                  {displayRole}
+                </p>
               </div>
 
-              {/* Dropdown Menu */}
-              {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                  <button
-                    onClick={() => {
-                      setIsDropdownOpen(false);
-                      // Add navigation to profile page
-                      console.log('Navigate to profile');
+              {/* Avatar */}
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                style={{
+                  background: "linear-gradient(135deg, #88BDF2, #6A89A7)",
+                  color: "#fff",
+                }}
+              >
+                {initials(displayName)}
+              </div>
+
+              <ChevronDown
+                size={14}
+                className={`hidden md:block transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}
+                style={{ color: "#6A89A7" }}
+              />
+            </button>
+
+            {/* Dropdown */}
+            {dropdownOpen && (
+              <div
+                className="absolute right-0 mt-1.5 w-48 rounded-xl overflow-hidden py-1"
+                style={{
+                  background: "#fff",
+                  border: "1.5px solid #BDDDFC",
+                  boxShadow: "0 8px 28px rgba(56,73,89,0.13)",
+                  zIndex: 60,
+                }}
+              >
+                {/* User mini-card */}
+                <div
+                  className="flex items-center gap-2.5 px-4 py-3 mb-1"
+                  style={{ borderBottom: "1px solid #f1f5f9" }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                    style={{
+                      background: "linear-gradient(135deg, #88BDF2, #6A89A7)",
+                      color: "#fff",
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
                   >
-                    <User className="w-4 h-4" />
-                    <span>Profile</span>
-                  </button>
-                  <div className="border-t border-gray-100 my-1"></div>
-                  <button
-                    onClick={handleLogoutClick}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Logout</span>
-                  </button>
+                    {initials(displayName)}
+                  </div>
+                  <div className="min-w-0">
+                    <p
+                      className="text-xs font-semibold truncate"
+                      style={{ color: "#384959" }}
+                    >
+                      {displayName}
+                    </p>
+                    <p
+                      className="text-[10px] truncate"
+                      style={{ color: "#6A89A7" }}
+                    >
+                      {displayRole}
+                    </p>
+                  </div>
                 </div>
-              )}
-            </div>
+
+                <button
+                  onClick={() => setDropdownOpen(false)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                  style={{
+                    color: "#384959",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    ...font,
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "#f3f8fd")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                >
+                  <User size={15} style={{ color: "#6A89A7" }} />
+                  Profile
+                </button>
+
+                <div
+                  style={{ borderTop: "1px solid #f1f5f9", margin: "2px 0" }}
+                />
+
+                <button
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    setLogoutModal(true);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
+                  style={{
+                    color: "#ef4444",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    ...font,
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "#fff5f5")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
+                >
+                  <LogOut size={15} />
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
-      {/* Logout Confirmation Modal */}
-      {isLogoutModalOpen && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 transform transition-all">
-            {/* Modal Header */}
-            <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full mx-auto mb-4">
-              <LogOut className="w-6 h-6 text-red-600" />
+      {/* ── Logout Modal ── */}
+      {logoutModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{
+            background: "rgba(56,73,89,0.35)",
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl p-6"
+            style={{
+              background: "#fff",
+              boxShadow: "0 24px 64px rgba(56,73,89,0.22)",
+              animation: "popIn .18s ease",
+              ...font,
+            }}
+          >
+            <style>{`@keyframes popIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}`}</style>
+
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+              style={{ background: "#fee2e2" }}
+            >
+              <LogOut size={20} style={{ color: "#ef4444" }} />
             </div>
-            
-            {/* Modal Content */}
-            <h3 className="text-xl font-bold text-gray-800 text-center mb-2">
+
+            <h3
+              className="text-base font-bold text-center mb-1"
+              style={{ color: "#384959" }}
+            >
               Confirm Logout
             </h3>
-            <p className="text-gray-600 text-center mb-6">
-              Are you sure you want to logout? You will need to sign in again to access your account.
+            <p
+              className="text-sm text-center mb-6"
+              style={{ color: "#6A89A7" }}
+            >
+              Are you sure you want to logout? You'll need to sign in again.
             </p>
 
-            {/* Modal Actions */}
             <div className="flex gap-3">
               <button
-                onClick={handleCancelLogout}
-                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition"
+                onClick={() => setLogoutModal(false)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                style={{
+                  border: "1.5px solid #BDDDFC",
+                  background: "#f8fbff",
+                  color: "#384959",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "#BDDDFC")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "#f8fbff")
+                }
               >
                 Cancel
               </button>
-               <LogoutButton/>
+              <LogoutButton />
             </div>
           </div>
         </div>
@@ -153,5 +369,3 @@ function Navbar({ onMenuClick }) {
     </>
   );
 }
-
-export default Navbar;

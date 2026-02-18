@@ -1,4 +1,5 @@
 //server\server.js
+import "./src/utils/redis.js";
 import app from "./src/app.js"; //login related
 import staff from "./src/staff.js"
 
