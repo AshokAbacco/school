@@ -133,8 +133,7 @@ export default function TeacherCard({ teacher, onSelect }) {
               className="text-[11px] font-medium px-2 py-0.5 rounded-md"
               style={{ background: "#BDDDFC", color: "#384959" }}
             >
-              {a.subject} · {a.grade}
-              {a.className}
+              {a.subject?.name} · {a.classSection?.name}
             </span>
           ))}
           {teacher.assignments.length > 3 && (

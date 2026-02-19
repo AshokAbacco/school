@@ -533,18 +533,31 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
                   >
                     Status Actions
                   </p>
+
                   <div className="flex flex-wrap gap-2">
                     {actions.map((a) => (
                       <button
                         key={a.to}
                         onClick={() => handleStatusChange(a.to)}
-                        style={btnSm(a.bg, a.color, a.border)}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.opacity = "0.8")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.opacity = "1")
-                        }
+                        style={{
+                          backgroundColor: "#88BDF2",
+                          color: "#384959",
+                          border: "1px solid #BDDDFC",
+                          padding: "6px 12px",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          transition: "all 0.2s ease",
+                          cursor: "pointer",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#6A89A7";
+                          e.currentTarget.style.color = "#fff";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "#88BDF2";
+                          e.currentTarget.style.color = "#384959";
+                        }}
                       >
                         {a.label}
                       </button>

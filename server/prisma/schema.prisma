@@ -1,3 +1,9 @@
+// ═══════════════════════════════════════════════════════════════
+//  ACADEMIC ERP — IMPROVED PRISMA SCHEMA
+//  Multi-tenant: University → School → AcademicYear → ClassSection
+//  Supports: School (grade-based) + Degree (semester-based)
+// ═══════════════════════════════════════════════════════════════
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -87,21 +93,38 @@ enum SchoolType {
   PRIMARY // Class 1–5
   UPPER_PRIMARY // Class 6–8
   HIGH_SCHOOL // Class 9–10
-  PUC // Class 11–12 / Pre-University
+  PUC // Class 11–12
   DEGREE // Undergraduate
   POSTGRADUATE
   OTHER
 }
 
+enum SlotType {
+  PERIOD
+  SHORT_BREAK
+  LUNCH_BREAK
+  PRAYER
+  OTHER
+}
+
+enum WeekDay {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  UNIVERSITY  (top-level tenant)
-//  One university = one Super Admin registration
 // ═══════════════════════════════════════════════════════════════
 
 model University {
   id        String   @id @default(uuid())
   name      String
-  code      String   @unique // e.g. "CHRIST_UNI"
+  code      String   @unique
   address   String?
   city      String?
   state     String?
@@ -113,7 +136,6 @@ model University {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
   superAdmins SuperAdmin[]
   schools     School[]
 
@@ -122,16 +144,14 @@ model University {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  SUPER ADMIN  (registers a university, manages schools)
-//  Multiple super admins can belong to one university
-//  Each super admin can be scoped to certain schools
+//  SUPER ADMIN
 // ═══════════════════════════════════════════════════════════════
 
 model SuperAdmin {
   id           String    @id @default(uuid())
   name         String
   email        String    @unique
-  password     String // bcrypt hashed
+  password     String
   phone        String?
   profileImage String?
   isActive     Boolean   @default(true)
@@ -139,19 +159,15 @@ model SuperAdmin {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  // University relation
   universityId String
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
 
-  // Which schools this super admin can manage (empty = all schools in the university)
   schoolAccess SuperAdminSchoolAccess[]
 
   @@index([universityId])
   @@map("super_admins")
 }
 
-// Junction: which schools a super admin can access
-// If no rows exist for a super admin → they can access ALL schools in their university
 model SuperAdminSchoolAccess {
   id           String     @id @default(uuid())
   superAdminId String
@@ -165,14 +181,13 @@ model SuperAdminSchoolAccess {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  SCHOOL  (Primary / High School / PUC / Degree etc.)
-//  Belongs to a University
+//  SCHOOL
 // ═══════════════════════════════════════════════════════════════
 
 model School {
   id        String     @id @default(uuid())
   name      String
-  code      String     @unique // e.g. "CHRIST_PRIMARY", "CHRIST_DEGREE"
+  code      String     @unique
   type      SchoolType
   address   String?
   city      String?
@@ -183,16 +198,21 @@ model School {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  // University relation
   universityId String
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
 
-  // Relations
-  users            User[] // Admins & Teachers (staff)
+  superAdminAccess SuperAdminSchoolAccess[]
+  users            User[]
   students         Student[]
   parents          Parent[]
   teachers         TeacherProfile[]
-  superAdminAccess SuperAdminSchoolAccess[]
+  academicYears    AcademicYear[]
+  classSections    ClassSection[]
+  subjects         Subject[] // ✅ NEW: central subject registry
+  timetableConfigs TimetableConfig[]
+  timetableEntries TimetableEntry[]
+  assessmentTerms  AssessmentTerm[]
+  assessmentGroups AssessmentGroup[]
 
   @@index([universityId])
   @@index([type])
@@ -201,26 +221,68 @@ model School {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  PARENT  (scoped to a school)
+//  PARENT
 // ═══════════════════════════════════════════════════════════════
 
-model Parent {
-  id        String   @id @default(uuid())
-  name      String
-  email     String
-  password  String
-  phone     String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum ParentRelation {
+  FATHER
+  MOTHER
+  GUARDIAN
+}
 
-  // School scoping
+// ─── Parent login account ────────────────────────────────────────
+//  One Parent account can be linked to multiple students (siblings).
+//  One student can have multiple parents (father + mother + guardian).
+//  The StudentParent junction table stores the relationship type.
+
+model Parent {
+  id           String   @id @default(uuid())
+  name         String
+  email        String
+  password     String
+  phone        String?
+  occupation   String?
+  profileImage String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  @@unique([email, schoolId]) // same email can exist in different schools
+  studentLinks StudentParent[]
+
+  @@unique([email, schoolId])
   @@index([schoolId])
   @@map("parents")
+}
+
+// ─── Student ↔ Parent junction ───────────────────────────────────
+//  Stores the relation type (FATHER/MOTHER/GUARDIAN) per link.
+//  One student can have: father + mother + guardian = 3 rows.
+//  One parent with 2 kids (siblings) = 2 rows.
+//  isPrimary  → main contact for school communication.
+//  emergencyContact → who to call first in an emergency.
+
+model StudentParent {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  parentId String
+  parent   Parent @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  relation         ParentRelation
+  isPrimary        Boolean        @default(false)
+  emergencyContact Boolean        @default(false)
+
+  @@unique([studentId, parentId])
+  @@unique([studentId, relation])
+  @@index([studentId])
+  @@index([parentId])
+  @@map("student_parents")
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -232,20 +294,18 @@ model User {
   name        String
   email       String
   password    String
-  role        StaffRole // ADMIN or TEACHER (SUPER_ADMIN has separate table)
+  role        StaffRole
   isActive    Boolean   @default(true)
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  // School scoping
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  // Relations
   teacherProfile TeacherProfile?
 
-  @@unique([email, schoolId]) // same email can exist in different schools
+  @@unique([email, schoolId])
   @@index([role])
   @@index([isActive])
   @@index([schoolId])
@@ -253,7 +313,7 @@ model User {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  STUDENT  (auth table)
+//  STUDENT  (auth table only — profile is separate)
 // ═══════════════════════════════════════════════════════════════
 
 model Student {
@@ -265,13 +325,15 @@ model Student {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // School scoping
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  // Relations
-  personalInfo StudentPersonalInfo?
-  documents    StudentDocumentInfo[]
+  personalInfo    StudentPersonalInfo?
+  documents       StudentDocumentInfo[]
+  enrollments     StudentEnrollment[] // ✅ NEW: replaces string-based grade/class
+  marks           Marks[]
+  resultSummaries ResultSummary[]
+  parentLinks     StudentParent[] // ✅ father / mother / guardian links
 
   @@unique([email, schoolId])
   @@index([schoolId])
@@ -280,6 +342,7 @@ model Student {
 
 // ═══════════════════════════════════════════════════════════════
 //  STUDENT PERSONAL INFO
+//  NOTE: grade/className strings removed — use StudentEnrollment instead
 // ═══════════════════════════════════════════════════════════════
 
 model StudentPersonalInfo {
@@ -290,39 +353,64 @@ model StudentPersonalInfo {
   studentId String  @unique
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  // Personal
   firstName    String
   lastName     String
   dateOfBirth  DateTime?
   gender       Gender?
   profileImage String?
 
-  // Contact
   phone   String?
   address String?
   city    String?
   state   String?
   zipCode String?
 
-  // Academic
-  grade         String
-  className     String
+  // ✅ REMOVED: grade, className (now in StudentEnrollment)
   admissionDate DateTime
   rollNumber    String?
   status        StudentStatus @default(ACTIVE)
 
-  // Parent / Guardian
   parentName       String?
   parentEmail      String?
   parentPhone      String?
   emergencyContact String?
 
-  // Health
   bloodGroup        BloodGroup?
   medicalConditions String?
   allergies         String?
 
   @@map("student_personal_info")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ✅ NEW: STUDENT ENROLLMENT
+//  Properly links a student to a ClassSection for a given AcademicYear.
+//  Replaces free-text grade/className on StudentPersonalInfo.
+//  One student can be in different sections across years (e.g. promoted).
+// ═══════════════════════════════════════════════════════════════
+
+model StudentEnrollment {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  rollNumber String? // Roll number can change each year
+  status     StudentStatus @default(ACTIVE)
+
+  // A student can only be enrolled in one section per academic year
+  @@unique([studentId, academicYearId])
+  @@index([classSectionId])
+  @@index([academicYearId])
+  @@map("student_enrollments")
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -340,8 +428,8 @@ model StudentDocumentInfo {
   documentName DocumentType
   customLabel  String?
 
-  fileKey       String // Cloudflare R2 key
-  fileUrl       String? // signed URL cache (never trust, regenerate)
+  fileKey       String
+  fileUrl       String?
   fileType      String
   fileSizeBytes Int?
 
@@ -354,6 +442,64 @@ model StudentDocumentInfo {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  ✅ NEW: SUBJECT
+//  Central subject registry per school.
+//  Subjects are scoped to a grade/level (optional for degree-level).
+//  No more free-text subject strings scattered across tables.
+// ═══════════════════════════════════════════════════════════════
+
+model Subject {
+  id          String  @id @default(uuid())
+  name        String // "Mathematics", "Data Structures"
+  code        String? // "MATH101" — optional short code
+  description String?
+  isElective  Boolean @default(false)
+
+  // Optional: scope this subject to a grade (for school-level)
+  // For degree-level, leave null and link via ClassSubject
+  gradeLevel String? // "10", "11", "FY", "SY" — null = applies to any
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  classSubjects       ClassSubject[]
+  timetableEntries    TimetableEntry[]
+  assessmentSchedules AssessmentSchedule[]
+  TeacherAssignment   TeacherAssignment[]
+
+  @@unique([code, schoolId])
+  @@index([schoolId])
+  @@index([gradeLevel])
+  @@map("subjects")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ✅ NEW: CLASS SUBJECT  (junction: ClassSection ↔ Subject per year)
+//  Admin assigns which subjects a class studies in a given academic year.
+//  Also records who teaches it (optional — full teaching assignment below).
+// ═══════════════════════════════════════════════════════════════
+
+model ClassSubject {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  // One subject can only be assigned once per class per year
+  @@unique([classSectionId, subjectId, academicYearId])
+  @@index([classSectionId])
+  @@index([academicYearId])
+  @@map("class_subjects")
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  TEACHER PROFILE
 // ═══════════════════════════════════════════════════════════════
 
@@ -362,15 +508,12 @@ model TeacherProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Linked to User (login account)
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // School (denormalised for easy queries)
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  // Basic Info
   employeeCode String    @unique
   firstName    String
   lastName     String
@@ -383,7 +526,6 @@ model TeacherProfile {
   zipCode      String?
   profileImage String?
 
-  // Professional Info
   department      String
   designation     String
   qualification   String?
@@ -392,7 +534,6 @@ model TeacherProfile {
   employmentType  EmploymentType
   status          TeacherStatus  @default(ACTIVE)
 
-  // Payroll Info
   salary        Decimal? @db.Decimal(10, 2)
   bankAccountNo String?
   bankName      String?
@@ -400,19 +541,23 @@ model TeacherProfile {
   panNumber     String?
   aadhaarNumber String?
 
-  // Relations
-  assignments TeacherAssignment[]
-  documents   TeacherDocument[]
+  // ✅ REPLACED: TeacherAssignment now uses Subject FK, not free-text
+  assignments      TeacherAssignment[]
+  documents        TeacherDocument[]
+  timetableEntries TimetableEntry[]
+  // ✅ NEW: Class teacher assignments
+  classTeacherOf   ClassSectionAcademicYear[]
 
   @@index([schoolId])
   @@index([department])
   @@index([status])
-  @@index([joiningDate])
   @@map("teacher_profiles")
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  TEACHER ASSIGNMENTS
+//  ✅ IMPROVED: TEACHER ASSIGNMENT
+//  Now uses Subject FK instead of free-text subject string.
+//  grade/className removed — ClassSection covers it.
 // ═══════════════════════════════════════════════════════════════
 
 model TeacherAssignment {
@@ -422,14 +567,19 @@ model TeacherAssignment {
   teacherId String
   teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
-  grade        String
-  className    String
-  subject      String
-  academicYear String
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
 
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade) // ✅ FK not string
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  // One teacher per subject per class per year
+  @@unique([classSectionId, subjectId, academicYearId])
   @@index([teacherId])
-  @@index([grade, className])
-  @@index([academicYear])
+  @@index([academicYearId])
   @@map("teacher_assignments")
 }
 
@@ -459,4 +609,322 @@ model TeacherDocument {
   @@index([teacherId])
   @@index([documentType])
   @@map("teacher_documents")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ACADEMIC YEAR
+// ═══════════════════════════════════════════════════════════════
+
+model AcademicYear {
+  id        String   @id @default(uuid())
+  name      String // "2025-2026", "Semester 1 2025"
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  classSectionYears  ClassSectionAcademicYear[]
+  timetableConfigs   TimetableConfig[]
+  timetableEntries   TimetableEntry[]
+  classSubjects      ClassSubject[]
+  teacherAssignments TeacherAssignment[]
+  assessmentTerms    AssessmentTerm[]
+  assessmentGroups   AssessmentGroup[]
+  resultSummaries    ResultSummary[]
+  studentEnrollments StudentEnrollment[]
+
+  @@unique([name, schoolId])
+  @@index([schoolId])
+  @@map("academic_years")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CLASS SECTION
+// ═══════════════════════════════════════════════════════════════
+
+model ClassSection {
+  id      String @id @default(uuid())
+  grade   String // "10", "FY", "Semester 1"
+  section String // "A", "B", or "1" for degree
+  name    String // "10-A", "FY-A"
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // ✅ NEW: yearly metadata (class teacher, etc.)
+  academicYearLinks   ClassSectionAcademicYear[]
+  classSubjects       ClassSubject[]
+  teacherAssignments  TeacherAssignment[]
+  timetableEntries    TimetableEntry[]
+  assessmentSchedules AssessmentSchedule[]
+  studentEnrollments  StudentEnrollment[]
+
+  @@unique([grade, section, schoolId])
+  @@index([schoolId])
+  @@map("class_sections")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ✅ NEW: CLASS SECTION × ACADEMIC YEAR
+//  Holds per-year metadata for a ClassSection:
+//  - Who is the class teacher this year?
+//  - Is this section active this year?
+//  This avoids putting year-specific data on ClassSection itself.
+// ═══════════════════════════════════════════════════════════════
+
+model ClassSectionAcademicYear {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  // ✅ Class teacher for this section in this year
+  classTeacherId String?
+  classTeacher   TeacherProfile? @relation(fields: [classTeacherId], references: [id], onDelete: SetNull)
+
+  isActive Boolean @default(true)
+
+  @@unique([classSectionId, academicYearId])
+  @@index([academicYearId])
+  @@map("class_section_academic_years")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TIMETABLE CONFIG
+// ═══════════════════════════════════════════════════════════════
+
+model TimetableConfig {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  startTime      String
+  endTime        String
+  periodDuration Int
+  totalPeriods   Int
+
+  slots TimetablePeriodSlot[]
+
+  @@unique([schoolId, academicYearId])
+  @@map("timetable_configs")
+}
+
+model TimetablePeriodSlot {
+  id String @id @default(uuid())
+
+  configId String
+  config   TimetableConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  slotOrder Int
+  slotType  SlotType
+
+  startTime        String
+  endTime          String
+  label            String
+  timetableEntries TimetableEntry[]
+
+  @@index([configId])
+  @@map("timetable_period_slots")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TIMETABLE ENTRY
+//  ✅ subjectId is now FK to Subject (not free-text)
+// ═══════════════════════════════════════════════════════════════
+
+model TimetableEntry {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  periodSlotId String
+  periodSlot   TimetablePeriodSlot @relation(fields: [periodSlotId], references: [id], onDelete: Cascade)
+
+  subjectId String // ✅ FK not free-text
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  day WeekDay
+
+  // Prevents 2 teachers for same class + same slot + same day
+  @@unique([classSectionId, day, periodSlotId])
+  // Prevents teacher double-booking
+  @@unique([teacherId, day, periodSlotId])
+  @@index([schoolId])
+  @@index([teacherId])
+  @@map("timetable_entries")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ASSESSMENT TERM
+//  Admin-defined: "Semester 1", "Term 2", or skipped entirely
+//  Flexible: not hardcoded — admin creates whatever terms they need
+// ═══════════════════════════════════════════════════════════════
+
+model AssessmentTerm {
+  id    String @id @default(uuid())
+  name  String // "Semester 1", "Annual", "Term 2" — admin defined
+  order Int? // for display ordering
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  assessmentGroups AssessmentGroup[]
+
+  createdAt     DateTime        @default(now())
+  ResultSummary ResultSummary[]
+
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@map("assessment_terms")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ASSESSMENT GROUP
+//  Admin-defined exam type: "IA1", "Midterm", "Final Exam"
+//  Not hardcoded — admin creates whatever groups they need
+// ═══════════════════════════════════════════════════════════════
+
+model AssessmentGroup {
+  id          String  @id @default(uuid())
+  name        String // "IA 1", "Midterm", "Final" — admin defined
+  weightage   Float? // optional: percentage weight for result calc
+  isPublished Boolean @default(false)
+  isLocked    Boolean @default(false)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  termId String?
+  term   AssessmentTerm? @relation(fields: [termId], references: [id], onDelete: SetNull)
+
+  schedules AssessmentSchedule[]
+
+  createdAt     DateTime        @default(now())
+  ResultSummary ResultSummary[]
+
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@map("assessment_groups")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ASSESSMENT SCHEDULE
+//  ✅ subjectId is now FK to Subject (not free-text)
+//  ✅ maxMarks added per schedule (per subject per exam)
+//  ✅ passingMarks added for flexible per-subject pass criteria
+// ═══════════════════════════════════════════════════════════════
+
+model AssessmentSchedule {
+  id String @id @default(uuid())
+
+  assessmentGroupId String
+  assessmentGroup   AssessmentGroup @relation(fields: [assessmentGroupId], references: [id], onDelete: Cascade)
+
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  subjectId String // ✅ FK not free-text
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  maxMarks     Float // ✅ Per-subject max marks (e.g. Math=100, Drawing=50)
+  passingMarks Float? // ✅ Per-subject pass threshold
+
+  examDate  DateTime
+  startTime DateTime
+  endTime   DateTime
+
+  marks Marks[]
+
+  @@index([classSectionId])
+  @@index([assessmentGroupId])
+  @@map("assessment_schedules")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MARKS
+// ═══════════════════════════════════════════════════════════════
+
+model Marks {
+  id String @id @default(uuid())
+
+  scheduleId String
+  schedule   AssessmentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  marksObtained Float?
+  isAbsent      Boolean @default(false)
+  remarks       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt // ✅ added for audit tracking
+
+  @@unique([scheduleId, studentId])
+  @@index([studentId])
+  @@map("marks")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RESULT SUMMARY
+//  ✅ Now supports term-wise AND group-wise breakdowns
+//  Not just one flat record per student per year
+// ═══════════════════════════════════════════════════════════════
+
+model ResultSummary {
+  id String @id @default(uuid())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  // ✅ Optional scoping — null = full-year summary
+  termId String?
+  term   AssessmentTerm? @relation(fields: [termId], references: [id], onDelete: SetNull)
+
+  assessmentGroupId String?
+  assessmentGroup   AssessmentGroup? @relation(fields: [assessmentGroupId], references: [id], onDelete: SetNull)
+
+  totalMarks Float?
+  maxMarks   Float? // ✅ so percentage can be derived correctly
+  percentage Float?
+  grade      String? // admin-defined grade label, not hardcoded
+
+  isPublished Boolean @default(false)
+
+  @@unique([studentId, academicYearId, termId, assessmentGroupId])
+  @@index([studentId])
+  @@index([academicYearId])
+  @@map("result_summaries")
 }

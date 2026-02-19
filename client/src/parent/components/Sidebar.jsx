@@ -6,28 +6,40 @@ import {
   ClipboardCheck,
   BarChart2,
   Calendar,
-  Zap,
+
   Award,
   Users,
   LogOut,
   GraduationCap,
   X,
+  BookOpen,
+  Bell,
+  MessageCircle,
+  CreditCard,
+
 } from "lucide-react";
 
 function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
 
+
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-    { icon: User, label: "Profile", href: "/profile" },
+
+    { icon: User, label: "My Child Profile", href: "/profile" },
     { icon: ClipboardCheck, label: "Attendance", href: "/attendance" },
-    { icon: BarChart2, label: "Marks & Results", href: "/marks" },
+    { icon: BarChart2, label: "Results", href: "/marks" },
     { icon: Calendar, label: "Timetable", href: "/timetable" },
-    { icon: Zap, label: "Activities", href: "/activities" },
+    { icon: BookOpen, label: "Assignments", href: "/homework" },
+    { icon: Bell, label: "Announcements", href: "/notices" },
+    { icon: MessageCircle, label: "Teacher Chat", href: "/messages" },
+
+    { icon: CreditCard, label: "Fees & Payments", href: "/fees" },
+
     { icon: Award, label: "Certificates", href: "/certificates" },
+
     { icon: Users, label: "Meeting", href: "/meeting" },
   ];
-
 
   const isActive = (href) =>
     location.pathname === href || location.pathname.startsWith(href + "/");

@@ -1,11 +1,15 @@
 import React from "react";
 import { MoreVertical, Eye, Edit, Trash2, UserCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-function ClassTableRow({ classItem }) {
+function ClassTableRow({ classItem, onDelete }) {
+  const navigate = useNavigate();
   // Calculate capacity percentage for the progress bar
-  const capacityPercentage = Math.round(
-    (classItem.students / classItem.capacity) * 100,
-  );
+  const capacityPercentage =
+    classItem.capacity > 0
+      ? Math.round((classItem.students / classItem.capacity) * 100)
+      : 0;
+
   const isFull = capacityPercentage >= 100;
 
   return (
@@ -82,18 +86,21 @@ function ClassTableRow({ classItem }) {
       <td className="px-6 py-4">
         <div className="flex items-center gap-1">
           <button
+            onClick={() => navigate(`/admin/classes/${classItem.id}`)}
             className="p-2 hover:bg-indigo-50 rounded-lg transition group"
-            title="View Timeline"
+            title="View Class"
           >
             <Eye className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
           </button>
           <button
+            onClick={() => navigate(`/admin/classes/${classItem.id}/edit`)}
             className="p-2 hover:bg-green-50 rounded-lg transition group"
-            title="Edit"
+            title="Edit Class"
           >
             <Edit className="w-4 h-4 text-gray-400 group-hover:text-green-600" />
           </button>
           <button
+            onClick={() => onDelete?.(classItem.id)}
             className="p-2 hover:bg-red-50 rounded-lg transition group"
             title="Delete"
           >
