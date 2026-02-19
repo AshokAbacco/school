@@ -1,8 +1,43 @@
 // server/src/controllers/timetableEntryController.js
 import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import redisClient from "../utils/redis.js";
 
-// GET /api/class-sections/:id/timetable?academicYearId=xxx
+const prisma = new PrismaClient();
+const CACHE_TTL = 60 * 5; // 5 minutes
+
+// ── Safe Redis helpers (fail silently) ───────────────────────────────────────
+
+async function cacheGet(key) {
+  try {
+    return await redisClient.get(key);
+  } catch (err) {
+    console.error(`[Redis] GET ${key} failed:`, err.message);
+    return null;
+  }
+}
+
+async function cacheSet(key, value) {
+  try {
+    await redisClient.setEx(key, CACHE_TTL, JSON.stringify(value));
+  } catch (err) {
+    console.error(`[Redis] SET ${key} failed:`, err.message);
+  }
+}
+
+async function cacheDel(key) {
+  try {
+    await redisClient.del(key);
+  } catch (err) {
+    console.error(`[Redis] DEL ${key} failed:`, err.message);
+  }
+}
+
+// ── Cache key helper ─────────────────────────────────────────────────────────
+// Scoped to classSectionId + academicYearId — exact match, no wildcard needed
+const cacheKey = (schoolId, classSectionId, academicYearId) =>
+  `timetable-entries:${schoolId}:${classSectionId}:${academicYearId}`;
+
+// ── GET /api/class-sections/:id/timetable?academicYearId=xxx ─────────────────
 export const getTimetableEntries = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
@@ -11,6 +46,15 @@ export const getTimetableEntries = async (req, res) => {
     if (!academicYearId)
       return res.status(400).json({ message: "academicYearId is required" });
 
+    const key = cacheKey(schoolId, classSectionId, academicYearId);
+
+    // 1. Check cache
+    const cached = await cacheGet(key);
+    if (cached) {
+      return res.json({ entries: JSON.parse(cached), fromCache: true });
+    }
+
+    // 2. Cache miss → fetch from DB
     const entries = await prisma.timetableEntry.findMany({
       where: { classSectionId, academicYearId, schoolId },
       include: {
@@ -28,13 +72,17 @@ export const getTimetableEntries = async (req, res) => {
       },
       orderBy: [{ day: "asc" }, { periodSlot: { slotOrder: "asc" } }],
     });
+
+    // 3. Store in cache
+    await cacheSet(key, entries);
+
     return res.json({ entries });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// POST /api/class-sections/:id/timetable
+// ── POST /api/class-sections/:id/timetable ───────────────────────────────────
 // body: { academicYearId, entries: [{ day, periodSlotId, subjectId, teacherId }] }
 // Replaces the full timetable for this class in this year
 export const saveTimetableEntries = async (req, res) => {
@@ -120,22 +168,31 @@ export const saveTimetableEntries = async (req, res) => {
       });
     });
 
+    // Invalidate the cached entries for this class + year
+    await cacheDel(cacheKey(schoolId, classSectionId, academicYearId));
+
     return res.json({ message: "Timetable saved", entries: saved });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// DELETE single entry: DELETE /api/class-sections/:id/timetable/entry/:entryId
+// ── DELETE /api/class-sections/:id/timetable/entry/:entryId ─────────────────
 export const deleteTimetableEntry = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
-    const { entryId } = req.params;
+    const { id: classSectionId, entryId } = req.params;
+
     const entry = await prisma.timetableEntry.findFirst({
       where: { id: entryId, schoolId },
     });
     if (!entry) return res.status(404).json({ message: "Entry not found" });
+
     await prisma.timetableEntry.delete({ where: { id: entryId } });
+
+    // Invalidate cache for this class + year using data from the found entry
+    await cacheDel(cacheKey(schoolId, classSectionId, entry.academicYearId));
+
     return res.json({ message: "Entry removed" });
   } catch (err) {
     return res.status(500).json({ message: err.message });

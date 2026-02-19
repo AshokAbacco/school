@@ -1,12 +1,86 @@
 // server/src/controllers/classSectionController.js
 import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import redisClient from "../utils/redis.js";
 
-// GET /api/class-sections?academicYearId=xxx
+const prisma = new PrismaClient();
+const CACHE_TTL = 60 * 5; // 5 minutes
+
+// ── Safe Redis helpers (fail silently) ───────────────────────────────────────
+
+async function cacheGet(key) {
+  try {
+    return await redisClient.get(key);
+  } catch (err) {
+    console.error(`[Redis] GET ${key} failed:`, err.message);
+    return null;
+  }
+}
+
+async function cacheSet(key, value) {
+  try {
+    await redisClient.setEx(key, CACHE_TTL, JSON.stringify(value));
+  } catch (err) {
+    console.error(`[Redis] SET ${key} failed:`, err.message);
+  }
+}
+
+async function cacheDel(...keys) {
+  try {
+    await redisClient.del(keys);
+  } catch (err) {
+    console.error(`[Redis] DEL ${keys.join(", ")} failed:`, err.message);
+  }
+}
+
+// Uses SCAN instead of KEYS to avoid blocking Redis in production
+async function scanAndDelete(pattern) {
+  try {
+    let cursor = 0;
+    do {
+      const reply = await redisClient.scan(cursor, {
+        MATCH: pattern,
+        COUNT: 100,
+      });
+      cursor = reply.cursor;
+      if (reply.keys.length) await redisClient.del(reply.keys);
+    } while (cursor !== 0);
+  } catch (err) {
+    console.error(`[Redis] SCAN/DEL ${pattern} failed:`, err.message);
+  }
+}
+
+// ── Cache key helpers ────────────────────────────────────────────────────────
+const cacheKey = {
+  list: (schoolId, academicYearId) =>
+    `class-sections:${schoolId}:list:${academicYearId ?? "all"}`,
+  single: (schoolId, id, academicYearId) =>
+    `class-sections:${schoolId}:${id}:${academicYearId ?? "all"}`,
+};
+
+async function invalidateCache(schoolId, id = null) {
+  // Wipe all list variants for this school
+  await scanAndDelete(`class-sections:${schoolId}:list:*`);
+
+  // Wipe all academicYearId variants for a specific section
+  if (id) {
+    await scanAndDelete(`class-sections:${schoolId}:${id}:*`);
+  }
+}
+
+// ── GET /api/class-sections?academicYearId=xxx ───────────────────────────────
 export const getClassSections = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
     const { academicYearId } = req.query;
+    const key = cacheKey.list(schoolId, academicYearId);
+
+    // 1. Check cache
+    const cached = await cacheGet(key);
+    if (cached) {
+      return res.json({ classSections: JSON.parse(cached), fromCache: true });
+    }
+
+    // 2. Cache miss → fetch from DB
     const classSections = await prisma.classSection.findMany({
       where: { schoolId },
       orderBy: [{ grade: "asc" }, { section: "asc" }],
@@ -36,18 +110,31 @@ export const getClassSections = async (req, res) => {
         },
       },
     });
+
+    // 3. Store in cache
+    await cacheSet(key, classSections);
+
     return res.json({ classSections });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// GET /api/class-sections/:id
+// ── GET /api/class-sections/:id ──────────────────────────────────────────────
 export const getClassSectionById = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
     const { id } = req.params;
     const { academicYearId } = req.query;
+    const key = cacheKey.single(schoolId, id, academicYearId);
+
+    // 1. Check cache
+    const cached = await cacheGet(key);
+    if (cached) {
+      return res.json({ classSection: JSON.parse(cached), fromCache: true });
+    }
+
+    // 2. Cache miss → fetch from DB
     const section = await prisma.classSection.findFirst({
       where: { id, schoolId },
       include: {
@@ -86,16 +173,20 @@ export const getClassSectionById = async (req, res) => {
         _count: { select: { studentEnrollments: true } },
       },
     });
+
     if (!section)
       return res.status(404).json({ message: "Class section not found" });
+
+    // 3. Store in cache
+    await cacheSet(key, section);
+
     return res.json({ classSection: section });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// POST /api/class-sections
-// body: { grade, section, sections?: [{section, room, capacity}], room, capacity }
+// ── POST /api/class-sections ─────────────────────────────────────────────────
 export const createClassSection = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
@@ -104,7 +195,7 @@ export const createClassSection = async (req, res) => {
     if (!grade?.trim())
       return res.status(400).json({ message: "Grade is required" });
 
-    // Bulk create mode: sections array provided
+    // Bulk create
     if (sections && Array.isArray(sections) && sections.length > 0) {
       const results = [];
       const errors = [];
@@ -124,6 +215,7 @@ export const createClassSection = async (req, res) => {
         });
         results.push(created);
       }
+      await invalidateCache(schoolId);
       return res.status(201).json({
         message: `${results.length} class(es) created`,
         classSections: results,
@@ -143,6 +235,8 @@ export const createClassSection = async (req, res) => {
     const classSection = await prisma.classSection.create({
       data: { grade: grade.trim(), section: section.trim(), name, schoolId },
     });
+
+    await invalidateCache(schoolId);
     return res
       .status(201)
       .json({ message: "Class section created", classSection });
@@ -151,8 +245,7 @@ export const createClassSection = async (req, res) => {
   }
 };
 
-// POST /api/class-sections/:id/activate
-// body: { academicYearId, classTeacherId?, isActive? }
+// ── POST /api/class-sections/:id/activate ───────────────────────────────────
 export const activateClassForYear = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
@@ -197,13 +290,15 @@ export const activateClassForYear = async (req, res) => {
         academicYear: { select: { id: true, name: true } },
       },
     });
+
+    await invalidateCache(schoolId, id);
     return res.json({ message: "Class activated for year", link });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// DELETE /api/class-sections/:id
+// ── DELETE /api/class-sections/:id ──────────────────────────────────────────
 export const deleteClassSection = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
@@ -223,14 +318,14 @@ export const deleteClassSection = async (req, res) => {
       });
 
     await prisma.classSection.delete({ where: { id } });
+    await invalidateCache(schoolId, id);
     return res.json({ message: "Class section deleted" });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// POST /api/class-sections/:id/class-subjects
-// body: { subjectId, academicYearId }
+// ── POST /api/class-sections/:id/class-subjects ──────────────────────────────
 export const assignSubjectToClass = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
@@ -259,13 +354,15 @@ export const assignSubjectToClass = async (req, res) => {
       create: { classSectionId, subjectId, academicYearId },
       include: { subject: true },
     });
+
+    await invalidateCache(schoolId, classSectionId);
     return res.status(201).json({ message: "Subject assigned", classSubject });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// DELETE /api/class-sections/:id/class-subjects/:classSubjectId
+// ── DELETE /api/class-sections/:id/class-subjects/:classSubjectId ────────────
 export const removeSubjectFromClass = async (req, res) => {
   try {
     const { id: classSectionId, classSubjectId } = req.params;
@@ -274,14 +371,20 @@ export const removeSubjectFromClass = async (req, res) => {
     });
     if (!cs) return res.status(404).json({ message: "Assignment not found" });
     await prisma.classSubject.delete({ where: { id: classSubjectId } });
+
+    const section = await prisma.classSection.findUnique({
+      where: { id: classSectionId },
+      select: { schoolId: true },
+    });
+    if (section) await invalidateCache(section.schoolId, classSectionId);
+
     return res.json({ message: "Subject removed from class" });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// POST /api/class-sections/:id/teacher-assignments
-// body: { teacherId, subjectId, academicYearId }
+// ── POST /api/class-sections/:id/teacher-assignments ─────────────────────────
 export const assignTeacherToSubject = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
@@ -314,13 +417,15 @@ export const assignTeacherToSubject = async (req, res) => {
         subject: { select: { id: true, name: true, code: true } },
       },
     });
+
+    await invalidateCache(schoolId, classSectionId);
     return res.status(201).json({ message: "Teacher assigned", assignment });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// DELETE /api/class-sections/:id/teacher-assignments/:assignmentId
+// ── DELETE /api/class-sections/:id/teacher-assignments/:assignmentId ─────────
 export const removeTeacherAssignment = async (req, res) => {
   try {
     const { id: classSectionId, assignmentId } = req.params;
@@ -329,6 +434,13 @@ export const removeTeacherAssignment = async (req, res) => {
     });
     if (!ta) return res.status(404).json({ message: "Assignment not found" });
     await prisma.teacherAssignment.delete({ where: { id: assignmentId } });
+
+    const section = await prisma.classSection.findUnique({
+      where: { id: classSectionId },
+      select: { schoolId: true },
+    });
+    if (section) await invalidateCache(section.schoolId, classSectionId);
+
     return res.json({ message: "Teacher assignment removed" });
   } catch (err) {
     return res.status(500).json({ message: err.message });

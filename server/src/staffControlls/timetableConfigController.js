@@ -1,16 +1,54 @@
 // server/src/controllers/timetableConfigController.js
 import { PrismaClient } from "@prisma/client";
+import redisClient from "../utils/redis.js";
+
 const prisma = new PrismaClient();
+const CACHE_TTL = 60 * 5; // 5 minutes
+
+// ── Safe Redis helpers (fail silently) ───────────────────────────────────────
+
+async function cacheGet(key) {
+  try {
+    return await redisClient.get(key);
+  } catch (err) {
+    console.error(`[Redis] GET ${key} failed:`, err.message);
+    return null;
+  }
+}
+
+async function cacheSet(key, value) {
+  try {
+    await redisClient.setEx(key, CACHE_TTL, JSON.stringify(value));
+  } catch (err) {
+    console.error(`[Redis] SET ${key} failed:`, err.message);
+  }
+}
+
+async function cacheDel(key) {
+  try {
+    await redisClient.del(key);
+  } catch (err) {
+    console.error(`[Redis] DEL ${key} failed:`, err.message);
+  }
+}
+
+// ── Cache key helper ─────────────────────────────────────────────────────────
+const cacheKey = (schoolId, academicYearId) =>
+  `timetable-config:${schoolId}:${academicYearId}`;
+
+// ── Pure helper functions (unchanged) ────────────────────────────────────────
 
 function timeToMinutes(t) {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 }
+
 function minutesToTime(m) {
   const h = Math.floor(m / 60);
   const min = m % 60;
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
+
 function buildSlots(config, offset = 0) {
   const slots = [];
   let order = 1 + offset;
@@ -41,7 +79,7 @@ function buildSlots(config, offset = 0) {
   return slots;
 }
 
-// GET /api/class-sections/timetable/config?academicYearId=xxx
+// ── GET /api/class-sections/timetable/config?academicYearId=xxx ──────────────
 export const getTimetableConfig = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
@@ -49,17 +87,30 @@ export const getTimetableConfig = async (req, res) => {
     if (!academicYearId)
       return res.status(400).json({ message: "academicYearId is required" });
 
+    const key = cacheKey(schoolId, academicYearId);
+
+    // 1. Check cache
+    const cached = await cacheGet(key);
+    if (cached) {
+      return res.json({ config: JSON.parse(cached), fromCache: true });
+    }
+
+    // 2. Cache miss → fetch from DB
     const config = await prisma.timetableConfig.findUnique({
       where: { schoolId_academicYearId: { schoolId, academicYearId } },
       include: { slots: { orderBy: { slotOrder: "asc" } } },
     });
+
+    // 3. Store in cache (cache null too — avoids repeated DB hits for missing config)
+    await cacheSet(key, config ?? null);
+
     return res.json({ config: config || null });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// POST /api/class-sections/timetable/config
+// ── POST /api/class-sections/timetable/config ────────────────────────────────
 export const saveTimetableConfig = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
@@ -119,6 +170,9 @@ export const saveTimetableConfig = async (req, res) => {
         include: { slots: { orderBy: { slotOrder: "asc" } } },
       });
     });
+
+    // Invalidate the cached config for this school + year
+    await cacheDel(cacheKey(schoolId, academicYearId));
 
     return res.json({ message: "Timetable config saved", config: savedConfig });
   } catch (err) {
