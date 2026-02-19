@@ -7,7 +7,6 @@ const prisma = new PrismaClient();
 const CACHE_TTL = 300;
 const SALT_ROUNDS = 10;
 
-/* ─── helpers ─────────────────────────────────────────────── */
 const listKey = (q) => `teachers:list:${JSON.stringify(q)}`;
 
 async function bustListCache() {
@@ -15,7 +14,7 @@ async function bustListCache() {
   if (keys.length) await redisClient.del(keys);
 }
 
-/* ─── GET /api/teachers ──────────────────────────────────── */
+// ── GET /api/teachers ─────────────────────────────────────────
 export async function getTeachers(req, res) {
   try {
     const {
@@ -26,8 +25,6 @@ export async function getTeachers(req, res) {
       department = "",
     } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
-
-    // Always scope to school from JWT
     const schoolId = req.user?.schoolId;
     const cacheKey = listKey({
       page,
@@ -79,13 +76,15 @@ export async function getTeachers(req, res) {
           profileImage: true,
           experienceYears: true,
           user: { select: { email: true, isActive: true } },
+          // ✅ assignments now use FK relations — no free-text strings
           assignments: {
             select: {
               id: true,
-              grade: true,
-              className: true,
-              subject: true,
-              academicYear: true,
+              academicYear: { select: { id: true, name: true } },
+              classSection: {
+                select: { id: true, name: true, grade: true, section: true },
+              },
+              subject: { select: { id: true, name: true, code: true } },
             },
           },
         },
@@ -111,7 +110,7 @@ export async function getTeachers(req, res) {
   }
 }
 
-/* ─── GET /api/teachers/:id ──────────────────────────────── */
+// ── GET /api/teachers/:id ─────────────────────────────────────
 export async function getTeacherById(req, res) {
   try {
     const { id } = req.params;
@@ -126,7 +125,16 @@ export async function getTeacherById(req, res) {
         user: {
           select: { id: true, email: true, isActive: true, lastLoginAt: true },
         },
-        assignments: true,
+        // ✅ Full assignment detail with FK relations
+        assignments: {
+          include: {
+            classSection: {
+              select: { id: true, name: true, grade: true, section: true },
+            },
+            subject: { select: { id: true, name: true, code: true } },
+            academicYear: { select: { id: true, name: true } },
+          },
+        },
         documents: {
           select: {
             id: true,
@@ -153,7 +161,7 @@ export async function getTeacherById(req, res) {
   }
 }
 
-/* ─── POST /api/teachers ─────────────────────────────────── */
+// ── POST /api/teachers ────────────────────────────────────────
 export async function createTeacher(req, res) {
   try {
     const {
@@ -184,15 +192,9 @@ export async function createTeacher(req, res) {
       aadhaarNumber,
     } = req.body;
 
-    // ✅ schoolId from JWT — Admin creating teacher in their school
     const schoolId = req.user?.schoolId;
-    if (!schoolId) {
-      return res
-        .status(400)
-        .json({
-          error: "schoolId missing from token — ensure admin is logged in",
-        });
-    }
+    if (!schoolId)
+      return res.status(400).json({ error: "schoolId missing from token" });
 
     const teacher = await prisma.$transaction(async (tx) => {
       const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
@@ -203,14 +205,14 @@ export async function createTeacher(req, res) {
           email,
           password: hashedPassword,
           role: "TEACHER",
-          schoolId, // ✅ scoped to school
+          schoolId,
         },
       });
 
       return tx.teacherProfile.create({
         data: {
           userId: user.id,
-          schoolId, // ✅ denormalised for easy queries
+          schoolId,
           employeeCode,
           firstName,
           lastName,
@@ -241,17 +243,16 @@ export async function createTeacher(req, res) {
     await bustListCache();
     res.status(201).json({ data: teacher });
   } catch (err) {
-    if (err.code === "P2002") {
+    if (err.code === "P2002")
       return res
         .status(409)
         .json({ error: "Email or employee code already exists" });
-    }
     console.error("[createTeacher]", err);
     res.status(500).json({ error: "Failed to create teacher" });
   }
 }
 
-/* ─── PATCH /api/teachers/:id ────────────────────────────── */
+// ── PATCH /api/teachers/:id ───────────────────────────────────
 export async function updateTeacher(req, res) {
   try {
     const { id } = req.params;
@@ -299,7 +300,7 @@ export async function updateTeacher(req, res) {
   }
 }
 
-/* ─── DELETE /api/teachers/:id (soft delete) ────────────── */
+// ── DELETE /api/teachers/:id (soft delete) ────────────────────
 export async function deleteTeacher(req, res) {
   try {
     const { id } = req.params;
@@ -315,28 +316,51 @@ export async function deleteTeacher(req, res) {
   }
 }
 
-/* ─── POST /api/teachers/:id/assignments ─────────────────── */
+// ── POST /api/teachers/:id/assignments ────────────────────────
+// ✅ Now accepts classSectionId, subjectId, academicYearId (FK-based)
+// Body: { classSectionId, subjectId, academicYearId }
 export async function addAssignment(req, res) {
   try {
-    const { id } = req.params;
-    const { grade, className, subject, academicYear } = req.body;
+    const { id: teacherId } = req.params;
+    const { classSectionId, subjectId, academicYearId } = req.body;
+
+    if (!classSectionId || !subjectId || !academicYearId)
+      return res
+        .status(400)
+        .json({
+          error: "classSectionId, subjectId and academicYearId are required",
+        });
+
     const assignment = await prisma.teacherAssignment.create({
-      data: { teacherId: id, grade, className, subject, academicYear },
+      data: { teacherId, classSectionId, subjectId, academicYearId },
+      include: {
+        classSection: { select: { name: true, grade: true, section: true } },
+        subject: { select: { name: true, code: true } },
+        academicYear: { select: { name: true } },
+      },
     });
-    await redisClient.del(`teachers:${id}`);
+
+    await redisClient.del(`teachers:${teacherId}`);
     res.status(201).json({ data: assignment });
   } catch (err) {
+    if (err.code === "P2002")
+      return res
+        .status(409)
+        .json({
+          error:
+            "This teacher is already assigned to this subject in this class",
+        });
     console.error("[addAssignment]", err);
     res.status(500).json({ error: "Failed to add assignment" });
   }
 }
 
-/* ─── DELETE /api/teachers/:id/assignments/:aId ──────────── */
+// ── DELETE /api/teachers/:id/assignments/:aId ─────────────────
 export async function removeAssignment(req, res) {
   try {
-    const { id, aId } = req.params;
+    const { id: teacherId, aId } = req.params;
     await prisma.teacherAssignment.delete({ where: { id: aId } });
-    await redisClient.del(`teachers:${id}`);
+    await redisClient.del(`teachers:${teacherId}`);
     res.json({ message: "Assignment removed" });
   } catch (err) {
     console.error("[removeAssignment]", err);

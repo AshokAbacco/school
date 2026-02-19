@@ -5,9 +5,6 @@ import { generateToken } from "./auth.utils.js";
 
 // ── Super Admin ────────────────────────────────────────────────────────────
 
-/**
- * Register a new University + Super Admin in one transaction
- */
 export const registerSuperAdminService = async ({
   universityName,
   universityCode,
@@ -22,24 +19,20 @@ export const registerSuperAdminService = async ({
   adminPassword,
   adminPhone,
 }) => {
-  // Check university code
   const existingUniversity = await prisma.university.findUnique({
     where: { code: universityCode.toUpperCase() },
   });
-  if (existingUniversity) {
+  if (existingUniversity)
     throw {
       status: 409,
       message: "University code already taken. Choose another.",
     };
-  }
 
-  // Check admin email
   const existingAdmin = await prisma.superAdmin.findUnique({
     where: { email: adminEmail },
   });
-  if (existingAdmin) {
+  if (existingAdmin)
     throw { status: 409, message: "Email already registered." };
-  }
 
   const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
@@ -56,7 +49,6 @@ export const registerSuperAdminService = async ({
         website: universityWebsite || null,
       },
     });
-
     const superAdmin = await tx.superAdmin.create({
       data: {
         name: adminName,
@@ -66,7 +58,6 @@ export const registerSuperAdminService = async ({
         universityId: university.id,
       },
     });
-
     return { university, superAdmin };
   });
 
@@ -94,15 +85,10 @@ export const registerSuperAdminService = async ({
   };
 };
 
-/**
- * Super Admin login
- */
 export const loginSuperAdminService = async ({ email, password }) => {
   const admin = await prisma.superAdmin.findUnique({
     where: { email },
-    include: {
-      university: { select: { id: true, name: true, code: true } },
-    },
+    include: { university: { select: { id: true, name: true, code: true } } },
   });
 
   if (!admin) throw { status: 401, message: "Invalid email or password" };
@@ -138,21 +124,19 @@ export const loginSuperAdminService = async ({ email, password }) => {
 
 // ── Staff (Admin / Teacher) ────────────────────────────────────────────────
 
-/**
- * Staff login — requires schoolCode
- */
-export const loginStaffService = async ({ email, password, schoolCode }) => {
-  const school = await prisma.school.findUnique({
-    where: { code: schoolCode.toUpperCase() },
-  });
-  if (!school)
-    throw { status: 404, message: "School not found. Check your school code." };
-  if (!school.isActive) throw { status: 403, message: "School is inactive." };
-
+export const loginStaffService = async ({ email, password }) => {
   const user = await prisma.user.findFirst({
-    where: { email, schoolId: school.id },
+    where: { email, isActive: true },
     include: {
-      school: { select: { id: true, name: true, code: true, type: true } },
+      school: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          type: true,
+          universityId: true,
+        },
+      },
       teacherProfile: {
         select: {
           id: true,
@@ -164,10 +148,12 @@ export const loginStaffService = async ({ email, password, schoolCode }) => {
         },
       },
     },
+    orderBy: { createdAt: "desc" },
   });
 
   if (!user) throw { status: 401, message: "Invalid email or password" };
-  if (!user.isActive) throw { status: 403, message: "Account deactivated" };
+  if (!user.school || user.school.isActive === false)
+    throw { status: 403, message: "School is inactive" };
 
   const isValid = await bcrypt.compare(password, user.password);
   if (!isValid) throw { status: 401, message: "Invalid email or password" };
@@ -182,7 +168,7 @@ export const loginStaffService = async ({ email, password, schoolCode }) => {
     role: user.role,
     userType: "staff",
     schoolId: user.schoolId,
-    universityId: school.universityId,
+    universityId: user.school.universityId,
   });
 
   return {
@@ -200,40 +186,55 @@ export const loginStaffService = async ({ email, password, schoolCode }) => {
 };
 
 // ── Student ────────────────────────────────────────────────────────────────
+// ✅ Removed grade/className from personalInfo select — not on schema anymore
+// ✅ Returns active enrollment with classSection so frontend gets class info
 
-export const loginStudentService = async ({ email, password, schoolCode }) => {
-  const school = await prisma.school.findUnique({
-    where: { code: schoolCode.toUpperCase() },
-  });
-  if (!school)
-    throw { status: 404, message: "School not found. Check your school code." };
-  if (!school.isActive) throw { status: 403, message: "School is inactive." };
-
+export const loginStudentService = async ({ email, password }) => {
   const student = await prisma.student.findFirst({
-    where: { email, schoolId: school.id },
+    where: { email, isActive: true },
     include: {
-      school: { select: { id: true, name: true, code: true, type: true } },
+      school: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          type: true,
+          universityId: true,
+        },
+      },
       personalInfo: {
         select: {
           firstName: true,
           lastName: true,
-          grade: true,
-          className: true,
           profileImage: true,
           status: true,
+          admissionDate: true,
         },
       },
+      // ✅ Pull the most recent active enrollment for class info
+      enrollments: {
+        where: { status: "ACTIVE" },
+        select: {
+          rollNumber: true,
+          status: true,
+          classSection: {
+            select: { id: true, name: true, grade: true, section: true },
+          },
+          academicYear: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
     },
+    orderBy: { createdAt: "desc" },
   });
 
   if (!student) throw { status: 401, message: "Invalid email or password" };
-  if (!student.isActive) throw { status: 403, message: "Account deactivated" };
-  if (student.personalInfo?.status === "SUSPENDED") {
+  if (student.personalInfo?.status === "SUSPENDED")
     throw {
       status: 403,
       message: "Your account is suspended. Contact your school.",
     };
-  }
 
   const isValid = await bcrypt.compare(password, student.password);
   if (!isValid) throw { status: 401, message: "Invalid email or password" };
@@ -243,7 +244,7 @@ export const loginStudentService = async ({ email, password, schoolCode }) => {
     role: "STUDENT",
     userType: "student",
     schoolId: student.schoolId,
-    universityId: school.universityId,
+    universityId: student.school.universityId,
   });
 
   return {
@@ -256,29 +257,32 @@ export const loginStudentService = async ({ email, password, schoolCode }) => {
       userType: "student",
       school: student.school,
       personalInfo: student.personalInfo || null,
+      // ✅ current class info from enrollment
+      currentEnrollment: student.enrollments[0] || null,
     },
   };
 };
 
 // ── Parent ─────────────────────────────────────────────────────────────────
 
-export const loginParentService = async ({ email, password, schoolCode }) => {
-  const school = await prisma.school.findUnique({
-    where: { code: schoolCode.toUpperCase() },
-  });
-  if (!school)
-    throw { status: 404, message: "School not found. Check your school code." };
-  if (!school.isActive) throw { status: 403, message: "School is inactive." };
-
+export const loginParentService = async ({ email, password }) => {
   const parent = await prisma.parent.findFirst({
-    where: { email, schoolId: school.id },
+    where: { email, isActive: true },
     include: {
-      school: { select: { id: true, name: true, code: true, type: true } },
+      school: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          type: true,
+          universityId: true,
+        },
+      },
     },
+    orderBy: { createdAt: "desc" },
   });
 
   if (!parent) throw { status: 401, message: "Invalid email or password" };
-  if (!parent.isActive) throw { status: 403, message: "Account deactivated" };
 
   const isValid = await bcrypt.compare(password, parent.password);
   if (!isValid) throw { status: 401, message: "Invalid email or password" };
@@ -288,7 +292,7 @@ export const loginParentService = async ({ email, password, schoolCode }) => {
     role: "PARENT",
     userType: "parent",
     schoolId: parent.schoolId,
-    universityId: school.universityId,
+    universityId: parent.school.universityId,
   });
 
   return {

@@ -10,16 +10,21 @@ import {
   listStudents,
   deleteStudent,
   viewStudentDocument,
+  createParentLogin,
+  getProfileImage,
 } from "../staffControlls/StudentsControlls.js";
 
 const router = express.Router();
 
-// ── Multer config ──────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
+   Multer Config
+───────────────────────────────────────────────────────────── */
+
 const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB per file
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = [
       "image/jpeg",
@@ -35,9 +40,17 @@ const upload = multer({
   },
 });
 
-// ── Routes ─────────────────────────────────────────────────────────────────
-router.post("/register", registerStudent);
+/* ─────────────────────────────────────────────────────────────
+   Routes
+───────────────────────────────────────────────────────────── */
 
+// Register student (ADMIN / STAFF only)
+router.post("/register", authMiddleware, registerStudent);
+
+// Create parent login for student
+router.post("/:id/parent-login", authMiddleware, createParentLogin);
+
+// Save or update personal info
 router.post(
   "/:id/personal-info",
   authMiddleware,
@@ -45,6 +58,7 @@ router.post(
   savePersonalInfo,
 );
 
+// Upload bulk documents
 router.post(
   "/:id/documents/bulk",
   authMiddleware,
@@ -52,11 +66,17 @@ router.post(
   uploadDocumentsBulk,
 );
 
+// List students (with filters)
 router.get("/", authMiddleware, listStudents);
 
+// Get single student
 router.get("/:id", authMiddleware, getStudent);
-router.get("/documents/:documentId/view", authMiddleware, viewStudentDocument);
 
+// View signed document URL
+router.get("/documents/:documentId/view", authMiddleware, viewStudentDocument);
+router.get("/:id/profile-image", authMiddleware, getProfileImage);
+
+// Delete student
 router.delete("/:id", authMiddleware, deleteStudent);
 
 export default router;

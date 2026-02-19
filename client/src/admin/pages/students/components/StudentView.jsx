@@ -22,19 +22,18 @@ import {
 } from "lucide-react";
 import { getToken } from "../../../auth/storage";
 import PageLayout from "../../components/PageLayout";
-import SignedProfileImage from "./components/SignedProfileImage";
 import DocumentViewer from "./components/DocumentViewer";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const authHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
 
-// ── Helpers ────────────────────────────────────────────────────────────────
 const STATUS = {
   ACTIVE: { bg: "rgba(136,189,242,0.18)", color: "#384959", dot: "#88BDF2" },
   INACTIVE: { bg: "rgba(56,73,89,0.12)", color: "#384959", dot: "#384959" },
   SUSPENDED: { bg: "rgba(255,160,60,0.15)", color: "#7a4000", dot: "#f59e0b" },
   GRADUATED: { bg: "rgba(106,137,167,0.18)", color: "#384959", dot: "#6A89A7" },
 };
+
 function StatusBadge({ status = "" }) {
   const s = STATUS[status.toUpperCase()] || STATUS.INACTIVE;
   return (
@@ -51,7 +50,6 @@ function StatusBadge({ status = "" }) {
   );
 }
 
-// ── InfoRow ─────────────────────────────────────────────────────────────────
 function InfoRow({ icon: Icon, label, value }) {
   if (!value) return null;
   return (
@@ -83,7 +81,6 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-// ── Card ────────────────────────────────────────────────────────────────────
 function Card({ title, icon: Icon, children, accent = "#BDDDFC" }) {
   return (
     <div
@@ -112,7 +109,6 @@ function Card({ title, icon: Icon, children, accent = "#BDDDFC" }) {
   );
 }
 
-// ── StudentView ─────────────────────────────────────────────────────────────
 export default function StudentView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -203,6 +199,12 @@ export default function StudentView() {
 
   const pi = student.personalInfo;
   const docs = student.documents || [];
+  // ✅ Use enrollment for class/grade info instead of pi.grade / pi.className
+  const enrollment = student.enrollments?.[0] || null;
+  const section = enrollment?.classSection;
+  const acYear = enrollment?.academicYear;
+  const rollNumber = enrollment?.rollNumber;
+
   const fullName = pi ? `${pi.firstName} ${pi.lastName}` : student.name;
   const initials =
     `${pi?.firstName?.[0] || ""}${pi?.lastName?.[0] || ""}`.toUpperCase() ||
@@ -262,20 +264,118 @@ export default function StudentView() {
           className="bg-white rounded-2xl shadow-sm p-6 mb-5"
           style={{ border: "1px solid rgba(136,189,242,0.22)" }}
         >
-          <div
-            className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-md shrink-0 overflow-hidden"
-            style={{
-              background: "linear-gradient(135deg, #6A89A7, #384959)",
-            }}
-          >
-            {pi?.profileImage ? (
-              <SignedProfileImage
-                studentId={id}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              initials
-            )}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            {/* Avatar */}
+            <div
+              className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-md shrink-0 overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, #6A89A7, #384959)",
+              }}
+            >
+              {pi?.profileImage ? (
+                <img
+                  src={pi.profileImage}
+                  alt={fullName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                initials
+              )}
+            </div>
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-3 mb-1">
+                <h1 className="text-2xl font-bold" style={{ color: "#384959" }}>
+                  {fullName}
+                </h1>
+                {/* ✅ Use enrollment status if available, else personalInfo status */}
+                {(enrollment?.status || pi?.status) && (
+                  <StatusBadge status={enrollment?.status || pi?.status} />
+                )}
+              </div>
+              <p className="text-sm" style={{ color: "#6A89A7" }}>
+                {student.email}
+              </p>
+              <div className="flex flex-wrap items-center gap-4 mt-3">
+                {/* ✅ Class section from enrollment FK */}
+                {section && (
+                  <span
+                    className="flex items-center gap-1.5 text-sm font-semibold px-2.5 py-1 rounded-lg"
+                    style={{
+                      background: "rgba(189,221,252,0.30)",
+                      color: "#384959",
+                    }}
+                  >
+                    <GraduationCap size={13} style={{ color: "#6A89A7" }} />
+                    {section.name}
+                  </span>
+                )}
+                {/* ✅ Academic year from enrollment FK */}
+                {acYear && (
+                  <span
+                    className="flex items-center gap-1.5 text-sm font-semibold px-2.5 py-1 rounded-lg"
+                    style={{
+                      background: "rgba(136,189,242,0.15)",
+                      color: "#384959",
+                    }}
+                  >
+                    <BookOpen size={13} style={{ color: "#6A89A7" }} />
+                    {acYear.name}
+                  </span>
+                )}
+                {rollNumber && (
+                  <span
+                    className="flex items-center gap-1.5 text-xs"
+                    style={{ color: "#6A89A7" }}
+                  >
+                    <Shield size={12} /> Roll: {rollNumber}
+                  </span>
+                )}
+                {pi?.admissionDate && (
+                  <span
+                    className="flex items-center gap-1.5 text-xs"
+                    style={{ color: "#6A89A7" }}
+                  >
+                    <Calendar size={12} />
+                    Admitted{" "}
+                    {new Date(pi.admissionDate).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* ID chip */}
+            <div className="shrink-0 text-right">
+              <p
+                className="text-[10px] font-bold uppercase tracking-wider mb-1"
+                style={{ color: "#88BDF2" }}
+              >
+                Student ID
+              </p>
+              <p
+                className="font-mono text-xs px-3 py-2 rounded-lg"
+                style={{
+                  background: "rgba(189,221,252,0.25)",
+                  color: "#384959",
+                  border: "1px solid rgba(136,189,242,0.30)",
+                }}
+              >
+                {student.id.slice(0, 8).toUpperCase()}
+              </p>
+              <p className="text-[10px] mt-2" style={{ color: "#6A89A7" }}>
+                Joined{" "}
+                {new Date(student.createdAt).toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -340,12 +440,23 @@ export default function StudentView() {
               <InfoRow icon={MapPin} label="Zip" value={pi?.zipCode} />
             </Card>
 
+            {/* ✅ Academic card now reads from enrollment, not personalInfo strings */}
             <Card title="Academic Information" icon={BookOpen}>
-              <InfoRow icon={GraduationCap} label="Grade" value={pi?.grade} />
-              <InfoRow icon={Shield} label="Class" value={pi?.className} />
+              <InfoRow
+                icon={GraduationCap}
+                label="Class / Section"
+                value={section?.name}
+              />
+              <InfoRow icon={BookOpen} label="Grade" value={section?.grade} />
+              <InfoRow icon={Shield} label="Roll Number" value={rollNumber} />
               <InfoRow
                 icon={Calendar}
-                label="Admission"
+                label="Academic Year"
+                value={acYear?.name}
+              />
+              <InfoRow
+                icon={Calendar}
+                label="Admission Date"
                 value={
                   pi?.admissionDate
                     ? new Date(pi.admissionDate).toLocaleDateString("en-IN", {
@@ -380,7 +491,6 @@ export default function StudentView() {
               />
             </Card>
 
-            {/* Documents — uses DocumentViewer */}
             <Card title={`Documents (${docs.length})`} icon={FileText}>
               <DocumentViewer documents={docs} studentId={id} />
               {docs.length > 0 && (

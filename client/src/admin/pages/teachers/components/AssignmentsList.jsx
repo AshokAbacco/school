@@ -37,13 +37,13 @@ export default function AssignmentsList({ assignments, teacherId, onUpdate }) {
               className="text-sm font-semibold"
               style={{ color: "#384959", fontFamily: "'DM Sans', sans-serif" }}
             >
-              {a.subject}
+              {a.subject?.name}
             </p>
             <p
               className="text-xs mt-0.5"
               style={{ color: "#6A89A7", fontFamily: "'DM Sans', sans-serif" }}
             >
-              Grade {a.grade} · Class {a.className} · {a.academicYear}
+              {a.classSection?.name} · {a.academicYear?.name}
             </p>
           </div>
           {a.id && (
