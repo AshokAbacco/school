@@ -11,14 +11,16 @@ const STEPS = [
 
 const Input = ({ label, required, hint, ...props }) => (
   <div>
-    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-      {label} {required && <span className="text-red-400">*</span>}
+    <label className="block text-base font-medium text-[#384959] mb-1.5">
+      {label} {required && <span className="text-red-500">*</span>}
     </label>
     <input
-      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all"
+      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#88BDF2] focus:border-[#6A89A7] outline-none text-base font-medium transition-all placeholder:text-gray-300"
       {...props}
     />
-    {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+    {hint && (
+      <p className="text-xs text-[#6A89A7] font-medium mt-1 italic">{hint}</p>
+    )}
   </div>
 );
 
@@ -109,17 +111,17 @@ export default function Register({ onSwitchToLogin }) {
 
   if (done) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100">
-        <div className="bg-white rounded-2xl shadow-xl p-10 text-center max-w-sm w-full">
-          <div className="text-5xl mb-4">🎉</div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">
+      <div className="min-h-screen flex items-center justify-center bg-[#BDDDFC]">
+        <div className="bg-white rounded-xl shadow-2xl p-12 text-center max-w-sm w-full border border-[#88BDF2]">
+          <div className="text-5xl mb-6">✅</div>
+          <h2 className="text-xl font-bold text-[#384959] mb-3">
             Registration Successful!
           </h2>
-          <p className="text-gray-500 text-sm">
+          <p className="text-[#6A89A7] text-base font-medium">
             Redirecting to your dashboard...
           </p>
-          <div className="mt-4 flex justify-center">
-            <div className="w-6 h-6 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <div className="mt-8 flex justify-center">
+            <div className="w-8 h-8 border-4 border-[#6A89A7] border-t-transparent rounded-full animate-spin" />
           </div>
         </div>
       </div>
@@ -127,69 +129,69 @@ export default function Register({ onSwitchToLogin }) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50 p-4">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6">
+    <div className="min-h-screen flex items-center justify-center bg-[#BDDDFC] p-4">
+      <div className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden border border-[#88BDF2]/30">
+        {/* Header - Weights: Title 700, Sub 500 */}
+        <div className="bg-[#384959] px-8 py-8">
           <button
             onClick={onSwitchToLogin}
-            className="text-indigo-200 hover:text-white text-sm mb-3 flex items-center gap-1"
+            className="text-[#BDDDFC] hover:text-white text-sm font-bold mb-4 flex items-center gap-1 transition-colors"
           >
             ← Back to Login
           </button>
           <h1 className="text-xl font-bold text-white">Register University</h1>
-          <p className="text-indigo-200 text-xs mt-1">
-            Create your institution and Super Admin account
+          <p className="text-[#BDDDFC]/80 text-sm mt-1 font-medium">
+            Establish your institution and master administrator account.
           </p>
         </div>
 
         {/* Step indicator */}
-        <div className="flex border-b border-gray-100">
+        <div className="flex border-b border-gray-100 bg-gray-50">
           {STEPS.map((s) => (
             <div
               key={s.id}
-              className={`flex-1 py-3 text-center text-xs font-semibold border-b-2 transition
-                ${step === s.id ? "border-indigo-600 text-indigo-600 bg-indigo-50" : ""}
-                ${step > s.id ? "border-green-400 text-green-600" : ""}
+              className={`flex-1 py-4 text-center text-sm font-bold border-b-2 transition-all
+                ${step === s.id ? "border-[#6A89A7] text-[#384959] bg-white" : ""}
+                ${step > s.id ? "border-[#88BDF2] text-[#6A89A7]" : ""}
                 ${step < s.id ? "border-transparent text-gray-400" : ""}
               `}
             >
-              {step > s.id ? "✅ " : `${s.id}. `}
+              {step > s.id ? "✓ " : `${s.id}. `}
               {s.label}
             </div>
           ))}
         </div>
 
-        <div className="p-8 space-y-4">
+        <div className="p-8 space-y-6">
           {/* Error */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg">
+            <div className="bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-lg font-bold">
               ⚠️ {error}
             </div>
           )}
 
           {/* Step 1 */}
           {step === 1 && (
-            <>
-              <h2 className="font-bold text-gray-800">
+            <div className="space-y-4 animate-fadeIn">
+              <h2 className="text-lg font-bold text-[#384959]">
                 University Information
               </h2>
               <Input
                 label="University Name"
                 required
-                placeholder="Christ University"
+                placeholder="e.g. Christ University"
                 value={form.universityName}
                 onChange={set("universityName")}
               />
               <Input
                 label="University Code"
                 required
-                hint="Uppercase, no spaces. e.g. CHRIST_UNI — used for school codes"
+                hint="Uppercase, no spaces. e.g. CHRIST_UNI"
                 placeholder="CHRIST_UNI"
                 value={form.universityCode}
                 onChange={set("universityCode")}
               />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <Input
                   label="City"
                   placeholder="Bangalore"
@@ -203,7 +205,7 @@ export default function Register({ onSwitchToLogin }) {
                   onChange={set("universityState")}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <Input
                   label="Phone"
                   type="tel"
@@ -219,17 +221,20 @@ export default function Register({ onSwitchToLogin }) {
                   onChange={set("universityEmail")}
                 />
               </div>
-            </>
+            </div>
           )}
 
           {/* Step 2 */}
           {step === 2 && (
-            <>
-              <h2 className="font-bold text-gray-800">Super Admin Account</h2>
-              <p className="text-xs text-gray-500">
-                This account manages all schools under your university.
+            <div className="space-y-4 animate-fadeIn">
+              <h2 className="text-lg font-bold text-[#384959]">
+                Super Admin Account
+              </h2>
+              <p className="text-sm text-[#6A89A7] font-medium">
+                The primary administrator responsible for system-wide
+                configuration.
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <Input
                   label="Full Name"
                   required
@@ -249,89 +254,77 @@ export default function Register({ onSwitchToLogin }) {
                 label="Email Address"
                 required
                 type="email"
-                hint="This will be your login email"
+                hint="Your primary login credential"
                 placeholder="super@university.edu"
                 value={form.adminEmail}
                 onChange={set("adminEmail")}
               />
-              <Input
-                label="Password"
-                required
-                type="password"
-                hint="Minimum 8 characters"
-                placeholder="••••••••"
-                value={form.adminPassword}
-                onChange={set("adminPassword")}
-              />
-              <Input
-                label="Confirm Password"
-                required
-                type="password"
-                placeholder="••••••••"
-                value={form.adminConfirmPassword}
-                onChange={set("adminConfirmPassword")}
-              />
-            </>
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Password"
+                  required
+                  type="password"
+                  hint="Min. 8 chars"
+                  placeholder="••••••••"
+                  value={form.adminPassword}
+                  onChange={set("adminPassword")}
+                />
+                <Input
+                  label="Confirm Password"
+                  required
+                  type="password"
+                  placeholder="••••••••"
+                  value={form.adminConfirmPassword}
+                  onChange={set("adminConfirmPassword")}
+                />
+              </div>
+            </div>
           )}
 
           {/* Step 3 — Review */}
           {step === 3 && (
-            <>
-              <h2 className="font-bold text-gray-800">Review & Submit</h2>
-              <div className="bg-indigo-50 rounded-xl p-4 space-y-1 text-sm">
-                <p className="font-semibold text-indigo-700 mb-2">
-                  🏛️ University
-                </p>
-                <div className="grid grid-cols-2 gap-y-1 text-gray-600">
-                  <span>Name</span>
-                  <span className="font-medium text-gray-800">
-                    {form.universityName}
-                  </span>
-                  <span>Code</span>
-                  <span className="font-mono font-bold text-indigo-600">
+            <div className="space-y-5 animate-fadeIn">
+              <h2 className="text-lg font-bold text-[#384959]">
+                Review & Finalize
+              </h2>
+
+              <div className="bg-[#f8fafc] rounded-lg border border-gray-200 p-5 space-y-3 text-base font-medium">
+                <div className="flex justify-between border-b border-gray-100 pb-2">
+                  <span className="text-[#6A89A7]">University</span>
+                  <span className="text-[#384959]">{form.universityName}</span>
+                </div>
+                <div className="flex justify-between border-b border-gray-100 pb-2">
+                  <span className="text-[#6A89A7]">Code</span>
+                  <span className="font-mono text-[#6A89A7] bg-[#BDDDFC]/30 px-2 rounded">
                     {form.universityCode}
                   </span>
-                  {form.universityCity && (
-                    <>
-                      <span>Location</span>
-                      <span className="font-medium text-gray-800">
-                        {form.universityCity}, {form.universityState}
-                      </span>
-                    </>
-                  )}
+                </div>
+                <div className="flex justify-between border-b border-gray-100 pb-2">
+                  <span className="text-[#6A89A7]">Super Admin</span>
+                  <span className="text-[#384959]">{form.adminName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#6A89A7]">Admin Email</span>
+                  <span className="text-[#384959]">{form.adminEmail}</span>
                 </div>
               </div>
-              <div className="bg-purple-50 rounded-xl p-4 space-y-1 text-sm">
-                <p className="font-semibold text-purple-700 mb-2">
-                  👤 Super Admin
-                </p>
-                <div className="grid grid-cols-2 gap-y-1 text-gray-600">
-                  <span>Name</span>
-                  <span className="font-medium text-gray-800">
-                    {form.adminName}
-                  </span>
-                  <span>Email</span>
-                  <span className="font-medium text-gray-800">
-                    {form.adminEmail}
-                  </span>
-                </div>
+
+              <div className="bg-[#88BDF2]/10 border border-[#88BDF2]/40 rounded-lg p-4 text-sm text-[#384959] font-medium italic">
+                Note: Upon completion, log in as Super Admin to manage
+                institutional divisions.
               </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
-                After registration, log in as Super Admin to create schools
-                (Primary, High School, PUC, Degree) and assign their admins.
-              </div>
-            </>
+            </div>
           )}
 
-          {/* Navigation */}
-          <div className="flex gap-3 pt-2">
+          {/* Navigation - Button Weight 700 */}
+          <div className="flex gap-4 pt-4">
             {step > 1 && (
               <button
                 onClick={() => {
                   setStep((s) => s - 1);
                   setError("");
                 }}
-                className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition"
+                className="flex-1 py-3 rounded-lg border-2 border-[#88BDF2] text-[#384959] font-bold hover:bg-[#BDDDFC]/20 transition-all"
               >
                 ← Back
               </button>
@@ -339,15 +332,15 @@ export default function Register({ onSwitchToLogin }) {
             {step < 3 ? (
               <button
                 onClick={next}
-                className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold transition"
+                className="flex-1 py-3 rounded-lg bg-[#6A89A7] hover:bg-[#384959] text-white font-bold transition-all shadow-md"
               >
-                Next →
+                Next Step →
               </button>
             ) : (
               <button
                 onClick={submit}
                 disabled={loading}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold transition disabled:opacity-60"
+                className="flex-1 py-3 rounded-lg bg-[#384959] hover:bg-black text-white font-bold transition-all shadow-xl disabled:opacity-50"
               >
                 {loading ? "Registering..." : "🚀 Complete Registration"}
               </button>

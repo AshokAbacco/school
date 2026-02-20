@@ -5,37 +5,32 @@ import {
   Mail,
   Phone,
   MapPin,
-  Upload,
-  X,
-  Loader2,
-  AlertCircle,
   Lock,
   Heart,
   Users,
-  BookOpen,
-  CheckCircle,
   FileText,
-  Plus,
-  Trash2,
-  Image as ImgIcon,
-  File as FileIcon,
   Save,
   ArrowLeft,
   Eye,
   EyeOff,
   GraduationCap,
-  Activity,
-  ChevronRight,
   Shield,
+  X,
+  Loader2,
+  AlertCircle,
+  ChevronRight,
+  BookOpen,
+  Activity,
   BadgeCheck,
 } from "lucide-react";
 import PageLayout from "../../components/PageLayout";
 import { getToken } from "../../../auth/storage";
+import { COLORS, InputField } from "./components/FormFields";
+import StudentFormSidebar from "./components/StudentFormSidebar";
+import DocumentUploadSection from "./components/DocumentUploadSection";
 
 const API = import.meta.env.VITE_API_URL;
-const auth = () => ({
-  Authorization: `Bearer ${getToken()}`,
-});
+const auth = () => ({ Authorization: `Bearer ${getToken()}` });
 
 const toBlood = (v) =>
   v
@@ -43,31 +38,7 @@ const toBlood = (v) =>
     : undefined;
 const frBlood = (v) =>
   v ? v.replace("_PLUS", "+").replace("_MINUS", "-") : "";
-const fmtB = (b) =>
-  !b
-    ? ""
-    : b < 1024
-      ? `${b} B`
-      : b < 1048576
-        ? `${(b / 1024).toFixed(1)} KB`
-        : `${(b / 1048576).toFixed(1)} MB`;
-const GRADES = [
-  "Pre-K",
-  "Kindergarten",
-  "Grade 1",
-  "Grade 2",
-  "Grade 3",
-  "Grade 4",
-  "Grade 5",
-  "Grade 6",
-  "Grade 7",
-  "Grade 8",
-  "Grade 9",
-  "Grade 10",
-  "Grade 11",
-  "Grade 12",
-];
-const CLASSES = ["Class A", "Class B", "Class C", "Class D"];
+
 const BLOODS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const FDOCS = [
   { id: "AADHAR_CARD", label: "Aadhar Card / ID Proof", req: true },
@@ -76,14 +47,15 @@ const FDOCS = [
   { id: "TRANSFER_CERTIFICATE", label: "Transfer Certificate", req: false },
 ];
 const TABS = [
-  { id: "personal", label: "Personal Information", icon: User },
-  { id: "contact", label: "Contact Information", icon: MapPin },
-  { id: "login", label: "Login Credentials", icon: Lock },
-  { id: "academic", label: "Academic Information", icon: GraduationCap },
-  { id: "parent", label: "Parent / Guardian", icon: Users },
-  { id: "health", label: "Health Information", icon: Heart },
+  { id: "personal", label: "Personal", icon: User },
+  { id: "contact", label: "Contact", icon: MapPin },
+  { id: "login", label: "Login", icon: Lock },
+  { id: "academic", label: "Academic", icon: GraduationCap },
+  { id: "parent", label: "Parent", icon: Users },
+  { id: "health", label: "Health", icon: Heart },
   { id: "documents", label: "Documents", icon: FileText },
 ];
+
 const E0 = {
   fn: "",
   ln: "",
@@ -98,8 +70,10 @@ const E0 = {
   uname: "",
   lemail: "",
   pw: "",
-  grade: "",
-  cls: "",
+  // ✅ NEW: FK-based academic fields
+  classSectionId: "",
+  academicYearId: "",
+  rollNumber: "",
   admDate: "",
   status: "ACTIVE",
   pNm: "",
@@ -107,6 +81,8 @@ const E0 = {
   pEm: "",
   pOc: "",
   pRl: "",
+  pLoginEmail: null,
+  pLoginPw: "",
   gNm: "",
   gPh: "",
   gEm: "",
@@ -120,6 +96,9 @@ const E0 = {
   cond: "",
   allg: "",
 };
+
+const sc = (extra = "") =>
+  `w-full text-sm border rounded-xl py-2.5 pl-4 bg-white focus:outline-none focus:ring-2 transition-all ${extra}`;
 
 export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const { id: rid } = useParams();
@@ -136,6 +115,13 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(isEdit);
   const [showPw, setShowPw] = useState(false);
+  const [showParentPw, setShowParentPw] = useState(false);
+  const [toast, setToast] = useState(null); // { type: "success"|"error", msg: string }
+
+  const showToast = (type, msg) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 4000);
+  };
   const [ptab, setPtab] = useState("parent");
   const [fdocs, setFdocs] = useState(
     Object.fromEntries(FDOCS.map((d) => [d.id, null])),
@@ -144,13 +130,44 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const [pcerts, setPcerts] = useState([]);
   const [docErr, setDocErr] = useState("");
   const [f, setF] = useState(E0);
+
+  // ✅ NEW: dropdown data fetched from API
+  const [classSections, setClassSections] = useState([]);
+  const [academicYears, setAcademicYears] = useState([]);
+  const [loadingDropdowns, setLoadingDropdowns] = useState(false);
+
   const photoRef = useRef();
   const frefs = useRef({});
+
   const set = (k) => (e) => {
     setF((p) => ({ ...p, [k]: e.target.value }));
     setErr((p) => ({ ...p, [k]: "" }));
   };
 
+  // ✅ Fetch class sections and academic years for this school
+  useEffect(() => {
+    (async () => {
+      setLoadingDropdowns(true);
+      try {
+        const [csRes, ayRes] = await Promise.all([
+          fetch(`${API}/api/class-sections`, { headers: auth() }),
+          fetch(`${API}/api/academic-years`, { headers: auth() }),
+        ]);
+        const [csData, ayData] = await Promise.all([
+          csRes.json(),
+          ayRes.json(),
+        ]);
+        setClassSections(csData.classSections || csData.data || []);
+        setAcademicYears(ayData.academicYears || ayData.data || []);
+      } catch {
+        /* non-critical — dropdowns just stay empty */
+      } finally {
+        setLoadingDropdowns(false);
+      }
+    })();
+  }, []);
+
+  // ✅ Fetch existing student data on edit
   useEffect(() => {
     if (!isEdit) return;
     (async () => {
@@ -162,6 +179,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         if (!r.ok) throw new Error(d.message);
         const s = d.student,
           pi = s.personalInfo || {};
+        // Current enrollment (most recent)
+        const enroll = s.enrollments?.[0] || null;
         setF({
           fn: pi.firstName || "",
           ln: pi.lastName || "",
@@ -173,28 +192,32 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           addr: pi.address || "",
           city: pi.city || "",
           state: pi.state || "",
-          uname: pi.studentUsername || "",
+          uname: "",
           lemail: s.email || "",
           pw: "",
-          grade: pi.grade || "",
-          cls: pi.className || "",
+          // ✅ Pull from enrollment FK
+          classSectionId: enroll?.classSection?.id || "",
+          academicYearId: enroll?.academicYear?.id || "",
+          rollNumber: enroll?.rollNumber || "",
           admDate: pi.admissionDate ? pi.admissionDate.slice(0, 10) : "",
           status: pi.status || "ACTIVE",
           pNm: pi.parentName || "",
           pPh: pi.parentPhone || "",
           pEm: pi.parentEmail || "",
-          pOc: pi.parentOccupation || "",
-          pRl: pi.parentRelation || "",
-          gNm: pi.guardianName || "",
-          gPh: pi.guardianPhone || "",
-          gEm: pi.guardianEmail || "",
-          gOc: pi.guardianOccupation || "",
-          gRl: pi.guardianRelation || "",
+          pOc: "",
+          pRl: "",
+          pLoginEmail: null,
+          pLoginPw: "",
+          gNm: "",
+          gPh: "",
+          gEm: "",
+          gOc: "",
+          gRl: "",
           emg: pi.emergencyContact || "",
           blood: frBlood(pi.bloodGroup),
-          ht: pi.height || "",
-          wt: pi.weight || "",
-          bmarks: pi.birthMarks || "",
+          ht: "",
+          wt: "",
+          bmarks: "",
           cond: pi.medicalConditions || "",
           allg: pi.allergies || "",
         });
@@ -207,27 +230,55 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     })();
   }, [rid]);
 
-  const validate = () => {
-    const e = {};
-    if (!f.fn.trim()) e.fn = "Required";
-    if (!f.ln.trim()) e.ln = "Required";
-    if (!f.email.trim()) e.email = "Required";
-    else if (!/\S+@\S+\.\S+/.test(f.email)) e.email = "Invalid email";
-    if (!f.phone.trim()) e.phone = "Required";
-    if (!isEdit) {
-      if (!f.pw.trim()) e.pw = "Required";
-      else if (f.pw.length < 6) e.pw = "Min 6 characters";
-    }
-    setErr(e);
-    return !Object.keys(e).length;
+  // ── Validation ─────────────────────────────────────────────────────────────
+  // Each error key maps to a tab so we can show red dots on tab nav
+  // and a summary panel on the Documents (last) tab.
+  const TAB_FIELD_MAP = {
+    personal: ["fn", "ln", "dob", "gender"],
+    contact: ["email", "phone", "addr", "city", "state", "zip"],
+    login: ["pw", "lemail"],
+    academic: ["classSectionId", "academicYearId", "rollNumber", "admDate"],
+    parent: ["pNm", "pPh", "pEm"],
+    health: ["blood"],
+    documents: [],
   };
 
+  // Returns { fieldKey: "Required/message" } + { _tabErrors: { tabId: ["label",...] } }
+  const validate = () => {
+    const e = {};
+    if (!f.fn.trim()) e.fn = "First Name is required";
+    if (!f.ln.trim()) e.ln = "Last Name is required";
+    if (!f.email.trim()) e.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(f.email)) e.email = "Email is invalid";
+    if (!f.phone.trim()) e.phone = "Phone is required";
+    if (!isEdit) {
+      if (!f.pw.trim()) e.pw = "Password is required";
+      else if (f.pw.length < 6) e.pw = "Password must be at least 6 characters";
+    }
+
+    // Build per-tab error summary for the Documents tab panel
+    const tabErrors = {};
+    Object.entries(TAB_FIELD_MAP).forEach(([tabId, keys]) => {
+      const errsInTab = keys.filter((k) => e[k]).map((k) => e[k]);
+      if (errsInTab.length) tabErrors[tabId] = errsInTab;
+    });
+    e._tabErrors = tabErrors;
+
+    setErr(e);
+    return !Object.keys(e).filter((k) => k !== "_tabErrors").length;
+  };
+
+  // Returns true if a tab has validation errors — used for red dot on sidebar
+  const tabHasError = (tabId) =>
+    !!(err._tabErrors && err._tabErrors[tabId]?.length);
+
+  // Core save: register + personalInfo + optional enrollment
   const saveCore = async () => {
     let id = sid;
     if (!isEdit) {
       const r = await fetch(`${API}/api/students/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...auth() },
         body: JSON.stringify({
           name: `${f.fn} ${f.ln}`.trim(),
           email: f.lemail || f.email,
@@ -238,9 +289,9 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       if (!r.ok) throw new Error(d.message || "Registration failed");
       id = d.student?.id || d.id;
       if (!id) throw new Error("No ID returned");
-      if (d.token) localStorage.setItem("token", d.token);
       setSid(id);
     }
+
     const fd = new FormData();
     const flds = {
       firstName: f.fn,
@@ -252,25 +303,17 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       address: f.addr,
       city: f.city,
       state: f.state,
-      grade: f.grade,
-      className: f.cls,
+      // ✅ Send FK IDs + rollNumber instead of grade/className strings
+      classSectionId: f.classSectionId,
+      academicYearId: f.academicYearId,
+      rollNumber: f.rollNumber,
       admissionDate: f.admDate,
       status: f.status,
       parentName: f.pNm,
       parentPhone: f.pPh,
       parentEmail: f.pEm,
-      parentOccupation: f.pOc,
-      parentRelation: f.pRl,
-      guardianName: f.gNm,
-      guardianPhone: f.gPh,
-      guardianEmail: f.gEm,
-      guardianOccupation: f.gOc,
-      guardianRelation: f.gRl,
       emergencyContact: f.emg,
       bloodGroup: toBlood(f.blood),
-      height: f.ht,
-      weight: f.wt,
-      birthMarks: f.bmarks,
       medicalConditions: f.cond,
       allergies: f.allg,
     };
@@ -278,6 +321,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       if (v) fd.append(k, v);
     });
     if (photo) fd.append("profileImage", photo);
+
     const pr = await fetch(`${API}/api/students/${id}/personal-info`, {
       method: "POST",
       headers: auth(),
@@ -285,19 +329,56 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     });
     const pd = await pr.json();
     if (!pr.ok) throw new Error(pd.message || "Save failed");
+
+    // ✅ Create parent login only if admin explicitly set it (pLoginEmail is not null)
+    if (f.pLoginEmail !== null && f.pLoginEmail?.trim() && f.pLoginPw?.trim()) {
+      const plr = await fetch(`${API}/api/students/${id}/parent-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...auth() },
+        body: JSON.stringify({
+          name: f.pNm?.trim() || `Parent of ${f.fn} ${f.ln}`.trim(),
+          email: f.pLoginEmail.trim(),
+          password: f.pLoginPw,
+          phone: f.pPh?.trim() || undefined,
+          occupation: f.pOc?.trim() || undefined,
+          // relation defaults to GUARDIAN if none selected
+          relation: f.pRl || "GUARDIAN",
+        }),
+      });
+      const pld = await plr.json();
+      // 409 = already exists — not a fatal error, just warn
+      if (!plr.ok && plr.status !== 409)
+        throw new Error(pld.message || "Parent login creation failed");
+    }
+
     return id;
   };
 
   const handleSave = async () => {
-    if (!validate()) return;
+    const valid = validate();
+    if (!valid) {
+      // Jump to documents tab so user sees the full error summary
+      setTab("documents");
+      return;
+    }
     setBusy(true);
     setErr({});
     try {
       await saveCore();
+      showToast(
+        "success",
+        isEdit
+          ? "Student updated successfully!"
+          : "Student created successfully!",
+      );
       if (onSuccess) onSuccess();
-      doClose();
+      setTimeout(() => doClose(), 1200);
     } catch (e) {
       setErr({ _g: e.message });
+      showToast(
+        "error",
+        e.message || "Something went wrong. Please try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -309,8 +390,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     try {
       let id = sid;
       if (!id) {
-        if (!validate()) {
+        const valid = validate();
+        if (!valid) {
           setBusy(false);
+          // stay on documents tab — error summary is already visible above
           return;
         }
         id = await saveCore();
@@ -336,7 +419,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         if (d.file)
           all.push({
             file: d.file,
-            documentName: "PARENT_CERT",
+            documentName: "CUSTOM",
             customLabel: d.label || "Parent Cert",
           });
       });
@@ -356,20 +439,23 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         const d = await r.json();
         if (!r.ok) throw new Error(d.message || "Upload failed");
       }
+      showToast(
+        "success",
+        isEdit
+          ? "Student updated successfully!"
+          : "Student profile & documents saved!",
+      );
       if (onSuccess) onSuccess();
-      doClose();
+      setTimeout(() => doClose(), 1200);
     } catch (e) {
       setDocErr(e.message);
+      showToast(
+        "error",
+        e.message || "Something went wrong. Please try again.",
+      );
     } finally {
       setBusy(false);
     }
-  };
-
-  const addExtra = () =>
-    setXdocs((p) => [...p, { id: Date.now(), label: "", file: null }]);
-  const rmFixed = (id) => {
-    setFdocs((p) => ({ ...p, [id]: null }));
-    if (frefs.current[id]) frefs.current[id].value = "";
   };
 
   const tabIdx = TABS.findIndex((t) => t.id === tab);
@@ -377,52 +463,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const totalUploads =
     Object.values(fdocs).filter(Boolean).length +
     xdocs.filter((d) => d.file).length;
-  const ic = (e, i) =>
-    `w-full text-sm border rounded-lg py-2.5 pr-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${i ? "pl-9" : "pl-3"} ${e ? "border-red-400 bg-red-50/50" : "border-gray-200 bg-white"}`;
-  const sc =
-    "w-full text-sm border border-gray-200 bg-white rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500";
-  const tc =
-    "w-full text-sm border border-gray-200 bg-white rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none";
-  const lbl = (t, r) => (
-    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1">
-      {t}
-      {r && <span className="text-red-500 ml-0.5">*</span>}
-    </label>
-  );
-  const et = (k) =>
-    err[k] && (
-      <p className="flex items-center gap-1 text-xs text-red-500 mt-1">
-        <AlertCircle size={11} />
-        {err[k]}
-      </p>
-    );
-  const hn = (t) => <p className="text-[11px] text-gray-400 mt-1">{t}</p>;
-  const SH = ({ icon: I, title, color, desc }) => {
-    const m =
-      {
-        blue: "bg-blue-100 text-blue-600",
-        purple: "bg-purple-100 text-purple-600",
-        red: "bg-red-100 text-red-600",
-        green: "bg-green-100 text-green-600",
-        orange: "bg-orange-100 text-orange-600",
-        pink: "bg-pink-100 text-pink-600",
-        indigo: "bg-indigo-100 text-indigo-600",
-      }[color] || "bg-blue-100 text-blue-600";
-    const [bg, tx] = m.split(" ");
-    return (
-      <div className="flex items-center gap-3 pb-3 border-b border-gray-100 mb-3">
-        <div
-          className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center`}
-        >
-          <I size={16} className={tx} />
-        </div>
-        <div>
-          <p className="font-bold text-gray-800 text-sm">{title}</p>
-          {desc && <p className="text-[11px] text-gray-400">{desc}</p>}
-        </div>
-      </div>
-    );
-  };
+
+  // Derive display label from selected IDs for the sidebar preview
+  const selectedSection = classSections.find((s) => s.id === f.classSectionId);
+  const selectedYear = academicYears.find((y) => y.id === f.academicYearId);
 
   if (loading)
     return (
@@ -434,551 +478,660 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         }
       >
         <div className="bg-white rounded-2xl p-10 shadow-2xl w-full max-w-4xl space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-9 bg-gray-100 rounded-lg animate-pulse" />
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="h-9 rounded-xl animate-pulse"
+              style={{ background: `${COLORS.light}40` }}
+            />
           ))}
         </div>
       </div>
     );
 
+  const selStyle = {
+    border: `1px solid ${COLORS.border}`,
+    color: COLORS.primary,
+  };
+
+  const StyledSelect = ({ label, value, onChange, children, error }) => (
+    <div className="space-y-1.5">
+      {label && (
+        <label
+          className="text-xs font-bold ml-1"
+          style={{ color: COLORS.secondary }}
+        >
+          {label}
+        </label>
+      )}
+      <select
+        value={value}
+        onChange={onChange}
+        className={sc(error ? "border-red-400 bg-red-50/30" : "")}
+        style={selStyle}
+      >
+        {children}
+      </select>
+      {error && (
+        <p className="text-[10px] text-red-500 ml-1 font-medium">{error}</p>
+      )}
+    </div>
+  );
+
+  const StyledTextarea = ({ label, value, onChange, placeholder, hint }) => (
+    <div className="space-y-1.5">
+      {label && (
+        <label
+          className="text-xs font-bold ml-1"
+          style={{ color: COLORS.secondary }}
+        >
+          {label}
+        </label>
+      )}
+      <textarea
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        rows={2}
+        className="w-full text-sm border rounded-xl px-4 py-2.5 bg-white resize-none focus:outline-none focus:ring-2 transition-all"
+        style={{ borderColor: COLORS.border, color: COLORS.primary }}
+      />
+      {hint && (
+        <p className="text-[10px] ml-1" style={{ color: COLORS.secondary }}>
+          {hint}
+        </p>
+      )}
+    </div>
+  );
+
   const shell = (
     <div
-      className="w-full bg-white rounded-2xl shadow-2xl flex flex-col"
-      style={{ maxWidth: isModal ? "72rem" : "100%" }}
+      className="w-full bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden relative"
+      style={{
+        maxWidth: isModal ? "75rem" : "100%",
+        border: `1px solid ${COLORS.border}`,
+      }}
     >
+      {/* ── Toast notification ── */}
+      {toast && (
+        <div
+          className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm font-semibold transition-all animate-in fade-in slide-in-from-top-2 duration-300"
+          style={{
+            background: toast.type === "success" ? "#f0fdf4" : "#fef2f2",
+            border: `1px solid ${toast.type === "success" ? "#86efac" : "#fecaca"}`,
+            color: toast.type === "success" ? "#15803d" : "#dc2626",
+            minWidth: "280px",
+            maxWidth: "420px",
+          }}
+        >
+          <span className="text-lg">
+            {toast.type === "success" ? "✓" : "✕"}
+          </span>
+          <span>{toast.msg}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="ml-auto opacity-50 hover:opacity-100 transition-opacity"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-        <div>
-          <h1 className="text-lg font-bold text-gray-900">
-            {isEdit ? `Edit Student — ${f.fn || "…"}` : "Add New Student"}
-          </h1>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Fill in the details across all sections
-          </p>
+      <div
+        className="flex items-center justify-between px-6 py-4"
+        style={{
+          background: COLORS.bgSoft,
+          borderBottom: `1px solid ${COLORS.border}`,
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className="p-2 rounded-xl bg-white"
+            style={{ border: `1px solid ${COLORS.border}` }}
+          >
+            <User size={20} style={{ color: COLORS.primary }} />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold" style={{ color: COLORS.primary }}>
+              {isEdit
+                ? `Edit Student — ${f.fn || "…"}`
+                : "Student Registration"}
+            </h1>
+            <p className="text-xs" style={{ color: COLORS.secondary }}>
+              Fill in the details across all sections
+            </p>
+          </div>
         </div>
         <button
           onClick={doClose}
-          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"
+          className="p-2 rounded-lg hover:bg-white/60 transition-colors"
+          style={{ color: COLORS.secondary }}
         >
-          <X size={18} />
+          <X size={20} />
         </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-gray-100 bg-gray-50/40 px-4 pt-3 overflow-x-auto">
-        <div className="flex gap-0.5 min-w-max">
-          {TABS.map(({ id, label: lbl2, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${tab === id ? "border-blue-600 text-blue-700 bg-white shadow-sm" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/60"}`}
-            >
-              <Icon size={14} />
-              {lbl2}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Body */}
       <div className="flex flex-1 min-h-0">
-        {/* Preview sidebar */}
-        <div className="w-52 shrink-0 border-r border-gray-100 bg-gray-50/30 p-4 flex flex-col gap-4">
-          <div className="bg-white rounded-xl border border-gray-100 p-4">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-              Profile Photo
-            </p>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-md relative">
-                {photoUrl ? (
-                  <img
-                    src={photoUrl}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <User size={26} className="text-white/80" />
-                )}
-                {photoUrl && (
-                  <button
-                    onClick={() => {
-                      setPhoto(null);
-                      setPhotoUrl(null);
-                    }}
-                    className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center"
-                  >
-                    <X size={9} />
-                  </button>
-                )}
-              </div>
-              <input
-                ref={photoRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={(e) => {
-                  const fl = e.target.files[0];
-                  if (fl) {
-                    setPhoto(fl);
-                    setPhotoUrl(URL.createObjectURL(fl));
-                  }
-                }}
-              />
-              <button
-                onClick={() => photoRef.current?.click()}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-[11px] font-medium text-gray-600 hover:border-blue-300 hover:bg-gray-50 transition"
-              >
-                <Upload size={11} />
-                {photoUrl ? "Change" : "Upload Photo"}
-              </button>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 flex-1">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-              Preview
-            </p>
-            <div className="space-y-2.5">
-              {[
-                {
-                  l: "Name",
-                  v: [f.fn, f.ln].filter(Boolean).join(" ") || "—",
-                  I: User,
-                },
-                { l: "Grade", v: f.grade || "—", I: GraduationCap },
-                { l: "Class", v: f.cls || "—", I: BookOpen },
-                { l: "Phone", v: f.phone || "—", I: Phone },
-                { l: "Gender", v: f.gender || "—", I: User },
-                { l: "DOB", v: f.dob || "—", I: BadgeCheck },
-                { l: "Blood", v: f.blood || "—", I: Activity },
-              ].map(({ l, v, I }) => (
-                <div key={l} className="flex items-start gap-2">
-                  <I size={11} className="text-gray-400 mt-0.5 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-[9px] text-gray-400 leading-none mb-0.5">
-                      {l}
-                    </p>
-                    <p className="text-xs font-medium text-gray-700 truncate">
-                      {v}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div
-            className={`rounded-xl px-3 py-2 text-center text-xs font-semibold ${f.status === "ACTIVE" ? "bg-green-50 text-green-700 border border-green-100" : "bg-gray-100 text-gray-500"}`}
-          >
-            {f.status || "ACTIVE"}
-          </div>
-        </div>
+        <StudentFormSidebar
+          tabs={TABS}
+          activeTab={tab}
+          setTab={setTab}
+          tabHasError={tabHasError}
+          photoUrl={photoUrl}
+          onPhotoClick={() => photoRef.current?.click()}
+          studentName={[f.fn, f.ln].filter(Boolean).join(" ")}
+          // ✅ Pass section/year names for sidebar preview (not raw strings)
+          grade={selectedSection?.grade || "—"}
+          cls={selectedSection?.name || "—"}
+          phone={f.phone}
+          gender={f.gender}
+          dob={f.dob}
+          blood={f.blood}
+          status={f.status}
+        />
 
-        {/* Form */}
+        <input
+          ref={photoRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const fl = e.target.files[0];
+            if (fl) {
+              setPhoto(fl);
+              setPhotoUrl(URL.createObjectURL(fl));
+            }
+          }}
+        />
+
         <div
-          className="flex-1 overflow-y-auto p-6 space-y-4"
-          style={{ maxHeight: isModal ? "62vh" : "68vh" }}
+          className="flex-1 overflow-y-auto p-6 space-y-5 pb-28"
+          style={{ maxHeight: isModal ? "64vh" : "70vh" }}
         >
+          {/* Global error */}
           {err._g && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-              <AlertCircle size={15} className="shrink-0" />
-              {err._g}
+            <div
+              className="flex items-center gap-2 p-3 rounded-xl text-sm"
+              style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                color: "#dc2626",
+              }}
+            >
+              <AlertCircle size={15} className="shrink-0" /> {err._g}
             </div>
           )}
 
+          {/* ═══ PERSONAL ═══ */}
           {tab === "personal" && (
-            <>
-              <SH
-                icon={User}
-                title="Personal Information"
-                color="blue"
-                desc="Basic student identity"
+            <div className="grid grid-cols-2 gap-5">
+              <InputField
+                label="First Name *"
+                value={f.fn}
+                onChange={set("fn")}
+                error={err.fn}
+              />
+              <InputField
+                label="Last Name *"
+                value={f.ln}
+                onChange={set("ln")}
+                error={err.ln}
+              />
+              <InputField
+                label="Date of Birth"
+                type="date"
+                value={f.dob}
+                onChange={set("dob")}
+              />
+              <StyledSelect
+                label="Gender"
+                value={f.gender}
+                onChange={set("gender")}
+              >
+                <option value="">Select gender</option>
+                <option value="MALE">Male</option>
+                <option value="FEMALE">Female</option>
+                <option value="OTHER">Other</option>
+              </StyledSelect>
+            </div>
+          )}
+
+          {/* ═══ CONTACT ═══ */}
+          {tab === "contact" && (
+            <div className="space-y-5">
+              <InputField
+                label="Email Address *"
+                icon={Mail}
+                type="email"
+                value={f.email}
+                onChange={set("email")}
+                error={err.email}
+                placeholder="student@school.com"
               />
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  {lbl("First Name", true)}
-                  <input
-                    placeholder="First name"
-                    value={f.fn}
-                    onChange={set("fn")}
-                    className={ic(err.fn, false)}
-                  />
-                  {et("fn")}
-                </div>
-                <div>
-                  {lbl("Last Name", true)}
-                  <input
-                    placeholder="Last name"
-                    value={f.ln}
-                    onChange={set("ln")}
-                    className={ic(err.ln, false)}
-                  />
-                  {et("ln")}
-                </div>
-                <div>
-                  {lbl("Date of Birth")}
-                  <input
-                    type="date"
-                    value={f.dob}
-                    onChange={set("dob")}
-                    className={ic(false, false)}
-                  />
-                </div>
-                <div>
-                  {lbl("Gender")}
-                  <select
-                    value={f.gender}
-                    onChange={set("gender")}
-                    className={sc}
-                  >
-                    <option value="">Select gender</option>
-                    <option value="MALE">Male</option>
-                    <option value="FEMALE">Female</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                </div>
-              </div>
-            </>
-          )}
-
-          {tab === "contact" && (
-            <>
-              <SH
-                icon={MapPin}
-                title="Contact Information"
-                color="purple"
-                desc="How to reach the student"
-              />
-              <div>
-                {lbl("Email", true)}
-                <div className="relative">
-                  <Mail
-                    size={14}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-                  <input
-                    type="email"
-                    placeholder="student@school.com"
-                    value={f.email}
-                    onChange={set("email")}
-                    className={ic(err.email, true)}
-                  />
-                </div>
-                {et("email")}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  {lbl("Phone", true)}
-                  <div className="relative">
-                    <Phone
-                      size={14}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    />
-                    <input
-                      type="tel"
-                      placeholder="+91 98765-43210"
-                      value={f.phone}
-                      onChange={set("phone")}
-                      className={ic(err.phone, true)}
-                    />
-                  </div>
-                  {et("phone")}
-                </div>
-                <div>
-                  {lbl("Zip Code")}
-                  <input
-                    placeholder="Zip code"
-                    value={f.zip}
-                    onChange={set("zip")}
-                    className={ic(false, false)}
-                  />
-                </div>
-              </div>
-              <div>
-                {lbl("Street Address")}
-                <input
-                  placeholder="Street address"
-                  value={f.addr}
-                  onChange={set("addr")}
-                  className={ic(false, false)}
+                <InputField
+                  label="Phone Number *"
+                  icon={Phone}
+                  type="tel"
+                  value={f.phone}
+                  onChange={set("phone")}
+                  error={err.phone}
+                  placeholder="+91 98765-43210"
+                />
+                <InputField
+                  label="Zip Code"
+                  value={f.zip}
+                  onChange={set("zip")}
+                  placeholder="Zip code"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  {lbl("City")}
-                  <input
-                    placeholder="City"
-                    value={f.city}
-                    onChange={set("city")}
-                    className={ic(false, false)}
-                  />
-                </div>
-                <div>
-                  {lbl("State")}
-                  <input
-                    placeholder="State"
-                    value={f.state}
-                    onChange={set("state")}
-                    className={ic(false, false)}
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
-          {tab === "login" && (
-            <>
-              <SH
-                icon={Lock}
-                title="Login Credentials"
-                color="red"
-                desc="Student portal access details"
-              />
-              <div>
-                {lbl("Student Username")}
-                <div className="relative">
-                  <User
-                    size={14}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-                  <input
-                    placeholder="e.g. john.doe2025"
-                    value={f.uname}
-                    onChange={set("uname")}
-                    className={ic(false, true)}
-                  />
-                </div>
-                {hn("Used to log in to the portal")}
-              </div>
-              <div>
-                {lbl("Student Login Email", true)}
-                <div className="relative">
-                  <Mail
-                    size={14}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-                  <input
-                    type="email"
-                    placeholder="student@school.com"
-                    value={f.lemail || f.email}
-                    onChange={set("lemail")}
-                    className={ic(err.email, true)}
-                  />
-                </div>
-                {et("email")}
-              </div>
-              <div>
-                {lbl(isEdit ? "New Password (optional)" : "Password", !isEdit)}
-                <div className="relative">
-                  <Lock
-                    size={14}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
-                  <input
-                    type={showPw ? "text" : "password"}
-                    placeholder={
-                      isEdit
-                        ? "Leave blank to keep current"
-                        : "Min. 6 characters"
-                    }
-                    value={f.pw}
-                    onChange={set("pw")}
-                    className={ic(err.pw, true) + " pr-10"}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPw((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-                {et("pw")}
-                {!err.pw &&
-                  hn(
-                    isEdit
-                      ? "Leave blank to keep existing password"
-                      : "Minimum 6 characters",
-                  )}
-              </div>
-            </>
-          )}
-
-          {tab === "academic" && (
-            <>
-              <SH
-                icon={GraduationCap}
-                title="Academic Information"
-                color="green"
-                desc="Grade, class and enrollment"
+              <InputField
+                label="Street Address"
+                icon={MapPin}
+                value={f.addr}
+                onChange={set("addr")}
+                placeholder="Street address"
               />
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  {lbl("Grade")}
-                  <select
-                    value={f.grade}
-                    onChange={set("grade")}
-                    className={sc}
-                  >
-                    <option value="">Select grade</option>
-                    {GRADES.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  {lbl("Class")}
-                  <select value={f.cls} onChange={set("cls")} className={sc}>
-                    <option value="">Select class</option>
-                    {CLASSES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  {lbl("Admission Date")}
-                  <input
-                    type="date"
-                    value={f.admDate}
-                    onChange={set("admDate")}
-                    className={ic(false, false)}
-                  />
-                </div>
-                <div>
-                  {lbl("Status")}
-                  <select
-                    value={f.status}
-                    onChange={set("status")}
-                    className={sc}
-                  >
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
-                    <option value="SUSPENDED">Suspended</option>
-                    <option value="GRADUATED">Graduated</option>
-                  </select>
-                </div>
+                <InputField
+                  label="City"
+                  value={f.city}
+                  onChange={set("city")}
+                  placeholder="City"
+                />
+                <InputField
+                  label="State"
+                  value={f.state}
+                  onChange={set("state")}
+                  placeholder="State"
+                />
               </div>
-            </>
+            </div>
           )}
 
-          {tab === "parent" && (
-            <>
-              <SH
-                icon={Users}
-                title="Parent / Guardian"
-                color="orange"
-                desc="Family contact and emergency info"
+          {/* ═══ LOGIN ═══ */}
+          {tab === "login" && (
+            <div className="space-y-5">
+              <InputField
+                label={`Student Login Email${!isEdit ? " *" : ""}`}
+                icon={Mail}
+                type="email"
+                value={f.lemail || f.email}
+                onChange={set("lemail")}
+                error={err.email}
+                placeholder="student@school.com"
               />
-              <div className="flex rounded-xl border border-gray-200 bg-gray-50 p-1 gap-1">
+              <div className="relative">
+                <InputField
+                  label={isEdit ? "New Password (optional)" : "Password *"}
+                  type={showPw ? "text" : "password"}
+                  icon={Lock}
+                  value={f.pw}
+                  onChange={set("pw")}
+                  error={err.pw}
+                  placeholder={
+                    isEdit ? "Leave blank to keep current" : "Min. 6 characters"
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((v) => !v)}
+                  className="absolute right-3.5 top-9"
+                  style={{ color: COLORS.secondary }}
+                >
+                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ ACADEMIC ═══ */}
+          {/* ✅ Now uses FK dropdowns fetched from API — no hardcoded grade/class arrays */}
+          {tab === "academic" && (
+            <div className="grid grid-cols-2 gap-5">
+              <StyledSelect
+                label="Academic Year"
+                value={f.academicYearId}
+                onChange={set("academicYearId")}
+              >
+                <option value="">
+                  {loadingDropdowns ? "Loading…" : "Select academic year"}
+                </option>
+                {academicYears.map((y) => (
+                  <option key={y.id} value={y.id}>
+                    {y.name}
+                  </option>
+                ))}
+              </StyledSelect>
+
+              <StyledSelect
+                label="Class / Section"
+                value={f.classSectionId}
+                onChange={set("classSectionId")}
+              >
+                <option value="">
+                  {loadingDropdowns ? "Loading…" : "Select class"}
+                </option>
+                {classSections.map((cs) => (
+                  <option key={cs.id} value={cs.id}>
+                    {cs.name} (Grade {cs.grade})
+                  </option>
+                ))}
+              </StyledSelect>
+
+              <InputField
+                label="Roll Number"
+                value={f.rollNumber}
+                onChange={set("rollNumber")}
+                placeholder="e.g. HS-2024-001"
+              />
+              <InputField
+                label="Admission Date"
+                type="date"
+                value={f.admDate}
+                onChange={set("admDate")}
+              />
+              <div className="col-span-2">
+                <StyledSelect
+                  label="Status"
+                  value={f.status}
+                  onChange={set("status")}
+                >
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                  <option value="SUSPENDED">Suspended</option>
+                  <option value="GRADUATED">Graduated</option>
+                </StyledSelect>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ PARENT ═══ */}
+          {tab === "parent" && (
+            <div className="space-y-5">
+              <div
+                className="flex gap-1 p-1 rounded-xl"
+                style={{
+                  background: COLORS.bgSoft,
+                  border: `1px solid ${COLORS.border}`,
+                }}
+              >
                 {[
-                  { id: "parent", l: "Parent" },
-                  { id: "guardian", l: "Guardian" },
+                  { id: "parent", l: "Parent Information" },
+                  { id: "guardian", l: "Guardian Information" },
                 ].map(({ id, l }) => (
                   <button
                     key={id}
                     onClick={() => setPtab(id)}
-                    className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${ptab === id ? "bg-white shadow text-gray-800 border border-gray-200" : "text-gray-500 hover:text-gray-700"}`}
+                    className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
+                    style={{
+                      background: ptab === id ? COLORS.primary : "transparent",
+                      color: ptab === id ? "white" : COLORS.secondary,
+                    }}
                   >
                     {l}
                   </button>
                 ))}
               </div>
+
               {ptab === "parent" && (
                 <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      {lbl("Parent Full Name")}
-                      <div className="relative">
-                        <User
-                          size={14}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
-                        <input
-                          placeholder="Parent name"
-                          value={f.pNm}
-                          onChange={set("pNm")}
-                          className={ic(false, true)}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      {lbl("Relation")}
-                      <select
-                        value={f.pRl}
-                        onChange={set("pRl")}
-                        className={sc}
-                      >
-                        <option value="">Select</option>
-                        <option value="Father">Father</option>
-                        <option value="Mother">Mother</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                    <div>
-                      {lbl("Parent Phone")}
-                      <div className="relative">
-                        <Phone
-                          size={14}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
-                        <input
-                          type="tel"
-                          placeholder="+91 98765-43210"
-                          value={f.pPh}
-                          onChange={set("pPh")}
-                          className={ic(false, true)}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      {lbl("Parent Email")}
-                      <div className="relative">
-                        <Mail
-                          size={14}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
-                        <input
-                          type="email"
-                          placeholder="parent@example.com"
-                          value={f.pEm}
-                          onChange={set("pEm")}
-                          className={ic(false, true)}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      {lbl("Occupation")}
-                      <input
-                        placeholder="e.g. Engineer"
-                        value={f.pOc}
-                        onChange={set("pOc")}
-                        className={ic(false, false)}
-                      />
-                    </div>
-                    <div>
-                      {lbl("Emergency Contact")}
-                      <div className="relative">
-                        <Phone
-                          size={14}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
-                        <input
-                          type="tel"
-                          placeholder="Emergency number"
-                          value={f.emg}
-                          onChange={set("emg")}
-                          className={ic(false, true)}
-                        />
-                      </div>
-                    </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <InputField
+                      label="Parent Full Name"
+                      icon={User}
+                      value={f.pNm}
+                      onChange={set("pNm")}
+                      placeholder="Parent name"
+                    />
+                    <StyledSelect
+                      label="Relation"
+                      value={f.pRl}
+                      onChange={set("pRl")}
+                    >
+                      <option value="">Select</option>
+                      <option value="Father">Father</option>
+                      <option value="Mother">Mother</option>
+                      <option value="Other">Other</option>
+                    </StyledSelect>
+                    <InputField
+                      label="Parent Phone"
+                      icon={Phone}
+                      type="tel"
+                      value={f.pPh}
+                      onChange={set("pPh")}
+                      placeholder="+91 98765-43210"
+                    />
+                    <InputField
+                      label="Parent Email"
+                      icon={Mail}
+                      type="email"
+                      value={f.pEm}
+                      onChange={set("pEm")}
+                      placeholder="parent@example.com"
+                    />
+                    <InputField
+                      label="Occupation"
+                      value={f.pOc}
+                      onChange={set("pOc")}
+                      placeholder="e.g. Engineer"
+                    />
+                    <InputField
+                      label="Emergency Contact"
+                      icon={Phone}
+                      type="tel"
+                      value={f.emg}
+                      onChange={set("emg")}
+                      placeholder="Emergency number"
+                    />
                   </div>
-                  <div className="rounded-xl border border-dashed border-orange-200 bg-orange-50/40 p-4">
+
+                  {/* Parent Portal Login — Optional, set any time */}
+                  <div
+                    className="rounded-xl overflow-hidden"
+                    style={{ border: `1px solid ${COLORS.border}` }}
+                  >
+                    {/* Header — always visible */}
+                    <div
+                      className="flex items-center justify-between px-4 py-3"
+                      style={{
+                        background: COLORS.bgSoft,
+                        borderBottom:
+                          f.pLoginEmail !== null
+                            ? `1px solid ${COLORS.border}`
+                            : "none",
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-7 h-7 rounded-lg flex items-center justify-center"
+                          style={{ background: `${COLORS.accent}22` }}
+                        >
+                          <Lock size={13} style={{ color: COLORS.accent }} />
+                        </div>
+                        <div>
+                          <p
+                            className="text-xs font-bold"
+                            style={{ color: COLORS.primary }}
+                          >
+                            Parent Portal Login
+                          </p>
+                          <p
+                            className="text-[10px]"
+                            style={{ color: COLORS.secondary }}
+                          >
+                            {f.pLoginEmail !== null
+                              ? `Login set for ${f.pRl || "Guardian"} — stored with relation`
+                              : "Optional · Skip now, add later when editing student"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {f.pLoginEmail === null ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setF((p) => ({
+                              ...p,
+                              // pre-fill login email from parent email if already typed
+                              pLoginEmail: p.pEm || "",
+                              pLoginPw: "",
+                            }))
+                          }
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
+                          style={{ background: COLORS.primary }}
+                        >
+                          + Set Login
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setF((p) => ({
+                              ...p,
+                              pLoginEmail: null,
+                              pLoginPw: "",
+                            }))
+                          }
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
+                          style={{
+                            border: `1px solid ${COLORS.border}`,
+                            color: COLORS.secondary,
+                            background: "white",
+                          }}
+                        >
+                          <X size={11} /> Remove
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Expanded fields */}
+                    {f.pLoginEmail !== null && (
+                      <div className="p-4 space-y-3">
+                        {/* Relation chip — read from what admin selected above */}
+                        <div
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold w-fit"
+                          style={{
+                            background:
+                              f.pRl === "Father"
+                                ? "rgba(59,130,246,0.10)"
+                                : f.pRl === "Mother"
+                                  ? "rgba(236,72,153,0.10)"
+                                  : "rgba(107,114,128,0.10)",
+                            color:
+                              f.pRl === "Father"
+                                ? "#1d4ed8"
+                                : f.pRl === "Mother"
+                                  ? "#be185d"
+                                  : "#374151",
+                            border: `1px solid ${
+                              f.pRl === "Father"
+                                ? "rgba(59,130,246,0.25)"
+                                : f.pRl === "Mother"
+                                  ? "rgba(236,72,153,0.25)"
+                                  : "rgba(107,114,128,0.20)"
+                            }`,
+                          }}
+                        >
+                          {f.pRl === "Father"
+                            ? "👨 Father Login"
+                            : f.pRl === "Mother"
+                              ? "👩 Mother Login"
+                              : "🧑 Guardian Login"}
+                          <span
+                            className="text-[10px] font-normal ml-1"
+                            style={{ opacity: 0.7 }}
+                          >
+                            · stored as{" "}
+                            {f.pRl === "Father"
+                              ? "FATHER"
+                              : f.pRl === "Mother"
+                                ? "MOTHER"
+                                : "GUARDIAN"}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <InputField
+                            label="Login Email"
+                            icon={Mail}
+                            type="email"
+                            value={f.pLoginEmail}
+                            onChange={set("pLoginEmail")}
+                            placeholder="parent@example.com"
+                          />
+                          <div className="relative">
+                            <InputField
+                              label="Login Password"
+                              type={showParentPw ? "text" : "password"}
+                              icon={Lock}
+                              value={f.pLoginPw}
+                              onChange={set("pLoginPw")}
+                              placeholder="Min. 6 characters"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowParentPw((v) => !v)}
+                              className="absolute right-3.5 top-9"
+                              style={{ color: COLORS.secondary }}
+                            >
+                              {showParentPw ? (
+                                <EyeOff size={16} />
+                              ) : (
+                                <Eye size={16} />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div
+                          className="flex items-start gap-2 px-3 py-2 rounded-lg text-[11px]"
+                          style={{
+                            background: "#fffbeb",
+                            border: "1px solid #fde68a",
+                            color: "#92400e",
+                          }}
+                        >
+                          <AlertCircle
+                            size={12}
+                            className="shrink-0 mt-0.5"
+                            style={{ color: "#f59e0b" }}
+                          />
+                          This creates a{" "}
+                          <strong className="mx-0.5">
+                            {f.pRl === "Father"
+                              ? "Father"
+                              : f.pRl === "Mother"
+                                ? "Mother"
+                                : "Guardian"}
+                          </strong>{" "}
+                          portal account linked to this student. The relation is
+                          saved so you'll always know who this login belongs to.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Parent Certificates */}
+                  <div
+                    className="rounded-xl p-4"
+                    style={{
+                      border: `1px dashed ${COLORS.accent}`,
+                      background: `${COLORS.light}18`,
+                    }}
+                  >
                     <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-bold text-orange-700 uppercase tracking-wide">
+                      <p
+                        className="text-xs font-bold uppercase tracking-wide"
+                        style={{ color: COLORS.primary }}
+                      >
                         Parent Certificates{" "}
-                        <span className="font-normal text-orange-400">
+                        <span
+                          className="font-normal"
+                          style={{ color: COLORS.secondary }}
+                        >
                           (Optional)
                         </span>
                       </p>
@@ -989,14 +1142,17 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                             { id: Date.now(), label: "", file: null },
                           ])
                         }
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-semibold hover:bg-orange-600 transition"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
+                        style={{ background: COLORS.primary }}
                       >
-                        <Plus size={11} />
-                        Add
+                        + Add
                       </button>
                     </div>
                     {pcerts.length === 0 ? (
-                      <p className="text-xs text-gray-400 text-center py-2">
+                      <p
+                        className="text-xs text-center py-2"
+                        style={{ color: COLORS.secondary }}
+                      >
                         No certificates added.
                       </p>
                     ) : (
@@ -1004,9 +1160,13 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                         {pcerts.map((c, i) => (
                           <div
                             key={c.id}
-                            className="flex items-center gap-2 p-2 bg-white rounded-lg border border-orange-100"
+                            className="flex items-center gap-2 p-2.5 rounded-xl bg-white"
+                            style={{ border: `1px solid ${COLORS.border}` }}
                           >
-                            <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-[10px] font-bold shrink-0">
+                            <span
+                              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 text-white"
+                              style={{ background: COLORS.secondary }}
+                            >
                               {i + 1}
                             </span>
                             <input
@@ -1021,22 +1181,20 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                                 )
                               }
                               placeholder="Certificate name"
-                              className="flex-1 text-sm px-2 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white min-w-0"
+                              className="flex-1 text-sm px-2 py-1.5 rounded-lg focus:outline-none bg-gray-50 border border-gray-100 min-w-0"
+                              style={{ color: COLORS.primary }}
                             />
                             <label
-                              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${c.file ? "bg-green-50 border border-green-200 text-green-700" : "bg-white border border-gray-200 text-gray-500 hover:border-orange-300"}`}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer"
+                              style={{
+                                border: `1px solid ${c.file ? "#86efac" : COLORS.border}`,
+                                background: c.file ? "#f0fdf4" : "white",
+                                color: c.file ? "#16a34a" : COLORS.secondary,
+                              }}
                             >
-                              {c.file ? (
-                                <>
-                                  <CheckCircle size={11} />
-                                  {c.file.name.slice(0, 12)}
-                                </>
-                              ) : (
-                                <>
-                                  <Upload size={11} />
-                                  Upload
-                                </>
-                              )}
+                              {c.file
+                                ? `✓ ${c.file.name.slice(0, 10)}…`
+                                : "↑ Upload"}
                               <input
                                 type="file"
                                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
@@ -1056,9 +1214,9 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                               onClick={() =>
                                 setPcerts((p) => p.filter((d) => d.id !== c.id))
                               }
-                              className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-50 text-gray-300 hover:text-red-500"
+                              className="w-6 h-6 flex items-center justify-center rounded text-red-400 hover:text-red-600"
                             >
-                              <Trash2 size={12} />
+                              <X size={13} />
                             </button>
                           </div>
                         ))}
@@ -1067,354 +1225,202 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                   </div>
                 </>
               )}
+
               {ptab === "guardian" && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    {lbl("Guardian Full Name")}
-                    <div className="relative">
-                      <Shield
-                        size={14}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
-                      <input
-                        placeholder="Guardian name"
-                        value={f.gNm}
-                        onChange={set("gNm")}
-                        className={ic(false, true)}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    {lbl("Relation")}
-                    <select value={f.gRl} onChange={set("gRl")} className={sc}>
-                      <option value="">Select</option>
-                      <option value="Uncle">Uncle</option>
-                      <option value="Aunt">Aunt</option>
-                      <option value="Grandparent">Grandparent</option>
-                      <option value="Sibling">Sibling</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    {lbl("Guardian Phone")}
-                    <div className="relative">
-                      <Phone
-                        size={14}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
-                      <input
-                        type="tel"
-                        placeholder="+91 98765-43210"
-                        value={f.gPh}
-                        onChange={set("gPh")}
-                        className={ic(false, true)}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    {lbl("Guardian Email")}
-                    <div className="relative">
-                      <Mail
-                        size={14}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                      />
-                      <input
-                        type="email"
-                        placeholder="guardian@example.com"
-                        value={f.gEm}
-                        onChange={set("gEm")}
-                        className={ic(false, true)}
-                      />
-                    </div>
-                  </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <InputField
+                    label="Guardian Full Name"
+                    icon={Shield}
+                    value={f.gNm}
+                    onChange={set("gNm")}
+                    placeholder="Guardian name"
+                  />
+                  <StyledSelect
+                    label="Relation"
+                    value={f.gRl}
+                    onChange={set("gRl")}
+                  >
+                    <option value="">Select</option>
+                    <option value="Uncle">Uncle</option>
+                    <option value="Aunt">Aunt</option>
+                    <option value="Grandparent">Grandparent</option>
+                    <option value="Sibling">Sibling</option>
+                    <option value="Other">Other</option>
+                  </StyledSelect>
+                  <InputField
+                    label="Guardian Phone"
+                    icon={Phone}
+                    type="tel"
+                    value={f.gPh}
+                    onChange={set("gPh")}
+                    placeholder="+91 98765-43210"
+                  />
+                  <InputField
+                    label="Guardian Email"
+                    icon={Mail}
+                    type="email"
+                    value={f.gEm}
+                    onChange={set("gEm")}
+                    placeholder="guardian@example.com"
+                  />
                   <div className="col-span-2">
-                    {lbl("Occupation")}
-                    <input
-                      placeholder="e.g. Doctor"
+                    <InputField
+                      label="Occupation"
                       value={f.gOc}
                       onChange={set("gOc")}
-                      className={ic(false, false)}
+                      placeholder="e.g. Doctor"
                     />
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
 
+          {/* ═══ HEALTH ═══ */}
           {tab === "health" && (
-            <>
-              <SH
-                icon={Heart}
-                title="Health Information"
-                color="pink"
-                desc="Medical and physical details"
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  {lbl("Blood Group")}
-                  <select
-                    value={f.blood}
-                    onChange={set("blood")}
-                    className={sc}
-                  >
-                    <option value="">Select blood group</option>
-                    {BLOODS.map((b) => (
-                      <option key={b} value={b}>
-                        {b}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div></div>
-                <div>
-                  {lbl("Height (cm)")}
-                  <input
-                    type="number"
-                    placeholder="e.g. 145"
-                    value={f.ht}
-                    onChange={set("ht")}
-                    className={ic(false, false)}
-                  />
-                </div>
-                <div>
-                  {lbl("Weight (kg)")}
-                  <input
-                    type="number"
-                    placeholder="e.g. 40"
-                    value={f.wt}
-                    onChange={set("wt")}
-                    className={ic(false, false)}
-                  />
-                </div>
-                <div className="col-span-2">
-                  {lbl("Birth Marks / Moles")}
-                  <textarea
-                    rows={2}
-                    placeholder="e.g. Small mole on right cheek"
-                    value={f.bmarks}
-                    onChange={set("bmarks")}
-                    className={tc}
-                  />
-                  {hn("Distinguishing marks for identification")}
-                </div>
-                <div className="col-span-2">
-                  {lbl("Medical Conditions")}
-                  <textarea
-                    rows={2}
-                    placeholder="e.g. Asthma, Diabetes"
-                    value={f.cond}
-                    onChange={set("cond")}
-                    className={tc}
-                  />
-                </div>
-                <div className="col-span-2">
-                  {lbl("Allergies")}
-                  <textarea
-                    rows={2}
-                    placeholder="e.g. Peanuts, Penicillin"
-                    value={f.allg}
-                    onChange={set("allg")}
-                    className={tc}
-                  />
-                </div>
+            <div className="grid grid-cols-2 gap-5">
+              <StyledSelect
+                label="Blood Group"
+                value={f.blood}
+                onChange={set("blood")}
+              >
+                <option value="">Select blood group</option>
+                {BLOODS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </StyledSelect>
+              <div className="grid grid-cols-2 gap-3">
+                <InputField
+                  label="Height (cm)"
+                  type="number"
+                  value={f.ht}
+                  onChange={set("ht")}
+                  placeholder="e.g. 145"
+                />
+                <InputField
+                  label="Weight (kg)"
+                  type="number"
+                  value={f.wt}
+                  onChange={set("wt")}
+                  placeholder="e.g. 40"
+                />
               </div>
-            </>
+              <div className="col-span-2">
+                <StyledTextarea
+                  label="Medical Conditions"
+                  value={f.cond}
+                  onChange={set("cond")}
+                  placeholder="e.g. Asthma, Diabetes"
+                />
+              </div>
+              <div className="col-span-2">
+                <StyledTextarea
+                  label="Allergies"
+                  value={f.allg}
+                  onChange={set("allg")}
+                  placeholder="e.g. Peanuts, Penicillin"
+                />
+              </div>
+            </div>
           )}
 
+          {/* ═══ DOCUMENTS ═══ */}
           {tab === "documents" && (
             <>
-              <SH
-                icon={FileText}
-                title="Documents"
-                color="indigo"
-                desc="Upload official student documents"
-              />
-              <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-                <AlertCircle size={15} className="text-amber-500 shrink-0" />
-                <p className="text-xs text-amber-700">
-                  Document upload is <strong>optional</strong>. You can save
-                  without uploading any files.
-                </p>
-              </div>
-              <div className="rounded-xl border border-gray-100 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 bg-indigo-50/60 border-b border-gray-100">
-                  <p className="text-sm font-semibold text-gray-800">
-                    Required Documents
-                  </p>
-                  <span className="text-xs font-semibold text-indigo-600 bg-indigo-100 px-2.5 py-1 rounded-full">
-                    {Object.values(fdocs).filter(Boolean).length}/{FDOCS.length}
-                  </span>
-                </div>
-                <div className="p-4 grid grid-cols-2 gap-3">
-                  {FDOCS.map((doc) => {
-                    const file = fdocs[doc.id];
-                    return (
-                      <div
-                        key={doc.id}
-                        className={`rounded-xl border-2 border-dashed transition-all ${file ? "border-green-300 bg-green-50" : "border-gray-200 hover:border-blue-300 hover:bg-blue-50/40"}`}
-                      >
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                          ref={(el) => (frefs.current[doc.id] = el)}
-                          onChange={(e) =>
-                            setFdocs((p) => ({
-                              ...p,
-                              [doc.id]: e.target.files[0],
-                            }))
-                          }
-                          className="hidden"
-                          id={`fd-${doc.id}`}
-                        />
-                        {file ? (
-                          <div className="flex items-center gap-2 p-3">
-                            <div className="w-8 h-8 rounded-lg bg-white border border-green-200 flex items-center justify-center shrink-0">
-                              {file.type?.startsWith("image/") ? (
-                                <ImgIcon size={14} className="text-blue-500" />
-                              ) : (
-                                <FileIcon
-                                  size={14}
-                                  className="text-orange-500"
-                                />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold text-gray-700">
-                                {doc.label}
-                              </p>
-                              <p className="text-[10px] text-gray-400 truncate">
-                                {file.name}
-                              </p>
-                              <span className="text-[10px] text-green-600 font-medium flex items-center gap-1">
-                                <CheckCircle size={9} />
-                                Uploaded · {fmtB(file.size)}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => rmFixed(doc.id)}
-                              className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 text-gray-300 hover:text-red-500"
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          </div>
-                        ) : (
-                          <label
-                            htmlFor={`fd-${doc.id}`}
-                            className="flex flex-col items-center gap-1.5 p-4 cursor-pointer"
-                          >
-                            <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center">
-                              <Upload size={14} className="text-gray-400" />
-                            </div>
-                            <p className="text-xs font-semibold text-gray-700 text-center">
-                              {doc.label}
-                              {doc.req && (
-                                <span className="text-red-500 ml-1">*</span>
-                              )}
-                            </p>
-                            <p className="text-[11px] text-gray-400">
-                              PDF, JPG, PNG, DOC
-                            </p>
-                          </label>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="rounded-xl border border-gray-100 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 bg-amber-50/60 border-b border-gray-100">
-                  <p className="text-sm font-semibold text-gray-800">
-                    Additional Documents{" "}
-                    <span className="text-xs text-gray-400 font-normal">
-                      (Optional)
-                    </span>
-                  </p>
-                  <button
-                    onClick={addExtra}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-semibold hover:bg-amber-600 transition"
+              {/* ── Missed fields summary panel ── */}
+              {err._tabErrors && Object.keys(err._tabErrors).length > 0 && (
+                <div
+                  className="rounded-xl overflow-hidden"
+                  style={{ border: "1px solid #fecaca", background: "#fef2f2" }}
+                >
+                  <div
+                    className="flex items-center gap-2 px-4 py-3"
+                    style={{
+                      borderBottom: "1px solid #fecaca",
+                      background: "#fff5f5",
+                    }}
                   >
-                    <Plus size={11} />
-                    Add
-                  </button>
-                </div>
-                <div className="p-4">
-                  {xdocs.length === 0 ? (
-                    <p className="text-xs text-gray-400 text-center py-4">
-                      No additional documents. Click "Add" to upload.
+                    <AlertCircle size={15} style={{ color: "#dc2626" }} />
+                    <p
+                      className="text-sm font-bold"
+                      style={{ color: "#dc2626" }}
+                    >
+                      Please fix the following before saving
                     </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {xdocs.map((doc, i) => (
-                        <div
-                          key={doc.id}
-                          className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl border border-gray-100"
+                  </div>
+                  <div className="p-3 space-y-2">
+                    {Object.entries(err._tabErrors).map(([tabId, errs]) => {
+                      const tabLabel =
+                        TABS.find((t) => t.id === tabId)?.label || tabId;
+                      const TabIcon = TABS.find((t) => t.id === tabId)?.icon;
+                      return (
+                        <button
+                          key={tabId}
+                          onClick={() => setTab(tabId)}
+                          className="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-all hover:bg-red-50"
+                          style={{
+                            border: "1px solid #fecaca",
+                            background: "white",
+                          }}
                         >
-                          <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-bold shrink-0">
-                            {i + 1}
-                          </span>
-                          <input
-                            value={doc.label}
-                            onChange={(e) =>
-                              setXdocs((p) =>
-                                p.map((d) =>
-                                  d.id === doc.id
-                                    ? { ...d, label: e.target.value }
-                                    : d,
-                                ),
-                              )
-                            }
-                            placeholder="Document name"
-                            className="flex-1 text-sm px-2 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-0"
-                          />
-                          <label
-                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${doc.file ? "bg-green-50 border border-green-200 text-green-700" : "bg-white border border-gray-200 text-gray-500 hover:border-blue-300"}`}
+                          <div
+                            className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5"
+                            style={{ background: "#fee2e2" }}
                           >
-                            {doc.file ? (
-                              <>
-                                <CheckCircle size={11} />
-                                {doc.file.name.length > 12
-                                  ? doc.file.name.slice(0, 12) + "…"
-                                  : doc.file.name}
-                              </>
-                            ) : (
-                              <>
-                                <Upload size={11} />
-                                Upload
-                              </>
+                            {TabIcon && (
+                              <TabIcon size={12} style={{ color: "#dc2626" }} />
                             )}
-                            <input
-                              type="file"
-                              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                              onChange={(e) =>
-                                setXdocs((p) =>
-                                  p.map((d) =>
-                                    d.id === doc.id
-                                      ? { ...d, file: e.target.files[0] }
-                                      : d,
-                                  ),
-                                )
-                              }
-                              className="hidden"
-                            />
-                          </label>
-                          <button
-                            onClick={() =>
-                              setXdocs((p) => p.filter((d) => d.id !== doc.id))
-                            }
-                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-50 text-gray-300 hover:text-red-500"
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className="text-xs font-bold"
+                              style={{ color: "#dc2626" }}
+                            >
+                              {tabLabel} tab
+                            </p>
+                            {errs.map((msg, i) => (
+                              <p
+                                key={i}
+                                className="text-[11px] mt-0.5"
+                                style={{ color: "#ef4444" }}
+                              >
+                                · {msg}
+                              </p>
+                            ))}
+                          </div>
+                          <span
+                            className="text-[10px] font-semibold mt-0.5"
+                            style={{ color: "#dc2626" }}
                           >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                            Go fix →
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              <DocumentUploadSection
+                fdocs={fdocs}
+                setFdocs={setFdocs}
+                xdocs={xdocs}
+                setXdocs={setXdocs}
+                frefs={frefs}
+                FDOCS={FDOCS}
+              />
               {docErr && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-                  <AlertCircle size={15} className="shrink-0" />
-                  {docErr}
+                <div
+                  className="flex items-center gap-2 p-3 rounded-xl text-sm"
+                  style={{
+                    background: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    color: "#dc2626",
+                  }}
+                >
+                  <AlertCircle size={15} className="shrink-0" /> {docErr}
                 </div>
               )}
             </>
@@ -1423,29 +1429,42 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
+      <div
+        className="flex items-center justify-between px-6 py-4 rounded-b-2xl"
+        style={{
+          background: COLORS.bgSoft,
+          borderTop: `1px solid ${COLORS.border}`,
+        }}
+      >
         <button
           onClick={doClose}
-          className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white rounded-xl hover:bg-gray-50 transition text-sm font-medium text-gray-500"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-white/70"
+          style={{
+            border: `1px solid ${COLORS.border}`,
+            color: COLORS.secondary,
+          }}
         >
-          <X size={14} />
-          Cancel
+          <X size={14} /> Cancel
         </button>
         <div className="flex items-center gap-3">
           {!isLast && (
             <button
               onClick={() => setTab(TABS[tabIdx + 1].id)}
-              className="flex items-center gap-2 px-5 py-2.5 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-xl shadow-sm transition-all"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-white/70"
+              style={{
+                border: `1px solid ${COLORS.border}`,
+                color: COLORS.primary,
+              }}
             >
-              Next
-              <ChevronRight size={15} />
+              Next <ChevronRight size={15} />
             </button>
           )}
           {isLast ? (
             <button
               onClick={handleDocSave}
               disabled={busy}
-              className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ background: COLORS.primary }}
             >
               {busy ? (
                 <Loader2 size={15} className="animate-spin" />
@@ -1462,7 +1481,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
             <button
               onClick={handleSave}
               disabled={busy}
-              className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ background: COLORS.primary }}
             >
               {busy ? (
                 <Loader2 size={15} className="animate-spin" />
@@ -1483,16 +1503,17 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         {shell}
       </div>
     );
+
   return (
     <PageLayout>
       <div className="p-4 md:p-6">
-        <div className="flex items-center gap-3 mb-6">
+        <div className="mb-6">
           <button
             onClick={doClose}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 font-medium"
+            className="flex items-center gap-2 text-sm font-medium transition-colors hover:opacity-80"
+            style={{ color: COLORS.secondary }}
           >
-            <ArrowLeft size={16} />
-            Back to Students
+            <ArrowLeft size={16} /> Back to Students
           </button>
         </div>
         {shell}

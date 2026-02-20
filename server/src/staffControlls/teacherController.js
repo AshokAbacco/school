@@ -7,15 +7,57 @@ const prisma = new PrismaClient();
 const CACHE_TTL = 300;
 const SALT_ROUNDS = 10;
 
-/* ─── helpers ─────────────────────────────────────────────── */
 const listKey = (q) => `teachers:list:${JSON.stringify(q)}`;
 
-async function bustListCache() {
-  const keys = await redisClient.keys("teachers:list:*");
-  if (keys.length) await redisClient.del(keys);
+// ── Safe Redis helpers (fail silently) ───────────────────────────────────────
+
+async function cacheGet(key) {
+  try {
+    return await redisClient.get(key);
+  } catch (err) {
+    console.error(`[Redis] GET ${key} failed:`, err.message);
+    return null;
+  }
 }
 
-/* ─── GET /api/teachers ──────────────────────────────────── */
+async function cacheSet(key, value) {
+  try {
+    await redisClient.setEx(key, CACHE_TTL, JSON.stringify(value));
+  } catch (err) {
+    console.error(`[Redis] SET ${key} failed:`, err.message);
+  }
+}
+
+async function cacheDel(...keys) {
+  try {
+    await redisClient.del(keys);
+  } catch (err) {
+    console.error(`[Redis] DEL ${keys.join(", ")} failed:`, err.message);
+  }
+}
+
+// Uses SCAN instead of KEYS to avoid blocking Redis in production
+async function scanAndDelete(pattern) {
+  try {
+    let cursor = 0;
+    do {
+      const reply = await redisClient.scan(cursor, {
+        MATCH: pattern,
+        COUNT: 100,
+      });
+      cursor = reply.cursor;
+      if (reply.keys.length) await redisClient.del(reply.keys);
+    } while (cursor !== 0);
+  } catch (err) {
+    console.error(`[Redis] SCAN/DEL ${pattern} failed:`, err.message);
+  }
+}
+
+async function bustListCache() {
+  await scanAndDelete("teachers:list:*");
+}
+
+// ── GET /api/teachers ─────────────────────────────────────────
 export async function getTeachers(req, res) {
   try {
     const {
@@ -26,8 +68,6 @@ export async function getTeachers(req, res) {
       department = "",
     } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
-
-    // Always scope to school from JWT
     const schoolId = req.user?.schoolId;
     const cacheKey = listKey({
       page,
@@ -38,7 +78,7 @@ export async function getTeachers(req, res) {
       schoolId,
     });
 
-    const cached = await redisClient.get(cacheKey);
+    const cached = await cacheGet(cacheKey);
     if (cached) return res.json({ ...JSON.parse(cached), fromCache: true });
 
     const where = {
@@ -82,10 +122,11 @@ export async function getTeachers(req, res) {
           assignments: {
             select: {
               id: true,
-              grade: true,
-              className: true,
-              subject: true,
-              academicYear: true,
+              academicYear: { select: { id: true, name: true } },
+              classSection: {
+                select: { id: true, name: true, grade: true, section: true },
+              },
+              subject: { select: { id: true, name: true, code: true } },
             },
           },
         },
@@ -103,7 +144,7 @@ export async function getTeachers(req, res) {
       },
     };
 
-    await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(payload));
+    await cacheSet(cacheKey, payload);
     res.json({ ...payload, fromCache: false });
   } catch (err) {
     console.error("[getTeachers]", err);
@@ -111,13 +152,13 @@ export async function getTeachers(req, res) {
   }
 }
 
-/* ─── GET /api/teachers/:id ──────────────────────────────── */
+// ── GET /api/teachers/:id ─────────────────────────────────────
 export async function getTeacherById(req, res) {
   try {
     const { id } = req.params;
-    const cacheKey = `teachers:${id}`;
+    const key = `teachers:${id}`;
 
-    const cached = await redisClient.get(cacheKey);
+    const cached = await cacheGet(key);
     if (cached) return res.json({ data: JSON.parse(cached), fromCache: true });
 
     const teacher = await prisma.teacherProfile.findUnique({
@@ -126,7 +167,15 @@ export async function getTeacherById(req, res) {
         user: {
           select: { id: true, email: true, isActive: true, lastLoginAt: true },
         },
-        assignments: true,
+        assignments: {
+          include: {
+            classSection: {
+              select: { id: true, name: true, grade: true, section: true },
+            },
+            subject: { select: { id: true, name: true, code: true } },
+            academicYear: { select: { id: true, name: true } },
+          },
+        },
         documents: {
           select: {
             id: true,
@@ -145,7 +194,7 @@ export async function getTeacherById(req, res) {
 
     if (!teacher) return res.status(404).json({ error: "Teacher not found" });
 
-    await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(teacher));
+    await cacheSet(key, teacher);
     res.json({ data: teacher, fromCache: false });
   } catch (err) {
     console.error("[getTeacherById]", err);
@@ -153,7 +202,7 @@ export async function getTeacherById(req, res) {
   }
 }
 
-/* ─── POST /api/teachers ─────────────────────────────────── */
+// ── POST /api/teachers ────────────────────────────────────────
 export async function createTeacher(req, res) {
   try {
     const {
@@ -184,15 +233,9 @@ export async function createTeacher(req, res) {
       aadhaarNumber,
     } = req.body;
 
-    // ✅ schoolId from JWT — Admin creating teacher in their school
     const schoolId = req.user?.schoolId;
-    if (!schoolId) {
-      return res
-        .status(400)
-        .json({
-          error: "schoolId missing from token — ensure admin is logged in",
-        });
-    }
+    if (!schoolId)
+      return res.status(400).json({ error: "schoolId missing from token" });
 
     const teacher = await prisma.$transaction(async (tx) => {
       const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
@@ -203,14 +246,14 @@ export async function createTeacher(req, res) {
           email,
           password: hashedPassword,
           role: "TEACHER",
-          schoolId, // ✅ scoped to school
+          schoolId,
         },
       });
 
       return tx.teacherProfile.create({
         data: {
           userId: user.id,
-          schoolId, // ✅ denormalised for easy queries
+          schoolId,
           employeeCode,
           firstName,
           lastName,
@@ -241,17 +284,16 @@ export async function createTeacher(req, res) {
     await bustListCache();
     res.status(201).json({ data: teacher });
   } catch (err) {
-    if (err.code === "P2002") {
+    if (err.code === "P2002")
       return res
         .status(409)
         .json({ error: "Email or employee code already exists" });
-    }
     console.error("[createTeacher]", err);
     res.status(500).json({ error: "Failed to create teacher" });
   }
 }
 
-/* ─── PATCH /api/teachers/:id ────────────────────────────── */
+// ── PATCH /api/teachers/:id ───────────────────────────────────
 export async function updateTeacher(req, res) {
   try {
     const { id } = req.params;
@@ -291,7 +333,7 @@ export async function updateTeacher(req, res) {
 
     const updated = await prisma.teacherProfile.update({ where: { id }, data });
 
-    await Promise.all([bustListCache(), redisClient.del(`teachers:${id}`)]);
+    await Promise.all([bustListCache(), cacheDel(`teachers:${id}`)]);
     res.json({ data: updated });
   } catch (err) {
     console.error("[updateTeacher]", err);
@@ -299,7 +341,7 @@ export async function updateTeacher(req, res) {
   }
 }
 
-/* ─── DELETE /api/teachers/:id (soft delete) ────────────── */
+// ── DELETE /api/teachers/:id (soft delete) ────────────────────
 export async function deleteTeacher(req, res) {
   try {
     const { id } = req.params;
@@ -307,7 +349,7 @@ export async function deleteTeacher(req, res) {
       where: { id },
       data: { status: "RESIGNED" },
     });
-    await Promise.all([bustListCache(), redisClient.del(`teachers:${id}`)]);
+    await Promise.all([bustListCache(), cacheDel(`teachers:${id}`)]);
     res.json({ message: "Teacher marked as resigned" });
   } catch (err) {
     console.error("[deleteTeacher]", err);
@@ -315,28 +357,44 @@ export async function deleteTeacher(req, res) {
   }
 }
 
-/* ─── POST /api/teachers/:id/assignments ─────────────────── */
+// ── POST /api/teachers/:id/assignments ────────────────────────
 export async function addAssignment(req, res) {
   try {
-    const { id } = req.params;
-    const { grade, className, subject, academicYear } = req.body;
+    const { id: teacherId } = req.params;
+    const { classSectionId, subjectId, academicYearId } = req.body;
+
+    if (!classSectionId || !subjectId || !academicYearId)
+      return res.status(400).json({
+        error: "classSectionId, subjectId and academicYearId are required",
+      });
+
     const assignment = await prisma.teacherAssignment.create({
-      data: { teacherId: id, grade, className, subject, academicYear },
+      data: { teacherId, classSectionId, subjectId, academicYearId },
+      include: {
+        classSection: { select: { name: true, grade: true, section: true } },
+        subject: { select: { name: true, code: true } },
+        academicYear: { select: { name: true } },
+      },
     });
-    await redisClient.del(`teachers:${id}`);
+
+    await cacheDel(`teachers:${teacherId}`);
     res.status(201).json({ data: assignment });
   } catch (err) {
+    if (err.code === "P2002")
+      return res.status(409).json({
+        error: "This teacher is already assigned to this subject in this class",
+      });
     console.error("[addAssignment]", err);
     res.status(500).json({ error: "Failed to add assignment" });
   }
 }
 
-/* ─── DELETE /api/teachers/:id/assignments/:aId ──────────── */
+// ── DELETE /api/teachers/:id/assignments/:aId ─────────────────
 export async function removeAssignment(req, res) {
   try {
-    const { id, aId } = req.params;
+    const { id: teacherId, aId } = req.params;
     await prisma.teacherAssignment.delete({ where: { id: aId } });
-    await redisClient.del(`teachers:${id}`);
+    await cacheDel(`teachers:${teacherId}`);
     res.json({ message: "Assignment removed" });
   } catch (err) {
     console.error("[removeAssignment]", err);

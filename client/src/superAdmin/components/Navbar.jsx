@@ -1,259 +1,93 @@
-// client/src/admin/components/Navbar.jsx
 import React, { useState, useRef, useEffect } from "react";
-import {
-  Search,
-  Bell,
-  Mail,
-  Menu,
-  ChevronDown,
-  User,
-  LogOut,
-} from "lucide-react";
+import { Search, Bell, Mail, Menu, ChevronDown, User, LogOut } from "lucide-react";
 import LogoutButton from "../../components/LogoutButton";
 
-const font = { fontFamily: "'DM Sans', sans-serif" };
-
-const initials = (name = "AU") =>
-  name
-    .trim()
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+const initials = (n = "AU") => n.trim().split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 2);
 
 export default function Navbar({ onMenuClick, user }) {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [logoutModal, setLogoutModal] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [modal, setModal] = useState(false);
   const [search, setSearch] = useState("");
-  const dropdownRef = useRef(null);
+  const ref = useRef(null);
 
-  const displayName = user?.name || "Super Admin";
-  const displayRole = user?.role || "Administrator";
+  const name = user?.name || "Admin User";
+  const role = user?.role || "Administrator";
 
   useEffect(() => {
-    const h = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
-        setDropdownOpen(false);
-    };
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
   return (
     <>
-      {/* ── Top bar ── */}
-      <header
-        className="sticky top-0 z-30 flex items-center justify-between h-16 px-6"
-        style={{
-          background: "#fff",
-          borderBottom: "1.5px solid #e8f1fb",
-          boxShadow: "0 1px 6px rgba(56,73,89,0.05)",
-          ...font,
-        }}
-      >
-        {/* Left */}
-        <div className="flex items-center gap-4">
-          {/* Hamburger — mobile */}
-          <button
-            onClick={onMenuClick}
-            className="md:hidden p-2 rounded-xl transition-colors"
-            style={{
-              color: "#6A89A7",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f8fd")}
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "transparent")
-            }
-          >
-            <Menu size={20} />
-          </button>
+      <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-5 bg-white border-b border-blue-100 shadow-sm">
 
-          {/* Search bar */}
+        {/* Left */}
+        <div className="flex items-center gap-3">
+          <button onClick={onMenuClick} className="md:hidden p-2 rounded-xl text-blue-400 hover:bg-blue-50 hover:text-blue-600 active:scale-95 transition-all">
+            <Menu size={19} />
+          </button>
           <div className="relative hidden sm:flex items-center">
-            <Search
-              size={15}
-              className="absolute left-3 pointer-events-none"
-              style={{ color: "#6A89A7" }}
-            />
+            <Search size={14} className="absolute left-3 text-blue-300 pointer-events-none" />
             <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search students, teachers…"
-              className="pl-9 pr-4 py-2 text-sm rounded-xl outline-none w-72 lg:w-96 transition-all"
-              style={{
-                border: "1.5px solid #BDDDFC",
-                background: "#f8fbff",
-                color: "#384959",
-                ...font,
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = "#88BDF2";
-                e.target.style.boxShadow = "0 0 0 3px rgba(136,189,242,0.15)";
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = "#BDDDFC";
-                e.target.style.boxShadow = "none";
-              }}
+              className="pl-9 pr-4 py-2 text-sm rounded-xl border border-blue-200 bg-blue-50/60 text-slate-700 placeholder-blue-300 outline-none w-72 focus:w-96 focus:border-blue-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(96,165,250,0.15)] transition-all duration-300"
             />
           </div>
         </div>
 
         {/* Right */}
         <div className="flex items-center gap-1">
-          {/* Mobile search */}
-          <button
-            className="sm:hidden p-2 rounded-xl"
-            style={{
-              color: "#6A89A7",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            <Search size={18} />
+          {/* Mail */}
+          <button className="relative p-2 rounded-xl text-blue-400 hover:bg-blue-50 hover:text-blue-600 hover:-translate-y-0.5 active:scale-95 transition-all">
+            <Mail size={17} />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-400 border-2 border-white animate-pulse" />
           </button>
- 
+          {/* Bell */}
+          <button className="relative p-2 rounded-xl text-blue-400 hover:bg-blue-50 hover:text-blue-600 hover:-translate-y-0.5 active:scale-95 transition-all">
+            <Bell size={17} />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-400 border-2 border-white animate-pulse" />
+          </button>
 
-          {/* Divider */}
-          <div className="w-px h-7 mx-2" style={{ background: "#BDDDFC" }} />
+          <div className="w-px h-7 bg-blue-100 mx-2" />
 
           {/* Profile */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setDropdownOpen((o) => !o)}
-              className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl transition-colors"
-              style={{ background: "none", border: "none", cursor: "pointer" }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "#f3f8fd")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
-            >
-              {/* Name — desktop */}
+          <div className="relative" ref={ref}>
+            <button onClick={() => setOpen(o => !o)}
+              className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-blue-50 hover:-translate-y-0.5 active:scale-95 transition-all">
               <div className="hidden md:block text-right">
-                <p
-                  className="text-sm font-semibold leading-tight"
-                  style={{ color: "#384959" }}
-                >
-                  {displayName}
-                </p>
-                <p className="text-[11px]" style={{ color: "#6A89A7" }}>
-                  {displayRole}
-                </p>
+                <p className="text-[13.5px] font-semibold text-slate-800 leading-tight">{name}</p>
+                <p className="text-[11px] text-blue-400">{role}</p>
               </div>
-
-              {/* Avatar */}
-              <div
-                className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-                style={{
-                  background: "linear-gradient(135deg, #88BDF2, #6A89A7)",
-                  color: "#fff",
-                }}
-              >
-                {initials(displayName)}
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-700 flex items-center justify-center text-sm font-bold text-white shadow-md shadow-blue-300/40 hover:shadow-lg hover:shadow-blue-400/50 transition-shadow">
+                {initials(name)}
               </div>
-
-              <ChevronDown
-                size={14}
-                className={`hidden md:block transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}
-                style={{ color: "#6A89A7" }}
-              />
+              <ChevronDown size={13} className={`hidden md:block text-blue-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
             </button>
 
             {/* Dropdown */}
-            {dropdownOpen && (
-              <div
-                className="absolute right-0 mt-1.5 w-48 rounded-xl overflow-hidden py-1"
-                style={{
-                  background: "#fff",
-                  border: "1.5px solid #BDDDFC",
-                  boxShadow: "0 8px 28px rgba(56,73,89,0.13)",
-                  zIndex: 60,
-                }}
-              >
-                {/* User mini-card */}
-                <div
-                  className="flex items-center gap-2.5 px-4 py-3 mb-1"
-                  style={{ borderBottom: "1px solid #f1f5f9" }}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style={{
-                      background: "linear-gradient(135deg, #88BDF2, #6A89A7)",
-                      color: "#fff",
-                    }}
-                  >
-                    {initials(displayName)}
+            {open && (
+              <div className="absolute right-0 mt-2 w-48 rounded-2xl border border-blue-100 bg-white shadow-xl shadow-slate-200/80 py-1.5 z-50"
+                style={{ animation: "dropIn .18s cubic-bezier(.4,0,.2,1)" }}>
+                <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-100 mb-1">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-700 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                    {initials(name)}
                   </div>
                   <div className="min-w-0">
-                    <p
-                      className="text-xs font-semibold truncate"
-                      style={{ color: "#384959" }}
-                    >
-                      {displayName}
-                    </p>
-                    <p
-                      className="text-[10px] truncate"
-                      style={{ color: "#6A89A7" }}
-                    >
-                      {displayRole}
-                    </p>
+                    <p className="text-xs font-semibold text-slate-800 truncate">{name}</p>
+                    <p className="text-[10px] text-blue-400 truncate">{role}</p>
                   </div>
                 </div>
-
-                <button
-                  onClick={() => setDropdownOpen(false)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
-                  style={{
-                    color: "#384959",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    ...font,
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "#f3f8fd")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
-                >
-                  <User size={15} style={{ color: "#6A89A7" }} />
-                  Profile
+                <button onClick={() => setOpen(false)}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:translate-x-0.5 transition-all">
+                  <User size={14} className="text-blue-400" /> Profile
                 </button>
-
-                <div
-                  style={{ borderTop: "1px solid #f1f5f9", margin: "2px 0" }}
-                />
-
-                <button
-                  onClick={() => {
-                    setDropdownOpen(false);
-                    setLogoutModal(true);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
-                  style={{
-                    color: "#ef4444",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    ...font,
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "#fff5f5")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
-                >
-                  <LogOut size={15} />
-                  Logout
+                <div className="my-1 border-t border-slate-100" />
+                <button onClick={() => { setOpen(false); setModal(true); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 hover:translate-x-0.5 transition-all">
+                  <LogOut size={14} /> Logout
                 </button>
               </div>
             )}
@@ -261,63 +95,18 @@ export default function Navbar({ onMenuClick, user }) {
         </div>
       </header>
 
-      {/* ── Logout Modal ── */}
-      {logoutModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{
-            background: "rgba(56,73,89,0.35)",
-            backdropFilter: "blur(4px)",
-          }}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl p-6"
-            style={{
-              background: "#fff",
-              boxShadow: "0 24px 64px rgba(56,73,89,0.22)",
-              animation: "popIn .18s ease",
-              ...font,
-            }}
-          >
-            <style>{`@keyframes popIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}`}</style>
-
-            <div
-              className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-              style={{ background: "#fee2e2" }}
-            >
-              <LogOut size={20} style={{ color: "#ef4444" }} />
+      {/* Logout Modal */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-800/40 backdrop-blur-sm" style={{ animation: "fadeIn .15s ease" }}>
+          <div className="w-full max-w-sm bg-white rounded-2xl p-7 shadow-2xl" style={{ animation: "popIn .2s cubic-bezier(.34,1.56,.64,1)" }}>
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+              <LogOut size={20} className="text-red-500" />
             </div>
-
-            <h3
-              className="text-base font-bold text-center mb-1"
-              style={{ color: "#384959" }}
-            >
-              Confirm Logout
-            </h3>
-            <p
-              className="text-sm text-center mb-6"
-              style={{ color: "#6A89A7" }}
-            >
-              Are you sure you want to logout? You'll need to sign in again.
-            </p>
-
+            <h3 className="text-base font-bold text-center text-slate-800 mb-1">Confirm Logout</h3>
+            <p className="text-sm text-center text-slate-500 mb-6">Are you sure you want to logout?</p>
             <div className="flex gap-3">
-              <button
-                onClick={() => setLogoutModal(false)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-                style={{
-                  border: "1.5px solid #BDDDFC",
-                  background: "#f8fbff",
-                  color: "#384959",
-                  cursor: "pointer",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "#BDDDFC")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "#f8fbff")
-                }
-              >
+              <button onClick={() => setModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-sm font-semibold text-slate-700 hover:bg-blue-100 hover:-translate-y-0.5 transition-all">
                 Cancel
               </button>
               <LogoutButton />
@@ -325,6 +114,12 @@ export default function Navbar({ onMenuClick, user }) {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes dropIn{from{opacity:0;transform:scale(.95) translateY(-4px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes popIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+      `}</style>
     </>
   );
 }

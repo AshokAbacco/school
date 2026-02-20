@@ -11,6 +11,7 @@ import StudentRoutes from "./student/Routes";
 import SuperAdminRoutes from "./superAdmin/Routes";
 import TeacherRoutes from "./teacher/Routes";
 import ParentRoutes from "./parent/Routes";
+import FinanceRoutes from "./finance/Routes";
 
 function App() {
 
@@ -66,10 +67,16 @@ function App() {
           <Route path="/superAdmin/*" element={<SuperAdminRoutes />} />
         )}
 
+  if (auth.accountType === "staff") {
+    if (auth.role === "ADMIN") return <AdminRoutes />;
+    if (auth.role === "TEACHER") return <TeacherRoutes />;
+    if (auth.role === "FINANCE") return <FinanceRoutes />;
+    if (auth.role === "SUPER_ADMIN") return <SuperAdminRoutes />;
+  }
 
-      </Routes>
-    </Router>
-  );
+
+  // fallback — clear bad auth and show login
+  return <Login onSwitchToRegister={() => setView("register")} />;
 }
 
 export default App;

@@ -4,10 +4,17 @@ import cors from "cors";
 import dotenv from "dotenv";
 import studentsRoutes from "./staffRoutes/studentsRoutes.js";
 import teachersRoutes from "./staffRoutes/teachersRoutes.js";
+import schoolRoutes from "./superAdmin/routes/school.Routes.js";
+import schoolAdminRoutes from "./superAdmin/routes/schoolAdmin.Routes.js";
+import userRoutes from "./superAdmin/routes/users.Routes.js";               // ← ADD
+import analyticsRouter from "./superAdmin/routes/analytics.Routes.js";
 
+import classSectionRoutes from "./staffRoutes/classSectionRoutes.js";
+import academicYearRoutes from "./staffRoutes/academicYearRoutes.js";
+import subjectRoutes from "./staffRoutes/subjectRoutes.js";
 dotenv.config();
 
-const staff = express(); // rename app → staff (better clarity)
+const staff = express();
 
 // Middlewares
 staff.use(
@@ -18,9 +25,22 @@ staff.use(
 );
 
 staff.use(express.json());
+//super admin
+staff.use("/api/schools", schoolRoutes);
+staff.use("/api/school-admins", schoolAdminRoutes);
+staff.use("/api/users",         userRoutes);           // ← ADD
+staff.use("/api/superadmin/analytics", analyticsRouter);
+
 
 // Routes
+// NOTE: All /api/class-sections/* routes (including timetable config + entries)
+// are handled inside classSectionRoutes. Static routes (/timetable/config) are
+// registered BEFORE dynamic routes (/:id) to prevent "timetable" being captured
+// as an :id param - which was causing timetable data to vanish on page refresh.
 staff.use("/api/students", studentsRoutes);
 staff.use("/api/teachers", teachersRoutes);
+staff.use("/api/class-sections", classSectionRoutes);
+staff.use("/api/academic-years", academicYearRoutes);
+staff.use("/api/subjects", subjectRoutes);
 
 export default staff;
