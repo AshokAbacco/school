@@ -658,3 +658,32 @@ export const getMyParentStudents = async (req, res) => {
   }
 };
 
+
+// ⚡ No cache — always generates a fresh signed URL (1 day expiry).
+export const getProfileImage = async (req, res) => {
+  try {
+    if (!req.user?.role)
+      return res.status(401).json({ message: "Unauthorized" });
+ 
+    const { id: studentId } = req.params;
+ 
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { personalInfo: { select: { profileImage: true } } },
+    });
+ 
+    if (!student?.personalInfo?.profileImage)
+      return res.status(404).json({ message: "Profile image not found" });
+ 
+    const expiresIn = 86400; // 1 day
+    const signedUrl = await generateSignedUrl(
+      student.personalInfo.profileImage,
+      expiresIn,
+    );
+ 
+    return res.json({ url: signedUrl, expiresIn });
+  } catch (err) {
+    console.error("[getProfileImage]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};

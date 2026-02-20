@@ -1,10 +1,10 @@
 import "./App.css";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router } from "react-router-dom";
+import { useState } from "react";
 
 import { getAuth } from "./auth/storage";
 import Login from "./auth/Login";
 import Register from "./auth/Register";
-import { useState } from "react";
 
 import AdminRoutes from "./admin/Routes";
 import StudentRoutes from "./student/Routes";
@@ -14,59 +14,22 @@ import ParentRoutes from "./parent/Routes";
 import FinanceRoutes from "./finance/Routes";
 
 function App() {
-
-  const [setView] = useState("login");
+  const [view, setView] = useState("login");
   const [auth, setAuth] = useState(getAuth());
 
+  // ───────── NOT LOGGED IN ─────────
+  if (!auth) {
+    return view === "login" ? (
+      <Login
+        onLoginSuccess={(data) => setAuth(data)}
+        onSwitchToRegister={() => setView("register")}
+      />
+    ) : (
+      <Register onSwitchToLogin={() => setView("login")} />
+    );
+  }
 
-  return (
-    <Router>
-      <Routes>
-
-        {/* ───────── NOT LOGGED IN ───────── */}
-        {!auth && (
-          <>
-            <Route
-              path="/login"
-              element={
-                <Login
-                  onLoginSuccess={(data) => setAuth(data)}   // 🔥 IMPORTANT
-                  onSwitchToRegister={() => setView("register")}
-                />
-              }
-            />
-
-            <Route
-              path="/register"
-              element={<Register onSwitchToLogin={() => setView("login")} />}
-            />
-
-            <Route path="*" element={<Navigate to="/login" />} />
-          </>
-        )}
-
-        {/* ───────── ROLE BASED ROUTING ───────── */}
-
-        {auth?.user?.role === "PARENT" && (
-          <Route path="/parent/*" element={<ParentRoutes />} />
-        )}
-
-        {auth?.user?.role === "STUDENT" && (
-          <Route path="/student/*" element={<StudentRoutes />} />
-        )}
-
-        {auth?.user?.role === "ADMIN" && (
-          <Route path="/admin/*" element={<AdminRoutes />} />
-        )}
-
-        {auth?.user?.role === "TEACHER" && (
-          <Route path="/teacher/*" element={<TeacherRoutes />} />
-        )}
-
-        {auth?.user?.role === "SUPER_ADMIN" && (
-          <Route path="/superAdmin/*" element={<SuperAdminRoutes />} />
-        )}
-
+  // ───────── STAFF BASED ROUTING ─────────
   if (auth.accountType === "staff") {
     if (auth.role === "ADMIN") return <AdminRoutes />;
     if (auth.role === "TEACHER") return <TeacherRoutes />;
@@ -74,9 +37,23 @@ function App() {
     if (auth.role === "SUPER_ADMIN") return <SuperAdminRoutes />;
   }
 
+  // ───────── STUDENT ─────────
+  if (auth.accountType === "student") {
+    return <StudentRoutes />;
+  }
 
-  // fallback — clear bad auth and show login
-  return <Login onSwitchToRegister={() => setView("register")} />;
+  // ───────── PARENT ─────────
+  if (auth.accountType === "parent") {
+    return <ParentRoutes />;
+  }
+
+  // ───────── FALLBACK ─────────
+  return (
+    <Login
+      onLoginSuccess={(data) => setAuth(data)}
+      onSwitchToRegister={() => setView("register")}
+    />
+  );
 }
 
 export default App;
