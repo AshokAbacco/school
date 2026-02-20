@@ -78,10 +78,9 @@ export default function Login({ onSwitchToRegister }) {
                 setError("");
               }}
               className={`flex-1 py-2 rounded-lg text-xs font-semibold transition min-w-[60px]
-                ${
-                  type === tab.value
-                    ? "bg-white text-indigo-700 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                ${type === tab.value
+                  ? "bg-white text-indigo-700 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
                 }`}
             >
               {tab.label}

@@ -16,12 +16,12 @@ import {
 import { getToken } from "../../../auth/storage";
 import PageLayout from "../../components/PageLayout";
 import AddStudent from "./AddStudents";
-import { getToken } from "../../../auth/storage";
+
 
 const API_URL = import.meta.env.VITE_API_URL;
-  const authHeaders = () => ({
-    Authorization: `Bearer ${getToken()}`,
-  });
+const authHeaders = () => ({
+  Authorization: `Bearer ${getToken()}`,
+});
 const statusColor = (s = "") => {
   switch (s.toUpperCase()) {
     case "ACTIVE":

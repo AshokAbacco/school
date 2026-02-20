@@ -47,7 +47,7 @@ function Attendance() {
   ];
 
   const getStatusColor = (status) => {
-    switch(status) {
+    switch (status) {
       case 'present': return 'bg-green-500';
       case 'absent': return 'bg-red-500';
       case 'late': return 'bg-yellow-500';
@@ -57,7 +57,7 @@ function Attendance() {
   };
 
   const getStatusIcon = (status) => {
-    switch(status) {
+    switch (status) {
       case 'present': return <CheckCircle className="w-5 h-5 text-green-600" />;
       case 'absent': return <XCircle className="w-5 h-5 text-red-600" />;
       case 'late': return <Clock className="w-5 h-5 text-yellow-600" />;
@@ -135,7 +135,7 @@ function Attendance() {
               <Calendar className="w-6 h-6 text-blue-600" />
               Monthly Calendar
             </h2>
-            <select 
+            <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -152,7 +152,7 @@ function Attendance() {
                 {day}
               </div>
             ))}
-            
+
             {monthlyAttendance.map((item, index) => (
               <div key={index} className="aspect-square">
                 <div className={`h-full rounded-lg ${getStatusColor(item.status)} flex flex-col items-center justify-center text-white font-semibold text-sm hover:scale-105 transition cursor-pointer`}>
@@ -188,7 +188,7 @@ function Attendance() {
             <Award className="w-6 h-6 text-blue-600" />
             Attendance Goal
           </h2>
-          
+
           <div className="relative pt-1">
             <div className="flex mb-2 items-center justify-between">
               <div>
@@ -203,7 +203,7 @@ function Attendance() {
               </div>
             </div>
             <div className="overflow-hidden h-3 mb-4 text-xs flex rounded-full bg-blue-100">
-              <div style={{width: `${attendanceStats.percentage}%`}} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+              <div style={{ width: `${attendanceStats.percentage}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-blue-500 to-indigo-500"></div>
             </div>
           </div>
 
@@ -212,7 +212,7 @@ function Attendance() {
               <p className="text-green-800 font-semibold text-sm">Excellent!</p>
               <p className="text-green-600 text-xs mt-1">You're maintaining great attendance</p>
             </div>
-            
+
             <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
               <p className="text-blue-800 font-semibold text-sm">Target: 95%</p>
               <p className="text-blue-600 text-xs mt-1">Current status: On Track ✓</p>
@@ -255,11 +255,10 @@ function Attendance() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       {getStatusIcon(record.status)}
-                      <span className={`text-sm font-semibold capitalize ${
-                        record.status === 'present' ? 'text-green-600' :
+                      <span className={`text-sm font-semibold capitalize ${record.status === 'present' ? 'text-green-600' :
                         record.status === 'absent' ? 'text-red-600' :
-                        'text-yellow-600'
-                      }`}>
+                          'text-yellow-600'
+                        }`}>
                         {record.status}
                       </span>
                     </div>

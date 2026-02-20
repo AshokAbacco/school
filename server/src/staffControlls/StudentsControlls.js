@@ -378,3 +378,58 @@ export const viewStudentDocument = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+// ── getMyStudent (Student self) ───────────────────────────────────────────────
+export const getMyStudent = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      include: { personalInfo: true, documents: true },
+    });
+
+    if (!student) return res.status(404).json({ message: "Student not found" });
+    return res.json({ student });
+  } catch (error) {
+    console.error("[getMyStudent]", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ── getMyParentStudents (Parent fetches their linked students) ────────────────
+// Parent model has no direct students relation — link is via StudentPersonalInfo.parentEmail
+export const getMyParentStudents = async (req, res) => {
+  try {
+    const parentId = req.user.id; // from parent JWT
+
+    // Get parent email to match against StudentPersonalInfo.parentEmail
+    const parent = await prisma.parent.findUnique({
+      where: { id: parentId },
+      select: { id: true, email: true, name: true },
+    });
+
+    if (!parent) {
+      return res.status(404).json({ message: "Parent not found" });
+    }
+
+    // Find all students whose personalInfo.parentEmail matches this parent
+    const students = await prisma.student.findMany({
+      where: {
+        personalInfo: {
+          parentEmail: parent.email,
+        },
+      },
+      include: {
+        personalInfo: true,
+        documents: true,
+      },
+    });
+
+    return res.json({ students });
+  } catch (error) {
+    console.error("[getMyParentStudents]", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+

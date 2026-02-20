@@ -24,12 +24,12 @@ import {
 } from "lucide-react";
 import { getToken } from "../../../auth/storage";
 import PageLayout from "../../components/PageLayout";
-import { getToken } from "../../../auth/storage";
+
 
 const API_URL = import.meta.env.VITE_API_URL;
-  const authHeaders = () => ({
-    Authorization: `Bearer ${getToken()}`,
-  });
+const authHeaders = () => ({
+  Authorization: `Bearer ${getToken()}`,
+});
 const statusColor = (s = "") => {
   switch (s.toUpperCase()) {
     case "ACTIVE":
@@ -45,7 +45,7 @@ const statusColor = (s = "") => {
   }
 };
 
-const InfoRow = ({ icon: Icon, label, value }) =>
+const InfoRow = ({ icon: label, value }) =>
   value ? (
     <div className="flex items-start gap-3 py-2.5 border-b border-gray-50 last:border-0">
       <div className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
@@ -62,7 +62,7 @@ const InfoRow = ({ icon: Icon, label, value }) =>
     </div>
   ) : null;
 
-const Card = ({ title, icon: Icon, color = "blue", children }) => (
+const Card = ({ title, icon: color = "blue", children }) => (
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
     <div
       className={`flex items-center gap-3 px-5 py-4 border-b border-gray-100 bg-${color}-50/40`}
@@ -269,10 +269,10 @@ export default function StudentView() {
                 value={
                   pi?.dateOfBirth
                     ? new Date(pi.dateOfBirth).toLocaleDateString("en-IN", {
-                        day: "2-digit",
-                        month: "long",
-                        year: "numeric",
-                      })
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })
                     : null
                 }
               />
@@ -328,10 +328,10 @@ export default function StudentView() {
                 value={
                   pi?.admissionDate
                     ? new Date(pi.admissionDate).toLocaleDateString("en-IN", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
                     : null
                 }
               />
@@ -376,8 +376,8 @@ export default function StudentView() {
                       doc.documentName === "CUSTOM"
                         ? doc.customLabel || "Custom"
                         : doc.documentName
-                            .replace(/_/g, " ")
-                            .replace(/\b\w/g, (c) => c.toUpperCase());
+                          .replace(/_/g, " ")
+                          .replace(/\b\w/g, (c) => c.toUpperCase());
                     return (
                       <div
                         key={doc.id}

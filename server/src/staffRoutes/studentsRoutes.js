@@ -10,6 +10,8 @@ import {
   listStudents,
   deleteStudent,
   viewStudentDocument,
+  getMyStudent,
+  getMyParentStudents, // ← NEW
 } from "../staffControlls/StudentsControlls.js";
 
 const router = express.Router();
@@ -29,13 +31,17 @@ const upload = multer({
       "application/msword",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
-
     if (allowed.includes(file.mimetype)) cb(null, true);
     else cb(new Error(`Unsupported file type: ${file.mimetype}`));
   },
 });
 
 // ── Routes ─────────────────────────────────────────────────────────────────
+
+// ⚠️  Static routes MUST come before /:id to avoid conflicts
+router.get("/me", authMiddleware, getMyStudent);                        // Student self-profile
+router.get("/my-students", authMiddleware, getMyParentStudents);        // Parent's linked students ← NEW
+
 router.post("/register", registerStudent);
 
 router.post(
@@ -53,9 +59,8 @@ router.post(
 );
 
 router.get("/", authMiddleware, listStudents);
-
-router.get("/:id", authMiddleware, getStudent);
 router.get("/documents/:documentId/view", authMiddleware, viewStudentDocument);
+router.get("/:id", authMiddleware, getStudent);
 
 router.delete("/:id", authMiddleware, deleteStudent);
 
