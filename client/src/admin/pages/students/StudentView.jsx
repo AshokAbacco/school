@@ -290,10 +290,10 @@ export default function StudentView() {
                 value={
                   pi?.dateOfBirth
                     ? new Date(pi.dateOfBirth).toLocaleDateString("en-IN", {
-                        day: "2-digit",
-                        month: "long",
-                        year: "numeric",
-                      })
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })
                     : null
                 }
               />
@@ -349,10 +349,10 @@ export default function StudentView() {
                 value={
                   pi?.admissionDate
                     ? new Date(pi.admissionDate).toLocaleDateString("en-IN", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
                     : null
                 }
               />

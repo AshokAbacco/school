@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, Menu, Mail, ChevronDown, User, LogOut } from 'lucide-react';
 import LogoutButton from '../../components/LogoutButton';
+import { useNavigate } from "react-router-dom";
 
 function Navbar({ onMenuClick }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const navigate = useNavigate();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -98,9 +100,9 @@ function Navbar({ onMenuClick }) {
                   <button
                     onClick={() => {
                       setIsDropdownOpen(false);
-                      // Add navigation to profile page
-                      console.log('Navigate to profile');
+                      navigate("/parent/profile");
                     }}
+
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
                   >
                     <User className="w-4 h-4" />

@@ -1,129 +1,165 @@
 import React, { useState } from 'react';
 
 const WeeklySchedule = () => {
-    // State for current day (highlighted)
-    const [currentDay] = useState(new Date().getDay());
+    const [currentDay] = useState(new Date().getDay()); // 0=Sun,1=Mon,...
 
-    // Time slots for the schedule
-    const timeSlots = [
-        '05:00', '06:00', '07:00', '08:00', '09:00', '10:00',
-        '11:00', '12:00', '13:00', '14:00', '15:00', '16:00',
-        '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'
-    ];
+    // 30-min slots from 08:00 to 17:30
+    const timeSlots = [];
+    for (let h = 8; h <= 17; h++) {
+        timeSlots.push(`${String(h).padStart(2, '0')}:00`);
+        if (h < 18) timeSlots.push(`${String(h).padStart(2, '0')}:30`);
+    }
 
-    // Days of the week
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    // Days: Sunday first
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-    // Events for the week
+    // Events: day 0=Sun,1=Mon,...
     const events = [
-        { id: 1, title: 'Gardening', day: 1, startTime: '09:00', endTime: '10:00', color: 'bg-green-400' },
-        { id: 2, title: 'Cooking Class', day: 2, startTime: '19:00', endTime: '20:00', color: 'bg-blue-400' },
-        { id: 3, title: 'Meet Dan for Lunch', day: 4, startTime: '12:00', endTime: '13:00', color: 'bg-purple-400' }
+        { id: 1, title: 'Gardening', day: 2, startTime: '09:00', endTime: '10:30', color: '#bbf7d0', textColor: '#166534' },
+        { id: 2, title: "Monday Morning, let's...", day: 1, startTime: '09:30', endTime: '11:00', color: '#fed7aa', textColor: '#9a3412' },
+        { id: 3, title: 'Appear busy', day: 1, startTime: '10:00', endTime: '11:30', color: '#fecaca', textColor: '#991b1b' },
+        { id: 4, title: 'Cooking Class', day: 4, startTime: '10:00', endTime: '11:30', color: '#c4b5fd', textColor: '#4c1d95' },
+        { id: 5, title: 'Laundry', day: 5, startTime: '10:00', endTime: '11:30', color: '#bbf7d0', textColor: '#166534' },
+        { id: 6, title: 'Call Mum!', day: 1, startTime: '13:00', endTime: '13:30', color: '#d1fae5', textColor: '#065f46' },
+        { id: 7, title: 'Keep titles short', day: 2, startTime: '14:00', endTime: '14:30', color: '#dbeafe', textColor: '#1e40af' },
+        { id: 8, title: 'Buy Icecream', day: 2, startTime: '14:30', endTime: '15:00', color: '#fef9c3', textColor: '#854d0e' },
+        { id: 9, title: 'Meet Dan for Lunch', day: 5, startTime: '12:30', endTime: '13:30', color: '#bfdbfe', textColor: '#1e40af' },
     ];
 
-    // Today's online classes
-    const onlineClasses = [
-        { id: 1, time: '05:00 - 06:30', subject: 'Mathematics' },
-        { id: 2, time: '06:30 - 08:15', subject: 'History' },
-        { id: 3, time: '08:30 - 09:15', subject: 'Science' }
-    ];
-
-    // Calculate the position and height of an event based on time
-    const calculateEventStyle = (startTime, endTime) => {
-        const startHour = parseInt(startTime.split(':')[0]);
-        const startMinute = parseInt(startTime.split(':')[1]);
-        const endHour = parseInt(endTime.split(':')[0]);
-        const endMinute = parseInt(endTime.split(':')[1]);
-
-        const startOffset = (startHour - 5) * 60 + startMinute;
-        const duration = (endHour - startHour) * 60 + (endMinute - startMinute);
-
-        const top = (startOffset / 60) * 60; // 60px per hour
-        const height = (duration / 60) * 60; // 60px per hour
-
-        return {
-            top: `${top}px`,
-            height: `${height}px`
-        };
+    // Convert "HH:MM" to minutes since 08:00
+    const toMinutes = (time) => {
+        const [h, m] = time.split(':').map(Number);
+        return (h - 8) * 60 + m;
     };
 
+    const SLOT_HEIGHT = 28; // px per 30-min slot
+    const SLOT_MINUTES = 30;
+
+    // Get events for a specific day, with top/height in px
+    const getEventsForDay = (dayIndex) => {
+        return events
+            .filter(e => e.day === dayIndex)
+            .map(e => {
+                const startMin = toMinutes(e.startTime);
+                const endMin = toMinutes(e.endTime);
+                const top = (startMin / SLOT_MINUTES) * SLOT_HEIGHT;
+                const height = ((endMin - startMin) / SLOT_MINUTES) * SLOT_HEIGHT;
+                return { ...e, top, height };
+            });
+    };
+
+    // Today's Online Classes (right panel)
+    const onlineClasses = [
+        { id: 1, time: '05:00 - 06:30', subject: 'Subject' },
+        { id: 2, time: '06:30 - 07:30', subject: 'Subject' },
+        { id: 3, time: '08:30 - 09:15', subject: 'Subject' },
+    ];
+
+    const totalHeight = timeSlots.length * SLOT_HEIGHT;
+
     return (
-        <div className="p-6 bg-gray-50 min-h-screen">
-            <div className="max-w-7xl mx-auto">
-                <div className="flex justify-between items-start mb-6">
-                    <h1 className="text-2xl font-bold text-gray-800">Weekly Schedule</h1>
+        <div className="p-4 bg-gray-50 min-h-screen">
+            <div className="flex gap-4 items-start">
 
-                    {/* Today's Online Classes */}
-                    <div className="bg-white rounded-lg shadow-md p-4 w-64">
-                        <h2 className="text-lg font-semibold text-gray-700 mb-3">Today's Online Classes</h2>
-                        <div className="space-y-3">
-                            {onlineClasses.map(cls => (
-                                <div key={cls.id} className="border-l-4 border-indigo-500 pl-3">
-                                    <div className="text-sm font-medium text-gray-900">Class {cls.id}</div>
-                                    <div className="text-xs text-gray-500">{cls.time}</div>
-                                    <div className="text-sm text-gray-700">{cls.subject}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                {/* ── Main Schedule Grid ── */}
+                <div className="flex-1 bg-white rounded-lg shadow overflow-hidden border border-gray-200">
+                    {/* Day Headers */}
+                    <div className="flex border-b border-gray-200">
+                        {/* Time gutter header */}
 
-                {/* Weekly Schedule Grid */}
-                <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                    <div className="grid grid-cols-8">
-                        {/* Empty corner cell */}
-                        <div className="p-2 border-r border-b bg-gray-100"></div>
-
-                        {/* Day headers */}
-                        {days.map((day, index) => (
+                        {days.map((day, idx) => (
                             <div
                                 key={day}
-                                className={`p-2 text-center font-semibold border-r border-b ${index === currentDay - 1 ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-700'
-                                    }`}
+                                className="flex-1 text-center py-2 text-sm font-semibold border-r border-gray-200 last:border-r-0"
+                                style={{
+                                    color: idx === currentDay ? '#2563eb' : '#374151',
+                                    background: idx === 0 ? '#fff1f2' : idx === currentDay ? '#eff6ff' : '#fff',
+                                }}
                             >
                                 {day}
                             </div>
                         ))}
+                    </div>
 
-                        {/* Time slots and events */}
-                        {timeSlots.map(time => (
-                            <React.Fragment key={time}>
-                                {/* Time label */}
-                                <div className="p-2 text-xs text-gray-500 border-r border-b text-right pr-4">
-                                    {time}
+                    {/* Grid Body */}
+                    <div className="flex" style={{ height: `${totalHeight}px` }}>
+
+
+                        {/* Day Columns */}
+                        {days.map((day, dayIdx) => {
+                            const dayEvents = getEventsForDay(dayIdx);
+                            return (
+                                <div
+                                    key={day}
+                                    className="flex-1 relative border-r border-gray-200 last:border-r-0"
+                                    style={{
+                                        background: dayIdx === 0 ? '#fff1f2' : '#fff',
+                                    }}
+                                >
+                                    {/* Horizontal slot lines */}
+                                    {timeSlots.map((slot) => (
+                                        <div
+                                            key={slot}
+                                            className="border-b border-gray-100"
+                                            style={{ height: `${SLOT_HEIGHT}px` }}
+                                        >
+                                            {/* Time label inside cell (like the image) */}
+                                            <span
+                                                className="text-gray-300 pl-0.5"
+                                                style={{ fontSize: '9px', lineHeight: `${SLOT_HEIGHT}px` }}
+                                            >
+                                                {slot}
+                                            </span>
+                                        </div>
+                                    ))}
+
+                                    {/* Events */}
+                                    {dayEvents.map(ev => (
+                                        <div
+                                            key={ev.id}
+                                            className="absolute left-0.5 right-0.5 rounded overflow-hidden px-1 py-0.5"
+                                            style={{
+                                                top: `${ev.top}px`,
+                                                height: `${ev.height}px`,
+                                                background: ev.color,
+                                                zIndex: 10,
+                                            }}
+                                        >
+                                            <p
+                                                className="font-semibold truncate"
+                                                style={{ fontSize: '10px', color: ev.textColor, lineHeight: '14px' }}
+                                            >
+                                                {ev.title}
+                                            </p>
+                                        </div>
+                                    ))}
                                 </div>
+                            );
+                        })}
+                    </div>
+                </div>
 
-                                {/* Day cells */}
-                                {days.map((day, dayIndex) => (
-                                    <div key={`${day}-${time}`} className="relative border-r border-b h-15" style={{ height: '60px' }}>
-                                        {/* Render events that match this day and time */}
-                                        {events.map(event => {
-                                            if (event.day === dayIndex) {
-                                                const eventStartHour = parseInt(event.startTime.split(':')[0]);
-                                                const eventEndHour = parseInt(event.endTime.split(':')[0]);
-                                                const currentHour = parseInt(time.split(':')[0]);
-
-                                                if (currentHour >= eventStartHour && currentHour < eventEndHour) {
-                                                    const style = calculateEventStyle(event.startTime, event.endTime);
-                                                    return (
-                                                        <div
-                                                            key={event.id}
-                                                            className={`absolute left-0 right-0 mx-1 p-1 rounded text-xs text-white ${event.color} overflow-hidden`}
-                                                            style={style}
-                                                        >
-                                                            {event.title}
-                                                        </div>
-                                                    );
-                                                }
-                                            }
-                                            return null;
-                                        })}
+                {/* ── Today's Online Classes Panel ── */}
+                <div className="flex-shrink-0 bg-white rounded-lg shadow border border-gray-200 p-3" style={{ width: '160px' }}>
+                    <h2 className="text-xs font-bold text-blue-600 mb-3 leading-tight">
+                        Today's Online Classes
+                    </h2>
+                    <div className="space-y-3">
+                        {onlineClasses.map(cls => (
+                            <div key={cls.id}>
+                                <p className="text-gray-500 mb-1" style={{ fontSize: '10px' }}>{cls.time}</p>
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-0.5 h-8 bg-blue-600 rounded-full flex-shrink-0" />
+                                    <div>
+                                        <p className="text-xs font-semibold text-gray-800">Class {cls.id}</p>
+                                        <p className="text-gray-500" style={{ fontSize: '10px' }}>{cls.subject}</p>
                                     </div>
-                                ))}
-                            </React.Fragment>
+                                </div>
+                            </div>
                         ))}
                     </div>
                 </div>
+
             </div>
         </div>
     );

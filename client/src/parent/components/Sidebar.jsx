@@ -21,25 +21,27 @@ import {
 
 function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
+  const base = "/parent";
+
+
 
 
   const menuItems = [
-    { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-
-    { icon: User, label: "My Child Profile", href: "/profile" },
-    { icon: ClipboardCheck, label: "Attendance", href: "/attendance" },
-    { icon: BarChart2, label: "Results", href: "/marks" },
-    { icon: Calendar, label: "Timetable", href: "/timetable" },
+    { icon: LayoutDashboard, label: "Dashboard", href: `${base}/dashboard` },
+    { icon: User, label: "My Child Profile", href: `${base}/profile` },
+    { icon: ClipboardCheck, label: "Attendance", href: `${base}/attendance` },
+    { icon: BarChart2, label: "Results", href: `${base}/marks` },
+    { icon: Calendar, label: "Timetable", href: `${base}/timetable` },
     { icon: BookOpen, label: "Assignments", href: "/homework" },
     { icon: Bell, label: "Announcements", href: "/notices" },
     { icon: MessageCircle, label: "Teacher Chat", href: "/messages" },
 
-    { icon: CreditCard, label: "Fees & Payments", href: "/fees" },
+    { icon: CreditCard, label: "Fees & Payments", href: `${base}/fees-payments` },
 
-    { icon: Award, label: "Certificates", href: "/certificates" },
-
-    { icon: Users, label: "Meeting", href: "/meeting" },
+    { icon: Award, label: "Certificates", href: `${base}/certificates` },
+    { icon: Users, label: "Meeting", href: `${base}/meeting` },
   ];
+
 
   const isActive = (href) =>
     location.pathname === href || location.pathname.startsWith(href + "/");
@@ -77,7 +79,7 @@ function Sidebar({ isOpen, onClose }) {
         <div className="px-4 pt-5 pb-4 border-b border-gray-100">
           <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border-2 border-blue-400 bg-blue-50">
             <GraduationCap className="w-4 h-4 text-blue-600 flex-shrink-0" />
-            <span className="text-lg font-bold text-gray-800">Parents CRM</span>
+            <span className="text-lg font-bold text-gray-800">Parent</span>
           </div>
         </div>
 
@@ -111,12 +113,14 @@ function Sidebar({ isOpen, onClose }) {
         {/* ── Logout ── */}
         <div className="px-3 pb-5">
           <button
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full text-xs font-bold text-white hover:opacity-90 transition-opacity"
-            style={{ background: "linear-gradient(135deg,#f87171 0%,#dc2626 100%)" }}
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full 
+  text-xs font-bold text-white hover:opacity-90 transition"
+            style={{ background: "#374a5e" }}
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Logout</span>
           </button>
+
         </div>
       </aside>
     </>
