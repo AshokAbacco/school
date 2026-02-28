@@ -1,40 +1,10 @@
 // server/src/controllers/timetableConfigController.js
 import { PrismaClient } from "@prisma/client";
-import redisClient from "../utils/redis.js";
+import cacheService from "../utils/cacheService.js";
 
 const prisma = new PrismaClient();
-const CACHE_TTL = 60 * 5; // 5 minutes
 
 // ── Safe Redis helpers (fail silently) ───────────────────────────────────────
-
-async function cacheGet(key) {
-  try {
-    return await redisClient.get(key);
-  } catch (err) {
-    console.error(`[Redis] GET ${key} failed:`, err.message);
-    return null;
-  }
-}
-
-async function cacheSet(key, value) {
-  try {
-    await redisClient.setEx(key, CACHE_TTL, JSON.stringify(value));
-  } catch (err) {
-    console.error(`[Redis] SET ${key} failed:`, err.message);
-  }
-}
-
-async function cacheDel(key) {
-  try {
-    await redisClient.del(key);
-  } catch (err) {
-    console.error(`[Redis] DEL ${key} failed:`, err.message);
-  }
-}
-
-// ── Cache key helper ─────────────────────────────────────────────────────────
-const cacheKey = (schoolId, academicYearId) =>
-  `timetable-config:${schoolId}:${academicYearId}`;
 
 // ── Pure helper functions (unchanged) ────────────────────────────────────────
 
@@ -86,11 +56,11 @@ export const getTimetableConfig = async (req, res) => {
     const { academicYearId } = req.query;
     if (!academicYearId)
       return res.status(400).json({ message: "academicYearId is required" });
-
-    const key = cacheKey(schoolId, academicYearId);
+    const namespace = `timetable-config:${schoolId}:${academicYearId}`;
+    const key = await cacheService.buildKey(schoolId, namespace);
 
     // 1. Check cache
-    const cached = await cacheGet(key);
+    const cached = await cacheService.get(key);
     if (cached) {
       return res.json({ config: JSON.parse(cached), fromCache: true });
     }
@@ -102,7 +72,7 @@ export const getTimetableConfig = async (req, res) => {
     });
 
     // 3. Store in cache (cache null too — avoids repeated DB hits for missing config)
-    await cacheSet(key, config ?? null);
+    await cacheService.set(key, config ?? null);
 
     return res.json({ config: config || null });
   } catch (err) {
@@ -172,7 +142,7 @@ export const saveTimetableConfig = async (req, res) => {
     });
 
     // Invalidate the cached config for this school + year
-    await cacheDel(cacheKey(schoolId, academicYearId));
+    await cacheService.invalidateSchool(schoolId);
 
     return res.json({ message: "Timetable config saved", config: savedConfig });
   } catch (err) {

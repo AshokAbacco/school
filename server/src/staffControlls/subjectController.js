@@ -1,75 +1,20 @@
 // server/src/controllers/subjectController.js
 import { PrismaClient } from "@prisma/client";
-import redisClient from "../utils/redis.js";
+import cacheService from "../utils/cacheService.js";
 
 const prisma = new PrismaClient();
-const CACHE_TTL = 60 * 5; // 5 minutes
-
-// ── Safe Redis helpers (fail silently) ───────────────────────────────────────
-
-async function cacheGet(key) {
-  try {
-    return await redisClient.get(key);
-  } catch (err) {
-    console.error(`[Redis] GET ${key} failed:`, err.message);
-    return null; // cache miss → fall through to DB
-  }
-}
-
-async function cacheSet(key, value) {
-  try {
-    await redisClient.setEx(key, CACHE_TTL, JSON.stringify(value));
-  } catch (err) {
-    console.error(`[Redis] SET ${key} failed:`, err.message);
-    // non-fatal — DB already returned the data
-  }
-}
-
-// Uses SCAN instead of KEYS to avoid blocking Redis in production
-async function scanAndDelete(pattern) {
-  try {
-    let cursor = 0;
-    do {
-      const reply = await redisClient.scan(cursor, {
-        MATCH: pattern,
-        COUNT: 100,
-      });
-      cursor = reply.cursor;
-      if (reply.keys.length) await redisClient.del(reply.keys);
-    } while (cursor !== 0);
-  } catch (err) {
-    console.error(`[Redis] SCAN/DEL ${pattern} failed:`, err.message);
-  }
-}
-
-async function invalidateCache(schoolId, id = null) {
-  // Wipe all list variants for this school (gradeLevel + search combos)
-  await scanAndDelete(`subjects:${schoolId}:list:*`);
-  // Wipe specific subject entry if provided
-  if (id) {
-    try {
-      await redisClient.del(`subjects:${schoolId}:${id}`);
-    } catch (err) {
-      console.error(`[Redis] DEL subject ${id} failed:`, err.message);
-    }
-  }
-}
-
-// ── Cache key helpers ────────────────────────────────────────────────────────
-const cacheKey = {
-  list: (schoolId, gradeLevel, search) =>
-    `subjects:${schoolId}:list:${gradeLevel ?? "all"}:${search ?? "none"}`,
-};
 
 // ── GET /api/subjects ────────────────────────────────────────────────────────
 export const getSubjects = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
     const { gradeLevel, search } = req.query;
-    const key = cacheKey.list(schoolId, gradeLevel, search);
+    const key = await cacheService.buildKey(
+      schoolId,
+      `subjects:list:${gradeLevel ?? "all"}:${search ?? "none"}`,
+    );
 
-    // 1. Check cache (fails silently — returns null on Redis error)
-    const cached = await cacheGet(key);
+    const cached = await cacheService.get(key);
     if (cached) {
       return res.json({ subjects: JSON.parse(cached), fromCache: true });
     }
@@ -88,6 +33,9 @@ export const getSubjects = async (req, res) => {
       },
       orderBy: { name: "asc" },
       include: {
+        _count: {
+          select: { classSubjects: true },
+        },
         TeacherAssignment: {
           distinct: ["teacherId"],
           select: {
@@ -106,7 +54,7 @@ export const getSubjects = async (req, res) => {
     });
 
     // 3. Store in cache (fails silently)
-    await cacheSet(key, subjects);
+    await cacheService.set(key, subjects);
 
     return res.json({ subjects });
   } catch (err) {
@@ -144,7 +92,7 @@ export const createSubject = async (req, res) => {
       },
     });
 
-    await invalidateCache(schoolId);
+    await cacheService.invalidateSchool(schoolId);
     return res.status(201).json({ message: "Subject created", subject });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -185,7 +133,7 @@ export const updateSubject = async (req, res) => {
       },
     });
 
-    await invalidateCache(schoolId, id);
+    await cacheService.invalidateSchool(schoolId);
     return res.json({ message: "Subject updated", subject });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -212,8 +160,11 @@ export const deleteSubject = async (req, res) => {
         message: `Used in ${used} timetable slot(s). Remove those first.`,
       });
 
+    // Delete from DB first
     await prisma.subject.delete({ where: { id } });
-    await invalidateCache(schoolId, id);
+
+    await cacheService.invalidateSchool(schoolId); // wipes subjects:schoolId:list:*
+
     return res.json({ message: "Subject deleted" });
   } catch (err) {
     return res.status(500).json({ message: err.message });

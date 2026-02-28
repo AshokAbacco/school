@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+// admin/pages/students/AddStudents.jsx
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   User,
@@ -28,6 +29,7 @@ import { getToken } from "../../../auth/storage";
 import { COLORS, InputField } from "./components/FormFields";
 import StudentFormSidebar from "./components/StudentFormSidebar";
 import DocumentUploadSection from "./components/DocumentUploadSection";
+import { useInstitutionConfig } from "../classes/hooks/useInstitutionConfig";
 
 const API = import.meta.env.VITE_API_URL;
 const auth = () => ({ Authorization: `Bearer ${getToken()}` });
@@ -70,10 +72,11 @@ const E0 = {
   uname: "",
   lemail: "",
   pw: "",
-  // ✅ NEW: FK-based academic fields
+  admissionNumber: "",
   classSectionId: "",
   academicYearId: "",
   rollNumber: "",
+  externalId: "",
   admDate: "",
   status: "ACTIVE",
   pNm: "",
@@ -107,6 +110,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const isEdit = !!rid;
   const doClose = isModal ? onClose || closeModal : () => navigate("/students");
 
+  // Institution config — drives which cascade dropdowns to show
+  const { schoolType, showStream, showCourse, showBranch } =
+    useInstitutionConfig();
+
   const [tab, setTab] = useState("personal");
   const [sid, setSid] = useState(rid || null);
   const [photo, setPhoto] = useState(null);
@@ -116,12 +123,13 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const [loading, setLoading] = useState(isEdit);
   const [showPw, setShowPw] = useState(false);
   const [showParentPw, setShowParentPw] = useState(false);
-  const [toast, setToast] = useState(null); // { type: "success"|"error", msg: string }
+  const [toast, setToast] = useState(null);
 
   const showToast = (type, msg) => {
     setToast({ type, msg });
     setTimeout(() => setToast(null), 4000);
   };
+
   const [ptab, setPtab] = useState("parent");
   const [fdocs, setFdocs] = useState(
     Object.fromEntries(FDOCS.map((d) => [d.id, null])),
@@ -131,10 +139,22 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const [docErr, setDocErr] = useState("");
   const [f, setF] = useState(E0);
 
-  // ✅ NEW: dropdown data fetched from API
+  // Dropdown data from API
   const [classSections, setClassSections] = useState([]);
   const [academicYears, setAcademicYears] = useState([]);
   const [loadingDropdowns, setLoadingDropdowns] = useState(false);
+
+  // ── Cascade selection state ───────────────────────────────────────────────
+  // SCHOOL: selectedGrade → selectedSection → classSectionId
+  // PUC:    selectedGrade → selectedStreamId → selectedCombinationId → classSectionId
+  // DEGREE: selectedCourseId → selectedBranchId → selectedSemester → selectedSection → classSectionId
+  const [selectedGrade, setSelectedGrade] = useState("");
+  const [selectedStreamId, setSelectedStreamId] = useState("");
+  const [selectedCombinationId, setSelectedCombinationId] = useState("");
+  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [selectedSemester, setSelectedSemester] = useState("");
+  const [selectedSectionLetter, setSelectedSectionLetter] = useState("");
 
   const photoRef = useRef();
   const frefs = useRef({});
@@ -144,7 +164,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     setErr((p) => ({ ...p, [k]: "" }));
   };
 
-  // ✅ Fetch class sections and academic years for this school
+  // ── Fetch class sections and academic years ───────────────────────────────
   useEffect(() => {
     (async () => {
       setLoadingDropdowns(true);
@@ -160,14 +180,14 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         setClassSections(csData.classSections || csData.data || []);
         setAcademicYears(ayData.academicYears || ayData.data || []);
       } catch {
-        /* non-critical — dropdowns just stay empty */
+        /* non-critical */
       } finally {
         setLoadingDropdowns(false);
       }
     })();
   }, []);
 
-  // ✅ Fetch existing student data on edit
+  // ── Fetch student data on edit ────────────────────────────────────────────
   useEffect(() => {
     if (!isEdit) return;
     (async () => {
@@ -179,8 +199,9 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         if (!r.ok) throw new Error(d.message);
         const s = d.student,
           pi = s.personalInfo || {};
-        // Current enrollment (most recent)
         const enroll = s.enrollments?.[0] || null;
+        const cs = enroll?.classSection;
+
         setF({
           fn: pi.firstName || "",
           ln: pi.lastName || "",
@@ -195,10 +216,11 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           uname: "",
           lemail: s.email || "",
           pw: "",
-          // ✅ Pull from enrollment FK
-          classSectionId: enroll?.classSection?.id || "",
+          admissionNumber: s.admissionNumber || "",
+          classSectionId: cs?.id || "",
           academicYearId: enroll?.academicYear?.id || "",
           rollNumber: enroll?.rollNumber || "",
+          externalId: enroll?.externalId || "",
           admDate: pi.admissionDate ? pi.admissionDate.slice(0, 10) : "",
           status: pi.status || "ACTIVE",
           pNm: pi.parentName || "",
@@ -221,6 +243,27 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           cond: pi.medicalConditions || "",
           allg: pi.allergies || "",
         });
+
+        // Restore cascade state from existing enrollment
+        if (cs) {
+          if (schoolType === "SCHOOL") {
+            // grade = "Grade 9", section = "A"
+            const gradeNum = cs.grade?.replace("Grade ", "") || "";
+            setSelectedGrade(gradeNum);
+            setSelectedSectionLetter(cs.section || "");
+          } else if (schoolType === "PUC") {
+            setSelectedGrade(cs.grade || "");
+            setSelectedStreamId(cs.streamId || "");
+            setSelectedCombinationId(cs.combinationId || "");
+          } else {
+            // DEGREE / DIPLOMA / PG
+            setSelectedCourseId(cs.courseId || "");
+            setSelectedBranchId(cs.branchId || "");
+            setSelectedSemester(cs.grade || ""); // grade holds "Semester 1"
+            setSelectedSectionLetter(cs.section || "");
+          }
+        }
+
         if (pi.profileImage) setPhotoUrl(pi.profileImage);
       } catch (e) {
         setErr({ _g: e.message });
@@ -230,20 +273,275 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     })();
   }, [rid]);
 
-  // ── Validation ─────────────────────────────────────────────────────────────
-  // Each error key maps to a tab so we can show red dots on tab nav
-  // and a summary panel on the Documents (last) tab.
+  // ── Cascade derived data (all computed from classSections array) ──────────
+
+  // SCHOOL: unique grade numbers sorted
+  const schoolGrades = useMemo(() => {
+    if (schoolType !== "SCHOOL") return [];
+    const nums = [
+      ...new Set(
+        classSections
+          .map((cs) => {
+            const m = cs.grade?.match(/\d+/);
+            return m ? parseInt(m[0]) : null;
+          })
+          .filter(Boolean),
+      ),
+    ].sort((a, b) => a - b);
+    return nums;
+  }, [classSections, schoolType]);
+
+  // SCHOOL: sections available for selected grade
+  const schoolSections = useMemo(() => {
+    if (schoolType !== "SCHOOL" || !selectedGrade) return [];
+    return classSections.filter((cs) => cs.grade === `Grade ${selectedGrade}`);
+  }, [classSections, schoolType, selectedGrade]);
+
+  // PUC: unique grades
+  const pucGrades = useMemo(() => {
+    if (schoolType !== "PUC") return [];
+    return [...new Set(classSections.map((cs) => cs.grade))].sort();
+  }, [classSections, schoolType]);
+
+  // PUC: unique streams for selected grade
+  const pucStreams = useMemo(() => {
+    if (schoolType !== "PUC" || !selectedGrade) return [];
+    const filtered = classSections.filter(
+      (cs) => cs.grade === selectedGrade && cs.stream,
+    );
+    const seen = new Set();
+    return filtered.reduce((acc, cs) => {
+      if (cs.stream && !seen.has(cs.stream.id)) {
+        seen.add(cs.stream.id);
+        acc.push(cs.stream);
+      }
+      return acc;
+    }, []);
+  }, [classSections, schoolType, selectedGrade]);
+
+  // PUC: combinations for selected stream
+  const pucCombinations = useMemo(() => {
+    if (schoolType !== "PUC" || !selectedStreamId) return [];
+    const filtered = classSections.filter(
+      (cs) => cs.streamId === selectedStreamId && cs.combination,
+    );
+    const seen = new Set();
+    return filtered.reduce((acc, cs) => {
+      if (cs.combination && !seen.has(cs.combination.id)) {
+        seen.add(cs.combination.id);
+        acc.push(cs.combination);
+      }
+      return acc;
+    }, []);
+  }, [classSections, schoolType, selectedStreamId]);
+
+  // Does selected stream have combinations?
+  const selectedStreamObj = useMemo(
+    () => pucStreams.find((s) => s.id === selectedStreamId),
+    [pucStreams, selectedStreamId],
+  );
+  const streamHasCombinations = selectedStreamObj?.hasCombinations ?? false;
+
+  // DEGREE: unique courses
+  const degreeCourses = useMemo(() => {
+    if (!showCourse) return [];
+    const seen = new Set();
+    return classSections.reduce((acc, cs) => {
+      if (cs.course && !seen.has(cs.course.id)) {
+        seen.add(cs.course.id);
+        acc.push(cs.course);
+      }
+      return acc;
+    }, []);
+  }, [classSections, showCourse]);
+
+  // DEGREE: selected course object
+  const selectedCourseObj = useMemo(
+    () => degreeCourses.find((c) => c.id === selectedCourseId),
+    [degreeCourses, selectedCourseId],
+  );
+  const courseHasBranches = selectedCourseObj?.hasBranches ?? false;
+
+  // DEGREE: branches for selected course
+  const degreeBranches = useMemo(() => {
+    if (!showCourse || !selectedCourseId || !courseHasBranches) return [];
+    const filtered = classSections.filter(
+      (cs) => cs.courseId === selectedCourseId && cs.branch,
+    );
+    const seen = new Set();
+    return filtered.reduce((acc, cs) => {
+      if (cs.branch && !seen.has(cs.branch.id)) {
+        seen.add(cs.branch.id);
+        acc.push(cs.branch);
+      }
+      return acc;
+    }, []);
+  }, [classSections, showCourse, selectedCourseId, courseHasBranches]);
+
+  // DEGREE: semesters for selected course + branch
+  const degreeSemesters = useMemo(() => {
+    if (!showCourse || !selectedCourseId) return [];
+    const filtered = classSections.filter((cs) => {
+      if (cs.courseId !== selectedCourseId) return false;
+      if (courseHasBranches && cs.branchId !== selectedBranchId) return false;
+      return true;
+    });
+    const seen = new Set();
+    return filtered
+      .map((cs) => cs.grade)
+      .filter((g) => {
+        if (seen.has(g)) return false;
+        seen.add(g);
+        return true;
+      })
+      .sort((a, b) => {
+        const na = parseInt(a),
+          nb = parseInt(b);
+        return isNaN(na) || isNaN(nb) ? a.localeCompare(b) : na - nb;
+      });
+  }, [
+    classSections,
+    showCourse,
+    selectedCourseId,
+    courseHasBranches,
+    selectedBranchId,
+  ]);
+
+  // DEGREE: section letters for selected course + branch + semester
+  const degreeSectionLetters = useMemo(() => {
+    if (!showCourse || !selectedCourseId || !selectedSemester) return [];
+    const filtered = classSections.filter((cs) => {
+      if (cs.courseId !== selectedCourseId) return false;
+      if (courseHasBranches && cs.branchId !== selectedBranchId) return false;
+      if (cs.grade !== selectedSemester) return false;
+      return true;
+    });
+    return filtered.map((cs) => ({
+      id: cs.id,
+      section: cs.section,
+      name: cs.name,
+    }));
+  }, [
+    classSections,
+    showCourse,
+    selectedCourseId,
+    courseHasBranches,
+    selectedBranchId,
+    selectedSemester,
+  ]);
+
+  // ── Auto-resolve classSectionId when cascade selections change ───────────
+  useEffect(() => {
+    if (schoolType === "SCHOOL") {
+      if (!selectedGrade || !selectedSectionLetter) {
+        setF((p) => ({ ...p, classSectionId: "" }));
+        return;
+      }
+      const match = classSections.find(
+        (cs) =>
+          cs.grade === `Grade ${selectedGrade}` &&
+          cs.section === selectedSectionLetter,
+      );
+      setF((p) => ({ ...p, classSectionId: match?.id || "" }));
+    }
+  }, [selectedGrade, selectedSectionLetter, classSections, schoolType]);
+
+  useEffect(() => {
+    if (schoolType === "PUC") {
+      if (!selectedGrade || !selectedStreamId) {
+        setF((p) => ({ ...p, classSectionId: "" }));
+        return;
+      }
+      if (streamHasCombinations && !selectedCombinationId) {
+        setF((p) => ({ ...p, classSectionId: "" }));
+        return;
+      }
+      const match = classSections.find((cs) => {
+        if (cs.grade !== selectedGrade) return false;
+        if (cs.streamId !== selectedStreamId) return false;
+        if (streamHasCombinations && cs.combinationId !== selectedCombinationId)
+          return false;
+        return true;
+      });
+      setF((p) => ({ ...p, classSectionId: match?.id || "" }));
+    }
+  }, [
+    selectedGrade,
+    selectedStreamId,
+    selectedCombinationId,
+    streamHasCombinations,
+    classSections,
+    schoolType,
+  ]);
+
+  useEffect(() => {
+    if (showCourse) {
+      if (!selectedCourseId || !selectedSemester) {
+        setF((p) => ({ ...p, classSectionId: "" }));
+        return;
+      }
+      if (courseHasBranches && !selectedBranchId) {
+        setF((p) => ({ ...p, classSectionId: "" }));
+        return;
+      }
+      // If only one section exists for this combo, auto-select it
+      if (degreeSectionLetters.length === 1) {
+        setSelectedSectionLetter(degreeSectionLetters[0].section);
+        setF((p) => ({ ...p, classSectionId: degreeSectionLetters[0].id }));
+        return;
+      }
+      if (!selectedSectionLetter) {
+        setF((p) => ({ ...p, classSectionId: "" }));
+        return;
+      }
+      const match = degreeSectionLetters.find(
+        (s) => s.section === selectedSectionLetter,
+      );
+      setF((p) => ({ ...p, classSectionId: match?.id || "" }));
+    }
+  }, [
+    selectedCourseId,
+    selectedBranchId,
+    selectedSemester,
+    selectedSectionLetter,
+    courseHasBranches,
+    degreeSectionLetters,
+    showCourse,
+  ]);
+
+  // Reset downstream cascade when upstream changes
+  const resetStream = () => {
+    setSelectedStreamId("");
+    setSelectedCombinationId("");
+  };
+  const resetCombination = () => setSelectedCombinationId("");
+  const resetBranch = () => {
+    setSelectedBranchId("");
+    setSelectedSemester("");
+    setSelectedSectionLetter("");
+  };
+  const resetSemester = () => {
+    setSelectedSemester("");
+    setSelectedSectionLetter("");
+  };
+  const resetSectionLetter = () => setSelectedSectionLetter("");
+
+  // ── Validation ────────────────────────────────────────────────────────────
   const TAB_FIELD_MAP = {
     personal: ["fn", "ln", "dob", "gender"],
     contact: ["email", "phone", "addr", "city", "state", "zip"],
     login: ["pw", "lemail"],
-    academic: ["classSectionId", "academicYearId", "rollNumber", "admDate"],
+    academic: [
+      "admissionNumber",
+      "classSectionId",
+      "academicYearId",
+      "admDate",
+    ],
     parent: ["pNm", "pPh", "pEm"],
     health: ["blood"],
     documents: [],
   };
 
-  // Returns { fieldKey: "Required/message" } + { _tabErrors: { tabId: ["label",...] } }
   const validate = () => {
     const e = {};
     if (!f.fn.trim()) e.fn = "First Name is required";
@@ -255,27 +553,27 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       if (!f.pw.trim()) e.pw = "Password is required";
       else if (f.pw.length < 6) e.pw = "Password must be at least 6 characters";
     }
+    if (!f.admissionNumber.trim())
+      e.admissionNumber = "Admission Number is required";
 
-    // Build per-tab error summary for the Documents tab panel
     const tabErrors = {};
     Object.entries(TAB_FIELD_MAP).forEach(([tabId, keys]) => {
       const errsInTab = keys.filter((k) => e[k]).map((k) => e[k]);
       if (errsInTab.length) tabErrors[tabId] = errsInTab;
     });
     e._tabErrors = tabErrors;
-
     setErr(e);
     return !Object.keys(e).filter((k) => k !== "_tabErrors").length;
   };
 
-  // Returns true if a tab has validation errors — used for red dot on sidebar
   const tabHasError = (tabId) =>
     !!(err._tabErrors && err._tabErrors[tabId]?.length);
 
-  // Core save: register + personalInfo + optional enrollment
+  // ── Save core ─────────────────────────────────────────────────────────────
   const saveCore = async () => {
     let id = sid;
     if (!isEdit) {
+      // FIX: admissionNumber now sent at registration time
       const r = await fetch(`${API}/api/students/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth() },
@@ -283,6 +581,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           name: `${f.fn} ${f.ln}`.trim(),
           email: f.lemail || f.email,
           password: f.pw,
+          admissionNumber: f.admissionNumber, // FIX: included here
         }),
       });
       const d = await r.json();
@@ -303,10 +602,11 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       address: f.addr,
       city: f.city,
       state: f.state,
-      // ✅ Send FK IDs + rollNumber instead of grade/className strings
+      admissionNumber: f.admissionNumber,
       classSectionId: f.classSectionId,
       academicYearId: f.academicYearId,
       rollNumber: f.rollNumber,
+      externalId: f.externalId,
       admissionDate: f.admDate,
       status: f.status,
       parentName: f.pNm,
@@ -330,7 +630,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     const pd = await pr.json();
     if (!pr.ok) throw new Error(pd.message || "Save failed");
 
-    // ✅ Create parent login only if admin explicitly set it (pLoginEmail is not null)
     if (f.pLoginEmail !== null && f.pLoginEmail?.trim() && f.pLoginPw?.trim()) {
       const plr = await fetch(`${API}/api/students/${id}/parent-login`, {
         method: "POST",
@@ -341,12 +640,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           password: f.pLoginPw,
           phone: f.pPh?.trim() || undefined,
           occupation: f.pOc?.trim() || undefined,
-          // relation defaults to GUARDIAN if none selected
           relation: f.pRl || "GUARDIAN",
         }),
       });
       const pld = await plr.json();
-      // 409 = already exists — not a fatal error, just warn
       if (!plr.ok && plr.status !== 409)
         throw new Error(pld.message || "Parent login creation failed");
     }
@@ -357,7 +654,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const handleSave = async () => {
     const valid = validate();
     if (!valid) {
-      // Jump to documents tab so user sees the full error summary
       setTab("documents");
       return;
     }
@@ -375,10 +671,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       setTimeout(() => doClose(), 1200);
     } catch (e) {
       setErr({ _g: e.message });
-      showToast(
-        "error",
-        e.message || "Something went wrong. Please try again.",
-      );
+      showToast("error", e.message || "Something went wrong.");
     } finally {
       setBusy(false);
     }
@@ -393,7 +686,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         const valid = validate();
         if (!valid) {
           setBusy(false);
-          // stay on documents tab — error summary is already visible above
           return;
         }
         id = await saveCore();
@@ -449,10 +741,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       setTimeout(() => doClose(), 1200);
     } catch (e) {
       setDocErr(e.message);
-      showToast(
-        "error",
-        e.message || "Something went wrong. Please try again.",
-      );
+      showToast("error", e.message || "Something went wrong.");
     } finally {
       setBusy(false);
     }
@@ -464,9 +753,9 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     Object.values(fdocs).filter(Boolean).length +
     xdocs.filter((d) => d.file).length;
 
-  // Derive display label from selected IDs for the sidebar preview
-  const selectedSection = classSections.find((s) => s.id === f.classSectionId);
-  const selectedYear = academicYears.find((y) => y.id === f.academicYearId);
+  // Sidebar preview data
+  const resolvedSection = classSections.find((s) => s.id === f.classSectionId);
+  const resolvedYear = academicYears.find((y) => y.id === f.academicYearId);
 
   if (loading)
     return (
@@ -494,7 +783,14 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     color: COLORS.primary,
   };
 
-  const StyledSelect = ({ label, value, onChange, children, error }) => (
+  const StyledSelect = ({
+    label,
+    value,
+    onChange,
+    children,
+    error,
+    disabled = false,
+  }) => (
     <div className="space-y-1.5">
       {label && (
         <label
@@ -507,7 +803,14 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       <select
         value={value}
         onChange={onChange}
-        className={sc(error ? "border-red-400 bg-red-50/30" : "")}
+        disabled={disabled}
+        className={sc(
+          error
+            ? "border-red-400 bg-red-50/30"
+            : disabled
+              ? "opacity-50 cursor-not-allowed"
+              : "",
+        )}
         style={selStyle}
       >
         {children}
@@ -518,7 +821,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     </div>
   );
 
-  const StyledTextarea = ({ label, value, onChange, placeholder, hint }) => (
+  const StyledTextarea = ({ label, value, onChange, placeholder }) => (
     <div className="space-y-1.5">
       {label && (
         <label
@@ -536,14 +839,335 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         className="w-full text-sm border rounded-xl px-4 py-2.5 bg-white resize-none focus:outline-none focus:ring-2 transition-all"
         style={{ borderColor: COLORS.border, color: COLORS.primary }}
       />
-      {hint && (
-        <p className="text-[10px] ml-1" style={{ color: COLORS.secondary }}>
-          {hint}
-        </p>
-      )}
     </div>
   );
 
+  // ── Academic Tab — Cascading Section Picker ───────────────────────────────
+  const renderAcademicCascade = () => {
+    // ── SCHOOL: Grade (1-10) + Section (A, B, C…) ──────────────────────────
+    if (schoolType === "SCHOOL") {
+      return (
+        <div className="space-y-4">
+          {/* Step label */}
+          <div className="flex items-center gap-2 mb-1">
+            <div
+              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+              style={{ background: COLORS.primary }}
+            >
+              1
+            </div>
+            <p
+              className="text-xs font-bold"
+              style={{ color: COLORS.secondary }}
+            >
+              Select Grade & Section
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Grade dropdown */}
+            <StyledSelect
+              label="Grade *"
+              value={selectedGrade}
+              onChange={(e) => {
+                setSelectedGrade(e.target.value);
+                setSelectedSectionLetter("");
+              }}
+            >
+              <option value="">
+                {loadingDropdowns ? "Loading…" : "Select grade"}
+              </option>
+              {schoolGrades.map((g) => (
+                <option key={g} value={g}>
+                  Grade {g}
+                </option>
+              ))}
+            </StyledSelect>
+
+            {/* Section dropdown — only shows sections that exist for selected grade */}
+            <StyledSelect
+              label="Section *"
+              value={selectedSectionLetter}
+              onChange={(e) => setSelectedSectionLetter(e.target.value)}
+              disabled={!selectedGrade}
+            >
+              <option value="">
+                {!selectedGrade
+                  ? "Select grade first"
+                  : schoolSections.length === 0
+                    ? "No sections"
+                    : "Select section"}
+              </option>
+              {schoolSections.map((cs) => (
+                <option key={cs.id} value={cs.section}>
+                  Section {cs.section}
+                </option>
+              ))}
+            </StyledSelect>
+          </div>
+
+          {/* Resolved class section display */}
+          {f.classSectionId && resolvedSection && (
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
+              style={{
+                background: "rgba(136,189,242,0.12)",
+                color: COLORS.primary,
+                border: `1px solid ${COLORS.border}`,
+              }}
+            >
+              <BookOpen size={12} />
+              Assigned:{" "}
+              <span className="font-bold ml-1">{resolvedSection.name}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── PUC: Grade + Stream + Combination ──────────────────────────────────
+    if (schoolType === "PUC") {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div
+              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+              style={{ background: COLORS.primary }}
+            >
+              1
+            </div>
+            <p
+              className="text-xs font-bold"
+              style={{ color: COLORS.secondary }}
+            >
+              Select Grade → Stream → Combination
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Grade */}
+            <StyledSelect
+              label="Grade *"
+              value={selectedGrade}
+              onChange={(e) => {
+                setSelectedGrade(e.target.value);
+                resetStream();
+              }}
+            >
+              <option value="">
+                {loadingDropdowns ? "Loading…" : "Select grade"}
+              </option>
+              {pucGrades.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </StyledSelect>
+
+            {/* Stream */}
+            <StyledSelect
+              label="Stream *"
+              value={selectedStreamId}
+              onChange={(e) => {
+                setSelectedStreamId(e.target.value);
+                resetCombination();
+              }}
+              disabled={!selectedGrade}
+            >
+              <option value="">
+                {!selectedGrade ? "Select grade first" : "Select stream"}
+              </option>
+              {pucStreams.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </StyledSelect>
+          </div>
+
+          {/* Combination — only shown if stream has combinations */}
+          {selectedStreamId && streamHasCombinations && (
+            <StyledSelect
+              label="Combination *"
+              value={selectedCombinationId}
+              onChange={(e) => setSelectedCombinationId(e.target.value)}
+            >
+              <option value="">Select combination</option>
+              {pucCombinations.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.code})
+                </option>
+              ))}
+            </StyledSelect>
+          )}
+
+          {/* No combination badge for Arts-like streams */}
+          {selectedStreamId && !streamHasCombinations && (
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
+              style={{
+                background: "rgba(189,221,252,0.20)",
+                color: COLORS.secondary,
+                border: `1px solid ${COLORS.border}`,
+              }}
+            >
+              This stream has no subject combinations
+            </div>
+          )}
+
+          {f.classSectionId && resolvedSection && (
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
+              style={{
+                background: "rgba(136,189,242,0.12)",
+                color: COLORS.primary,
+                border: `1px solid ${COLORS.border}`,
+              }}
+            >
+              <BookOpen size={12} />
+              Assigned:{" "}
+              <span className="font-bold ml-1">{resolvedSection.name}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── DEGREE / DIPLOMA / PG: Course → Branch → Semester → Section ────────
+    if (showCourse) {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div
+              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+              style={{ background: COLORS.primary }}
+            >
+              1
+            </div>
+            <p
+              className="text-xs font-bold"
+              style={{ color: COLORS.secondary }}
+            >
+              Select Course{courseHasBranches ? " → Branch" : ""} → Semester →
+              Section
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Course */}
+            <StyledSelect
+              label="Course *"
+              value={selectedCourseId}
+              onChange={(e) => {
+                setSelectedCourseId(e.target.value);
+                resetBranch();
+              }}
+            >
+              <option value="">
+                {loadingDropdowns ? "Loading…" : "Select course"}
+              </option>
+              {degreeCourses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </StyledSelect>
+
+            {/* Branch — only shown if course has branches */}
+            {selectedCourseId && courseHasBranches && (
+              <StyledSelect
+                label="Branch *"
+                value={selectedBranchId}
+                onChange={(e) => {
+                  setSelectedBranchId(e.target.value);
+                  resetSemester();
+                }}
+              >
+                <option value="">Select branch</option>
+                {degreeBranches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} ({b.code})
+                  </option>
+                ))}
+              </StyledSelect>
+            )}
+          </div>
+
+          {/* Semester */}
+          {selectedCourseId && (!courseHasBranches || selectedBranchId) && (
+            <div className="grid grid-cols-2 gap-4">
+              <StyledSelect
+                label="Semester *"
+                value={selectedSemester}
+                onChange={(e) => {
+                  setSelectedSemester(e.target.value);
+                  resetSectionLetter();
+                }}
+              >
+                <option value="">Select semester</option>
+                {degreeSemesters.map((sem) => (
+                  <option key={sem} value={sem}>
+                    {sem}
+                  </option>
+                ))}
+              </StyledSelect>
+
+              {/* Section letter — only shown if multiple sections per semester */}
+              {selectedSemester && degreeSectionLetters.length > 1 && (
+                <StyledSelect
+                  label="Section *"
+                  value={selectedSectionLetter}
+                  onChange={(e) => setSelectedSectionLetter(e.target.value)}
+                >
+                  <option value="">Select section</option>
+                  {degreeSectionLetters.map((s) => (
+                    <option key={s.id} value={s.section}>
+                      Section {s.section}
+                    </option>
+                  ))}
+                </StyledSelect>
+              )}
+            </div>
+          )}
+
+          {f.classSectionId && resolvedSection && (
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
+              style={{
+                background: "rgba(136,189,242,0.12)",
+                color: COLORS.primary,
+                border: `1px solid ${COLORS.border}`,
+              }}
+            >
+              <BookOpen size={12} />
+              Assigned:{" "}
+              <span className="font-bold ml-1">{resolvedSection.name}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Fallback: flat dropdown for OTHER / unknown types
+    return (
+      <StyledSelect
+        label="Class / Section"
+        value={f.classSectionId}
+        onChange={set("classSectionId")}
+      >
+        <option value="">
+          {loadingDropdowns ? "Loading…" : "Select class"}
+        </option>
+        {classSections.map((cs) => (
+          <option key={cs.id} value={cs.id}>
+            {cs.name}
+          </option>
+        ))}
+      </StyledSelect>
+    );
+  };
+
+  // ── Shell ─────────────────────────────────────────────────────────────────
   const shell = (
     <div
       className="w-full bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden relative"
@@ -552,7 +1176,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         border: `1px solid ${COLORS.border}`,
       }}
     >
-      {/* ── Toast notification ── */}
+      {/* Toast */}
       {toast && (
         <div
           className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm font-semibold transition-all animate-in fade-in slide-in-from-top-2 duration-300"
@@ -622,9 +1246,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           photoUrl={photoUrl}
           onPhotoClick={() => photoRef.current?.click()}
           studentName={[f.fn, f.ln].filter(Boolean).join(" ")}
-          // ✅ Pass section/year names for sidebar preview (not raw strings)
-          grade={selectedSection?.grade || "—"}
-          cls={selectedSection?.name || "—"}
+          grade={resolvedSection?.grade || "—"}
+          cls={resolvedSection?.name || "—"}
           phone={f.phone}
           gender={f.gender}
           dob={f.dob}
@@ -788,9 +1411,29 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           )}
 
           {/* ═══ ACADEMIC ═══ */}
-          {/* ✅ Now uses FK dropdowns fetched from API — no hardcoded grade/class arrays */}
           {tab === "academic" && (
-            <div className="grid grid-cols-2 gap-5">
+            <div className="space-y-5">
+              <InputField
+                label="Admission Number *"
+                value={f.admissionNumber}
+                onChange={set("admissionNumber")}
+                error={err.admissionNumber}
+                placeholder="e.g. ADM-2024-001"
+                hint="Unique school admission ID — required"
+              />
+
+              {/* ── Cascading class picker — school-type aware ── */}
+              <div
+                className="rounded-xl p-4 space-y-4"
+                style={{
+                  background: COLORS.bgSoft,
+                  border: `1px solid ${COLORS.border}`,
+                }}
+              >
+                {renderAcademicCascade()}
+              </div>
+
+              {/* Academic Year */}
               <StyledSelect
                 label="Academic Year"
                 value={f.academicYearId}
@@ -806,34 +1449,31 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 ))}
               </StyledSelect>
 
-              <StyledSelect
-                label="Class / Section"
-                value={f.classSectionId}
-                onChange={set("classSectionId")}
-              >
-                <option value="">
-                  {loadingDropdowns ? "Loading…" : "Select class"}
-                </option>
-                {classSections.map((cs) => (
-                  <option key={cs.id} value={cs.id}>
-                    {cs.name} (Grade {cs.grade})
-                  </option>
-                ))}
-              </StyledSelect>
+              <div className="grid grid-cols-2 gap-4">
+                <InputField
+                  label="Roll Number"
+                  value={f.rollNumber}
+                  onChange={set("rollNumber")}
+                  error={err.rollNumber}
+                  placeholder="e.g. HS-2024-001"
+                  hint="Optional — assign later if not yet allocated"
+                />
+                <InputField
+                  label="External ID"
+                  value={f.externalId}
+                  onChange={set("externalId")}
+                  placeholder="Board roll no / university reg no"
+                  hint="Optional — fill when board assigns it"
+                />
+              </div>
 
-              <InputField
-                label="Roll Number"
-                value={f.rollNumber}
-                onChange={set("rollNumber")}
-                placeholder="e.g. HS-2024-001"
-              />
-              <InputField
-                label="Admission Date"
-                type="date"
-                value={f.admDate}
-                onChange={set("admDate")}
-              />
-              <div className="col-span-2">
+              <div className="grid grid-cols-2 gap-4">
+                <InputField
+                  label="Admission Date"
+                  type="date"
+                  value={f.admDate}
+                  onChange={set("admDate")}
+                />
                 <StyledSelect
                   label="Status"
                   value={f.status}
@@ -928,12 +1568,11 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                     />
                   </div>
 
-                  {/* Parent Portal Login — Optional, set any time */}
+                  {/* Parent Portal Login */}
                   <div
                     className="rounded-xl overflow-hidden"
                     style={{ border: `1px solid ${COLORS.border}` }}
                   >
-                    {/* Header — always visible */}
                     <div
                       className="flex items-center justify-between px-4 py-3"
                       style={{
@@ -963,19 +1602,17 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                             style={{ color: COLORS.secondary }}
                           >
                             {f.pLoginEmail !== null
-                              ? `Login set for ${f.pRl || "Guardian"} — stored with relation`
-                              : "Optional · Skip now, add later when editing student"}
+                              ? `Login set for ${f.pRl || "Guardian"}`
+                              : "Optional · Skip now, add later"}
                           </p>
                         </div>
                       </div>
-
                       {f.pLoginEmail === null ? (
                         <button
                           type="button"
                           onClick={() =>
                             setF((p) => ({
                               ...p,
-                              // pre-fill login email from parent email if already typed
                               pLoginEmail: p.pEm || "",
                               pLoginPw: "",
                             }))
@@ -1006,53 +1643,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                         </button>
                       )}
                     </div>
-
-                    {/* Expanded fields */}
                     {f.pLoginEmail !== null && (
                       <div className="p-4 space-y-3">
-                        {/* Relation chip — read from what admin selected above */}
-                        <div
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold w-fit"
-                          style={{
-                            background:
-                              f.pRl === "Father"
-                                ? "rgba(59,130,246,0.10)"
-                                : f.pRl === "Mother"
-                                  ? "rgba(236,72,153,0.10)"
-                                  : "rgba(107,114,128,0.10)",
-                            color:
-                              f.pRl === "Father"
-                                ? "#1d4ed8"
-                                : f.pRl === "Mother"
-                                  ? "#be185d"
-                                  : "#374151",
-                            border: `1px solid ${
-                              f.pRl === "Father"
-                                ? "rgba(59,130,246,0.25)"
-                                : f.pRl === "Mother"
-                                  ? "rgba(236,72,153,0.25)"
-                                  : "rgba(107,114,128,0.20)"
-                            }`,
-                          }}
-                        >
-                          {f.pRl === "Father"
-                            ? "👨 Father Login"
-                            : f.pRl === "Mother"
-                              ? "👩 Mother Login"
-                              : "🧑 Guardian Login"}
-                          <span
-                            className="text-[10px] font-normal ml-1"
-                            style={{ opacity: 0.7 }}
-                          >
-                            · stored as{" "}
-                            {f.pRl === "Father"
-                              ? "FATHER"
-                              : f.pRl === "Mother"
-                                ? "MOTHER"
-                                : "GUARDIAN"}
-                          </span>
-                        </div>
-
                         <div className="grid grid-cols-2 gap-4">
                           <InputField
                             label="Login Email"
@@ -1084,31 +1676,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                               )}
                             </button>
                           </div>
-                        </div>
-
-                        <div
-                          className="flex items-start gap-2 px-3 py-2 rounded-lg text-[11px]"
-                          style={{
-                            background: "#fffbeb",
-                            border: "1px solid #fde68a",
-                            color: "#92400e",
-                          }}
-                        >
-                          <AlertCircle
-                            size={12}
-                            className="shrink-0 mt-0.5"
-                            style={{ color: "#f59e0b" }}
-                          />
-                          This creates a{" "}
-                          <strong className="mx-0.5">
-                            {f.pRl === "Father"
-                              ? "Father"
-                              : f.pRl === "Mother"
-                                ? "Mother"
-                                : "Guardian"}
-                          </strong>{" "}
-                          portal account linked to this student. The relation is
-                          saved so you'll always know who this login belongs to.
                         </div>
                       </div>
                     )}
@@ -1329,7 +1896,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           {/* ═══ DOCUMENTS ═══ */}
           {tab === "documents" && (
             <>
-              {/* ── Missed fields summary panel ── */}
               {err._tabErrors && Object.keys(err._tabErrors).length > 0 && (
                 <div
                   className="rounded-xl overflow-hidden"
@@ -1402,7 +1968,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                   </div>
                 </div>
               )}
-
               <DocumentUploadSection
                 fdocs={fdocs}
                 setFdocs={setFdocs}

@@ -2,67 +2,13 @@
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { uploadToR2, generateSignedUrl } from "../lib/r2.js";
+import cacheService from "../utils/cacheService.js";
 import { getExpiryByRole } from "../utils/fileAccessPolicy.js";
-import redisClient from "../utils/redis.js";
 
 const prisma = new PrismaClient();
-const CACHE_TTL = 300; // 5 minutes
 
-// ── Safe Redis helpers (fail silently) ───────────────────────────────────────
-
-async function cacheGet(key) {
-  try {
-    return await redisClient.get(key);
-  } catch (err) {
-    console.error(`[Redis] GET ${key} failed:`, err.message);
-    return null;
-  }
-}
-
-async function cacheSet(key, value) {
-  try {
-    await redisClient.setEx(key, CACHE_TTL, JSON.stringify(value));
-  } catch (err) {
-    console.error(`[Redis] SET ${key} failed:`, err.message);
-  }
-}
-
-async function cacheDel(...keys) {
-  try {
-    await redisClient.del(keys);
-  } catch (err) {
-    console.error(`[Redis] DEL ${keys.join(", ")} failed:`, err.message);
-  }
-}
-
-// Uses SCAN instead of KEYS to avoid blocking Redis in production
-async function scanAndDelete(pattern) {
-  try {
-    let cursor = 0;
-    do {
-      const reply = await redisClient.scan(cursor, {
-        MATCH: pattern,
-        COUNT: 100,
-      });
-      cursor = reply.cursor;
-      if (reply.keys.length) await redisClient.del(reply.keys);
-    } while (cursor !== 0);
-  } catch (err) {
-    console.error(`[Redis] SCAN/DEL ${pattern} failed:`, err.message);
-  }
-}
-
-// ── Cache key helpers ─────────────────────────────────────────────────────────
-// schoolId included in both keys for strict multi-tenant isolation
-const studentKey = (schoolId, id) => `students:one:${schoolId}:${id}`;
-const listKey = (schoolId, q) =>
-  `students:list:${schoolId}:${JSON.stringify(q)}`;
-
-async function bustStudentCache(studentId, schoolId) {
-  await Promise.all([
-    cacheDel(studentKey(schoolId, studentId)),
-    scanAndDelete(`students:list:${schoolId}:*`),
-  ]);
+async function bustStudentCache(schoolId) {
+  await cacheService.invalidateSchool(schoolId);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -93,19 +39,26 @@ const compact = (obj) =>
   );
 
 // ── registerStudent ───────────────────────────────────────────────────────────
+// FIX: admissionNumber is now accepted here and saved to Student model
+// (it's a required unique field — omitting it was causing a DB crash)
 export const registerStudent = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, admissionNumber } = req.body;
 
     if (!email || !password || !name)
       return res
         .status(400)
         .json({ message: "name, email and password are required" });
 
+    // FIX: admissionNumber is required at registration time
+    if (!admissionNumber?.trim())
+      return res.status(400).json({ message: "admissionNumber is required" });
+
     const schoolId = req.user?.schoolId;
     if (!schoolId)
       return res.status(400).json({ message: "schoolId missing from token" });
 
+    // Check duplicate email
     const exists = await prisma.student.findFirst({
       where: { email, schoolId },
     });
@@ -114,15 +67,34 @@ export const registerStudent = async (req, res) => {
         message: "A student with this email already exists in this school",
       });
 
+    // Check duplicate admissionNumber
+    const admExists = await prisma.student.findFirst({
+      where: { admissionNumber: admissionNumber.trim(), schoolId },
+    });
+    if (admExists)
+      return res.status(409).json({
+        message: "A student with this admission number already exists",
+      });
+
     const hashed = await bcrypt.hash(password, 10);
     const student = await prisma.student.create({
-      data: { name, email, password: hashed, schoolId },
-      select: { id: true, name: true, email: true, createdAt: true },
+      data: {
+        name,
+        email,
+        password: hashed,
+        schoolId,
+        admissionNumber: admissionNumber.trim(), // FIX: now included
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        admissionNumber: true,
+        createdAt: true,
+      },
     });
 
-    // Bust list cache so new student appears in listings
-    await scanAndDelete(`students:list:${schoolId}:*`);
-
+    await bustStudentCache(schoolId);
     return res.status(201).json({ student });
   } catch (err) {
     console.error("[registerStudent]", err);
@@ -205,9 +177,7 @@ export const createParentLogin = async (req, res) => {
       },
     });
 
-    // Bust the cached student record — parentLinks are embedded in it
-    await bustStudentCache(studentId, schoolId);
-
+    await bustStudentCache(schoolId);
     return res.status(201).json({
       parent: link.parent,
       relation: link.relation,
@@ -254,6 +224,7 @@ export const savePersonalInfo = async (req, res) => {
       classSectionId,
       academicYearId,
       rollNumber,
+      externalId,
     } = req.body;
 
     if (!firstName || !lastName)
@@ -262,6 +233,9 @@ export const savePersonalInfo = async (req, res) => {
         .json({ message: "firstName and lastName are required" });
     if (!admissionDate)
       return res.status(400).json({ message: "admissionDate is required" });
+
+    // FIX: rollNumber is now truly optional — removed the hard block
+    // It can be assigned later when admin allocates roll numbers
 
     let profileImageUrl;
     if (req.file) {
@@ -314,20 +288,20 @@ export const savePersonalInfo = async (req, res) => {
           studentId,
           classSectionId,
           academicYearId,
-          rollNumber: rollNumber || null,
+          rollNumber: rollNumber?.trim() || null, // FIX: null allowed
+          externalId: externalId?.trim() || null,
           status: toEnum(status) || "ACTIVE",
         },
         update: {
           classSectionId,
-          rollNumber: rollNumber || null,
+          rollNumber: rollNumber?.trim() || null, // FIX: null allowed
+          externalId: externalId?.trim() || null,
           status: toEnum(status) || "ACTIVE",
         },
       });
     }
 
-    // Bust individual + list caches (firstName/lastName/status shown in list)
-    await bustStudentCache(studentId, student.schoolId);
-
+    await bustStudentCache(student.schoolId);
     return res.status(200).json({ personalInfo, enrollment });
   } catch (err) {
     console.error("[savePersonalInfo]", err);
@@ -374,9 +348,7 @@ export const uploadDocumentsBulk = async (req, res) => {
       }),
     );
 
-    // Bust individual student cache (documents list + _count changes)
-    await cacheDel(studentKey(student.schoolId, studentId));
-
+    await bustStudentCache(student.schoolId);
     return res.status(201).json({ documents: created });
   } catch (err) {
     console.error("[uploadDocumentsBulk]", err);
@@ -385,31 +357,62 @@ export const uploadDocumentsBulk = async (req, res) => {
 };
 
 // ── getStudent ────────────────────────────────────────────────────────────────
+// FIX: classSection now includes stream, combination, course, branch
+// so PUC and Degree student views show full context
 export const getStudent = async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
-    const { id } = req.params;
-    const key = studentKey(schoolId, id);
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
 
-    // 1. Cache check
-    const cached = await cacheGet(key);
+    const { id } = req.params;
+    const baseKey = `students:one:${schoolId}:${id}`;
+    const key = await cacheService.buildKey(schoolId, baseKey);
+
+    const cached = await cacheService.get(key);
     if (cached)
       return res.json({ student: JSON.parse(cached), fromCache: true });
 
-    // 2. DB fetch on miss
     const student = await prisma.student.findUnique({
-      where: { id },
+      where: { id, schoolId },
       select: {
         id: true,
         name: true,
         email: true,
+        admissionNumber: true,
         createdAt: true,
         personalInfo: true,
         documents: { orderBy: { createdAt: "desc" } },
         enrollments: {
           include: {
             classSection: {
-              select: { id: true, grade: true, section: true, name: true },
+              select: {
+                id: true,
+                grade: true,
+                section: true,
+                name: true,
+                // FIX: include stream for PUC
+                streamId: true,
+                stream: {
+                  select: { id: true, name: true, hasCombinations: true },
+                },
+                // FIX: include combination for PUC
+                combinationId: true,
+                combination: { select: { id: true, name: true, code: true } },
+                // FIX: include course for Degree/Diploma/PG
+                courseId: true,
+                course: {
+                  select: {
+                    id: true,
+                    name: true,
+                    hasBranches: true,
+                    totalSemesters: true,
+                  },
+                },
+                // FIX: include branch for Degree/Diploma/PG
+                branchId: true,
+                branch: { select: { id: true, name: true, code: true } },
+              },
             },
             academicYear: { select: { id: true, name: true, isActive: true } },
           },
@@ -435,9 +438,7 @@ export const getStudent = async (req, res) => {
 
     if (!student) return res.status(404).json({ message: "Student not found" });
 
-    // 3. Store in cache
-    await cacheSet(key, student);
-
+    await cacheService.set(key, student);
     return res.json({ student, fromCache: false });
   } catch (err) {
     console.error("[getStudent]", err);
@@ -446,36 +447,60 @@ export const getStudent = async (req, res) => {
 };
 
 // ── listStudents ──────────────────────────────────────────────────────────────
+// FIX: classSection now includes id + stream/course/branch context
 export const listStudents = async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
+
     const page = Math.max(1, parseInt(req.query.page || "1"));
     const limit = Math.min(100, parseInt(req.query.limit || "20"));
     const search = req.query.search?.trim() || "";
     const classSectionId = req.query.classSectionId || null;
     const academicYearId = req.query.academicYearId || null;
+    const status = req.query.status?.toUpperCase() || null;
 
-    const key = listKey(schoolId, {
+    const baseKey = `students:list:${schoolId}:${JSON.stringify({
       page,
       limit,
       search,
       classSectionId,
       academicYearId,
-    });
+      status,
+    })}`;
 
-    // 1. Cache check
-    const cached = await cacheGet(key);
+    const key = await cacheService.buildKey(schoolId, baseKey);
+
+    const cached = await cacheService.get(key);
     if (cached) return res.json({ ...JSON.parse(cached), fromCache: true });
 
-    // 2. DB fetch on miss
+    const statusFilter = status
+      ? {
+          OR: [
+            { enrollments: { some: { status } } },
+            {
+              AND: [
+                { enrollments: { none: {} } },
+                { personalInfo: { status } },
+              ],
+            },
+          ],
+        }
+      : {};
+
     const where = {
       ...(schoolId ? { schoolId } : {}),
+      ...statusFilter,
       ...(classSectionId || academicYearId
         ? {
             enrollments: {
               some: {
                 ...(classSectionId ? { classSectionId } : {}),
                 ...(academicYearId ? { academicYearId } : {}),
+                ...(status && (classSectionId || academicYearId)
+                  ? { status }
+                  : {}),
               },
             },
           }
@@ -511,6 +536,7 @@ export const listStudents = async (req, res) => {
           id: true,
           name: true,
           email: true,
+          admissionNumber: true,
           createdAt: true,
           personalInfo: {
             select: {
@@ -518,6 +544,7 @@ export const listStudents = async (req, res) => {
               lastName: true,
               status: true,
               profileImage: true,
+              phone: true,
               admissionDate: true,
             },
           },
@@ -525,11 +552,26 @@ export const listStudents = async (req, res) => {
             where: academicYearId ? { academicYearId } : {},
             select: {
               rollNumber: true,
+              externalId: true,
               status: true,
               classSection: {
-                select: { name: true, grade: true, section: true },
+                select: {
+                  id: true, // FIX: id was missing — edit from list was broken
+                  name: true,
+                  grade: true,
+                  section: true,
+                  // FIX: include context for PUC and Degree
+                  streamId: true,
+                  stream: { select: { id: true, name: true } },
+                  combinationId: true,
+                  combination: { select: { id: true, name: true, code: true } },
+                  courseId: true,
+                  course: { select: { id: true, name: true } },
+                  branchId: true,
+                  branch: { select: { id: true, name: true, code: true } },
+                },
               },
-              academicYear: { select: { name: true } },
+              academicYear: { select: { id: true, name: true } },
             },
             orderBy: { createdAt: "desc" },
             take: 1,
@@ -547,9 +589,7 @@ export const listStudents = async (req, res) => {
       pages: Math.ceil(total / limit),
     };
 
-    // 3. Store in cache
-    await cacheSet(key, payload);
-
+    await cacheService.set(key, payload);
     return res.json({ ...payload, fromCache: false });
   } catch (err) {
     console.error("[listStudents]", err);
@@ -562,15 +602,17 @@ export const deleteStudent = async (req, res) => {
   try {
     const { id } = req.params;
     const schoolId = req.user?.schoolId;
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
 
-    await prisma.studentDocumentInfo.findMany({
-      where: { studentId: id },
-      select: { fileKey: true },
+    const student = await prisma.student.findUnique({
+      where: { id, schoolId },
+      select: { id: true },
     });
-    await prisma.student.delete({ where: { id } });
+    if (!student) return res.status(404).json({ message: "Student not found" });
 
-    await bustStudentCache(id, schoolId);
-
+    await prisma.student.delete({ where: { id, schoolId } });
+    await bustStudentCache(schoolId);
     return res.json({ message: "Student deleted" });
   } catch (err) {
     if (err.code === "P2025")
@@ -581,7 +623,6 @@ export const deleteStudent = async (req, res) => {
 };
 
 // ── viewStudentDocument ───────────────────────────────────────────────────────
-// ⚡ No cache — signed URLs are short-lived and role-dependent.
 export const viewStudentDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
@@ -596,7 +637,6 @@ export const viewStudentDocument = async (req, res) => {
 
     const expiresIn = getExpiryByRole(req.user.role);
     const signedUrl = await generateSignedUrl(document.fileKey, expiresIn);
-
     return res.json({ url: signedUrl, expiresIn });
   } catch (error) {
     console.error("[viewStudentDocument]", error);
@@ -604,62 +644,7 @@ export const viewStudentDocument = async (req, res) => {
   }
 };
 
-// ── getMyStudent (Student self) ───────────────────────────────────────────────
-export const getMyStudent = async (req, res) => {
-  try {
-    const studentId = req.user.id;
-
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      include: { personalInfo: true, documents: true },
-    });
-
-    if (!student) return res.status(404).json({ message: "Student not found" });
-    return res.json({ student });
-  } catch (error) {
-    console.error("[getMyStudent]", error);
-    return res.status(500).json({ message: "Server error" });
-  }
-};
-
-// ── getMyParentStudents (Parent fetches their linked students) ────────────────
-// Parent model has no direct students relation — link is via StudentPersonalInfo.parentEmail
-export const getMyParentStudents = async (req, res) => {
-  try {
-    const parentId = req.user.id; // from parent JWT
-
-    // Get parent email to match against StudentPersonalInfo.parentEmail
-    const parent = await prisma.parent.findUnique({
-      where: { id: parentId },
-      select: { id: true, email: true, name: true },
-    });
-
-    if (!parent) {
-      return res.status(404).json({ message: "Parent not found" });
-    }
-
-    // Find all students whose personalInfo.parentEmail matches this parent
-    const students = await prisma.student.findMany({
-      where: {
-        personalInfo: {
-          parentEmail: parent.email,
-        },
-      },
-      include: {
-        personalInfo: true,
-        documents: true,
-      },
-    });
-
-    return res.json({ students });
-  } catch (error) {
-    console.error("[getMyParentStudents]", error);
-    return res.status(500).json({ message: "Server error" });
-  }
-};
-
-
-// ⚡ No cache — always generates a fresh signed URL (1 day expiry).
+// ── getProfileImage ───────────────────────────────────────────────────────────
 export const getProfileImage = async (req, res) => {
   try {
     if (!req.user?.role)
@@ -674,13 +659,12 @@ export const getProfileImage = async (req, res) => {
  
     if (!student?.personalInfo?.profileImage)
       return res.status(404).json({ message: "Profile image not found" });
- 
-    const expiresIn = 86400; // 1 day
+
+    const expiresIn = 86400;
     const signedUrl = await generateSignedUrl(
       student.personalInfo.profileImage,
       expiresIn,
     );
- 
     return res.json({ url: signedUrl, expiresIn });
   } catch (err) {
     console.error("[getProfileImage]", err);

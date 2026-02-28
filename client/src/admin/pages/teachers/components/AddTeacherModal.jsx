@@ -1,17 +1,19 @@
 // client/src/admin/pages/teachers/components/AddTeacherModal.jsx
-import React, { useState, useEffect } from "react";
-import { createTeacher } from "../api/teachersApi.js";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  createTeacher,
+  uploadTeacherProfileImage,
+} from "../api/teachersApi.js";
 
 const INIT = {
-  // Step 1 — Account
   firstName: "",
   lastName: "",
   email: "",
   password: "",
+  confirmPassword: "",
   phone: "",
   gender: "",
   dateOfBirth: "",
-  // Step 2 — Professional
   employeeCode: "",
   department: "",
   designation: "",
@@ -19,12 +21,10 @@ const INIT = {
   experienceYears: "",
   joiningDate: "",
   employmentType: "FULL_TIME",
-  // Step 3 — Address
   address: "",
   city: "",
   state: "",
   zipCode: "",
-  // Step 4 — Payroll
   salary: "",
   bankAccountNo: "",
   bankName: "",
@@ -46,6 +46,59 @@ const REQUIRED = [
 
 const font = { fontFamily: "'DM Sans', sans-serif" };
 
+// ─── Eye toggle button ────────────────────────────────────────
+function EyeBtn({ show, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      tabIndex={-1}
+      style={{
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        padding: 0,
+        color: "#6A89A7",
+        display: "flex",
+        alignItems: "center",
+      }}
+      title={show ? "Hide password" : "Show password"}
+    >
+      {show ? (
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+          <line x1="1" y1="1" x2="23" y2="23" />
+        </svg>
+      ) : (
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// ─── Text input ───────────────────────────────────────────────
 function FInput({
   label,
   required,
@@ -54,6 +107,7 @@ function FInput({
   type = "text",
   error,
   placeholder,
+  suffix,
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -64,23 +118,38 @@ function FInput({
         {label}
         {required && <span style={{ color: "#ef4444" }}> *</span>}
       </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="py-2 px-3 rounded-lg text-sm outline-none transition-all"
-        style={{
-          border: `1.5px solid ${error ? "#f87171" : "#BDDDFC"}`,
-          ...font,
-          color: "#384959",
-          background: "#fff",
-        }}
-        onFocus={(e) => (e.target.style.borderColor = "#88BDF2")}
-        onBlur={(e) =>
-          (e.target.style.borderColor = error ? "#f87171" : "#BDDDFC")
-        }
-      />
+      <div style={{ position: "relative" }}>
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="w-full py-2 px-3 rounded-lg text-sm outline-none transition-all"
+          style={{
+            border: `1.5px solid ${error ? "#f87171" : "#BDDDFC"}`,
+            ...font,
+            color: "#384959",
+            background: "#fff",
+            paddingRight: suffix ? 38 : 12,
+          }}
+          onFocus={(e) => (e.target.style.borderColor = "#88BDF2")}
+          onBlur={(e) =>
+            (e.target.style.borderColor = error ? "#f87171" : "#BDDDFC")
+          }
+        />
+        {suffix && (
+          <div
+            style={{
+              position: "absolute",
+              right: 10,
+              top: "50%",
+              transform: "translateY(-50%)",
+            }}
+          >
+            {suffix}
+          </div>
+        )}
+      </div>
       {error && (
         <span className="text-[11px]" style={{ color: "#dc2626" }}>
           {error}
@@ -90,6 +159,7 @@ function FInput({
   );
 }
 
+// ─── Select ───────────────────────────────────────────────────
 function FSelect({ label, required, value, onChange, options }) {
   return (
     <div className="flex flex-col gap-1">
@@ -121,6 +191,121 @@ function FSelect({ label, required, value, onChange, options }) {
   );
 }
 
+// ─── Avatar picker ────────────────────────────────────────────
+function AvatarPicker({ firstName, lastName, preview, onFileSelect }) {
+  const fileRef = useRef(null);
+  const initials =
+    `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.toUpperCase();
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <label
+        className="text-xs font-semibold"
+        style={{ ...font, color: "#6A89A7" }}
+      >
+        Photo{" "}
+        <span style={{ color: "#6A89A7", fontWeight: 400 }}>(optional)</span>
+      </label>
+
+      {/* Circle */}
+      <div style={{ position: "relative", width: 72, height: 72 }}>
+        <div
+          className="w-full h-full rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-xl"
+          style={{
+            background: "linear-gradient(135deg, #88BDF2, #6A89A7)",
+            cursor: "pointer",
+          }}
+          onClick={() => fileRef.current?.click()}
+          title="Click to select photo"
+        >
+          {preview ? (
+            <img
+              src={preview}
+              alt="preview"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span
+              style={{
+                fontSize: initials ? 22 : 14,
+                opacity: initials ? 1 : 0.5,
+              }}
+            >
+              {initials || "📷"}
+            </span>
+          )}
+        </div>
+
+        {/* Camera badge */}
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          style={{
+            position: "absolute",
+            bottom: 0,
+            right: 0,
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: "#384959",
+            border: "2.5px solid #fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            padding: 0,
+          }}
+          title="Upload photo"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+              stroke="#fff"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="12" cy="13" r="4" stroke="#fff" strokeWidth="2" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Remove link */}
+      {preview && (
+        <button
+          type="button"
+          onClick={() => onFileSelect(null)}
+          className="text-[11px]"
+          style={{
+            ...font,
+            color: "#ef4444",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+          }}
+        >
+          Remove
+        </button>
+      )}
+
+      {/* Hidden input */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.target.files[0];
+          if (file) onFileSelect(file);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── Steps config ─────────────────────────────────────────────
 const STEPS = [
   { label: "Account", icon: "👤" },
   { label: "Professional", icon: "🏫" },
@@ -128,14 +313,39 @@ const STEPS = [
   { label: "Payroll", icon: "💳" },
 ];
 
+// ─── Main modal ───────────────────────────────────────────────
 export default function AddTeacherModal({ onClose, onSuccess }) {
   const [form, setForm] = useState(INIT);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState("");
   const [step, setStep] = useState(1);
+  const [showPwd, setShowPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+
+  // ── Photo state ──────────────────────────────────────────────
+  const [photoFile, setPhotoFile] = useState(null); // File object
+  const [photoPreview, setPhotoPreview] = useState(""); // Object URL for preview
 
   const set = (k) => (v) => setForm((p) => ({ ...p, [k]: v }));
+
+  // Generate preview URL when file selected
+  const handlePhotoSelect = (file) => {
+    if (!file) {
+      setPhotoFile(null);
+      setPhotoPreview("");
+      return;
+    }
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  // Revoke object URL on unmount to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
 
   useEffect(() => {
     const h = (e) => e.key === "Escape" && onClose();
@@ -148,6 +358,14 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
     REQUIRED.forEach((k) => {
       if (!form[k]) errs[k] = "Required";
     });
+    if (
+      form.password &&
+      form.confirmPassword &&
+      form.password !== form.confirmPassword
+    ) {
+      errs.confirmPassword = "Passwords do not match";
+    }
+    if (!form.confirmPassword) errs.confirmPassword = "Required";
     return errs;
   };
 
@@ -155,7 +373,6 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
     const errs = validate();
     if (Object.keys(errs).length) {
       setErrors(errs);
-      // jump to the step containing the first error
       const firstKey = Object.keys(errs)[0];
       if (
         ["employeeCode", "department", "designation", "joiningDate"].includes(
@@ -166,11 +383,15 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
       else setStep(1);
       return;
     }
+
     setLoading(true);
     setApiError("");
+
     try {
-      await createTeacher({
-        ...form,
+      // Step 1: Create teacher (JSON)
+      const { confirmPassword: _cp, ...formData } = form;
+      const result = await createTeacher({
+        ...formData,
         name: `${form.firstName} ${form.lastName}`,
         experienceYears: form.experienceYears
           ? Number(form.experienceYears)
@@ -178,9 +399,20 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
         salary: form.salary ? Number(form.salary) : undefined,
         dateOfBirth: form.dateOfBirth || undefined,
       });
+
+      // Step 2: Upload photo if one was selected
+      if (photoFile && result?.data?.id) {
+        try {
+          await uploadTeacherProfileImage(result.data.id, photoFile);
+        } catch (imgErr) {
+          // Don't block success — teacher was created, image upload failed silently
+          console.warn("[AddTeacher] Photo upload failed:", imgErr.message);
+        }
+      }
+
       onSuccess();
     } catch (err) {
-      setApiError(err.message);
+      setApiError(err.message || "Failed to create teacher");
     } finally {
       setLoading(false);
     }
@@ -189,11 +421,12 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
   const btnBase = {
     ...font,
     fontSize: 13,
-    cursor: "pointer",
-    border: "none",
-    borderRadius: 10,
-    padding: "9px 20px",
     fontWeight: 600,
+    padding: "8px 18px",
+    borderRadius: 10,
+    border: "none",
+    cursor: "pointer",
+    transition: "all 0.15s",
   };
 
   return (
@@ -203,37 +436,37 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
         className="fixed inset-0 z-40"
         style={{
           background: "rgba(56,73,89,0.3)",
-          backdropFilter: "blur(2px)",
+          backdropFilter: "blur(3px)",
         }}
         onClick={onClose}
       />
 
       {/* Modal */}
       <div
-        className="fixed z-50 flex flex-col overflow-hidden"
+        className="fixed z-50 flex flex-col"
         style={{
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: 540,
+          width: 560,
           maxWidth: "95vw",
           maxHeight: "92vh",
           background: "#fff",
-          borderRadius: 20,
-          boxShadow: "0 20px 60px rgba(56,73,89,0.2)",
-          animation: "modalIn 0.2s ease",
+          borderRadius: 18,
+          boxShadow: "0 24px 80px rgba(56,73,89,0.18)",
+          animation: "fadeUp 0.2s cubic-bezier(0.4,0,0.2,1)",
         }}
       >
-        <style>{`@keyframes modalIn{from{opacity:0;transform:translate(-50%,-47%)}to{opacity:1;transform:translate(-50%,-50%)}}`}</style>
+        <style>{`@keyframes fadeUp{from{opacity:0;transform:translate(-50%,-48%)}to{opacity:1;transform:translate(-50%,-50%)}}`}</style>
 
-        {/* Header */}
+        {/* ── Modal Header ── */}
         <div
-          className="flex items-center justify-between px-6 py-4 flex-shrink-0"
+          className="flex items-start justify-between px-6 pt-5 pb-4 flex-shrink-0"
           style={{ borderBottom: "1.5px solid #BDDDFC" }}
         >
           <div>
             <h2
-              className="font-bold text-base"
+              className="font-bold text-lg"
               style={{ ...font, color: "#384959" }}
             >
               Add New Teacher
@@ -251,24 +484,26 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
               cursor: "pointer",
               color: "#6A89A7",
               fontSize: 22,
+              lineHeight: 1,
+              marginTop: 2,
             }}
+            onMouseEnter={(e) => (e.target.style.color = "#384959")}
+            onMouseLeave={(e) => (e.target.style.color = "#6A89A7")}
           >
             ×
           </button>
         </div>
 
-        {/* Step indicator */}
-        <div
-          className="flex items-center px-6 py-3 gap-1 flex-shrink-0"
-          style={{ borderBottom: "1px solid #f1f5f9" }}
-        >
+        {/* ── Step tabs ── */}
+        <div className="flex items-center gap-0 px-6 pt-4 pb-2 flex-shrink-0">
           {STEPS.map((s, i) => {
-            const active = step === i + 1;
-            const done = step > i + 1;
+            const idx = i + 1;
+            const active = step === idx;
+            const done = step > idx;
             return (
               <React.Fragment key={s.label}>
                 <button
-                  onClick={() => setStep(i + 1)}
+                  onClick={() => idx < step && setStep(idx)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                   style={{
                     ...font,
@@ -276,10 +511,11 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
                       ? "#384959"
                       : done
                         ? "#BDDDFC"
-                        : "#f8fbff",
+                        : "#f3f8fd",
                     color: active ? "#fff" : done ? "#384959" : "#6A89A7",
                     border: "none",
-                    cursor: "pointer",
+                    cursor: idx < step ? "pointer" : "default",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   <span>{done ? "✓" : s.icon}</span>
@@ -289,8 +525,9 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
                   <div
                     style={{
                       flex: 1,
-                      height: 1,
-                      background: done ? "#88BDF2" : "#BDDDFC",
+                      height: 1.5,
+                      background: step > idx ? "#88BDF2" : "#BDDDFC",
+                      margin: "0 4px",
                     }}
                   />
                 )}
@@ -299,11 +536,11 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
           })}
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        {/* ── Body ── */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
           {apiError && (
             <div
-              className="mb-4 px-3 py-2.5 rounded-xl text-sm"
+              className="mb-3 px-3 py-2 rounded-lg text-xs"
               style={{ background: "#fee2e2", color: "#991b1b", ...font }}
             >
               ⚠ {apiError}
@@ -313,38 +550,88 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
           {/* ── Step 1: Account ── */}
           {step === 1 && (
             <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <FInput
-                  label="First Name"
-                  required
-                  value={form.firstName}
-                  onChange={set("firstName")}
-                  error={errors.firstName}
+              {/* Avatar picker + name row */}
+              <div className="flex items-end gap-4">
+                <AvatarPicker
+                  firstName={form.firstName}
+                  lastName={form.lastName}
+                  preview={photoPreview}
+                  onFileSelect={handlePhotoSelect}
                 />
-                <FInput
-                  label="Last Name"
-                  required
-                  value={form.lastName}
-                  onChange={set("lastName")}
-                  error={errors.lastName}
-                />
+                <div className="flex-1 grid grid-cols-2 gap-4">
+                  <FInput
+                    label="First Name"
+                    required
+                    value={form.firstName}
+                    onChange={set("firstName")}
+                    error={errors.firstName}
+                    placeholder="First name"
+                  />
+                  <FInput
+                    label="Last Name"
+                    required
+                    value={form.lastName}
+                    onChange={set("lastName")}
+                    error={errors.lastName}
+                    placeholder="Last name"
+                  />
+                </div>
               </div>
+
               <FInput
-                label="Email"
+                label="Email (used to login)"
                 required
                 value={form.email}
                 onChange={set("email")}
-                type="email"
                 error={errors.email}
+                type="email"
+                placeholder="teacher@school.com"
               />
+
+              <div
+                className="px-3 py-2.5 rounded-xl text-xs flex items-start gap-2"
+                style={{
+                  background: "#f8fbff",
+                  border: "1px solid #BDDDFC",
+                  color: "#6A89A7",
+                  ...font,
+                }}
+              >
+                🔑 The email and password below will be the teacher's login
+                credentials for the portal.
+              </div>
+
               <FInput
                 label="Password"
                 required
                 value={form.password}
                 onChange={set("password")}
-                type="password"
                 error={errors.password}
+                type={showPwd ? "text" : "password"}
+                placeholder="Set a password"
+                suffix={
+                  <EyeBtn
+                    show={showPwd}
+                    onToggle={() => setShowPwd((v) => !v)}
+                  />
+                }
               />
+              <FInput
+                label="Confirm Password"
+                required
+                value={form.confirmPassword}
+                onChange={set("confirmPassword")}
+                error={errors.confirmPassword}
+                type={showConfirmPwd ? "text" : "password"}
+                placeholder="Re-enter password"
+                suffix={
+                  <EyeBtn
+                    show={showConfirmPwd}
+                    onToggle={() => setShowConfirmPwd((v) => !v)}
+                  />
+                }
+              />
+
               <div className="grid grid-cols-2 gap-4">
                 <FInput
                   label="Phone"
@@ -359,6 +646,7 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
                   type="date"
                 />
               </div>
+
               <FSelect
                 label="Gender"
                 value={form.gender}
@@ -547,7 +835,7 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
           )}
         </div>
 
-        {/* Footer */}
+        {/* ── Footer ── */}
         <div
           className="flex items-center justify-between px-6 py-4 flex-shrink-0"
           style={{ borderTop: "1.5px solid #BDDDFC" }}

@@ -1,90 +1,87 @@
-// server/src/controllers/classSectionController.js
+// server/src/staffControlls/classSectionController.js
+// UPDATED — supports section optional, stream/course/branch, grade validation
 import { PrismaClient } from "@prisma/client";
-import redisClient from "../utils/redis.js";
+import cacheService from "../utils/cacheService.js";
 
 const prisma = new PrismaClient();
-const CACHE_TTL = 60 * 5; // 5 minutes
 
-// ── Safe Redis helpers (fail silently) ───────────────────────────────────────
+// ── Cache helpers ─────────────────────────────────────────────────────────────
+
+const invalidate = (schoolId) => cacheService.invalidateSchool(schoolId);
 
 async function cacheGet(key) {
   try {
-    return await redisClient.get(key);
-  } catch (err) {
-    console.error(`[Redis] GET ${key} failed:`, err.message);
+    return await cacheService.get(key);
+  } catch {
     return null;
   }
 }
-
 async function cacheSet(key, value) {
   try {
-    await redisClient.setEx(key, CACHE_TTL, JSON.stringify(value));
-  } catch (err) {
-    console.error(`[Redis] SET ${key} failed:`, err.message);
-  }
+    await cacheService.set(key, value);
+  } catch {}
 }
 
-async function cacheDel(...keys) {
-  try {
-    await redisClient.del(keys);
-  } catch (err) {
-    console.error(`[Redis] DEL ${keys.join(", ")} failed:`, err.message);
+// ── Grade validation per school type ─────────────────────────────────────────
+
+function validateGrade(grade, schoolType) {
+  const num = parseInt((grade || "").replace(/\D/g, ""));
+
+  if (schoolType === "SCHOOL") {
+    if (isNaN(num) || num < 1 || num > 10)
+      return "School only allows Grade 1 to Grade 10";
   }
+
+  if (schoolType === "PUC") {
+    if (isNaN(num) || (num !== 11 && num !== 12))
+      return "PUC only allows Grade 11 and Grade 12";
+  }
+
+  if (["DEGREE", "DIPLOMA", "POSTGRADUATE"].includes(schoolType)) {
+    if (!grade?.toLowerCase().startsWith("semester"))
+      return "Degree/Diploma/PG must use Semester format (e.g. Semester 1)";
+    if (isNaN(num) || num < 1)
+      return "Semester number must be a positive number";
+  }
+
+  return null; // valid
 }
 
-// Uses SCAN instead of KEYS to avoid blocking Redis in production
-async function scanAndDelete(pattern) {
-  try {
-    let cursor = 0;
-    do {
-      const reply = await redisClient.scan(cursor, {
-        MATCH: pattern,
-        COUNT: 100,
-      });
-      cursor = reply.cursor;
-      if (reply.keys.length) await redisClient.del(reply.keys);
-    } while (cursor !== 0);
-  } catch (err) {
-    console.error(`[Redis] SCAN/DEL ${pattern} failed:`, err.message);
-  }
+/**
+ * Auto-generate display name for a class section
+ */
+function buildSectionName({ grade, section, stream, course, branch }) {
+  const parts = [];
+  if (course) parts.push(course);
+  if (branch) parts.push(branch);
+  parts.push(grade);
+  if (stream) parts.push(stream);
+  if (section) parts.push(section);
+  return parts.join(" - ");
 }
 
-// ── Cache key helpers ────────────────────────────────────────────────────────
-const cacheKey = {
-  list: (schoolId, academicYearId) =>
-    `class-sections:${schoolId}:list:${academicYearId ?? "all"}`,
-  single: (schoolId, id, academicYearId) =>
-    `class-sections:${schoolId}:${id}:${academicYearId ?? "all"}`,
-};
-
-async function invalidateCache(schoolId, id = null) {
-  // Wipe all list variants for this school
-  await scanAndDelete(`class-sections:${schoolId}:list:*`);
-
-  // Wipe all academicYearId variants for a specific section
-  if (id) {
-    await scanAndDelete(`class-sections:${schoolId}:${id}:*`);
-  }
-}
-
-// ── GET /api/class-sections?academicYearId=xxx ───────────────────────────────
+// ── GET /api/class-sections ──────────────────────────────────────────────────
 export const getClassSections = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
+
     const { academicYearId } = req.query;
-    const key = cacheKey.list(schoolId, academicYearId);
+    const namespace = `class-sections:${schoolId}:list:${academicYearId ?? "all"}`;
+    const key = await cacheService.buildKey(schoolId, namespace);
 
-    // 1. Check cache
     const cached = await cacheGet(key);
-    if (cached) {
+    if (cached)
       return res.json({ classSections: JSON.parse(cached), fromCache: true });
-    }
 
-    // 2. Cache miss → fetch from DB
     const classSections = await prisma.classSection.findMany({
       where: { schoolId },
       orderBy: [{ grade: "asc" }, { section: "asc" }],
       include: {
+        stream: { select: { id: true, name: true } },
+        course: { select: { id: true, name: true, totalSemesters: true } },
+        branch: { select: { id: true, name: true, code: true } },
         academicYearLinks: {
           where: academicYearId ? { academicYearId } : {},
           include: {
@@ -111,9 +108,7 @@ export const getClassSections = async (req, res) => {
       },
     });
 
-    // 3. Store in cache
     await cacheSet(key, classSections);
-
     return res.json({ classSections });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -124,20 +119,24 @@ export const getClassSections = async (req, res) => {
 export const getClassSectionById = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
+
     const { id } = req.params;
     const { academicYearId } = req.query;
-    const key = cacheKey.single(schoolId, id, academicYearId);
+    const namespace = `class-sections:${schoolId}:${id}:${academicYearId ?? "all"}`;
+    const key = await cacheService.buildKey(schoolId, namespace);
 
-    // 1. Check cache
     const cached = await cacheGet(key);
-    if (cached) {
+    if (cached)
       return res.json({ classSection: JSON.parse(cached), fromCache: true });
-    }
 
-    // 2. Cache miss → fetch from DB
     const section = await prisma.classSection.findFirst({
       where: { id, schoolId },
       include: {
+        stream: true,
+        course: true,
+        branch: true,
         academicYearLinks: {
           where: academicYearId ? { academicYearId } : {},
           include: {
@@ -177,9 +176,7 @@ export const getClassSectionById = async (req, res) => {
     if (!section)
       return res.status(404).json({ message: "Class section not found" });
 
-    // 3. Store in cache
     await cacheSet(key, section);
-
     return res.json({ classSection: section });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -190,32 +187,106 @@ export const getClassSectionById = async (req, res) => {
 export const createClassSection = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
-    const { grade, section, sections, room, capacity } = req.body;
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
+
+    const { grade, section, sections, streamId, courseId, branchId } = req.body;
 
     if (!grade?.trim())
       return res.status(400).json({ message: "Grade is required" });
 
-    // Bulk create
+    // Get school type for validation
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { type: true },
+    });
+
+    const gradeError = validateGrade(grade.trim(), school.type);
+    if (gradeError) return res.status(400).json({ message: gradeError });
+
+    // Validate stream/course/branch based on school type
+    if (school.type === "PUC" && !streamId)
+      return res.status(400).json({ message: "Stream is required for PUC" });
+
+    if (
+      ["DEGREE", "DIPLOMA", "POSTGRADUATE"].includes(school.type) &&
+      !courseId
+    )
+      return res
+        .status(400)
+        .json({ message: "Course is required for Degree/Diploma/PG" });
+
+    // Fetch related names for display
+    let streamName, courseName, branchName;
+    if (streamId) {
+      const s = await prisma.stream.findFirst({
+        where: { id: streamId, schoolId },
+      });
+      if (!s) return res.status(404).json({ message: "Stream not found" });
+      streamName = s.name;
+    }
+    if (courseId) {
+      const c = await prisma.course.findFirst({
+        where: { id: courseId, schoolId },
+      });
+      if (!c) return res.status(404).json({ message: "Course not found" });
+      courseName = c.name;
+    }
+    if (branchId) {
+      const b = await prisma.courseBranch.findFirst({
+        where: { id: branchId, courseId },
+      });
+      if (!b) return res.status(404).json({ message: "Branch not found" });
+      branchName = b.name;
+    }
+
+    // ── Bulk create ─────────────────────────────────────────────
     if (sections && Array.isArray(sections) && sections.length > 0) {
       const results = [];
       const errors = [];
+
       for (const sec of sections) {
-        const secName = sec.section?.trim();
-        if (!secName) continue;
-        const name = `${grade.trim()}-${secName}`;
-        const dup = await prisma.classSection.findFirst({
-          where: { grade: grade.trim(), section: secName, schoolId },
+        const secName = sec.section?.trim() || null;
+        const name = buildSectionName({
+          grade: grade.trim(),
+          section: secName,
+          stream: streamName,
+          course: courseName,
+          branch: branchName,
         });
+
+        // Check duplicate
+        const dup = await prisma.classSection.findFirst({
+          where: {
+            grade: grade.trim(),
+            section: secName,
+            schoolId,
+            streamId: streamId || null,
+            courseId: courseId || null,
+            branchId: branchId || null,
+          },
+        });
+
         if (dup) {
           errors.push(`${name} already exists`);
           continue;
         }
+
         const created = await prisma.classSection.create({
-          data: { grade: grade.trim(), section: secName, name, schoolId },
+          data: {
+            grade: grade.trim(),
+            section: secName,
+            name,
+            schoolId,
+            streamId: streamId || null,
+            courseId: courseId || null,
+            branchId: branchId || null,
+          },
         });
         results.push(created);
       }
-      await invalidateCache(schoolId);
+
+      await invalidate(schoolId);
       return res.status(201).json({
         message: `${results.length} class(es) created`,
         classSections: results,
@@ -223,20 +294,46 @@ export const createClassSection = async (req, res) => {
       });
     }
 
-    // Single create
-    if (!section?.trim())
-      return res.status(400).json({ message: "Section is required" });
-    const name = `${grade.trim()}-${section.trim()}`;
+    // ── Single create ───────────────────────────────────────────
+    const secName = section?.trim() || null;
+    const name = buildSectionName({
+      grade: grade.trim(),
+      section: secName,
+      stream: streamName,
+      course: courseName,
+      branch: branchName,
+    });
+
     const dup = await prisma.classSection.findFirst({
-      where: { grade: grade.trim(), section: section.trim(), schoolId },
+      where: {
+        grade: grade.trim(),
+        section: secName,
+        schoolId,
+        streamId: streamId || null,
+        courseId: courseId || null,
+        branchId: branchId || null,
+      },
     });
     if (dup) return res.status(409).json({ message: `${name} already exists` });
 
     const classSection = await prisma.classSection.create({
-      data: { grade: grade.trim(), section: section.trim(), name, schoolId },
+      data: {
+        grade: grade.trim(),
+        section: secName,
+        name,
+        schoolId,
+        streamId: streamId || null,
+        courseId: courseId || null,
+        branchId: branchId || null,
+      },
+      include: {
+        stream: true,
+        course: true,
+        branch: true,
+      },
     });
 
-    await invalidateCache(schoolId);
+    await invalidate(schoolId);
     return res
       .status(201)
       .json({ message: "Class section created", classSection });
@@ -245,10 +342,13 @@ export const createClassSection = async (req, res) => {
   }
 };
 
-// ── POST /api/class-sections/:id/activate ───────────────────────────────────
+// ── POST /api/class-sections/:id/activate ────────────────────────────────────
 export const activateClassForYear = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
+
     const { id } = req.params;
     const { academicYearId, classTeacherId, isActive = true } = req.body;
 
@@ -291,17 +391,20 @@ export const activateClassForYear = async (req, res) => {
       },
     });
 
-    await invalidateCache(schoolId, id);
+    await invalidate(schoolId);
     return res.json({ message: "Class activated for year", link });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// ── DELETE /api/class-sections/:id ──────────────────────────────────────────
+// ── DELETE /api/class-sections/:id ───────────────────────────────────────────
 export const deleteClassSection = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
+
     const { id } = req.params;
     const section = await prisma.classSection.findFirst({
       where: { id, schoolId },
@@ -318,17 +421,20 @@ export const deleteClassSection = async (req, res) => {
       });
 
     await prisma.classSection.delete({ where: { id } });
-    await invalidateCache(schoolId, id);
+    await invalidate(schoolId);
     return res.json({ message: "Class section deleted" });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// ── POST /api/class-sections/:id/class-subjects ──────────────────────────────
+// ── POST /api/class-sections/:id/class-subjects ───────────────────────────────
 export const assignSubjectToClass = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
+
     const { id: classSectionId } = req.params;
     const { subjectId, academicYearId } = req.body;
     if (!subjectId || !academicYearId)
@@ -355,14 +461,14 @@ export const assignSubjectToClass = async (req, res) => {
       include: { subject: true },
     });
 
-    await invalidateCache(schoolId, classSectionId);
+    await invalidate(schoolId);
     return res.status(201).json({ message: "Subject assigned", classSubject });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// ── DELETE /api/class-sections/:id/class-subjects/:classSubjectId ────────────
+// ── DELETE /api/class-sections/:id/class-subjects/:classSubjectId ─────────────
 export const removeSubjectFromClass = async (req, res) => {
   try {
     const { id: classSectionId, classSubjectId } = req.params;
@@ -370,14 +476,14 @@ export const removeSubjectFromClass = async (req, res) => {
       where: { id: classSubjectId, classSectionId },
     });
     if (!cs) return res.status(404).json({ message: "Assignment not found" });
+
     await prisma.classSubject.delete({ where: { id: classSubjectId } });
 
     const section = await prisma.classSection.findUnique({
       where: { id: classSectionId },
       select: { schoolId: true },
     });
-    if (section) await invalidateCache(section.schoolId, classSectionId);
-
+    if (section) await invalidate(section.schoolId);
     return res.json({ message: "Subject removed from class" });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -388,6 +494,9 @@ export const removeSubjectFromClass = async (req, res) => {
 export const assignTeacherToSubject = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
+
     const { id: classSectionId } = req.params;
     const { teacherId, subjectId, academicYearId } = req.body;
     if (!teacherId || !subjectId || !academicYearId)
@@ -418,14 +527,14 @@ export const assignTeacherToSubject = async (req, res) => {
       },
     });
 
-    await invalidateCache(schoolId, classSectionId);
+    await invalidate(schoolId);
     return res.status(201).json({ message: "Teacher assigned", assignment });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// ── DELETE /api/class-sections/:id/teacher-assignments/:assignmentId ─────────
+// ── DELETE /api/class-sections/:id/teacher-assignments/:assignmentId ──────────
 export const removeTeacherAssignment = async (req, res) => {
   try {
     const { id: classSectionId, assignmentId } = req.params;
@@ -433,14 +542,14 @@ export const removeTeacherAssignment = async (req, res) => {
       where: { id: assignmentId, classSectionId },
     });
     if (!ta) return res.status(404).json({ message: "Assignment not found" });
+
     await prisma.teacherAssignment.delete({ where: { id: assignmentId } });
 
     const section = await prisma.classSection.findUnique({
       where: { id: classSectionId },
       select: { schoolId: true },
     });
-    if (section) await invalidateCache(section.schoolId, classSectionId);
-
+    if (section) await invalidate(section.schoolId);
     return res.json({ message: "Teacher assignment removed" });
   } catch (err) {
     return res.status(500).json({ message: err.message });

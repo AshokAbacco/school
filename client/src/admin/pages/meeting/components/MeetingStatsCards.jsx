@@ -1,64 +1,96 @@
+// client/src/admin/pages/meeting/components/MeetingStatsCards.jsx
 import React from "react";
-import { CalendarCheck, Clock, CalendarDays, CheckCircle } from "lucide-react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  Clock4,
+  XCircle,
+  Users,
+  TrendingUp,
+} from "lucide-react";
 
-function MeetingStatsCards() {
-  const stats = [
-    {
-      label: "Total Meetings",
-      value: "48",
-      icon: CalendarDays,
-      color: "text-purple-600",
-      bgColor: "bg-purple-50",
-      borderColor: "border-purple-500",
-    },
-    {
-      label: "Today",
-      value: "3",
-      icon: Clock,
-      color: "text-orange-600",
-      bgColor: "bg-orange-50",
-      borderColor: "border-orange-500",
-    },
-    {
-      label: "Upcoming",
-      value: "12",
-      icon: CalendarCheck,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
-      borderColor: "border-blue-500",
-    },
-    {
-      label: "Completed",
-      value: "33",
-      icon: CheckCircle,
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-      borderColor: "border-green-500",
-    },
-  ];
+const cards = [
+  {
+    key: "total",
+    label: "Total Meetings",
+    icon: CalendarDays,
+    bg: "bg-[#BDDDFC]",
+    iconColor: "text-[#384959]",
+    textColor: "text-[#384959]",
+    border: "border-[#88BDF2]",
+  },
+  {
+    key: "scheduled",
+    label: "Scheduled",
+    icon: Clock4,
+    bg: "bg-white",
+    iconColor: "text-[#6A89A7]",
+    textColor: "text-[#384959]",
+    border: "border-[#BDDDFC]",
+  },
+  {
+    key: "completed",
+    label: "Completed",
+    icon: CheckCircle2,
+    bg: "bg-white",
+    iconColor: "text-emerald-500",
+    textColor: "text-[#384959]",
+    border: "border-[#BDDDFC]",
+  },
+  {
+    key: "cancelled",
+    label: "Cancelled",
+    icon: XCircle,
+    bg: "bg-white",
+    iconColor: "text-rose-400",
+    textColor: "text-[#384959]",
+    border: "border-[#BDDDFC]",
+  },
+  {
+    key: "totalParticipants",
+    label: "Total Participants",
+    icon: Users,
+    bg: "bg-white",
+    iconColor: "text-[#6A89A7]",
+    textColor: "text-[#384959]",
+    border: "border-[#BDDDFC]",
+  },
+  {
+    key: "thisMonth",
+    label: "This Month",
+    icon: TrendingUp,
+    bg: "bg-white",
+    iconColor: "text-[#88BDF2]",
+    textColor: "text-[#384959]",
+    border: "border-[#BDDDFC]",
+  },
+];
 
+export default function MeetingStatsCards({ stats = {}, loading = false }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-      {stats.map((stat, index) => (
-        <div
-          key={index}
-          className={`bg-white rounded-xl shadow-sm p-4 border-l-4 ${stat.borderColor}`}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">{stat.label}</p>
-              <p className="text-2xl font-bold text-gray-800 mt-1">
-                {stat.value}
-              </p>
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+      {cards.map(
+        ({ key, label, icon: Icon, bg, iconColor, textColor, border }) => (
+          <div
+            key={key}
+            className={`rounded-xl border ${border} ${bg} p-4 flex flex-col gap-2 shadow-sm`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-sm font-medium ${textColor} opacity-70`}>
+                {label}
+              </span>
+              <Icon size={16} className={iconColor} />
             </div>
-            <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-              <stat.icon className={`w-6 h-6 ${stat.color}`} />
-            </div>
+            {loading ? (
+              <div className="h-7 w-12 bg-[#BDDDFC] rounded animate-pulse" />
+            ) : (
+              <span className={`text-xl font-bold ${textColor}`}>
+                {stats[key] ?? 0}
+              </span>
+            )}
           </div>
-        </div>
-      ))}
+        ),
+      )}
     </div>
   );
 }
-
-export default MeetingStatsCards;

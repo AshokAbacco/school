@@ -30,7 +30,11 @@ export default function Navbar({ onMenuClick, user }) {
 
   const displayName = user?.name || "Admin User";
   const displayRole = user?.role || "Administrator";
-
+  useEffect(() => {
+    console.log("Full user object:", user);
+    console.log("User name:", user?.name);
+    console.log("User role:", user?.role);
+  }, [user]);
   useEffect(() => {
     const h = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target))
