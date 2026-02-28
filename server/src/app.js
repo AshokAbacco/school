@@ -4,9 +4,11 @@ import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./modules/auth/auth.routes.js";
 
+
 dotenv.config();
 
 const app = express();
+
 
 // middlewares
 app.use(

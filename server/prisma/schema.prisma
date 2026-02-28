@@ -274,27 +274,20 @@ model School {
   universityId String
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
 
-  superAdminAccess  SuperAdminSchoolAccess[]
-  users             User[]
-  students          Student[]
-  parents           Parent[]
-  teachers          TeacherProfile[]
-  academicYears     AcademicYear[]
-  classSections     ClassSection[]
-  subjects          Subject[]
-  timetableConfigs  TimetableConfig[]
-  timetableEntries  TimetableEntry[]
-  assessmentTerms   AssessmentTerm[]
-  assessmentGroups  AssessmentGroup[]
-  extraClasses      ExtraClass[]
-  meetings          Meeting[]
-  TeacherAttendance TeacherAttendance[]
-
-  // ── NEW relations ────────────────────────────────────────────
-  streams         Stream[]
-  courses         Course[]
-  promotionConfig SchoolPromotionConfig?
-  promotionLogs   PromotionLog[]
+  superAdminAccess     SuperAdminSchoolAccess[]
+  users                User[]
+  students             Student[]
+  parents              Parent[]
+  teachers             TeacherProfile[]
+  academicYears        AcademicYear[]
+  classSections        ClassSection[]
+  subjects             Subject[] // ✅ NEW: central subject registry
+  timetableConfigs     TimetableConfig[]
+  timetableEntries     TimetableEntry[]
+  assessmentTerms      AssessmentTerm[]
+  assessmentGroups     AssessmentGroup[]
+  FinanceProfile       FinanceProfile[]
+  TeacherMonthlySalary TeacherMonthlySalary[]
 
   @@index([universityId])
   @@index([type])
@@ -1378,4 +1371,47 @@ model FinanceProfile {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model StudentFinance {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  phone     String
+  course    String?
+  fees      Float?
+  address   String?
+  createdAt DateTime @default(now())
+
+  @@map("student_finance")
+}
+
+model TeacherMonthlySalary {
+  id String @id @default(uuid())
+
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id])
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  month Int
+  year  Int
+
+  basicSalary Decimal @db.Decimal(10, 2)
+  bonus       Decimal @db.Decimal(10, 2)
+  deductions  Decimal @db.Decimal(10, 2)
+  netSalary   Decimal @db.Decimal(10, 2)
+
+  status      SalaryStatus @default(PENDING)
+  paymentDate DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([teacherId, month, year])
+}
+
+enum SalaryStatus {
+  PENDING
+  PAID
 }
