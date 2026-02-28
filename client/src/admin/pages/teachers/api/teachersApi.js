@@ -6,6 +6,10 @@ const BASE = `${API_URL}/api/teachers`;
 const authHeaders = (isJson = false) => {
   const headers = {
     Authorization: `Bearer ${getToken()}`,
+    // Prevent the browser from serving a stale cached response after any
+    // create / update / delete — the server-side Redis cache is the only
+    // cache layer we want in play here.
+    "Cache-Control": "no-store",
   };
 
   if (isJson) {
@@ -107,4 +111,31 @@ export const removeAssignment = (teacherId, aId) =>
   }).then((r) => {
     if (!r.ok) throw new Error("Failed");
     return r.json();
+  });
+
+export const uploadTeacherProfileImage = (teacherId, file) => {
+  const formData = new FormData();
+  formData.append("profileImage", file);
+
+  return fetch(`${BASE}/${teacherId}/profile-image`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+      "Cache-Control": "no-store",
+    },
+    body: formData, // ← no Content-Type header, browser sets multipart boundary
+  }).then(async (r) => {
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Failed to upload image");
+    return j;
+  });
+};
+
+export const fetchTeacherProfileImage = (teacherId) =>
+  fetch(`${BASE}/${teacherId}/profile-image`, {
+    headers: authHeaders(),
+  }).then(async (r) => {
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Failed");
+    return j; // { url, expiresIn }
   });

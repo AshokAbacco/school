@@ -1,77 +1,80 @@
+// client/src/admin/pages/attendances/components/AttendanceTableRow.jsx
 import React from "react";
-import { Clock, FileText } from "lucide-react";
 
-function AttendanceTableRow({ record }) {
-  // Function to determine badge color based on status
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case "Present":
-        return "bg-green-100 text-green-700";
-      case "Absent":
-        return "bg-red-100 text-red-700";
-      case "Late":
-        return "bg-yellow-100 text-yellow-700";
-      case "Leave":
-        return "bg-blue-100 text-blue-700";
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
-  };
+const C = {
+  primary: "#384959",
+  secondary: "#6A89A7",
+  border: "rgba(136,189,242,0.12)",
+};
+
+const STATUS_STYLE = {
+  PRESENT: { bg: "rgba(16,185,129,0.15)", color: "#047857", dot: "#10b981" },
+  ABSENT: { bg: "rgba(244,63,94,0.15)", color: "#be123c", dot: "#f43f5e" },
+  LATE: { bg: "rgba(245,158,11,0.15)", color: "#b45309", dot: "#f59e0b" },
+};
+
+function StatusBadge({ status = "ABSENT" }) {
+  const s = STATUS_STYLE[status.toUpperCase()] || STATUS_STYLE.ABSENT;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+      style={{ background: s.bg, color: s.color }}
+    >
+      <span
+        className="w-1.5 h-1.5 rounded-full shrink-0"
+        style={{ background: s.dot }}
+      />
+      {status ? status.charAt(0) + status.slice(1).toLowerCase() : "—"}
+    </span>
+  );
+}
+
+export default function AttendanceTableRow({ record, isEven }) {
+  const studentName = record.student?.name || "Unknown Student";
+  const initials = studentName.substring(0, 2).toUpperCase();
+
+  const rowBg = isEven ? "white" : "rgba(189,221,252,0.05)";
+  const rowHover = "rgba(189,221,252,0.15)";
 
   return (
-    <tr className="hover:bg-gray-50 transition">
-      {/* Student Info */}
-      <td className="px-6 py-4">
+    <tr
+      className="transition-all duration-100"
+      style={{
+        borderBottom: `1px solid ${C.border}`,
+        background: rowBg,
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = rowHover)}
+      onMouseLeave={(e) => (e.currentTarget.style.background = rowBg)}
+    >
+      <td className="px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <img
-            src={`https://ui-avatars.com/api/?name=${record.name.replace(" ", "+")}&background=random`}
-            alt={record.name}
-            className="w-10 h-10 rounded-full"
-          />
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0"
+            style={{ background: "linear-gradient(135deg, #6A89A7, #384959)" }}
+          >
+            {initials}
+          </div>
           <div>
-            <p className="font-semibold text-gray-800">{record.name}</p>
-            <p className="text-xs text-gray-500">Roll No: {record.rollNo}</p>
+            <p className="font-semibold text-sm" style={{ color: C.primary }}>
+              {studentName}
+            </p>
           </div>
         </div>
       </td>
-
-      {/* Class */}
-      <td className="px-6 py-4 hidden md:table-cell">
-        <span className="text-sm font-medium text-gray-700">
-          {record.class}
-        </span>
+      <td
+        className="px-5 py-3.5 text-sm font-medium"
+        style={{ color: C.secondary }}
+      >
+        {new Date(record.date).toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })}
       </td>
-
-      {/* Check-in Time */}
-      <td className="px-6 py-4 hidden lg:table-cell">
-        {record.checkIn ? (
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Clock className="w-4 h-4 text-gray-400" />
-            <span>{record.checkIn}</span>
-          </div>
-        ) : (
-          <span className="text-gray-400 text-sm">--:--</span>
-        )}
-      </td>
-
-      {/* Status */}
-      <td className="px-6 py-4">
-        <span
-          className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusStyle(record.status)}`}
-        >
-          {record.status}
-        </span>
-      </td>
-
-      {/* Remarks */}
-      <td className="px-6 py-4 hidden lg:table-cell">
-        <div className="flex items-center gap-2 text-sm text-gray-500 italic">
-          <FileText className="w-4 h-4" />
-          {record.remarks || "No remarks"}
-        </div>
+      <td className="px-5 py-3.5">
+        <StatusBadge status={record.status} />
       </td>
     </tr>
   );
 }
-
-export default AttendanceTableRow;

@@ -1,64 +1,82 @@
-import React from "react";
-import { UserCheck, UserX, Clock, CalendarOff } from "lucide-react";
+// client/src/admin/pages/attendances/components/AttendanceStatsCards.jsx
+import React, { useMemo } from "react";
+import { Users, UserCheck, UserX } from "lucide-react";
 
-function AttendanceStatsCards() {
-  const stats = [
-    {
-      label: "Present Today",
-      value: "2,450",
-      icon: UserCheck,
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-      borderColor: "border-green-500",
-    },
-    {
-      label: "Absent Today",
-      value: "124",
-      icon: UserX,
-      color: "text-red-600",
-      bgColor: "bg-red-50",
-      borderColor: "border-red-500",
-    },
-    {
-      label: "Late Arrivals",
-      value: "32",
-      icon: Clock,
-      color: "text-yellow-600",
-      bgColor: "bg-yellow-50",
-      borderColor: "border-yellow-500",
-    },
-    {
-      label: "On Leave",
-      value: "45",
-      icon: CalendarOff,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
-      borderColor: "border-blue-500",
-    },
-  ];
+const C = {
+  primary: "#384959",
+  secondary: "#6A89A7",
+  border: "rgba(136,189,242,0.30)",
+};
+
+const STAT_CARDS_CONFIG = [
+  {
+    key: "total",
+    label: "Total Students",
+    icon: Users,
+    bar: "#6A89A7", // neutral secondary
+  },
+  {
+    key: "present",
+    label: "Present",
+    icon: UserCheck,
+    bar: "#88BDF2", // accent blue
+  },
+  {
+    key: "absent",
+    label: "Absent",
+    icon: UserX,
+    bar: "#384959", // primary dark
+  },
+];
+
+export default function AttendanceStatsCards({ attendance }) {
+  const stats = useMemo(() => {
+    if (!attendance || attendance.length === 0)
+      return { total: 0, present: 0, absent: 0 };
+
+    const total = attendance.length;
+    const present = attendance.filter((a) => a.status === "PRESENT").length;
+    const absent = total - present;
+
+    return { total, present, absent };
+  }, [attendance]);
+
+  if (!attendance || attendance.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-      {stats.map((stat, index) => (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      {STAT_CARDS_CONFIG.map(({ key, label, icon: Icon, bar }) => (
         <div
-          key={index}
-          className={`bg-white rounded-xl shadow-sm p-4 border-l-4 ${stat.borderColor}`}
+          key={key}
+          className="relative overflow-hidden rounded-2xl bg-white shadow-sm"
+          style={{ border: `1px solid ${C.border}` }}
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm">{stat.label}</p>
-              <p className="text-2xl font-bold text-gray-800 mt-1">
-                {stat.value}
-              </p>
+          <div
+            className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl"
+            style={{ background: bar }}
+          />
+          <div className="px-5 pt-5 pb-4">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center mb-3"
+              style={{ background: `${bar}22` }}
+            >
+              <Icon
+                size={16}
+                style={{ color: bar === "#BDDDFC" ? "#6A89A7" : bar }}
+              />
             </div>
-            <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-              <stat.icon className={`w-6 h-6 ${stat.color}`} />
-            </div>
+            <p className="text-2xl font-bold" style={{ color: C.primary }}>
+              {(stats[key] || 0).toLocaleString()}
+            </p>
+            <p
+              className="text-xs font-semibold mt-0.5"
+              style={{ color: C.secondary }}
+            >
+              {label}
+            </p>
           </div>
         </div>
       ))}
     </div>
   );
 }
-
-export default AttendanceStatsCards;

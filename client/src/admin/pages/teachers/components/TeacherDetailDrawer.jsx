@@ -1,8 +1,12 @@
 // client/src/admin/pages/teachers/components/TeacherDetailDrawer.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useTeacherDetail } from "../hooks/useTeacherDetail.js";
 import AssignmentsList from "./AssignmentsList.jsx";
-import { updateTeacher } from "../api/teachersApi.js";
+import {
+  updateTeacher,
+  uploadTeacherProfileImage,
+  fetchTeacherProfileImage,
+} from "../api/teachersApi.js";
 
 // ─── Constants ────────────────────────────────────────────────
 const STATUS_MAP = {
@@ -42,7 +46,7 @@ const DOC_LABELS = {
 const font = { fontFamily: "'DM Sans', sans-serif" };
 const initials = (f, l) => `${f?.[0] ?? ""}${l?.[0] ?? ""}`.toUpperCase();
 
-// ─── Reusable sub-components ──────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────
 
 function InfoRow({ label, value }) {
   if (!value && value !== 0) return null;
@@ -158,8 +162,6 @@ function Section({ title, children, defaultOpen = true }) {
   );
 }
 
-// ─── Status action buttons config ────────────────────────────
-// Each status allows specific transitions
 const STATUS_ACTIONS = {
   ACTIVE: [
     {
@@ -213,6 +215,99 @@ const STATUS_ACTIONS = {
   ],
 };
 
+// ─── Avatar with upload overlay ───────────────────────────────
+function TeacherAvatar({ teacher, editMode, onUpload, uploading, signedUrl }) {
+  const fileInputRef = useRef(null);
+
+  return (
+    <div className="relative flex-shrink-0" style={{ width: 64, height: 64 }}>
+      {/* Avatar circle */}
+      <div
+        className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #88BDF2, #6A89A7)" }}
+      >
+        {uploading ? (
+          // Spinner while uploading
+          <svg
+            className="animate-spin"
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="9"
+              stroke="rgba(255,255,255,0.35)"
+              strokeWidth="3"
+            />
+            <path
+              d="M12 3a9 9 0 0 1 9 9"
+              stroke="#fff"
+              strokeWidth="3"
+              strokeLinecap="round"
+            />
+          </svg>
+        ) : signedUrl ? (
+          <img
+            src={signedUrl}
+            alt={teacher.firstName}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          initials(teacher.firstName, teacher.lastName)
+        )}
+      </div>
+
+      {/* Upload button — only in edit mode */}
+      {editMode && !uploading && (
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          title="Change photo"
+          style={{
+            position: "absolute",
+            bottom: 0,
+            right: 0,
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            background: "#384959",
+            border: "2.5px solid #fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            padding: 0,
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 5v14M5 12h14"
+              stroke="#fff"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      )}
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.target.files[0];
+          if (file) onUpload(file);
+          e.target.value = ""; // reset so same file can be re-selected
+        }}
+      />
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────
 export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
   const { teacher, loading, error, invalidate } = useTeacherDetail(teacherId);
@@ -222,7 +317,25 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
   const [saveError, setSaveError] = useState("");
   const [form, setForm] = useState(null);
 
-  // Populate form when teacher loads or edit toggled
+  // ── Profile image state ──────────────────────────────────────
+  const [signedImageUrl, setSignedImageUrl] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState("");
+
+  // Fetch signed URL whenever teacher profileImage key changes
+  useEffect(() => {
+    if (!teacher) return;
+
+    if (teacher.profileImage) {
+      fetchTeacherProfileImage(teacherId)
+        .then((d) => setSignedImageUrl(d.url))
+        .catch(() => setSignedImageUrl(null));
+    } else {
+      setSignedImageUrl(null);
+    }
+  }, [teacher?.profileImage, teacherId]);
+
+  // Populate edit form when teacher loads
   useEffect(() => {
     if (teacher) {
       setForm({
@@ -269,6 +382,25 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
 
   const set = (k) => (v) => setForm((p) => ({ ...p, [k]: v }));
 
+  // ── Avatar upload handler ─────────────────────────────────────
+  const handleAvatarUpload = async (file) => {
+    setImageUploading(true);
+    setImageError("");
+    try {
+      await uploadTeacherProfileImage(teacherId, file);
+      // Fetch fresh signed URL immediately after upload
+      const d = await fetchTeacherProfileImage(teacherId);
+      setSignedImageUrl(d.url);
+      invalidate();
+      onUpdate();
+    } catch (err) {
+      setImageError(err.message || "Failed to upload image");
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  // ── Save handler ──────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true);
     setSaveError("");
@@ -309,18 +441,6 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
 
   const st = teacher ? (STATUS_MAP[teacher.status] ?? STATUS_MAP.ACTIVE) : null;
   const actions = teacher ? (STATUS_ACTIONS[teacher.status] ?? []) : [];
-
-  const btnSm = (bg, color, border) => ({
-    ...font,
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: "pointer",
-    background: bg,
-    color,
-    border: `1.5px solid ${border}`,
-    borderRadius: 8,
-    padding: "6px 12px",
-  });
 
   return (
     <>
@@ -459,6 +579,15 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
             </div>
           )}
 
+          {imageError && (
+            <div
+              className="mb-3 px-3 py-2 rounded-lg text-xs"
+              style={{ background: "#fee2e2", color: "#991b1b", ...font }}
+            >
+              ⚠ {imageError}
+            </div>
+          )}
+
           {teacher && form && (
             <>
               {/* ── Profile Hero ── */}
@@ -466,22 +595,14 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
                 className="flex items-center gap-4 mb-5 pb-5"
                 style={{ borderBottom: "1.5px solid #BDDDFC" }}
               >
-                <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl overflow-hidden flex-shrink-0"
-                  style={{
-                    background: "linear-gradient(135deg, #88BDF2, #6A89A7)",
-                  }}
-                >
-                  {teacher.profileImage ? (
-                    <img
-                      src={teacher.profileImage}
-                      alt={teacher.firstName}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    initials(teacher.firstName, teacher.lastName)
-                  )}
-                </div>
+                <TeacherAvatar
+                  teacher={teacher}
+                  editMode={editMode}
+                  onUpload={handleAvatarUpload}
+                  uploading={imageUploading}
+                  signedUrl={signedImageUrl}
+                />
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3
@@ -518,6 +639,18 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
                   >
                     {st.label}
                   </span>
+
+                  {/* Upload hint shown in edit mode */}
+                  {editMode && (
+                    <p
+                      className="text-[10px] mt-1.5"
+                      style={{ color: "#88BDF2", ...font }}
+                    >
+                      {imageUploading
+                        ? "Uploading photo…"
+                        : "Click the + on the avatar to change photo"}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -533,7 +666,6 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
                   >
                     Status Actions
                   </p>
-
                   <div className="flex flex-wrap gap-2">
                     {actions.map((a) => (
                       <button
@@ -826,7 +958,7 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
                 )}
               </Section>
 
-              {/* ── Assignments (view only — managed separately) ── */}
+              {/* ── Assignments ── */}
               {!editMode && (
                 <Section
                   title={`Assignments (${teacher.assignments?.length ?? 0})`}
@@ -842,7 +974,7 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
                 </Section>
               )}
 
-              {/* ── Documents (view only) ── */}
+              {/* ── Documents ── */}
               {!editMode && (
                 <Section
                   title={`Documents (${teacher.documents?.length ?? 0})`}
@@ -879,9 +1011,9 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
                               className="text-[11px]"
                               style={{ color: "#6A89A7", ...font }}
                             >
-                              {doc.fileType?.toUpperCase()}{" "}
+                              {doc.fileType?.toUpperCase()}
                               {doc.fileSizeBytes
-                                ? `· ${(doc.fileSizeBytes / 1024).toFixed(0)} KB`
+                                ? ` · ${(doc.fileSizeBytes / 1024).toFixed(0)} KB`
                                 : ""}
                             </p>
                           </div>
@@ -903,7 +1035,7 @@ export default function TeacherDetailDrawer({ teacherId, onClose, onUpdate }) {
                 </Section>
               )}
 
-              {/* Edit mode: save reminder */}
+              {/* Edit mode reminder */}
               {editMode && (
                 <div
                   className="mt-4 px-3 py-2.5 rounded-xl text-xs"

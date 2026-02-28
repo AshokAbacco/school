@@ -1,219 +1,442 @@
-import React, { useState } from "react";
-import { Search, Filter, Download, Plus, Calendar, List } from "lucide-react";
+// client/src/admin/pages/meeting/MeetingsList.jsx
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Plus,
+  Search,
+  RefreshCw,
+  CalendarDays,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import PageLayout from "../../components/PageLayout";
 import MeetingStatsCards from "./components/MeetingStatsCards";
 import MeetingTableRow from "./components/MeetingTableRow";
+import MeetingFormModal from "./components/MeetingFormModal";
+import MeetingViewModal from "./components/MeetingViewModal";
+import {
+  fetchMeetings,
+  fetchMeetingStats,
+  fetchAcademicYears,
+  deleteMeeting,
+} from "./api/meetingsApi";
 
-function MeetingsList() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
+const MEETING_TYPES = [
+  "STAFF",
+  "PARENT",
+  "STUDENT",
+  "GENERAL",
+  "BOARD",
+  "CUSTOM",
+];
+const MEETING_STATUSES = ["SCHEDULED", "COMPLETED", "CANCELLED", "POSTPONED"];
+const PAGE_SIZE = 15;
 
-  // Sample Data
-  const meetings = [
-    {
-      id: 1,
-      title: "Q1 Staff Performance Review",
-      type: "Staff",
-      organizer: "Principal",
-      date: "Mar 20, 2026",
-      time: "10:00 AM",
-      location: "Conference Room A",
-      status: "Scheduled",
-    },
-    {
-      id: 2,
-      title: "Parent-Teacher Meeting (10-A)",
-      type: "PTM",
-      organizer: "Ms. Sarah Smith",
-      date: "Mar 22, 2026",
-      time: "02:00 PM",
-      location: "Room 104",
-      status: "Scheduled",
-    },
-    {
-      id: 3,
-      title: "Curriculum Planning",
-      type: "Staff",
-      organizer: "Vice Principal",
-      date: "Mar 18, 2026",
-      time: "09:00 AM",
-      location: "Online",
-      status: "Completed",
-    },
-    {
-      id: 4,
-      title: "Board of Directors Meet",
-      type: "Board",
-      organizer: "Admin Dept",
-      date: "Mar 25, 2026",
-      time: "11:00 AM",
-      location: "Board Room",
-      status: "Scheduled",
-    },
-    {
-      id: 5,
-      title: "PTM - Grade 8 Science",
-      type: "PTM",
-      organizer: "Mr. John Doe",
-      date: "Mar 15, 2026",
-      time: "03:00 PM",
-      location: "Science Lab",
-      status: "Completed",
-    },
-    {
-      id: 6,
-      title: "Annual Day Planning",
-      type: "Staff",
-      organizer: "Cultural Committee",
-      date: "Mar 28, 2026",
-      time: "04:00 PM",
-      location: "Auditorium",
-      status: "Scheduled",
-    },
-  ];
+const safeArray = (r, ...keys) => {
+  if (Array.isArray(r)) return r;
+  for (const k of ["data", "meetings", "academicYears", ...keys]) {
+    if (Array.isArray(r?.[k])) return r[k];
+  }
+  return [];
+};
 
-  const filteredMeetings = meetings.filter((meeting) => {
-    const matchesSearch =
-      meeting.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      meeting.organizer.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = filterType === "all" || meeting.type === filterType;
-    const matchesStatus =
-      filterStatus === "all" || meeting.status === filterStatus;
-    return matchesSearch && matchesType && matchesStatus;
-  });
+// ── Confirm Dialog ─────────────────────────────────────────────────────────
+function DeleteConfirm({ meeting, onConfirm, onCancel, loading }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#384959]/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-[#BDDDFC] p-6 flex flex-col gap-4">
+        <div>
+          <h3 className="text-base font-semibold text-[#384959]">
+            Delete Meeting
+          </h3>
+          <p className="text-sm text-[#6A89A7] mt-1">
+            Are you sure you want to delete{" "}
+            <strong className="text-[#384959]">"{meeting?.title}"</strong>? This
+            action cannot be undone.
+          </p>
+        </div>
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-[#6A89A7] hover:text-[#384959] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white text-sm font-semibold rounded-xl hover:bg-rose-600 transition-colors disabled:opacity-60"
+          >
+            {loading && <Loader2 size={14} className="animate-spin" />}
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Empty State ─────────────────────────────────────────────────────────────
+function EmptyState({ onSchedule }) {
+  return (
+    <tr>
+      <td colSpan={8}>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-[#BDDDFC]/50 flex items-center justify-center mb-4">
+            <CalendarDays size={26} className="text-[#6A89A7]" />
+          </div>
+          <p className="text-base font-semibold text-[#384959] mb-1">
+            No meetings found
+          </p>
+          <p className="text-sm text-[#6A89A7] mb-5">
+            Schedule your first meeting to get started.
+          </p>
+          <button
+            onClick={onSchedule}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#384959] text-white text-sm font-semibold rounded-xl hover:bg-[#6A89A7] transition-colors"
+          >
+            <Plus size={16} /> Schedule Meeting
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// ── Main Page ───────────────────────────────────────────────────────────────
+export default function MeetingsList() {
+  const [meetings, setMeetings] = useState([]);
+  const [stats, setStats] = useState({});
+  const [academicYears, setAcademicYears] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterYear, setFilterYear] = useState("");
+
+  const [showForm, setShowForm] = useState(false);
+  const [editMeeting, setEditMeeting] = useState(null);
+  const [viewMeeting, setViewMeeting] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // ── Load academic years ──────────────────────────────────────────────────
+  useEffect(() => {
+    fetchAcademicYears()
+      .then((res) => {
+        const years = safeArray(res, "academicYears");
+        setAcademicYears(years);
+        const active = years.find((y) => y.isActive);
+        if (active) setFilterYear(active.id);
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── Load meetings ────────────────────────────────────────────────────────
+  const loadMeetings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetchMeetings({
+        ...(search ? { search } : {}),
+        ...(filterType ? { type: filterType } : {}),
+        ...(filterStatus ? { status: filterStatus } : {}),
+        ...(filterYear ? { academicYearId: filterYear } : {}),
+        page,
+        limit: PAGE_SIZE,
+      });
+      setMeetings(safeArray(res, "meetings"));
+      setTotal(res.total ?? res.count ?? 0);
+    } catch (_) {}
+    setLoading(false);
+  }, [search, filterType, filterStatus, filterYear, page]);
+
+  // ── Load stats ───────────────────────────────────────────────────────────
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const res = await fetchMeetingStats(
+        filterYear ? { academicYearId: filterYear } : {},
+      );
+      setStats(res.data ?? res);
+    } catch (_) {}
+    setStatsLoading(false);
+  }, [filterYear]);
+
+  useEffect(() => {
+    loadMeetings();
+  }, [loadMeetings]);
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteMeeting(deleteTarget.id);
+      setDeleteTarget(null);
+      loadMeetings();
+      loadStats();
+    } catch (_) {}
+    setDeleting(false);
+  };
+
+  const handleSaved = () => {
+    setShowForm(false);
+    setEditMeeting(null);
+    loadMeetings();
+    loadStats();
+  };
+
+  const openEdit = (meeting) => {
+    setEditMeeting(meeting);
+    setShowForm(true);
+  };
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  const selectCls =
+    "border border-[#BDDDFC] rounded-lg px-3 py-2 text-sm text-[#384959] bg-white focus:outline-none focus:ring-2 focus:ring-[#88BDF2]";
 
   return (
     <PageLayout>
-      <div className="p-4 md:p-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+      <div className="flex flex-col min-h-full bg-gray-50">
+        {/* ── Page Header ────────────────────────────────────────────────── */}
+        <div className="bg-white border-b border-[#BDDDFC] px-6 py-4 flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-              Meetings & Events
-            </h1>
-            <p className="text-gray-500 mt-1">
-              Schedule and manage staff & parent meetings
+            <h1 className="text-xl font-semibold text-[#384959]">Meetings</h1>
+            <p className="text-sm text-[#6A89A7]">
+              Schedule and manage all school meetings
             </p>
           </div>
-          <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-              <List className="w-4 h-4" />
-              <span className="hidden sm:inline">Calendar View</span>
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition">
-              <Plus className="w-4 h-4" />
-              <span>Schedule Meeting</span>
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              setEditMeeting(null);
+              setShowForm(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#384959] text-white text-sm font-semibold rounded-xl hover:bg-[#6A89A7] transition-colors shadow-sm"
+          >
+            <Plus size={16} /> Schedule Meeting
+          </button>
         </div>
 
-        {/* Stats Cards */}
-        <MeetingStatsCards />
+        <div className="flex-1 px-6 py-5 flex flex-col gap-4">
+          {/* ── Stats ────────────────────────────────────────────────────── */}
+          <MeetingStatsCards stats={stats} loading={statsLoading} />
 
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          {/* ── Filters Bar ──────────────────────────────────────────────── */}
+          <div className="bg-white rounded-xl border border-[#BDDDFC] px-4 py-3 flex items-center gap-3 flex-wrap shadow-sm">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search
+                size={15}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6A89A7]"
+              />
               <input
-                type="text"
-                placeholder="Search by title or organizer..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-full pl-9 pr-3 py-2 border border-[#BDDDFC] rounded-lg text-sm text-[#384959] bg-white focus:outline-none focus:ring-2 focus:ring-[#88BDF2] placeholder-[#6A89A7]/50"
+                placeholder="Search meetings..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
               />
             </div>
 
-            {/* Type Filter */}
             <select
+              className={selectCls}
+              value={filterYear}
+              onChange={(e) => {
+                setFilterYear(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All Years</option>
+              {academicYears.map((ay) => (
+                <option key={ay.id} value={ay.id}>
+                  {ay.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className={selectCls}
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+              onChange={(e) => {
+                setFilterType(e.target.value);
+                setPage(1);
+              }}
             >
-              <option value="all">All Types</option>
-              <option value="Staff">Staff Meeting</option>
-              <option value="PTM">Parent Meeting</option>
-              <option value="Board">Board Meeting</option>
+              <option value="">All Types</option>
+              {MEETING_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
             </select>
 
-            {/* Status Filter */}
             <select
+              className={selectCls}
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+              onChange={(e) => {
+                setFilterStatus(e.target.value);
+                setPage(1);
+              }}
             >
-              <option value="all">All Status</option>
-              <option value="Scheduled">Scheduled</option>
-              <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
+              <option value="">All Statuses</option>
+              {MEETING_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
             </select>
 
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-              <Calendar className="w-4 h-4" />
-              <span>Date</span>
+            <button
+              onClick={() => {
+                loadMeetings();
+                loadStats();
+              }}
+              className="p-2 rounded-lg border border-[#BDDDFC] text-[#6A89A7] hover:bg-[#BDDDFC]/30 transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw size={15} />
             </button>
-          </div>
-        </div>
 
-        {/* Meetings Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Meeting Details
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell">
-                    Type
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden lg:table-cell">
-                    Schedule
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden md:table-cell">
-                    Location
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredMeetings.map((meeting) => (
-                  <MeetingTableRow key={meeting.id} meeting={meeting} />
-                ))}
-              </tbody>
-            </table>
+            <span className="text-xs text-[#6A89A7] ml-auto">
+              {total} meeting{total !== 1 ? "s" : ""}
+            </span>
           </div>
 
-          {/* Pagination */}
-          <div className="px-6 py-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-gray-600">
-              Showing{" "}
-              <span className="font-semibold">{filteredMeetings.length}</span>{" "}
-              meetings
-            </p>
-            <div className="flex gap-2">
-              <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
-                Previous
-              </button>
-              <button className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition text-sm">
-                1
-              </button>
-              <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
-                Next
-              </button>
+          {/* ── Table ────────────────────────────────────────────────────── */}
+          <div className="bg-white rounded-xl border border-[#BDDDFC] shadow-sm overflow-hidden flex-1">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-[#BDDDFC]/30 border-b border-[#BDDDFC]">
+                    {[
+                      "Title",
+                      "Type",
+                      "Date & Time",
+                      "Participants",
+                      "Classes",
+                      "Status",
+                      "Organizer",
+                      "Actions",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="px-4 py-3 text-xs font-semibold text-[#384959] uppercase tracking-wide whitespace-nowrap"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={8} className="py-16 text-center">
+                        <div className="flex items-center justify-center gap-2 text-[#6A89A7]">
+                          <Loader2 size={18} className="animate-spin" />
+                          <span className="text-sm">Loading meetings...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : meetings.length === 0 ? (
+                    <EmptyState onSchedule={() => setShowForm(true)} />
+                  ) : (
+                    meetings.map((m) => (
+                      <MeetingTableRow
+                        key={m.id}
+                        meeting={m}
+                        onView={setViewMeeting}
+                        onEdit={openEdit}
+                        onDelete={setDeleteTarget}
+                      />
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-[#BDDDFC] bg-white">
+                <span className="text-xs text-[#6A89A7]">
+                  Page {page} of {totalPages}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="p-1.5 rounded-lg border border-[#BDDDFC] text-[#6A89A7] hover:bg-[#BDDDFC]/30 disabled:opacity-40 transition-colors"
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    const p = i + 1;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setPage(p)}
+                        className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${
+                          page === p
+                            ? "bg-[#384959] text-white"
+                            : "border border-[#BDDDFC] text-[#6A89A7] hover:bg-[#BDDDFC]/30"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="p-1.5 rounded-lg border border-[#BDDDFC] text-[#6A89A7] hover:bg-[#BDDDFC]/30 disabled:opacity-40 transition-colors"
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* ── Modals ───────────────────────────────────────────────────────── */}
+        {showForm && (
+          <MeetingFormModal
+            meeting={editMeeting}
+            onClose={() => {
+              setShowForm(false);
+              setEditMeeting(null);
+            }}
+            onSaved={handleSaved}
+          />
+        )}
+
+        {viewMeeting && (
+          <MeetingViewModal
+            meeting={viewMeeting}
+            onClose={() => setViewMeeting(null)}
+            onStatusChange={() => {
+              loadMeetings();
+              loadStats();
+            }}
+          />
+        )}
+
+        {deleteTarget && (
+          <DeleteConfirm
+            meeting={deleteTarget}
+            onConfirm={handleDelete}
+            onCancel={() => setDeleteTarget(null)}
+            loading={deleting}
+          />
+        )}
       </div>
     </PageLayout>
   );
 }
-
-export default MeetingsList;

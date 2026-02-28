@@ -17,9 +17,9 @@ import {
 
 const NAV = [
   { icon: LayoutDashboard, label: "Dashboard", to: "/dashboard" },
+  { icon: BookOpen, label: "Classes", to: "/classes" },
   { icon: Users, label: "Students", to: "/students" },
   { icon: GraduationCap, label: "Teachers", to: "/teachers" },
-  { icon: BookOpen, label: "Classes", to: "/classes" },
   { icon: ClipboardCheck, label: "Attendance", to: "/attendance" },
   { icon: FileText, label: "Exams", to: "/exams" },
   { icon: DollarSign, label: "Finance", to: "/finance" },
@@ -87,7 +87,7 @@ export default function Sidebar({ isOpen, onClose, user }) {
               </p>
               <p
                 className="text-[10px] font-semibold uppercase tracking-[0.12em]"
-                style={{ color: "#6A89A7" }}
+                style={{ color: "rgb(200, 200, 200)" }}
               >
                 Admin Panel
               </p>

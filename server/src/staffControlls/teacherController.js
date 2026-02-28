@@ -1,62 +1,66 @@
 // server/src/staffControlls/teacherController.js
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
-import redisClient from "../utils/redis.js";
-
+import cacheService from "../utils/cacheService.js";
+import { uploadToR2, generateSignedUrl } from "../lib/r2.js";
 const prisma = new PrismaClient();
-const CACHE_TTL = 300;
+
 const SALT_ROUNDS = 10;
-
-const listKey = (q) => `teachers:list:${JSON.stringify(q)}`;
-
-// ── Safe Redis helpers (fail silently) ───────────────────────────────────────
-
-async function cacheGet(key) {
+// ── POST /api/teachers/:id/profile-image ──────────────────────
+export async function uploadProfileImage(req, res) {
   try {
-    return await redisClient.get(key);
+    const { id } = req.params;
+    const schoolId = req.user?.schoolId;
+
+    if (!req.file) return res.status(400).json({ error: "No file received" });
+
+    const teacher = await prisma.teacherProfile.findFirst({
+      where: { id, schoolId },
+      select: { id: true },
+    });
+    if (!teacher) return res.status(404).json({ error: "Teacher not found" });
+
+    const key = `teachers/${id}/profile/${Date.now()}-${req.file.originalname}`;
+    await uploadToR2(key, req.file.buffer, req.file.mimetype);
+
+    const updated = await prisma.teacherProfile.update({
+      where: { id },
+      data: { profileImage: key }, // store the R2 key, NOT the URL
+    });
+
+    await cacheService.invalidateSchool(schoolId);
+    res.json({ data: updated });
   } catch (err) {
-    console.error(`[Redis] GET ${key} failed:`, err.message);
-    return null;
+    console.error("[uploadProfileImage]", err);
+    res.status(500).json({ error: "Failed to upload profile image" });
   }
 }
 
-async function cacheSet(key, value) {
+// ── GET /api/teachers/:id/profile-image ───────────────────────
+export async function getProfileImage(req, res) {
   try {
-    await redisClient.setEx(key, CACHE_TTL, JSON.stringify(value));
+    const { id } = req.params;
+    const schoolId = req.user?.schoolId;
+
+    if (!req.user?.role) return res.status(401).json({ error: "Unauthorized" });
+
+    const teacher = await prisma.teacherProfile.findFirst({
+      where: { id, schoolId },
+      select: { profileImage: true },
+    });
+
+    if (!teacher?.profileImage)
+      return res.status(404).json({ error: "Profile image not found" });
+
+    const expiresIn = 86400; // 24 hours — matches student pattern
+    const signedUrl = await generateSignedUrl(teacher.profileImage, expiresIn);
+
+    res.json({ url: signedUrl, expiresIn });
   } catch (err) {
-    console.error(`[Redis] SET ${key} failed:`, err.message);
+    console.error("[getProfileImage]", err);
+    res.status(500).json({ error: "Failed to fetch profile image" });
   }
 }
-
-async function cacheDel(...keys) {
-  try {
-    await redisClient.del(keys);
-  } catch (err) {
-    console.error(`[Redis] DEL ${keys.join(", ")} failed:`, err.message);
-  }
-}
-
-// Uses SCAN instead of KEYS to avoid blocking Redis in production
-async function scanAndDelete(pattern) {
-  try {
-    let cursor = 0;
-    do {
-      const reply = await redisClient.scan(cursor, {
-        MATCH: pattern,
-        COUNT: 100,
-      });
-      cursor = reply.cursor;
-      if (reply.keys.length) await redisClient.del(reply.keys);
-    } while (cursor !== 0);
-  } catch (err) {
-    console.error(`[Redis] SCAN/DEL ${pattern} failed:`, err.message);
-  }
-}
-
-async function bustListCache() {
-  await scanAndDelete("teachers:list:*");
-}
-
 // ── GET /api/teachers ─────────────────────────────────────────
 export async function getTeachers(req, res) {
   try {
@@ -66,24 +70,39 @@ export async function getTeachers(req, res) {
       search = "",
       status = "",
       department = "",
+      employmentType = "",
     } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
     const schoolId = req.user?.schoolId;
-    const cacheKey = listKey({
-      page,
-      limit,
-      search,
-      status,
-      department,
-      schoolId,
-    });
 
-    const cached = await cacheGet(cacheKey);
-    if (cached) return res.json({ ...JSON.parse(cached), fromCache: true });
+    const cacheKey = await cacheService.buildKey(
+      schoolId,
+      `teachers:list:${JSON.stringify({ page, limit, search, status, department, employmentType })}`,
+    );
+
+    // ── Cache hit — re-sign URLs before returning ──
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      const signedData = await Promise.all(
+        parsed.data.map(async (t) => {
+          if (t.profileImage) {
+            try {
+              t.profileImage = await generateSignedUrl(t.profileImage, 86400);
+            } catch {
+              t.profileImage = null;
+            }
+          }
+          return t;
+        }),
+      );
+      return res.json({ data: signedData, meta: parsed.meta, fromCache: true });
+    }
 
     const where = {
       ...(schoolId ? { schoolId } : {}),
       ...(status && { status }),
+      ...(employmentType && { employmentType }),
       ...(department && {
         department: { contains: department, mode: "insensitive" },
       }),
@@ -116,7 +135,7 @@ export async function getTeachers(req, res) {
           status: true,
           joiningDate: true,
           phone: true,
-          profileImage: true,
+          profileImage: true, // ← raw R2 key stored here
           experienceYears: true,
           user: { select: { email: true, isActive: true } },
           assignments: {
@@ -134,18 +153,31 @@ export async function getTeachers(req, res) {
       prisma.teacherProfile.count({ where }),
     ]);
 
-    const payload = {
-      data,
-      meta: {
-        total,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(total / Number(limit)),
-      },
+    const meta = {
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(total / Number(limit)),
     };
 
-    await cacheSet(cacheKey, payload);
-    res.json({ ...payload, fromCache: false });
+    // ── Cache raw keys (NOT signed URLs — they expire) ──
+    await cacheService.set(cacheKey, { data, meta });
+
+    // ── Sign URLs only for the response ──
+    const signedData = await Promise.all(
+      data.map(async (t) => {
+        if (t.profileImage) {
+          try {
+            t.profileImage = await generateSignedUrl(t.profileImage, 86400);
+          } catch {
+            t.profileImage = null;
+          }
+        }
+        return t;
+      }),
+    );
+
+    res.json({ data: signedData, meta, fromCache: false });
   } catch (err) {
     console.error("[getTeachers]", err);
     res.status(500).json({ error: "Failed to fetch teachers" });
@@ -156,13 +188,24 @@ export async function getTeachers(req, res) {
 export async function getTeacherById(req, res) {
   try {
     const { id } = req.params;
-    const key = `teachers:${id}`;
+    const schoolId = req.user?.schoolId;
+    const cacheKey = await cacheService.buildKey(schoolId, `teachers:${id}`);
 
-    const cached = await cacheGet(key);
-    if (cached) return res.json({ data: JSON.parse(cached), fromCache: true });
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      const teacher = JSON.parse(cached);
+      // Refresh signed URL on every fetch — URLs expire after 24h
+      if (teacher.profileImage) {
+        teacher.profileImage = await generateSignedUrl(
+          teacher.profileImage,
+          86400,
+        );
+      }
+      return res.json({ data: teacher, fromCache: true });
+    }
 
-    const teacher = await prisma.teacherProfile.findUnique({
-      where: { id },
+    const teacher = await prisma.teacherProfile.findFirst({
+      where: { id, schoolId },
       include: {
         user: {
           select: { id: true, email: true, isActive: true, lastLoginAt: true },
@@ -194,7 +237,17 @@ export async function getTeacherById(req, res) {
 
     if (!teacher) return res.status(404).json({ error: "Teacher not found" });
 
-    await cacheSet(key, teacher);
+    // Cache the raw key, NOT the signed URL (URLs expire)
+    await cacheService.set(cacheKey, teacher);
+
+    // Generate signed URL after caching
+    if (teacher.profileImage) {
+      teacher.profileImage = await generateSignedUrl(
+        teacher.profileImage,
+        86400,
+      );
+    }
+
     res.json({ data: teacher, fromCache: false });
   } catch (err) {
     console.error("[getTeacherById]", err);
@@ -281,7 +334,7 @@ export async function createTeacher(req, res) {
       });
     });
 
-    await bustListCache();
+    await cacheService.invalidateSchool(schoolId);
     res.status(201).json({ data: teacher });
   } catch (err) {
     if (err.code === "P2002")
@@ -329,11 +382,13 @@ export async function updateTeacher(req, res) {
     if (data.dateOfBirth) data.dateOfBirth = new Date(data.dateOfBirth);
     if (data.experienceYears)
       data.experienceYears = Number(data.experienceYears);
-    if (data.salary) data.salary = Number(data.salary);
-
+    if (data.salary !== undefined) {
+      data.salary = data.salary ? Number(data.salary) : null;
+    }
     const updated = await prisma.teacherProfile.update({ where: { id }, data });
 
-    await Promise.all([bustListCache(), cacheDel(`teachers:${id}`)]);
+    const schoolId = req.user?.schoolId;
+    await cacheService.invalidateSchool(schoolId);
     res.json({ data: updated });
   } catch (err) {
     console.error("[updateTeacher]", err);
@@ -349,7 +404,9 @@ export async function deleteTeacher(req, res) {
       where: { id },
       data: { status: "RESIGNED" },
     });
-    await Promise.all([bustListCache(), cacheDel(`teachers:${id}`)]);
+    const schoolId = req.user?.schoolId;
+
+    await cacheService.invalidateSchool(schoolId);
     res.json({ message: "Teacher marked as resigned" });
   } catch (err) {
     console.error("[deleteTeacher]", err);
@@ -362,6 +419,7 @@ export async function addAssignment(req, res) {
   try {
     const { id: teacherId } = req.params;
     const { classSectionId, subjectId, academicYearId } = req.body;
+    const schoolId = req.user?.schoolId;
 
     if (!classSectionId || !subjectId || !academicYearId)
       return res.status(400).json({
@@ -377,13 +435,15 @@ export async function addAssignment(req, res) {
       },
     });
 
-    await cacheDel(`teachers:${teacherId}`);
+    await cacheService.invalidateSchool(schoolId);
+
     res.status(201).json({ data: assignment });
   } catch (err) {
     if (err.code === "P2002")
       return res.status(409).json({
         error: "This teacher is already assigned to this subject in this class",
       });
+
     console.error("[addAssignment]", err);
     res.status(500).json({ error: "Failed to add assignment" });
   }
@@ -393,8 +453,12 @@ export async function addAssignment(req, res) {
 export async function removeAssignment(req, res) {
   try {
     const { id: teacherId, aId } = req.params;
+    const schoolId = req.user?.schoolId;
+
     await prisma.teacherAssignment.delete({ where: { id: aId } });
-    await cacheDel(`teachers:${teacherId}`);
+
+    await cacheService.invalidateSchool(schoolId);
+
     res.json({ message: "Assignment removed" });
   } catch (err) {
     console.error("[removeAssignment]", err);
