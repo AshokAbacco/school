@@ -597,14 +597,81 @@ function StatCard({ title, value, sub }) {
 }
 
 // ── Quick Card ────────────────────────────────────────────────────────────────
+// function QuickCard({ icon: Icon, title, desc, onClick, accent, badge }) {
+//   const [hov, setHov] = useState(false);
+//   return (
+//     <button
+//       onClick={onClick}
+//       onMouseEnter={() => setHov(true)}
+//       onMouseLeave={() => setHov(false)}
+//       style={{
+//         background: hov ? C.pale : C.card,
+//         border: `1.5px solid ${hov ? C.light : C.border}`,
+//         borderRadius: 16,
+//         padding: "16px 18px",
+//         cursor: "pointer",
+//         textAlign: "left",
+//         transition: "all 0.18s",
+//         fontFamily: "Inter, sans-serif",
+//         display: "flex",
+//         flexDirection: "column",
+//         gap: 8,
+//         position: "relative",
+//       }}
+//     >
+//       {badge && (
+//         <span
+//           style={{
+//             position: "absolute",
+//             top: 8,
+//             right: 10,
+//             fontSize: 9,
+//             fontWeight: 700,
+//             background: accent + "22",
+//             color: accent,
+//             padding: "2px 6px",
+//             borderRadius: 99,
+//             letterSpacing: "0.5px",
+//           }}
+//         >
+//           {badge}
+//         </span>
+//       )}
+//       <div
+//         style={{
+//           width: 38,
+//           height: 38,
+//           borderRadius: 10,
+//           background: hov ? accent + "22" : "rgba(189,221,252,0.18)",
+//           display: "flex",
+//           alignItems: "center",
+//           justifyContent: "center",
+//         }}
+//       >
+//         <Icon size={18} style={{ color: hov ? accent : C.mid }} />
+//       </div>
+//       <div>
+//         <p className="text-sm font-semibold" style={{ color: C.primary }}>
+//           {title}
+//         </p>
+//         <p className="text-xs" style={{ color: C.mid }}>
+//           {desc}
+//         </p>
+//       </div>
+//     </button>
+//   );
+// }
 function QuickCard({ icon: Icon, title, desc, onClick, accent, badge }) {
   const [hov, setHov] = useState(false);
+
   return (
     <button
+      className="w-full h-full"
       onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
+        height: "100%",
         background: hov ? C.pale : C.card,
         border: `1.5px solid ${hov ? C.light : C.border}`,
         borderRadius: 16,
