@@ -265,7 +265,9 @@ function admDate(idx) {
   return new Date(`${2021 + (idx % 4)}-06-01`);
 }
 
-// ── Timetable slot builder ────────────────────────────────────────────────────
+// ── Period definition builder (replaces old buildSlots) ──────────────────────
+// ✅ UPDATED: builds PeriodDefinition rows (not TimetablePeriodSlot rows)
+// Matches exactly what buildPeriodDefinitions() in timetableConfigController does
 function t2m(t) {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
@@ -274,35 +276,41 @@ function m2t(m) {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
-function buildSlots(cfg, orderOffset = 0, prefix = "") {
-  const slots = [];
-  let order = 1 + orderOffset;
+function buildPeriodDefinitionData(cfg, dayType) {
+  const defs = [];
+  let order = 1;
   let cur = t2m(cfg.startTime);
   const bm = {};
   (cfg.breaks || []).forEach((b) => (bm[b.afterPeriod] = b));
 
   for (let i = 1; i <= cfg.totalPeriods; i++) {
-    slots.push({
-      slotOrder: order++,
+    defs.push({
+      periodNumber: i,
+      label: dayType === "SATURDAY" ? `Sat Period ${i}` : `Period ${i}`,
       slotType: "PERIOD",
-      label: prefix ? `${prefix} Period ${i}` : `Period ${i}`,
+      dayType,
       startTime: m2t(cur),
       endTime: m2t(cur + cfg.periodDuration),
+      order: order++,
     });
     cur += cfg.periodDuration;
+
     if (bm[i]) {
       const b = bm[i];
-      slots.push({
-        slotOrder: order++,
-        slotType: b.type,
-        label: prefix ? `${prefix} ${b.label}` : b.label,
+      // Break periodNumber convention: 100 + afterPeriod (matches controller)
+      defs.push({
+        periodNumber: 100 + i,
+        label: dayType === "SATURDAY" ? `Sat ${b.label}` : b.label,
+        slotType: b.type || "SHORT_BREAK",
+        dayType,
         startTime: m2t(cur),
         endTime: m2t(cur + b.duration),
+        order: order++,
       });
       cur += b.duration;
     }
   }
-  return slots;
+  return defs;
 }
 
 const WD_CFG = {
@@ -332,8 +340,15 @@ const ALL_DAYS = [
 ];
 
 // ── Conflict-free timetable builder ──────────────────────────────────────────
-function buildTimetables(wdSlots, satSlots, subjects, tBySubject, sections) {
-  // busy[teacherId][day][slotId] = true
+// ✅ UPDATED: uses periodDefinitionId (not periodSlotId)
+function buildTimetables(
+  wdPeriodDefs,
+  satPeriodDefs,
+  subjects,
+  tBySubject,
+  sections,
+) {
+  // busy[teacherId][day][defId] = true
   const busy = {};
   for (const pool of Object.values(tBySubject))
     for (const t of pool) {
@@ -346,9 +361,10 @@ function buildTimetables(wdSlots, satSlots, subjects, tBySubject, sections) {
 
   for (let di = 0; di < ALL_DAYS.length; di++) {
     const day = ALL_DAYS[di];
-    const slots = day === "SATURDAY" ? satSlots : wdSlots;
-    for (let si = 0; si < slots.length; si++) {
-      const slot = slots[si];
+    // ✅ Use periodDefinition objects (not slot objects)
+    const defs = day === "SATURDAY" ? satPeriodDefs : wdPeriodDefs;
+    for (let si = 0; si < defs.length; si++) {
+      const def = defs[si];
       for (let ci = 0; ci < sections.length; ci++) {
         const cs = sections[ci];
         const subIdx = (ci + si + di * 3) % subjects.length;
@@ -356,11 +372,11 @@ function buildTimetables(wdSlots, satSlots, subjects, tBySubject, sections) {
         const pool = tBySubject[subIdx];
         let assigned = false;
         for (const teacher of pool) {
-          if (!busy[teacher.id][day][slot.id]) {
-            busy[teacher.id][day][slot.id] = true;
+          if (!busy[teacher.id][day][def.id]) {
+            busy[teacher.id][day][def.id] = true;
             result.get(cs.id).push({
               day,
-              periodSlotId: slot.id,
+              periodDefinitionId: def.id, // ✅ UPDATED: was periodSlotId
               subjectId: subject.id,
               teacherId: teacher.id,
             });
@@ -369,7 +385,7 @@ function buildTimetables(wdSlots, satSlots, subjects, tBySubject, sections) {
           }
         }
         if (!assigned)
-          console.warn(`⚠️  No free teacher: ${cs.name} ${day} ${slot.label}`);
+          console.warn(`⚠️  No free teacher: ${cs.name} ${day} ${def.label}`);
       }
     }
   }
@@ -441,41 +457,45 @@ async function createTeachers(school, password, teacherDefs) {
 }
 
 // ── Timetable config factory ──────────────────────────────────────────────────
+// ✅ UPDATED: Creates TimetableConfig + PeriodDefinition rows (not old slots)
+//    TimetableConfig no longer has startTime/endTime/periodDuration/totalPeriods/slots
 async function createTimetableConfig(school, ay) {
   let cfg = await prisma.timetableConfig.findUnique({
     where: {
       schoolId_academicYearId: { schoolId: school.id, academicYearId: ay.id },
     },
-    include: { slots: { orderBy: { slotOrder: "asc" } } },
+    include: { periodDefinitions: { orderBy: { order: "asc" } } },
   });
+
   if (!cfg) {
+    const wdDefData = buildPeriodDefinitionData(WD_CFG, "WEEKDAY");
+    const satDefData = buildPeriodDefinitionData(SAT_CFG, "SATURDAY");
+    const totalDefs = [...wdDefData, ...satDefData];
+
     cfg = await prisma.timetableConfig.create({
       data: {
         schoolId: school.id,
         academicYearId: ay.id,
-        startTime: "08:00",
-        endTime: "14:30",
-        periodDuration: 40,
-        totalPeriods: 7,
-        slots: {
-          createMany: {
-            data: [
-              ...buildSlots(WD_CFG, 0, ""),
-              ...buildSlots(SAT_CFG, 1000, "[Sat]"),
-            ],
-          },
+        weekdayTotalPeriods: WD_CFG.totalPeriods,
+        saturdayTotalPeriods: SAT_CFG.totalPeriods,
+        periodDefinitions: {
+          createMany: { data: totalDefs },
         },
       },
-      include: { slots: { orderBy: { slotOrder: "asc" } } },
+      include: { periodDefinitions: { orderBy: { order: "asc" } } },
     });
   }
-  const wdSlots = cfg.slots.filter(
-    (s) => s.slotType === "PERIOD" && s.slotOrder < 1000,
+
+  // ✅ UPDATED: filter from periodDefinitions (not cfg.slots)
+  // Only PERIOD slotType rows are used for timetable entry assignment
+  const wdPeriodDefs = cfg.periodDefinitions.filter(
+    (d) => d.slotType === "PERIOD" && d.dayType === "WEEKDAY",
   );
-  const satSlots = cfg.slots.filter(
-    (s) => s.slotType === "PERIOD" && s.slotOrder >= 1000,
+  const satPeriodDefs = cfg.periodDefinitions.filter(
+    (d) => d.slotType === "PERIOD" && d.dayType === "SATURDAY",
   );
-  return { wdSlots, satSlots };
+
+  return { configId: cfg.id, wdPeriodDefs, satPeriodDefs };
 }
 
 // ── Student + parent seeder for one class section ─────────────────────────────
@@ -500,7 +520,6 @@ async function seedStudents({ school, ay, cs, count, baseAge, password }) {
           name: `${fn} ${ln}`,
           email,
           password,
-          admissionNumber: an,
           schoolId: school.id,
         },
       });
@@ -519,9 +538,6 @@ async function seedStudents({ school, ay, cs, count, baseAge, password }) {
         city: CITIES[ci],
         state: STATES[ci],
         zipCode: ZIPS[ci],
-        admissionDate: admDate(sn),
-        status: "ACTIVE",
-        rollNumber: rn,
         bloodGroup: pick(BLOOD_GROUPS, sn),
         parentName: `${pick(PARENT_NAMES, sn)} ${ln}`,
         parentEmail: `parent${pn}@gmail.com`,
@@ -536,6 +552,8 @@ async function seedStudents({ school, ay, cs, count, baseAge, password }) {
       },
       update: {},
       create: {
+        admissionNumber: an,
+        admissionDate: admDate(sn),
         studentId: stu.id,
         classSectionId: cs.id,
         academicYearId: ay.id,
@@ -625,21 +643,23 @@ async function linkSubjectsAndTeachers({
 }
 
 // ── Timetable entry writer ────────────────────────────────────────────────────
+// ✅ UPDATED: uses periodDefinitionId + configId (not periodSlotId) in createMany data
 async function writeTimetable(
   school,
   ay,
   subjects,
   tBySubject,
   allSections,
-  wdSlots,
-  satSlots,
+  wdPeriodDefs,
+  satPeriodDefs,
+  configId,
 ) {
   await prisma.timetableEntry.deleteMany({
     where: { schoolId: school.id, academicYearId: ay.id },
   });
   const ttMap = buildTimetables(
-    wdSlots,
-    satSlots,
+    wdPeriodDefs,
+    satPeriodDefs,
     subjects,
     tBySubject,
     allSections,
@@ -654,9 +674,10 @@ async function writeTimetable(
           academicYearId: ay.id,
           classSectionId: cs.id,
           day: e.day,
-          periodSlotId: e.periodSlotId,
+          periodDefinitionId: e.periodDefinitionId, // ✅ UPDATED: was periodSlotId
           subjectId: e.subjectId,
           teacherId: e.teacherId,
+          configId, // ✅ NEW: required FK to TimetableConfig
         })),
       });
     }
@@ -703,15 +724,42 @@ async function seedSchool(university, password) {
     },
   });
   console.log("   ✅  Admin: admin1@gmail.com");
+  // Finance Admin
+  const financeUser = await prisma.user.upsert({
+    where: {
+      email_schoolId: { email: "finance1@gmail.com", schoolId: school.id },
+    },
+    update: {},
+    create: {
+      name: "Finance Admin",
+      email: "finance1@gmail.com",
+      password,
+      role: "FINANCE",
+      schoolId: school.id,
+    },
+  });
 
+  await prisma.financeProfile.upsert({
+    where: { userId: financeUser.id },
+    update: {},
+    create: {
+      userId: financeUser.id,
+      schoolId: school.id,
+      employeeCode: "FIN-001",
+      designation: "Finance Officer",
+      phone: "9000000001",
+    },
+  });
+
+  console.log("   💰  Finance Admin: finance1@gmail.com");
   await prisma.schoolPromotionConfig.upsert({
     where: { schoolId: school.id },
     update: {},
     create: {
       schoolId: school.id,
-      skipGrades: ["Grade 7"],
-      lastGrade: "Grade 10",
-      firstGrade: "Grade 1",
+      skipGrades: ["7"],
+      lastGrade: "10",
+      firstGrade: "1",
     },
   });
 
@@ -779,20 +827,12 @@ async function seedSchool(university, password) {
     `   ✅  ${allProfiles.length} teachers  (teacher${tStart}@gmail.com … teacher${TEACHER_CTR - 1}@gmail.com)`,
   );
 
-  const { wdSlots, satSlots } = await createTimetableConfig(school, ay);
+  const { configId, wdPeriodDefs, satPeriodDefs } = await createTimetableConfig(
+    school,
+    ay,
+  );
 
-  const GRADES = [
-    "Grade 1",
-    "Grade 2",
-    "Grade 3",
-    "Grade 4",
-    "Grade 5",
-    "Grade 6",
-    "Grade 7",
-    "Grade 8",
-    "Grade 9",
-    "Grade 10",
-  ];
+  const GRADES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
   const SECTIONS = ["A", "B"];
   const allSections = [];
   let ctIdx = 0;
@@ -840,12 +880,13 @@ async function seedSchool(university, password) {
     subjects,
     tBySubject,
     allSections,
-    wdSlots,
-    satSlots,
+    wdPeriodDefs,
+    satPeriodDefs,
+    configId,
   );
   console.log(`   ✅  ${totalTT} timetable entries`);
 
-  const COUNT = 120; // 120 students per section
+  const COUNT = 120;
   const stuStart = STUDENT_CTR;
   console.log(
     `   👨‍🎓  Seeding ${COUNT} students/section × ${allSections.length} sections…`,
@@ -864,11 +905,7 @@ async function seedSchool(university, password) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  2. PUC  —  Grade 11–12
-//             Science  (hasCombinations:true) : PCMB (A,B), PCMC (A,B)
-//             Commerce (hasCombinations:true) : CEBA (A,B), SEBA (A,B)
-//             Arts     (hasCombinations:false): HEP  (A,B)
-//             110 students/section
+//  2. PUC  —  11–12
 // ═══════════════════════════════════════════════════════════════════════════════
 async function seedPUC(university, password) {
   console.log("\n╔══════════════════════════════════════╗");
@@ -905,6 +942,34 @@ async function seedPUC(university, password) {
     },
   });
   console.log("   ✅  Admin: admin2@gmail.com");
+  // Finance Admin
+  const financeUser = await prisma.user.upsert({
+    where: {
+      email_schoolId: { email: "finance2@gmail.com", schoolId: school.id },
+    },
+    update: {},
+    create: {
+      name: "Finance Admin",
+      email: "finance2@gmail.com",
+      password,
+      role: "FINANCE",
+      schoolId: school.id,
+    },
+  });
+
+  await prisma.financeProfile.upsert({
+    where: { userId: financeUser.id },
+    update: {},
+    create: {
+      userId: financeUser.id,
+      schoolId: school.id,
+      employeeCode: "FIN-002",
+      designation: "Finance Officer",
+      phone: "9000000002",
+    },
+  });
+
+  console.log("   💰  Finance Admin: finance2@gmail.com");
 
   await prisma.schoolPromotionConfig.upsert({
     where: { schoolId: school.id },
@@ -912,8 +977,8 @@ async function seedPUC(university, password) {
     create: {
       schoolId: school.id,
       skipGrades: [],
-      lastGrade: "Grade 12",
-      firstGrade: "Grade 11",
+      lastGrade: "12",
+      firstGrade: "11",
     },
   });
 
@@ -929,7 +994,7 @@ async function seedPUC(university, password) {
     },
   });
 
-  // ── Streams (with hasCombinations field) ──────────────────────────────────
+  // ── Streams ────────────────────────────────────────────────────────────────
   const sciStream = await prisma.stream.upsert({
     where: { name_schoolId: { name: "Science", schoolId: school.id } },
     update: { hasCombinations: true },
@@ -965,33 +1030,30 @@ async function seedPUC(university, password) {
   );
 
   // ── StreamCombination records ──────────────────────────────────────────────
-  // Science combinations
   const pcmb = await prisma.streamCombination.upsert({
     where: { name_streamId: { name: "PCMB", streamId: sciStream.id } },
     update: {},
-    create: { name: "PCMB", code: "PCMB", streamId: sciStream.id }, // Physics Chemistry Math Biology
+    create: { name: "PCMB", code: "PCMB", streamId: sciStream.id },
   });
   const pcmc = await prisma.streamCombination.upsert({
     where: { name_streamId: { name: "PCMC", streamId: sciStream.id } },
     update: {},
-    create: { name: "PCMC", code: "PCMC", streamId: sciStream.id }, // Physics Chemistry Math Computer Science
+    create: { name: "PCMC", code: "PCMC", streamId: sciStream.id },
   });
-  // Commerce combinations
   const ceba = await prisma.streamCombination.upsert({
     where: { name_streamId: { name: "CEBA", streamId: comStream.id } },
     update: {},
-    create: { name: "CEBA", code: "CEBA", streamId: comStream.id }, // Commerce Economics Business Accountancy
+    create: { name: "CEBA", code: "CEBA", streamId: comStream.id },
   });
   const seba = await prisma.streamCombination.upsert({
     where: { name_streamId: { name: "SEBA", streamId: comStream.id } },
     update: {},
-    create: { name: "SEBA", code: "SEBA", streamId: comStream.id }, // Statistics Economics Business Accountancy
+    create: { name: "SEBA", code: "SEBA", streamId: comStream.id },
   });
-  // Arts — no combinations, but we create HEP as an optional grouping label
   const hep = await prisma.streamCombination.upsert({
     where: { name_streamId: { name: "HEP", streamId: artsStream.id } },
     update: {},
-    create: { name: "HEP", code: "HEP", streamId: artsStream.id }, // History Economics Political Science
+    create: { name: "HEP", code: "HEP", streamId: artsStream.id },
   });
   console.log(
     "   ✅  Combinations: PCMB, PCMC (Science) | CEBA, SEBA (Commerce) | HEP (Arts)",
@@ -1029,52 +1091,39 @@ async function seedPUC(university, password) {
   const { allProfiles, tBySubject } = await createTeachers(school, password, {
     subjectDefs: SUBJ_DEFS,
     defs: [
-      // Physics (3 teachers)
       { n: 1, fn: "Rajan", ln: "Nair", dept: "Physics", si: 0 },
       { n: 2, fn: "Savitha", ln: "Menon", dept: "Physics", si: 0 },
       { n: 3, fn: "Arun", ln: "Kumar", dept: "Physics", si: 0 },
-      // Chemistry (3)
       { n: 4, fn: "Lakshmi", ln: "Sharma", dept: "Chemistry", si: 1 },
       { n: 5, fn: "Suresh", ln: "Pillai", dept: "Chemistry", si: 1 },
       { n: 6, fn: "Usha", ln: "Rao", dept: "Chemistry", si: 1 },
-      // Mathematics (3)
       { n: 7, fn: "Praveen", ln: "Iyer", dept: "Mathematics", si: 2 },
       { n: 8, fn: "Geetha", ln: "Verma", dept: "Mathematics", si: 2 },
       { n: 9, fn: "Ramesh", ln: "Patel", dept: "Mathematics", si: 2 },
-      // Biology (3)
       { n: 10, fn: "Nalini", ln: "Reddy", dept: "Biology", si: 3 },
       { n: 11, fn: "Shankar", ln: "Singh", dept: "Biology", si: 3 },
       { n: 12, fn: "Vidya", ln: "Joshi", dept: "Biology", si: 3 },
-      // Computer Science (3)
       { n: 13, fn: "Meera", ln: "Bose", dept: "Computer Science", si: 4 },
       { n: 14, fn: "Anil", ln: "Shah", dept: "Computer Science", si: 4 },
       { n: 15, fn: "Sundar", ln: "Ghosh", dept: "Computer Science", si: 4 },
-      // English (3)
       { n: 16, fn: "Pradeep", ln: "Gupta", dept: "English", si: 5 },
       { n: 17, fn: "Hema", ln: "Nambiar", dept: "English", si: 5 },
       { n: 18, fn: "Karthik", ln: "Desai", dept: "English", si: 5 },
-      // Economics (3)
       { n: 19, fn: "Anand", ln: "Iyer", dept: "Economics", si: 6 },
       { n: 20, fn: "Preeti", ln: "Mishra", dept: "Economics", si: 6 },
       { n: 21, fn: "Girish", ln: "Shetty", dept: "Economics", si: 6 },
-      // Commerce (3)
       { n: 22, fn: "Mohan", ln: "Das", dept: "Commerce", si: 7 },
       { n: 23, fn: "Kavitha", ln: "Hegde", dept: "Commerce", si: 7 },
       { n: 24, fn: "Ravi", ln: "Naidu", dept: "Commerce", si: 7 },
-      // Accountancy (3)
       { n: 25, fn: "Seema", ln: "Kamath", dept: "Accountancy", si: 8 },
       { n: 26, fn: "Vinod", ln: "Chandra", dept: "Accountancy", si: 8 },
       { n: 27, fn: "Rekha", ln: "Tiwari", dept: "Accountancy", si: 8 },
-      // Business Studies (2)
       { n: 28, fn: "Girish", ln: "Kulkarni", dept: "Business Studies", si: 9 },
       { n: 29, fn: "Nisha", ln: "Dubey", dept: "Business Studies", si: 9 },
-      // Statistics (2)
       { n: 30, fn: "Satish", ln: "Pandey", dept: "Statistics", si: 10 },
       { n: 31, fn: "Swati", ln: "Trivedi", dept: "Statistics", si: 10 },
-      // History (2)
       { n: 32, fn: "Hemant", ln: "Rajan", dept: "History", si: 11 },
       { n: 33, fn: "Archana", ln: "Krishnan", dept: "History", si: 11 },
-      // Political Science (2)
       {
         n: 34,
         fn: "Deepak",
@@ -1083,7 +1132,6 @@ async function seedPUC(university, password) {
         si: 12,
       },
       { n: 35, fn: "Padma", ln: "Balaji", dept: "Political Science", si: 12 },
-      // Sociology (2)
       { n: 36, fn: "Kiran", ln: "Gowda", dept: "Sociology", si: 13 },
       { n: 37, fn: "Sunita", ln: "Yadav", dept: "Sociology", si: 13 },
     ],
@@ -1092,141 +1140,137 @@ async function seedPUC(university, password) {
     `   ✅  ${allProfiles.length} teachers  (teacher${tStart}@gmail.com … teacher${TEACHER_CTR - 1}@gmail.com)`,
   );
 
-  const { wdSlots, satSlots } = await createTimetableConfig(school, ay);
+  const { configId, wdPeriodDefs, satPeriodDefs } = await createTimetableConfig(
+    school,
+    ay,
+  );
 
-  // ── Section definitions ────────────────────────────────────────────────────
-  // Each row: [streamObj, combinationObj, grade, section, displayName]
   const SECTION_DEFS = [
-    // Science — PCMB
     {
       stream: sciStream,
       combo: pcmb,
-      grade: "Grade 11",
+      grade: "11",
       sec: "A",
-      name: "Grade 11-A Science/PCMB",
+      name: "11-A Science/PCMB",
     },
     {
       stream: sciStream,
       combo: pcmb,
-      grade: "Grade 11",
+      grade: "11",
       sec: "B",
-      name: "Grade 11-B Science/PCMB",
+      name: "11-B Science/PCMB",
     },
     {
       stream: sciStream,
       combo: pcmb,
-      grade: "Grade 12",
+      grade: "12",
       sec: "A",
-      name: "Grade 12-A Science/PCMB",
+      name: "12-A Science/PCMB",
     },
     {
       stream: sciStream,
       combo: pcmb,
-      grade: "Grade 12",
+      grade: "12",
       sec: "B",
-      name: "Grade 12-B Science/PCMB",
+      name: "12-B Science/PCMB",
     },
-    // Science — PCMC
     {
       stream: sciStream,
       combo: pcmc,
-      grade: "Grade 11",
+      grade: "11",
       sec: "C",
-      name: "Grade 11-C Science/PCMC",
+      name: "11-C Science/PCMC",
     },
     {
       stream: sciStream,
       combo: pcmc,
-      grade: "Grade 11",
+      grade: "11",
       sec: "D",
-      name: "Grade 11-D Science/PCMC",
+      name: "11-D Science/PCMC",
     },
     {
       stream: sciStream,
       combo: pcmc,
-      grade: "Grade 12",
+      grade: "12",
       sec: "C",
-      name: "Grade 12-C Science/PCMC",
+      name: "12-C Science/PCMC",
     },
     {
       stream: sciStream,
       combo: pcmc,
-      grade: "Grade 12",
+      grade: "12",
       sec: "D",
-      name: "Grade 12-D Science/PCMC",
+      name: "12-D Science/PCMC",
     },
-    // Commerce — CEBA
     {
       stream: comStream,
       combo: ceba,
-      grade: "Grade 11",
+      grade: "11",
       sec: "A",
-      name: "Grade 11-A Commerce/CEBA",
+      name: "11-A Commerce/CEBA",
     },
     {
       stream: comStream,
       combo: ceba,
-      grade: "Grade 11",
+      grade: "11",
       sec: "B",
-      name: "Grade 11-B Commerce/CEBA",
+      name: "11-B Commerce/CEBA",
     },
     {
       stream: comStream,
       combo: ceba,
-      grade: "Grade 12",
+      grade: "12",
       sec: "A",
-      name: "Grade 12-A Commerce/CEBA",
+      name: "12-A Commerce/CEBA",
     },
     {
       stream: comStream,
       combo: ceba,
-      grade: "Grade 12",
+      grade: "12",
       sec: "B",
-      name: "Grade 12-B Commerce/CEBA",
-    },
-    // Commerce — SEBA
-    {
-      stream: comStream,
-      combo: seba,
-      grade: "Grade 11",
-      sec: "C",
-      name: "Grade 11-C Commerce/SEBA",
+      name: "12-B Commerce/CEBA",
     },
     {
       stream: comStream,
       combo: seba,
-      grade: "Grade 12",
+      grade: "11",
       sec: "C",
-      name: "Grade 12-C Commerce/SEBA",
+      name: "11-C Commerce/SEBA",
     },
-    // Arts — HEP
+    {
+      stream: comStream,
+      combo: seba,
+      grade: "12",
+      sec: "C",
+      name: "12-C Commerce/SEBA",
+    },
     {
       stream: artsStream,
       combo: hep,
-      grade: "Grade 11",
+      grade: "11",
       sec: "A",
-      name: "Grade 11-A Arts/HEP",
+      name: "11-A Arts/HEP",
     },
     {
       stream: artsStream,
       combo: hep,
-      grade: "Grade 11",
+      grade: "11",
       sec: "B",
-      name: "Grade 11-B Arts/HEP",
+      name: "11-B Arts/HEP",
     },
     {
       stream: artsStream,
       combo: hep,
-      grade: "Grade 12",
+      grade: "12",
       sec: "A",
-      name: "Grade 12-A Arts/HEP",
+      name: "12-A Arts/HEP",
     },
     {
       stream: artsStream,
       combo: hep,
-      grade: "Grade 12",
+      grade: "12",
       sec: "B",
-      name: "Grade 12-B Arts/HEP",
+      name: "12-B Arts/HEP",
     },
   ];
 
@@ -1251,7 +1295,7 @@ async function seedPUC(university, password) {
           name: def.name,
           schoolId: school.id,
           streamId: def.stream.id,
-          combinationId: def.combo.id, // ← new field
+          combinationId: def.combo.id,
         },
       });
 
@@ -1294,12 +1338,13 @@ async function seedPUC(university, password) {
     subjects,
     tBySubject,
     allSections,
-    wdSlots,
-    satSlots,
+    wdPeriodDefs,
+    satPeriodDefs,
+    configId,
   );
   console.log(`   ✅  ${totalTT} timetable entries`);
 
-  const COUNT = 110; // 110 students per section
+  const COUNT = 110;
   const stuStart = STUDENT_CTR;
   console.log(
     `   👨‍🎓  Seeding ${COUNT} students/section × ${allSections.length} sections…`,
@@ -1319,9 +1364,6 @@ async function seedPUC(university, password) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  3. DEGREE
-//     BE  (hasBranches:true)  — CSE, ECE, ME — Semester 1–8, Section A
-//     BA  (hasBranches:false) — Semester 1–6, Sections A & B
-//     100 students/section
 // ═══════════════════════════════════════════════════════════════════════════════
 async function seedDegree(university, password) {
   console.log("\n╔══════════════════════════════════════╗");
@@ -1358,6 +1400,34 @@ async function seedDegree(university, password) {
     },
   });
   console.log("   ✅  Admin: admin3@gmail.com");
+  // Finance Admin
+  const financeUser = await prisma.user.upsert({
+    where: {
+      email_schoolId: { email: "finance3@gmail.com", schoolId: school.id },
+    },
+    update: {},
+    create: {
+      name: "Finance Admin",
+      email: "finance3@gmail.com",
+      password,
+      role: "FINANCE",
+      schoolId: school.id,
+    },
+  });
+
+  await prisma.financeProfile.upsert({
+    where: { userId: financeUser.id },
+    update: {},
+    create: {
+      userId: financeUser.id,
+      schoolId: school.id,
+      employeeCode: "FIN-003",
+      designation: "Finance Officer",
+      phone: "9000000003",
+    },
+  });
+
+  console.log("   💰  Finance Admin: finance3@gmail.com");
 
   await prisma.schoolPromotionConfig.upsert({
     where: { schoolId: school.id },
@@ -1382,7 +1452,7 @@ async function seedDegree(university, password) {
     },
   });
 
-  // ── Courses (with hasBranches field) ──────────────────────────────────────
+  // ── Courses ────────────────────────────────────────────────────────────────
   const beCourse = await prisma.course.upsert({
     where: { name_schoolId: { name: "BE", schoolId: school.id } },
     update: { hasBranches: true },
@@ -1395,7 +1465,7 @@ async function seedDegree(university, password) {
       schoolId: school.id,
     },
   });
-  const baBranches_none = await prisma.course.upsert({
+  const baCourse = await prisma.course.upsert({
     where: { name_schoolId: { name: "BA", schoolId: school.id } },
     update: { hasBranches: false },
     create: {
@@ -1407,9 +1477,7 @@ async function seedDegree(university, password) {
       schoolId: school.id,
     },
   });
-  const baCourse = baBranches_none;
 
-  // BE branches
   const beBranches = [];
   for (const d of [
     { name: "Computer Science & Engineering", code: "CSE" },
@@ -1481,7 +1549,10 @@ async function seedDegree(university, password) {
     `   ✅  ${allProfiles.length} teachers  (teacher${tStart}@gmail.com … teacher${TEACHER_CTR - 1}@gmail.com)`,
   );
 
-  const { wdSlots, satSlots } = await createTimetableConfig(school, ay);
+  const { configId, wdPeriodDefs, satPeriodDefs } = await createTimetableConfig(
+    school,
+    ay,
+  );
 
   const BE_SEMS = [
     "Semester 1",
@@ -1619,12 +1690,13 @@ async function seedDegree(university, password) {
     subjects,
     tBySubject,
     allSections,
-    wdSlots,
-    satSlots,
+    wdPeriodDefs,
+    satPeriodDefs,
+    configId,
   );
   console.log(`   ✅  ${totalTT} timetable entries`);
 
-  const COUNT = 100; // 100 students per section
+  const COUNT = 100;
   const stuStart = STUDENT_CTR;
   console.log(
     `   👨‍🎓  Seeding ${COUNT} students/section × ${allSections.length} sections…`,
@@ -1649,7 +1721,6 @@ async function main() {
   console.log("🌱  Springfield Multi-Institution Seed Starting…\n");
   const password = await bcrypt.hash(DEFAULT_PASSWORD, SALT_ROUNDS);
 
-  // University
   console.log("📚  Creating Springfield University…");
   const university = await prisma.university.upsert({
     where: { code: "SPRINGFIELD_UNI" },
@@ -1666,7 +1737,6 @@ async function main() {
     },
   });
 
-  // Super Admin
   console.log("👑  Creating Super Admin…");
   const sa = await prisma.superAdmin.upsert({
     where: { email: "superadmin@gmail.com" },
@@ -1680,12 +1750,10 @@ async function main() {
     },
   });
 
-  // Seed all three schools
   const schoolResult = await seedSchool(university, password);
   const pucResult = await seedPUC(university, password);
   const degResult = await seedDegree(university, password);
 
-  // Grant super admin access to all schools
   for (const { school } of [schoolResult, pucResult, degResult]) {
     await prisma.superAdminSchoolAccess.upsert({
       where: {
@@ -1696,7 +1764,6 @@ async function main() {
     });
   }
 
-  // ── Summary ───────────────────────────────────────────────────────────────
   const S = schoolResult.totalStudents;
   const P = pucResult.totalStudents;
   const D = degResult.totalStudents;
@@ -1722,21 +1789,14 @@ async function main() {
 ║     Science (PCMB ×4, PCMC ×4) | Commerce (CEBA ×4, SEBA ×2) | Arts ×4  ║
 ║     18 sections  —  110 students/section  —  ${String(P).padEnd(4)} total students      ║
 ║     Students : student${String(sEnd + 1).padEnd(5)}@gmail.com  …  student${pEnd}@gmail.com  ║
-║     Teachers : teacher22@gmail.com  …  teacher${TEACHER_CTR - degResult.totalSections - 1}@gmail.com              ║
 ╠══════════════════════════════════════════════════════════════════════════╣
 ║  🎓  DEGREE       →  admin3@gmail.com                                    ║
 ║     BE (CSE/ECE/ME ×8 sem) + BA (6 sem × A,B)  —  36 sections            ║
 ║     100 students/section  —  ${String(D).padEnd(4)} total students                      ║
 ║     Students : student${String(pEnd + 1).padEnd(5)}@gmail.com  …  student${dEnd}@gmail.com  ║
-║     Teachers : teacher${TEACHER_CTR - 21}@gmail.com  …  teacher${TEACHER_CTR - 1}@gmail.com             ║
 ╠══════════════════════════════════════════════════════════════════════════╣
 ║  GRAND TOTAL STUDENTS  :  ${String(dEnd).padEnd(6)}                                      ║
 ╚══════════════════════════════════════════════════════════════════════════╝
-║  HIGH SCHOOL  →  school code: CHRIST_HIGH
-║    finance1@school.com
-║
-║  DEGREE COLLEGE  →  school code: CHRIST_DEGREE
-║    finance2@school.com
 `);
 }
 

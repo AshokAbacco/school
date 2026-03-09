@@ -210,7 +210,7 @@ export default function CreateSectionsPage() {
       setYears(yr);
       const active = yr.find((y) => y.isActive);
       if (active) setActiveYearId(active.id);
-      setTeachers(td.teachers || td.data || []);
+      setTeachers(td.data || []);
 
       if (showStream && extra[0]) setStreams(extra[0].streams || []);
       if (showCourse) {

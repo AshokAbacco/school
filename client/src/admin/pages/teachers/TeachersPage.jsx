@@ -1,10 +1,9 @@
 // client/src/admin/pages/teachers/TeachersPage.jsx
-// ─── MAIN ENTRY — import this in your Routes ────────────────
 import React, { useState, useCallback } from "react";
 import PageLayout from "../../components/PageLayout";
 import TeachersHeader from "./components/TeachersHeader";
 import TeachersFilters from "./components/TeachersFilters";
-import TeachersGrid from "./components/TeachersGrid";
+import TeachersTable from "./components/TeachersTable";
 import TeacherDetailDrawer from "./components/TeacherDetailDrawer";
 import AddTeacherModal from "./components/AddTeacherModal";
 import { useTeachers } from "./hooks/useTeachers";
@@ -33,24 +32,36 @@ export default function TeachersPage() {
 
   return (
     <PageLayout>
-      <div
-        className="min-h-screen"
-        style={{ background: "#f8fbff", fontFamily: "'DM Sans', sans-serif" }}
-      >
-        {/* Google Font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
+      <link
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
+      <div className="min-h-screen" style={{ background: "#f8fbff", fontFamily: "'DM Sans', sans-serif" }}>
 
-        <TeachersHeader
-          total={meta?.total ?? 0}
-          onAdd={() => setShowAdd(true)}
-        />
+        <TeachersHeader total={meta?.total ?? 0} onAdd={() => setShowAdd(true)} />
 
         <TeachersFilters filters={filters} onChange={onChange} />
 
-        <TeachersGrid
+        {/* Result count */}
+        {!loading && (
+          <p style={{
+            fontSize: 11, color: "#6A89A7", margin: "0 0 6px",
+            fontFamily: "Inter, sans-serif",
+            padding: "0 32px",
+          }}
+            className="responsive-px"
+          >
+            <style>{`
+              .responsive-px { padding-left: 32px !important; padding-right: 32px !important; }
+              @media(max-width:767px){ .responsive-px { padding-left: 12px !important; padding-right: 12px !important; }}
+            `}</style>
+            {meta?.total != null
+              ? `Showing ${teachers.length} of ${meta.total} teacher${meta.total !== 1 ? "s" : ""}`
+              : `${teachers.length} teacher${teachers.length !== 1 ? "s" : ""}`}
+          </p>
+        )}
+
+        <TeachersTable
           teachers={teachers}
           loading={loading}
           error={error}
@@ -70,10 +81,7 @@ export default function TeachersPage() {
         {showAdd && (
           <AddTeacherModal
             onClose={() => setShowAdd(false)}
-            onSuccess={() => {
-              setShowAdd(false);
-              refetch();
-            }}
+            onSuccess={() => { setShowAdd(false); refetch(); }}
           />
         )}
       </div>

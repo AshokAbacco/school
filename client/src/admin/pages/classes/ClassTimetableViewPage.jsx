@@ -1,13 +1,12 @@
 // client/src/admin/pages/classes/ClassTimetableViewPage.jsx
 // View-only timetable for a specific class section.
-// Fixes the old inconsistent display bug by always fetching fresh data on mount.
+// Updated to support independent Saturday timings and layout.
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Loader2,
   AlertCircle,
-  Calendar,
   Clock,
   Edit,
   RefreshCw,
@@ -30,14 +29,6 @@ const C = {
   border: "rgba(136,189,242,0.25)",
 };
 
-const DAYS = [
-  "MONDAY",
-  "TUESDAY",
-  "WEDNESDAY",
-  "THURSDAY",
-  "FRIDAY",
-  "SATURDAY",
-];
 const DAY_SHORT = {
   MONDAY: "Mon",
   TUESDAY: "Tue",
@@ -46,6 +37,7 @@ const DAY_SHORT = {
   FRIDAY: "Fri",
   SATURDAY: "Sat",
 };
+
 const COLORS = [
   "#6A89A7",
   "#88BDF2",
@@ -74,14 +66,13 @@ export default function ClassTimetableViewPage() {
   const [section, setSection] = useState(null);
   const [slots, setSlots] = useState([]);
   const [satSlots, setSatSlots] = useState([]);
-  const [timetable, setTimetable] = useState({}); // day → { slotId → entry }
+  const [timetable, setTimetable] = useState({});
   const [subjectColors, setSubjectColors] = useState({});
   const [years, setYears] = useState([]);
   const [yearId, setYearId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // ── Fetch everything fresh every time ─────────────────────────────────────
   const load = async (yId) => {
     setLoading(true);
     setError("");
@@ -108,24 +99,32 @@ export default function ClassTimetableViewPage() {
         fetchTimetableEntries(classSectionId, { academicYearId: activeYearId }),
       ]);
 
-      // Slots
-      const allSlots = cfgData.config?.slots || [];
-      setSlots(allSlots.filter((s) => s.slotOrder < 1000));
-      setSatSlots(allSlots.filter((s) => s.slotOrder >= 1000));
+      const allSlots = cfgData.config?.periodDefinitions || [];
+      setSlots(allSlots.filter((s) => s.dayType === "WEEKDAY"));
+      setSatSlots(allSlots.filter((s) => s.dayType === "SATURDAY"));
 
-      // Build timetable map
       const map = {};
       const colorMap = {};
       let colorIdx = 0;
-      DAYS.forEach((d) => (map[d] = {}));
+
+      [
+        "MONDAY",
+        "TUESDAY",
+        "WEDNESDAY",
+        "THURSDAY",
+        "FRIDAY",
+        "SATURDAY",
+      ].forEach((d) => (map[d] = {}));
+
       (entryData.entries || []).forEach((e) => {
         if (!map[e.day]) map[e.day] = {};
-        map[e.day][e.periodSlotId] = e;
+        map[e.day][e.periodDefinitionId] = e;
         const sid = e.subject?.id || e.subjectId;
         if (sid && !colorMap[sid]) {
           colorMap[sid] = COLORS[colorIdx++ % COLORS.length];
         }
       });
+
       setTimetable(map);
       setSubjectColors(colorMap);
     } catch (err) {
@@ -139,20 +138,33 @@ export default function ClassTimetableViewPage() {
     load();
   }, [classSectionId]);
 
-  const handleYearChange = (yId) => {
-    setYearId(yId);
-    load(yId);
-  };
-  const getSlotsForDay = (day) =>
-    day === "SATURDAY" && satSlots.length > 0 ? satSlots : slots;
-  const activeDays =
-    satSlots.length > 0 ? DAYS : DAYS.filter((d) => d !== "SATURDAY");
-
-  // Count filled periods
   const totalFilled = Object.values(timetable).reduce(
     (sum, dayMap) => sum + Object.keys(dayMap).length,
     0,
   );
+
+  const subjectColor = (sid) => subjectColors[sid] || C.light;
+
+  // Build merged slot list: weekday slots + any sat-only breaks inserted at correct position
+  const mergedGridSlots = (() => {
+    if (satSlots.length === 0) return slots;
+    const result = [...slots];
+    const mondayBreakNumbers = new Set(
+      slots.filter((s) => s.slotType !== "PERIOD").map((s) => s.periodNumber),
+    );
+    const satOnlyBreaks = satSlots.filter(
+      (s) => s.slotType !== "PERIOD" && !mondayBreakNumbers.has(s.periodNumber),
+    );
+    satOnlyBreaks.forEach((brk) => {
+      let insertAfter = -1;
+      result.forEach((s, i) => {
+        if (s.slotType === "PERIOD" && s.periodNumber <= brk.periodNumber)
+          insertAfter = i;
+      });
+      result.splice(insertAfter + 1, 0, { ...brk, _satOnly: true });
+    });
+    return result;
+  })();
 
   return (
     <PageLayout>
@@ -162,33 +174,19 @@ export default function ClassTimetableViewPage() {
       >
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <button
               onClick={() => navigate("/classes")}
-              className="flex items-center gap-1.5 rounded-xl text-sm font-medium"
-              style={{
-                padding: "6px 12px",
-                border: `1.5px solid ${C.border}`,
-                color: C.mid,
-                background: "transparent",
-                cursor: "pointer",
-                fontFamily: "Inter, sans-serif",
-              }}
+              className="flex items-center gap-1.5 rounded-xl text-sm font-medium px-3 py-1.5 border"
+              style={{ borderColor: C.border, color: C.mid }}
             >
               <ArrowLeft size={14} /> Back to Classes
             </button>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => load(yearId)}
-                style={{
-                  padding: "6px 10px",
-                  border: `1.5px solid ${C.border}`,
-                  borderRadius: 9,
-                  background: "transparent",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                }}
+                className="p-2 border rounded-xl"
+                style={{ borderColor: C.border }}
               >
                 <RefreshCw size={13} style={{ color: C.mid }} />
               </button>
@@ -198,280 +196,325 @@ export default function ClassTimetableViewPage() {
                     state: { sectionId: classSectionId },
                   })
                 }
-                className="flex items-center gap-1.5 rounded-xl text-sm font-semibold text-white"
-                style={{
-                  padding: "7px 16px",
-                  background: C.primary,
-                  border: "none",
-                  cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
-                }}
+                className="flex items-center gap-1.5 rounded-xl text-sm font-semibold text-white px-4 py-2"
+                style={{ background: C.primary }}
               >
                 <Edit size={13} /> Edit Timetable
               </button>
             </div>
           </div>
-
           <div className="flex items-center gap-2 mb-1">
             <div
               className="w-1 h-6 rounded-full"
               style={{ background: C.primary }}
             />
-            <h1 className="text-xl font-semibold" style={{ color: C.primary }}>
+            <h1
+              className="text-xl font-semibold uppercase tracking-tight"
+              style={{ color: C.primary }}
+            >
               {section ? `${section.name} Timetable` : "Class Timetable"}
             </h1>
           </div>
           {section && (
-            <p className="text-sm ml-3" style={{ color: C.mid }}>
-              Grade {section.grade} · Section {section.section}
+            <p className="text-sm ml-3 opacity-70" style={{ color: C.mid }}>
+              {section.grade} · Section {section.section || "A"}
             </p>
           )}
         </div>
 
-        {/* Year selector */}
-        <div className="flex items-center gap-3 mb-5 flex-wrap">
+        {/* Filters */}
+        <div className="flex items-center gap-3 mb-6 flex-wrap">
           <select
             value={yearId}
-            onChange={(e) => handleYearChange(e.target.value)}
-            className="rounded-xl text-sm font-medium outline-none"
-            style={{
-              padding: "8px 12px",
-              border: `1.5px solid ${C.border}`,
-              color: C.primary,
-              fontFamily: "Inter, sans-serif",
-              background: "#fff",
+            onChange={(e) => {
+              setYearId(e.target.value);
+              load(e.target.value);
             }}
+            className="rounded-xl text-sm font-medium px-3 py-2 border bg-white outline-none shadow-sm"
+            style={{ borderColor: C.border, color: C.primary }}
           >
-            <option value="">Select year</option>
             {years.map((y) => (
               <option key={y.id} value={y.id}>
                 {y.name}
-                {y.isActive ? " ✓" : ""}
+                {y.isActive ? " (Active)" : ""}
               </option>
             ))}
           </select>
           {totalFilled > 0 && (
             <span
-              className="text-xs font-medium px-2.5 py-1 rounded-lg"
+              className="text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider"
               style={{ background: "rgba(16,185,129,0.1)", color: "#065f46" }}
             >
-              {totalFilled} periods scheduled
+              {totalFilled} slots filled
             </span>
           )}
         </div>
 
-        {/* Content */}
+        {/* Main content */}
         {loading ? (
-          <div className="flex items-center justify-center py-16">
+          <div className="flex flex-col items-center justify-center py-24 gap-3">
             <Loader2
-              size={22}
+              size={30}
               className="animate-spin"
               style={{ color: C.light }}
             />
+            <p
+              className="text-xs font-medium uppercase"
+              style={{ color: C.mid }}
+            >
+              Loading schedule...
+            </p>
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <AlertCircle size={24} style={{ color: "#ef4444" }} />
-            <p className="text-sm" style={{ color: "#ef4444" }}>
+          <div
+            className="bg-white rounded-2xl border p-12 text-center shadow-sm"
+            style={{ borderColor: C.border }}
+          >
+            <AlertCircle
+              size={40}
+              className="mx-auto mb-4"
+              style={{ color: "#ef4444" }}
+            />
+            <p className="text-sm font-bold mb-4" style={{ color: "#ef4444" }}>
               {error}
             </p>
             <button
               onClick={() => load(yearId)}
-              style={{
-                padding: "8px 16px",
-                border: `1.5px solid ${C.border}`,
-                borderRadius: 10,
-                color: C.primary,
-                background: C.pale,
-                cursor: "pointer",
-                fontSize: 13,
-                fontFamily: "Inter, sans-serif",
-              }}
+              className="px-6 py-2 rounded-xl text-sm font-bold text-white"
+              style={{ background: C.primary }}
             >
               Retry
             </button>
           </div>
         ) : slots.length === 0 ? (
           <div
-            className="bg-white rounded-2xl shadow-sm p-10 text-center"
-            style={{ border: `1px solid ${C.border}` }}
+            className="bg-white rounded-2xl border p-16 text-center shadow-sm"
+            style={{ borderColor: C.border }}
           >
             <Clock
-              size={32}
-              style={{ color: C.light, margin: "0 auto 12px" }}
+              size={40}
+              className="mx-auto mb-4"
+              style={{ color: C.light }}
             />
-            <p className="text-sm font-semibold" style={{ color: C.primary }}>
-              No timetable configuration found
+            <p className="text-sm font-bold" style={{ color: C.primary }}>
+              No Timetable Configuration
             </p>
-            <p className="text-xs mt-1 mb-4" style={{ color: C.mid }}>
-              Set up school timings to configure period structure first.
+            <p className="text-xs mt-1 mb-6" style={{ color: C.mid }}>
+              Please configure school timings for this academic year first.
             </p>
             <button
               onClick={() => navigate("/classes/timings")}
-              style={{
-                padding: "8px 18px",
-                borderRadius: 10,
-                background: C.primary,
-                color: "#fff",
-                border: "none",
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "Inter, sans-serif",
-              }}
+              className="px-6 py-2 rounded-xl text-sm font-bold text-white"
+              style={{ background: C.primary }}
             >
-              Set Up Timings
-            </button>
-          </div>
-        ) : totalFilled === 0 ? (
-          <div
-            className="bg-white rounded-2xl shadow-sm p-10 text-center"
-            style={{ border: `1px solid ${C.border}` }}
-          >
-            <Calendar
-              size={32}
-              style={{ color: C.light, margin: "0 auto 12px" }}
-            />
-            <p className="text-sm font-semibold" style={{ color: C.primary }}>
-              No timetable entries yet
-            </p>
-            <p className="text-xs mt-1 mb-4" style={{ color: C.mid }}>
-              This class has no timetable for the selected academic year.
-            </p>
-            <button
-              onClick={() =>
-                navigate("/classes/timetable", {
-                  state: { sectionId: classSectionId },
-                })
-              }
-              style={{
-                padding: "8px 18px",
-                borderRadius: 10,
-                background: C.primary,
-                color: "#fff",
-                border: "none",
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "Inter, sans-serif",
-              }}
-            >
-              Build Timetable
+              Go to Timings
             </button>
           </div>
         ) : (
           <>
-            {/* Timetable grid */}
+            {/* ═══════════════════════════════════════════════════
+                TRANSPOSED TIMETABLE
+                ROWS    = Days (Mon → Fri, then Sat below divider)
+                COLUMNS = Periods (Period 1, Period 2 … scrolls →)
+                Day column is sticky on left for mobile scroll
+            ═══════════════════════════════════════════════════ */}
             <div
-              className="bg-white rounded-2xl shadow-sm overflow-hidden mb-4"
+              className="bg-white rounded-2xl shadow-sm overflow-hidden mb-6"
               style={{ border: `1px solid ${C.border}` }}
             >
               <div className="overflow-x-auto">
                 <table
-                  className="w-full"
-                  style={{ borderCollapse: "collapse" }}
+                  style={{
+                    borderCollapse: "collapse",
+                    width: "100%",
+                    minWidth: `${100 + mergedGridSlots.length * 130}px`,
+                  }}
                 >
                   <thead>
                     <tr
                       style={{
-                        background: "rgba(189,221,252,0.1)",
-                        borderBottom: `1px solid ${C.border}`,
+                        background: "rgba(189,221,252,0.08)",
+                        borderBottom: `1.5px solid ${C.border}`,
                       }}
                     >
+                      {/* Sticky DAY header */}
                       <th
                         style={{
                           padding: "10px 16px",
                           textAlign: "left",
                           fontSize: 11,
-                          fontWeight: 600,
+                          fontWeight: 700,
                           color: C.mid,
-                          fontFamily: "Inter, sans-serif",
-                          minWidth: 110,
+                          letterSpacing: "0.4px",
+                          minWidth: 80,
+                          position: "sticky",
+                          left: 0,
+                          background: "rgba(244,248,252,0.98)",
+                          zIndex: 2,
+                          borderRight: `1.5px solid ${C.border}`,
                         }}
                       >
-                        Period
+                        DAY
                       </th>
-                      {activeDays.map((day) => (
+                      {/* Period column headers */}
+                      {mergedGridSlots.map((slot) => (
                         <th
-                          key={day}
+                          key={slot.id}
                           style={{
-                            padding: "10px 16px",
+                            padding: "8px 12px",
                             textAlign: "left",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: C.mid,
-                            fontFamily: "Inter, sans-serif",
-                            minWidth: 130,
+                            minWidth: slot.slotType === "PERIOD" ? 130 : 90,
+                            background:
+                              slot.slotType !== "PERIOD"
+                                ? "rgba(189,221,252,0.08)"
+                                : "rgba(244,248,252,0.98)",
+                            borderRight: `1px solid ${C.border}`,
                           }}
                         >
-                          {DAY_SHORT[day]}
+                          <p
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color:
+                                slot.slotType === "PERIOD" ? C.primary : C.mid,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {slot.label}
+                          </p>
+                          <p
+                            style={{
+                              fontSize: 10,
+                              color: C.light,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {fmtTime(slot.startTime)}–{fmtTime(slot.endTime)}
+                          </p>
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {getSlotsForDay("MONDAY").map((slot) => (
+                    {/* ── Mon – Fri rows ── */}
+                    {[
+                      "MONDAY",
+                      "TUESDAY",
+                      "WEDNESDAY",
+                      "THURSDAY",
+                      "FRIDAY",
+                    ].map((day) => (
                       <tr
-                        key={slot.id}
+                        key={day}
                         style={{ borderBottom: `1px solid ${C.border}` }}
                       >
-                        <td style={{ padding: "8px 16px" }}>
+                        {/* Sticky day label */}
+                        <td
+                          style={{
+                            padding: "8px 16px",
+                            position: "sticky",
+                            left: 0,
+                            background: "rgba(244,248,252,0.98)",
+                            zIndex: 1,
+                            borderRight: `1.5px solid ${C.border}`,
+                            minWidth: 80,
+                          }}
+                        >
                           <p
-                            className="text-xs font-semibold"
                             style={{
-                              color:
-                                slot.slotType === "PERIOD" ? C.primary : C.mid,
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: C.primary,
                             }}
                           >
-                            {slot.label}
-                          </p>
-                          <p className="text-xs" style={{ color: C.light }}>
-                            {fmtTime(slot.startTime)}–{fmtTime(slot.endTime)}
+                            {DAY_SHORT[day]}
                           </p>
                         </td>
-                        {activeDays.map((day) => {
-                          if (slot.slotType !== "PERIOD") {
+                        {/* Period cells */}
+                        {mergedGridSlots.map((slot) => {
+                          if (slot._satOnly) {
                             return (
                               <td
-                                key={day}
+                                key={slot.id}
                                 style={{
-                                  padding: "8px 16px",
-                                  background: "rgba(189,221,252,0.04)",
+                                  padding: "5px 6px",
+                                  background: "rgba(189,221,252,0.03)",
+                                  borderRight: `1px solid ${C.border}`,
                                 }}
                               >
-                                <span style={{ fontSize: 11, color: C.light }}>
-                                  {slot.slotType === "LUNCH_BREAK"
-                                    ? "Lunch"
-                                    : "Break"}
-                                </span>
+                                <div
+                                  style={{
+                                    minHeight: 52,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <span
+                                    style={{ fontSize: 10, color: C.border }}
+                                  >
+                                    —
+                                  </span>
+                                </div>
                               </td>
                             );
                           }
-                          const daySlots = getSlotsForDay(day);
-                          const matchSlot =
-                            daySlots.find(
-                              (s) =>
-                                s.slotType === slot.slotType &&
-                                s.slotOrder === slot.slotOrder,
-                            ) || slot;
-                          const entry = timetable[day]?.[matchSlot.id];
-                          const subjectId =
-                            entry?.subject?.id || entry?.subjectId;
-                          const color = subjectId
-                            ? subjectColors[subjectId]
+                          if (slot.slotType !== "PERIOD") {
+                            return (
+                              <td
+                                key={slot.id}
+                                style={{
+                                  padding: "6px 10px",
+                                  background: "rgba(189,221,252,0.05)",
+                                  borderRight: `1px solid ${C.border}`,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    minHeight: 48,
+                                    display: "flex",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <span
+                                    style={{ fontSize: 11, color: C.light }}
+                                  >
+                                    {slot.label}
+                                  </span>
+                                </div>
+                              </td>
+                            );
+                          }
+                          const entry = timetable[day]?.[slot.id];
+                          const color = entry
+                            ? subjectColor(entry.subject?.id || entry.subjectId)
                             : null;
                           return (
-                            <td key={day} style={{ padding: "6px 10px" }}>
+                            <td
+                              key={slot.id}
+                              style={{
+                                padding: "5px 6px",
+                                borderRight: `1px solid ${C.border}`,
+                              }}
+                            >
                               {entry ? (
                                 <div
                                   style={{
-                                    padding: "7px 9px",
+                                    minHeight: 52,
+                                    padding: "6px 8px",
                                     borderRadius: 8,
                                     background: color + "14",
-                                    border: `1.5px solid ${color + "44"}`,
+                                    border: `1.5px solid ${color}44`,
                                   }}
                                 >
-                                  <div className="flex items-center gap-1 mb-0.5">
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      marginBottom: 2,
+                                    }}
+                                  >
                                     <span
                                       style={{
                                         width: 6,
@@ -486,39 +529,272 @@ export default function ClassTimetableViewPage() {
                                         fontSize: 11,
                                         fontWeight: 600,
                                         color: C.primary,
-                                        fontFamily: "Inter, sans-serif",
+                                        lineHeight: 1.2,
                                       }}
                                     >
-                                      {entry.subject?.name}
+                                      {entry.subject?.name || "—"}
                                     </p>
                                   </div>
-                                  <p
-                                    style={{
-                                      fontSize: 10,
-                                      color: C.mid,
-                                      fontFamily: "Inter, sans-serif",
-                                    }}
-                                  >
-                                    {entry.teacher?.firstName}{" "}
-                                    {entry.teacher?.lastName}
+                                  <p style={{ fontSize: 10, color: C.mid }}>
+                                    {entry.teacher
+                                      ? `${entry.teacher.firstName} ${entry.teacher.lastName}`
+                                      : "—"}
                                   </p>
                                 </div>
                               ) : (
                                 <div
                                   style={{
-                                    padding: "7px 9px",
+                                    minHeight: 52,
+                                    padding: "6px 8px",
                                     borderRadius: 8,
                                     background: "rgba(189,221,252,0.06)",
-                                    border: `1px dashed ${C.border}`,
-                                    minHeight: 42,
+                                    border: `1.5px dashed ${C.border}`,
+                                    display: "flex",
+                                    alignItems: "center",
                                   }}
-                                />
+                                >
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      color: C.light,
+                                      opacity: 0.5,
+                                    }}
+                                  >
+                                    —
+                                  </span>
+                                </div>
                               )}
                             </td>
                           );
                         })}
                       </tr>
                     ))}
+
+                    {/* ── Dashed divider between Mon–Fri and Saturday ── */}
+                    {satSlots.length > 0 && (
+                      <tr>
+                        <td
+                          colSpan={mergedGridSlots.length + 1}
+                          style={{
+                            padding: 0,
+                            height: 4,
+                            background: "rgba(136,189,242,0.12)",
+                            borderTop: `2px dashed ${C.border}`,
+                            borderBottom: `2px dashed ${C.border}`,
+                          }}
+                        />
+                      </tr>
+                    )}
+
+                    {/* ── Saturday row ── */}
+                    {satSlots.length > 0 &&
+                      (() => {
+                        const satPeriods = satSlots.filter(
+                          (s) => s.slotType === "PERIOD",
+                        ).length;
+                        const wdPeriods = slots.filter(
+                          (s) => s.slotType === "PERIOD",
+                        ).length;
+                        const isCustomSat =
+                          satPeriods !== wdPeriods ||
+                          satSlots[0]?.startTime !== slots[0]?.startTime;
+                        return (
+                          <tr
+                            key="SATURDAY"
+                            style={{ background: "rgba(136,189,242,0.03)" }}
+                          >
+                            <td
+                              style={{
+                                padding: "8px 16px",
+                                position: "sticky",
+                                left: 0,
+                                background: "rgba(236,244,252,0.98)",
+                                zIndex: 1,
+                                borderRight: `1.5px solid ${C.border}`,
+                                minWidth: 80,
+                              }}
+                            >
+                              <p
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  color: C.primary,
+                                }}
+                              >
+                                Sat
+                              </p>
+                              {isCustomSat && (
+                                <span
+                                  style={{
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    padding: "1px 4px",
+                                    borderRadius: 3,
+                                    background: "rgba(245,158,11,0.15)",
+                                    color: "#b45309",
+                                  }}
+                                >
+                                  CUSTOM
+                                </span>
+                              )}
+                            </td>
+                            {mergedGridSlots.map((slot) => {
+                              const satSlot = slot._satOnly
+                                ? slot
+                                : satSlots.find(
+                                    (s) =>
+                                      s.periodNumber === slot.periodNumber &&
+                                      s.slotType === slot.slotType,
+                                  );
+
+                              if (!satSlot) {
+                                return (
+                                  <td
+                                    key={slot.id}
+                                    style={{
+                                      padding: "5px 6px",
+                                      background: "rgba(189,221,252,0.03)",
+                                      borderRight: `1px solid ${C.border}`,
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        minHeight: 52,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          fontSize: 10,
+                                          color: "rgba(136,189,242,0.4)",
+                                        }}
+                                      >
+                                        —
+                                      </span>
+                                    </div>
+                                  </td>
+                                );
+                              }
+
+                              if (satSlot.slotType !== "PERIOD") {
+                                return (
+                                  <td
+                                    key={slot.id}
+                                    style={{
+                                      padding: "6px 10px",
+                                      background: "rgba(136,189,242,0.06)",
+                                      borderRight: `1px solid ${C.border}`,
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        minHeight: 48,
+                                        display: "flex",
+                                        alignItems: "center",
+                                      }}
+                                    >
+                                      <span
+                                        style={{ fontSize: 11, color: C.light }}
+                                      >
+                                        {satSlot.label.replace(
+                                          /^(Sat\s)+/i,
+                                          "",
+                                        )}
+                                      </span>
+                                    </div>
+                                  </td>
+                                );
+                              }
+
+                              const entry = timetable["SATURDAY"]?.[satSlot.id];
+                              const color = entry
+                                ? subjectColor(
+                                    entry.subject?.id || entry.subjectId,
+                                  )
+                                : null;
+                              return (
+                                <td
+                                  key={slot.id}
+                                  style={{
+                                    padding: "5px 6px",
+                                    borderRight: `1px solid ${C.border}`,
+                                  }}
+                                >
+                                  {entry ? (
+                                    <div
+                                      style={{
+                                        minHeight: 52,
+                                        padding: "6px 8px",
+                                        borderRadius: 8,
+                                        background: color + "14",
+                                        border: `1.5px solid ${color}44`,
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 4,
+                                          marginBottom: 2,
+                                        }}
+                                      >
+                                        <span
+                                          style={{
+                                            width: 6,
+                                            height: 6,
+                                            borderRadius: 2,
+                                            background: color,
+                                            flexShrink: 0,
+                                          }}
+                                        />
+                                        <p
+                                          style={{
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            color: C.primary,
+                                            lineHeight: 1.2,
+                                          }}
+                                        >
+                                          {entry.subject?.name || "—"}
+                                        </p>
+                                      </div>
+                                      <p style={{ fontSize: 10, color: C.mid }}>
+                                        {entry.teacher
+                                          ? `${entry.teacher.firstName} ${entry.teacher.lastName}`
+                                          : "—"}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      style={{
+                                        minHeight: 52,
+                                        padding: "6px 8px",
+                                        borderRadius: 8,
+                                        background: "rgba(136,189,242,0.06)",
+                                        border: `1.5px dashed rgba(136,189,242,0.3)`,
+                                        display: "flex",
+                                        alignItems: "center",
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          fontSize: 10,
+                                          color: C.light,
+                                          opacity: 0.5,
+                                        }}
+                                      >
+                                        —
+                                      </span>
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })()}
                   </tbody>
                 </table>
               </div>
@@ -527,44 +803,42 @@ export default function ClassTimetableViewPage() {
             {/* Subject legend */}
             {Object.keys(subjectColors).length > 0 && (
               <div
-                className="bg-white rounded-2xl shadow-sm p-4"
-                style={{ border: `1px solid ${C.border}` }}
+                className="bg-white rounded-2xl p-5 border shadow-sm"
+                style={{ borderColor: C.border }}
               >
                 <p
-                  className="text-xs font-semibold uppercase mb-3"
-                  style={{ color: C.mid, letterSpacing: "0.5px" }}
+                  className="text-[10px] font-bold uppercase mb-4 tracking-widest"
+                  style={{ color: C.mid }}
                 >
-                  Subjects
+                  Subject Legend
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {Object.entries(subjectColors).map(([subjectId, color]) => {
-                    const entry = Object.values(timetable)
+                  {Object.entries(subjectColors).map(([id, color]) => {
+                    const name = Object.values(timetable)
                       .flatMap((d) => Object.values(d))
-                      .find(
-                        (e) => (e.subject?.id || e.subjectId) === subjectId,
-                      );
-                    const name = entry?.subject?.name;
+                      .find((e) => (e.subject?.id || e.subjectId) === id)
+                      ?.subject?.name;
                     if (!name) return null;
                     return (
-                      <span
-                        key={subjectId}
-                        className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg"
+                      <div
+                        key={id}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-semibold"
                         style={{
-                          background: color + "14",
+                          background: color + "08",
+                          borderColor: color + "20",
                           color: C.primary,
-                          border: `1px solid ${color + "33"}`,
                         }}
                       >
-                        <span
+                        <div
                           style={{
-                            width: 6,
-                            height: 6,
+                            width: 8,
+                            height: 8,
                             borderRadius: 2,
                             background: color,
                           }}
                         />
                         {name}
-                      </span>
+                      </div>
                     );
                   })}
                 </div>

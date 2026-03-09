@@ -3,46 +3,62 @@ import React from "react";
 
 export default function TeachersHeader({ total, onAdd }) {
   return (
-    <div className="flex items-center justify-between px-8 pt-7 pb-4">
-      <div className="flex items-center gap-3">
-        <div>
-          <h1
-            className="text-2xl font-bold tracking-tight"
-            style={{ color: "#384959", fontFamily: "'DM Sans', sans-serif" }}
-          >
-            Teachers
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: "#6A89A7" }}>
-            Manage staff profiles, assignments & records
-          </p>
-        </div>
-        <span
-          className="text-xs font-semibold px-3 py-1 rounded-full ml-2"
-          style={{ background: "#BDDDFC", color: "#384959" }}
-        >
-          {total} total
-        </span>
-      </div>
+    <>
+      <style>{`
+        .th-wrap {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 28px 32px 16px;
+          gap: 12px;
+        }
+        @media (max-width: 767px) {
+          .th-wrap { padding: 20px 12px 12px; }
+          .th-title { font-size: 20px !important; }
+          .th-subtitle { display: none; }
+          .th-add span { display: none; }
+        }
+      `}</style>
 
-      <button
-        onClick={onAdd}
-        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 hover:opacity-90 active:scale-95 shadow-sm"
-        style={{
-          background: "#384959",
-          color: "#fff",
-          fontFamily: "'DM Sans', sans-serif",
-        }}
-      >
-        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-          <path
-            d="M7.5 2v11M2 7.5h11"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
-        Add Teacher
-      </button>
-    </div>
+      <div className="th-wrap">
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div>
+            <h1
+              className="th-title"
+              style={{ margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#384959", fontFamily: "'DM Sans', sans-serif" }}
+            >
+              Teachers
+            </h1>
+            <p className="th-subtitle" style={{ margin: "2px 0 0", fontSize: 13, color: "#6A89A7", fontFamily: "Inter, sans-serif" }}>
+              Manage staff profiles, assignments & records
+            </p>
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#BDDDFC", color: "#384959", fontFamily: "Inter, sans-serif", flexShrink: 0 }}>
+            {total} total
+          </span>
+        </div>
+
+        <button
+          className="th-add"
+          onClick={onAdd}
+          style={{
+            display: "flex", alignItems: "center", gap: 7,
+            padding: "9px 18px", borderRadius: 12,
+            background: "#384959", color: "#fff",
+            fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+            border: "none", cursor: "pointer", flexShrink: 0,
+            boxShadow: "0 2px 8px rgba(56,73,89,0.20)",
+            transition: "opacity 0.15s",
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.opacity = "0.88"}
+          onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+            <path d="M7 1.5v11M1.5 7h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <span>Add Teacher</span>
+        </button>
+      </div>
+    </>
   );
 }
