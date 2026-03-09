@@ -1,4 +1,4 @@
-// server/src/staffRoutes/classSectionRoutes.js — UPDATED
+// server/src/staffRoutes/classSectionRoutes.js
 import express from "express";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import {
@@ -11,6 +11,7 @@ import {
   removeSubjectFromClass,
   assignTeacherToSubject,
   removeTeacherAssignment,
+  activateAcademicYear,
 } from "../staffControlls/classSectionController.js";
 import {
   getTimetableConfig,
@@ -29,15 +30,14 @@ import {
   deleteExtraClass,
 } from "../staffControlls/extraClassController.js";
 import { getTeachersByClassSection } from "../staffControlls/meetingController.js";
-
 import {
   getStreams,
   createStream,
   updateStream,
   deleteStream,
-  createCombination, // ← NEW
-  updateCombination, // ← NEW
-  deleteCombination, // ← NEW
+  createCombination,
+  updateCombination,
+  deleteCombination,
   getCourses,
   createCourse,
   updateCourse,
@@ -55,7 +55,21 @@ import {
   getPromotionLogs,
 } from "../staffControlls/promotionController.js";
 
+// ── NEW: Roll number imports ───────────────────────────────────────────────────
+import {
+  getRollNumberPreview,
+  generateRollNumbers,
+  generateRollNumbersBulk,
+} from "../staffControlls/rollNumberController.js";
+
 const router = express.Router();
+
+// ── ACADEMIC YEAR ACTIVATION  (must be before /:id to avoid route conflict)
+router.patch(
+  "/academic-years/:id/activate",
+  authMiddleware,
+  activateAcademicYear,
+);
 
 // ── TIMETABLE CONFIG  (must be before /:id)
 router.get("/timetable/config", authMiddleware, getTimetableConfig);
@@ -66,6 +80,14 @@ router.get(
   "/extra-classes/overview",
   authMiddleware,
   getAllExtraClassesOverview,
+);
+
+// ── BULK ROLL NUMBER GENERATION  (must be before /:id to avoid conflict)
+// POST /api/class-sections/generate-roll-numbers/bulk
+router.post(
+  "/generate-roll-numbers/bulk",
+  authMiddleware,
+  generateRollNumbersBulk,
 );
 
 // ── CLASS SECTION CRUD
@@ -91,6 +113,12 @@ router.delete(
   authMiddleware,
   removeTeacherAssignment,
 );
+
+// ── ROLL NUMBER ROUTES (per section)
+// GET  /api/class-sections/:id/roll-number-preview?academicYearId=...&mode=...
+// POST /api/class-sections/:id/generate-roll-numbers
+router.get("/:id/roll-number-preview", authMiddleware, getRollNumberPreview);
+router.post("/:id/generate-roll-numbers", authMiddleware, generateRollNumbers);
 
 // ── TIMETABLE ENTRIES
 router.get("/:id/timetable", authMiddleware, getTimetableEntries);
@@ -126,7 +154,6 @@ streamsRouter.post("/", authMiddleware, createStream);
 streamsRouter.put("/:id", authMiddleware, updateStream);
 streamsRouter.delete("/:id", authMiddleware, deleteStream);
 
-// ── Stream Combinations (PCMB, PCMC etc.) ── NEW
 streamsRouter.post(
   "/:streamId/combinations",
   authMiddleware,

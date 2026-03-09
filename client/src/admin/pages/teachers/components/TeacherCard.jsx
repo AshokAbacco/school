@@ -1,10 +1,11 @@
 // client/src/admin/pages/teachers/components/TeacherCard.jsx
 import React from "react";
+import { Users } from "lucide-react";
 
 const STATUS = {
-  ACTIVE: { dot: "#22c55e", label: "Active" },
-  ON_LEAVE: { dot: "#f59e0b", label: "On Leave" },
-  RESIGNED: { dot: "#6b7280", label: "Resigned" },
+  ACTIVE:     { dot: "#22c55e", label: "Active" },
+  ON_LEAVE:   { dot: "#f59e0b", label: "On Leave" },
+  RESIGNED:   { dot: "#6b7280", label: "Resigned" },
   TERMINATED: { dot: "#ef4444", label: "Terminated" },
 };
 
@@ -18,129 +19,85 @@ export default function TeacherCard({ teacher, onSelect }) {
       onClick={() => onSelect(teacher.id)}
       onKeyDown={(e) => e.key === "Enter" && onSelect(teacher.id)}
       tabIndex={0}
-      className="rounded-2xl p-5 flex flex-col gap-3 cursor-pointer outline-none transition-all duration-150"
       style={{
-        border: "1.5px solid #BDDDFC",
-        background: "#fff",
-        boxShadow: "0 1px 4px rgba(56,73,89,0.05)",
-        fontFamily: "'DM Sans', sans-serif",
+        borderRadius: 18,
+        padding: "16px 18px",
+        display: "flex", flexDirection: "column", gap: 12,
+        cursor: "pointer", outline: "none",
+        border: "1.5px solid #DDE9F5",
+        background: "#FFFFFF",
+        boxShadow: "0 2px 10px rgba(56,73,89,0.05)",
+        fontFamily: "Inter, sans-serif",
+        transition: "all 0.2s cubic-bezier(0.34,1.56,0.64,1)",
+        position: "relative", overflow: "hidden",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = "#88BDF2";
-        e.currentTarget.style.boxShadow = "0 6px 20px rgba(106,137,167,0.14)";
-        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.boxShadow = "0 8px 28px rgba(136,189,242,0.20)";
+        e.currentTarget.style.transform = "translateY(-3px)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "#BDDDFC";
-        e.currentTarget.style.boxShadow = "0 1px 4px rgba(56,73,89,0.05)";
+        e.currentTarget.style.borderColor = "#DDE9F5";
+        e.currentTarget.style.boxShadow = "0 2px 10px rgba(56,73,89,0.05)";
         e.currentTarget.style.transform = "translateY(0)";
       }}
     >
-      {/* ── Top: avatar + info + dot ── */}
-      <div className="flex items-center gap-3">
-        {/* Avatar */}
-        <div
-          className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-sm overflow-hidden flex-shrink-0"
-          style={{ background: "linear-gradient(135deg, #88BDF2, #6A89A7)" }}
-        >
-          {teacher.profileImage ? (
-            <img
-              src={teacher.profileImage}
-              alt={teacher.firstName}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            initials(teacher.firstName, teacher.lastName)
-          )}
+      {/* Top accent bar */}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg, #88BDF2, #6A89A7)", borderRadius: "18px 18px 0 0" }} />
+
+      {/* Avatar + info */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
+          background: "linear-gradient(135deg, #88BDF2, #6A89A7)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "#fff", fontWeight: 800, fontSize: 14, overflow: "hidden",
+          border: "2px solid #EDF3FA",
+        }}>
+          {teacher.profileImage
+            ? <img src={teacher.profileImage} alt={teacher.firstName} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
+            : initials(teacher.firstName, teacher.lastName)
+          }
         </div>
 
-        {/* Name / designation / dept */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <h3
-              className="font-bold text-sm truncate"
-              style={{ color: "#384959" }}
-            >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+            <h3 style={{ margin: 0, fontWeight: 800, fontSize: 13, color: "#243340", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {teacher.firstName} {teacher.lastName}
             </h3>
-            {/* Colored status dot */}
-            <span
-              title={st.label}
-              className="flex-shrink-0 inline-block rounded-full"
-              style={{
-                width: 8,
-                height: 8,
-                background: st.dot,
-                boxShadow: `0 0 0 2px ${st.dot}40`,
-              }}
-            />
+            <span title={st.label} style={{ width: 7, height: 7, borderRadius: "50%", background: st.dot, boxShadow: `0 0 0 2px ${st.dot}33`, flexShrink: 0, display: "inline-block" }} />
           </div>
-          <p className="text-xs truncate" style={{ color: "#6A89A7" }}>
-            {teacher.designation}
-          </p>
-          <p
-            className="text-[11px] font-semibold uppercase tracking-wider truncate mt-0.5"
-            style={{ color: "#88BDF2" }}
-          >
+          <p style={{ margin: 0, fontSize: 11, color: "#6A89A7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{teacher.designation}</p>
+          <p style={{ margin: "2px 0 0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#88BDF2", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {teacher.department}
           </p>
         </div>
       </div>
 
-      {/* ── Meta row ── */}
-      <div
-        className="flex text-center pt-3"
-        style={{ borderTop: "1px solid #BDDDFC" }}
-      >
+      {/* Meta row */}
+      <div style={{ display: "flex", textAlign: "center", borderTop: "1.5px solid #DDE9F5", paddingTop: 11 }}>
         {[
-          { label: "Code", value: teacher.employeeCode },
-          {
-            label: "Exp.",
-            value:
-              teacher.experienceYears != null
-                ? `${teacher.experienceYears}y`
-                : "—",
-          },
+          { label: "Code",    value: teacher.employeeCode },
+          { label: "Exp.",    value: teacher.experienceYears != null ? `${teacher.experienceYears}y` : "—" },
           { label: "Classes", value: teacher.assignments?.length ?? 0 },
         ].map(({ label, value }, i, arr) => (
-          <div
-            key={label}
-            className="flex-1 flex flex-col gap-0.5"
-            style={{
-              borderRight: i < arr.length - 1 ? "1px solid #BDDDFC" : "none",
-            }}
-          >
-            <span
-              className="text-[10px] uppercase tracking-wide"
-              style={{ color: "#6A89A7" }}
-            >
-              {label}
-            </span>
-            <span className="text-xs font-bold" style={{ color: "#384959" }}>
-              {value}
-            </span>
+          <div key={label} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2, borderRight: i < arr.length - 1 ? "1px solid #DDE9F5" : "none" }}>
+            <span style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.07em", color: "#6A89A7", fontWeight: 700 }}>{label}</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#243340" }}>{value}</span>
           </div>
         ))}
       </div>
 
-      {/* ── Assignment tags ── */}
+      {/* Assignment tags */}
       {teacher.assignments?.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
           {teacher.assignments.slice(0, 3).map((a, i) => (
-            <span
-              key={i}
-              className="text-[11px] font-medium px-2 py-0.5 rounded-md"
-              style={{ background: "#BDDDFC", color: "#384959" }}
-            >
+            <span key={i} style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: "rgba(189,221,252,0.55)", color: "#384959", border: "1px solid #C8DCF0" }}>
               {a.subject?.name} · {a.classSection?.name}
             </span>
           ))}
           {teacher.assignments.length > 3 && (
-            <span
-              className="text-[11px] font-semibold px-2 py-0.5 rounded-md"
-              style={{ background: "#88BDF2", color: "#fff" }}
-            >
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "linear-gradient(135deg, #88BDF2, #6A89A7)", color: "#fff" }}>
               +{teacher.assignments.length - 3}
             </span>
           )}

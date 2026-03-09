@@ -33,32 +33,39 @@ const bloodGroupMap = {
   O_NEG: "O_NEG",
 };
 
+const VALID_CASTE_CATEGORIES = ["SC", "ST", "OBC", "GM", "OTHER"];
+
+// Valid values for SchoolBoard enum
+const VALID_SCHOOL_BOARDS = [
+  "KSEEB",
+  "CBSE",
+  "ICSE",
+  "NIOS",
+  "IB",
+  "IGCSE",
+  "STATE",
+  "OTHER",
+];
+
 const compact = (obj) =>
   Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== undefined && v !== ""),
   );
 
 // ── registerStudent ───────────────────────────────────────────────────────────
-// FIX: admissionNumber is now accepted here and saved to Student model
-// (it's a required unique field — omitting it was causing a DB crash)
 export const registerStudent = async (req, res) => {
   try {
-    const { name, email, password, admissionNumber } = req.body;
+    const { name, email, password } = req.body;
 
     if (!email || !password || !name)
       return res
         .status(400)
         .json({ message: "name, email and password are required" });
 
-    // FIX: admissionNumber is required at registration time
-    if (!admissionNumber?.trim())
-      return res.status(400).json({ message: "admissionNumber is required" });
-
     const schoolId = req.user?.schoolId;
     if (!schoolId)
       return res.status(400).json({ message: "schoolId missing from token" });
 
-    // Check duplicate email
     const exists = await prisma.student.findFirst({
       where: { email, schoolId },
     });
@@ -67,31 +74,10 @@ export const registerStudent = async (req, res) => {
         message: "A student with this email already exists in this school",
       });
 
-    // Check duplicate admissionNumber
-    const admExists = await prisma.student.findFirst({
-      where: { admissionNumber: admissionNumber.trim(), schoolId },
-    });
-    if (admExists)
-      return res.status(409).json({
-        message: "A student with this admission number already exists",
-      });
-
     const hashed = await bcrypt.hash(password, 10);
     const student = await prisma.student.create({
-      data: {
-        name,
-        email,
-        password: hashed,
-        schoolId,
-        admissionNumber: admissionNumber.trim(), // FIX: now included
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        admissionNumber: true,
-        createdAt: true,
-      },
+      data: { name, email, password: hashed, schoolId },
+      select: { id: true, name: true, email: true, createdAt: true },
     });
 
     await bustStudentCache(schoolId);
@@ -203,6 +189,7 @@ export const savePersonalInfo = async (req, res) => {
     if (!student) return res.status(404).json({ message: "Student not found" });
 
     const {
+      // ── Basic personal ──────────────────────────────────────
       firstName,
       lastName,
       dateOfBirth,
@@ -221,22 +208,84 @@ export const savePersonalInfo = async (req, res) => {
       bloodGroup,
       medicalConditions,
       allergies,
+
+      // ── Government / Identity ───────────────────────────────
+      aadhaarNumber,
+      panNumber,
+      satsNumber,
+      nationality,
+      religion,
+      casteCategory,
+
+      // ── NEW: Karnataka-specific personal fields ─────────────
+      motherTongue,
+      subcaste,
+      domicileState,
+      annualIncome,
+      physicallyChallenged,
+      disabilityType,
+
+      // ── NEW: Health measurements ────────────────────────────
+      heightCm,
+      weightKg,
+      identifyingMarks,
+
+      // ── Academic enrollment ─────────────────────────────────
       classSectionId,
       academicYearId,
+      admissionNumber,
       rollNumber,
       externalId,
+
+      // ── NEW: Previous institution ───────────────────────────
+      previousSchoolName,
+      previousSchoolBoard,
+      udiseCode,
+      lateralEntry,
     } = req.body;
 
     if (!firstName || !lastName)
       return res
         .status(400)
         .json({ message: "firstName and lastName are required" });
+
     if (!admissionDate)
       return res.status(400).json({ message: "admissionDate is required" });
 
-    // FIX: rollNumber is now truly optional — removed the hard block
-    // It can be assigned later when admin allocates roll numbers
+    // ── Validate enums ──────────────────────────────────────────────────────
+    if (casteCategory) {
+      const castEnum = toEnum(casteCategory);
+      if (!VALID_CASTE_CATEGORIES.includes(castEnum))
+        return res.status(400).json({
+          message: `Invalid casteCategory. Must be one of: ${VALID_CASTE_CATEGORIES.join(", ")}`,
+        });
+    }
 
+    if (previousSchoolBoard) {
+      const boardEnum = toEnum(previousSchoolBoard);
+      if (!VALID_SCHOOL_BOARDS.includes(boardEnum))
+        return res.status(400).json({
+          message: `Invalid previousSchoolBoard. Must be one of: ${VALID_SCHOOL_BOARDS.join(", ")}`,
+        });
+    }
+
+    // ── Check admissionNumber uniqueness ────────────────────────────────────
+    if (admissionNumber?.trim() && academicYearId) {
+      const admExists = await prisma.studentEnrollment.findFirst({
+        where: {
+          admissionNumber: admissionNumber.trim(),
+          academicYearId,
+          NOT: { studentId },
+        },
+      });
+      if (admExists)
+        return res.status(409).json({
+          message:
+            "A student with this admission number already exists for this academic year",
+        });
+    }
+
+    // ── Profile image upload ────────────────────────────────────────────────
     let profileImageUrl;
     if (req.file) {
       const key = `students/${studentId}/profile/${Date.now()}-${req.file.originalname}`;
@@ -247,11 +296,13 @@ export const savePersonalInfo = async (req, res) => {
       );
     }
 
+    // ── Blood group normalisation ───────────────────────────────────────────
     const rawBloodGroup = toEnum(bloodGroup)
       ?.replace(/\+/g, "_PLUS")
       .replace(/-/g, "_MINUS");
     const fixedBloodGroup = bloodGroupMap[rawBloodGroup] || rawBloodGroup;
 
+    // ── PersonalInfo payload ────────────────────────────────────────────────
     const data = compact({
       firstName,
       lastName,
@@ -260,8 +311,6 @@ export const savePersonalInfo = async (req, res) => {
       city,
       state,
       zipCode,
-      admissionDate: admissionDate ? new Date(admissionDate) : undefined,
-      status: toEnum(status) || "ACTIVE",
       parentName,
       parentEmail,
       parentPhone,
@@ -269,6 +318,33 @@ export const savePersonalInfo = async (req, res) => {
       bloodGroup: fixedBloodGroup,
       medicalConditions,
       allergies,
+
+      // Government / Identity
+      aadhaarNumber: aadhaarNumber?.trim() || undefined,
+      panNumber: panNumber?.trim() || undefined,
+      satsNumber: satsNumber?.trim() || undefined,
+      nationality: nationality?.trim() || undefined,
+      religion: religion?.trim() || undefined,
+      casteCategory: casteCategory ? toEnum(casteCategory) : undefined,
+
+      // Karnataka-specific
+      motherTongue: motherTongue?.trim() || undefined,
+      subcaste: subcaste?.trim() || undefined,
+      domicileState: domicileState?.trim() || undefined,
+      annualIncome: annualIncome ? parseFloat(annualIncome) : undefined,
+      // physicallyChallenged comes as string "true"/"false" from FormData
+      physicallyChallenged:
+        physicallyChallenged !== undefined
+          ? physicallyChallenged === true || physicallyChallenged === "true"
+          : undefined,
+      disabilityType: disabilityType?.trim() || undefined,
+
+      // Health measurements
+      heightCm: heightCm ? parseFloat(heightCm) : undefined,
+      weightKg: weightKg ? parseFloat(weightKg) : undefined,
+      identifyingMarks: identifyingMarks?.trim() || undefined,
+
+      // Dates and enums
       ...(profileImageUrl ? { profileImage: profileImageUrl } : {}),
       ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
       ...(gender ? { gender: toEnum(gender) } : {}),
@@ -280,6 +356,7 @@ export const savePersonalInfo = async (req, res) => {
       update: data,
     });
 
+    // ── Enrollment upsert ───────────────────────────────────────────────────
     let enrollment = null;
     if (classSectionId && academicYearId) {
       enrollment = await prisma.studentEnrollment.upsert({
@@ -288,15 +365,34 @@ export const savePersonalInfo = async (req, res) => {
           studentId,
           classSectionId,
           academicYearId,
-          rollNumber: rollNumber?.trim() || null, // FIX: null allowed
+          admissionNumber: admissionNumber?.trim() || null,
+          admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
+          rollNumber: rollNumber?.trim() || null,
           externalId: externalId?.trim() || null,
           status: toEnum(status) || "ACTIVE",
+          // Previous institution
+          previousSchoolName: previousSchoolName?.trim() || null,
+          previousSchoolBoard: previousSchoolBoard
+            ? toEnum(previousSchoolBoard)
+            : null,
+          udiseCode: udiseCode?.trim() || null,
+          lateralEntry:
+            lateralEntry === true || lateralEntry === "true" || false,
         },
         update: {
           classSectionId,
-          rollNumber: rollNumber?.trim() || null, // FIX: null allowed
+          admissionNumber: admissionNumber?.trim() || null,
+          rollNumber: rollNumber?.trim() || null,
           externalId: externalId?.trim() || null,
           status: toEnum(status) || "ACTIVE",
+          // Previous institution
+          previousSchoolName: previousSchoolName?.trim() || null,
+          previousSchoolBoard: previousSchoolBoard
+            ? toEnum(previousSchoolBoard)
+            : null,
+          udiseCode: udiseCode?.trim() || null,
+          lateralEntry:
+            lateralEntry === true || lateralEntry === "true" || false,
         },
       });
     }
@@ -330,6 +426,37 @@ export const uploadDocumentsBulk = async (req, res) => {
         .status(400)
         .json({ message: "metadata length must match files length" });
 
+    // Validate all documentName values are valid enum members
+    const VALID_DOC_TYPES = [
+      "AADHAR_CARD",
+      "BIRTH_CERTIFICATE",
+      "PASSBOOK",
+      "TRANSFER_CERTIFICATE",
+      "MARKSHEET",
+      "MIGRATION_CERTIFICATE",
+      "CHARACTER_CERTIFICATE",
+      "MEDICAL_CERTIFICATE",
+      "PASSPORT",
+      "CASTE_CERTIFICATE",
+      "INCOME_CERTIFICATE",
+      "PHOTO",
+      "CUSTOM",
+    ];
+
+    for (const [i, meta] of metadata.entries()) {
+      if (!VALID_DOC_TYPES.includes(meta.documentName)) {
+        return res.status(400).json({
+          message: `Invalid documentName "${meta.documentName}" at index ${i}. Must be one of: ${VALID_DOC_TYPES.join(", ")}`,
+        });
+      }
+      // CUSTOM requires a customLabel
+      if (meta.documentName === "CUSTOM" && !meta.customLabel?.trim()) {
+        return res.status(400).json({
+          message: `customLabel is required when documentName is CUSTOM (index ${i})`,
+        });
+      }
+    }
+
     const created = await Promise.all(
       req.files.map(async (file, idx) => {
         const { documentName, customLabel } = metadata[idx];
@@ -339,7 +466,7 @@ export const uploadDocumentsBulk = async (req, res) => {
           data: {
             studentId,
             documentName,
-            customLabel: customLabel || null,
+            customLabel: customLabel?.trim() || null,
             fileKey: key,
             fileType: file.mimetype,
             fileSizeBytes: file.size,
@@ -357,8 +484,6 @@ export const uploadDocumentsBulk = async (req, res) => {
 };
 
 // ── getStudent ────────────────────────────────────────────────────────────────
-// FIX: classSection now includes stream, combination, course, branch
-// so PUC and Degree student views show full context
 export const getStudent = async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
@@ -379,9 +504,9 @@ export const getStudent = async (req, res) => {
         id: true,
         name: true,
         email: true,
-        admissionNumber: true,
+        isActive: true,
         createdAt: true,
-        personalInfo: true,
+        personalInfo: true, // full model — all new fields included
         documents: { orderBy: { createdAt: "desc" } },
         enrollments: {
           include: {
@@ -391,15 +516,12 @@ export const getStudent = async (req, res) => {
                 grade: true,
                 section: true,
                 name: true,
-                // FIX: include stream for PUC
                 streamId: true,
                 stream: {
                   select: { id: true, name: true, hasCombinations: true },
                 },
-                // FIX: include combination for PUC
                 combinationId: true,
                 combination: { select: { id: true, name: true, code: true } },
-                // FIX: include course for Degree/Diploma/PG
                 courseId: true,
                 course: {
                   select: {
@@ -409,7 +531,6 @@ export const getStudent = async (req, res) => {
                     totalSemesters: true,
                   },
                 },
-                // FIX: include branch for Degree/Diploma/PG
                 branchId: true,
                 branch: { select: { id: true, name: true, code: true } },
               },
@@ -433,6 +554,7 @@ export const getStudent = async (req, res) => {
           },
           orderBy: { createdAt: "asc" },
         },
+        readmissions: { orderBy: { createdAt: "desc" } },
       },
     });
 
@@ -447,7 +569,6 @@ export const getStudent = async (req, res) => {
 };
 
 // ── listStudents ──────────────────────────────────────────────────────────────
-// FIX: classSection now includes id + stream/course/branch context
 export const listStudents = async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
@@ -461,49 +582,23 @@ export const listStudents = async (req, res) => {
     const academicYearId = req.query.academicYearId || null;
     const status = req.query.status?.toUpperCase() || null;
 
-    const baseKey = `students:list:${schoolId}:${JSON.stringify({
-      page,
-      limit,
-      search,
-      classSectionId,
-      academicYearId,
-      status,
-    })}`;
-
+    const baseKey = `students:list:${schoolId}:${JSON.stringify({ page, limit, search, classSectionId, academicYearId, status })}`;
     const key = await cacheService.buildKey(schoolId, baseKey);
 
     const cached = await cacheService.get(key);
     if (cached) return res.json({ ...JSON.parse(cached), fromCache: true });
 
-    const statusFilter = status
-      ? {
-          OR: [
-            { enrollments: { some: { status } } },
-            {
-              AND: [
-                { enrollments: { none: {} } },
-                { personalInfo: { status } },
-              ],
-            },
-          ],
-        }
-      : {};
+    const hasEnrollmentFilter = classSectionId || academicYearId || status;
+    const enrollmentFilter = {
+      ...(classSectionId ? { classSectionId } : {}),
+      ...(academicYearId ? { academicYearId } : {}),
+      ...(status ? { status } : {}),
+    };
 
     const where = {
-      ...(schoolId ? { schoolId } : {}),
-      ...statusFilter,
-      ...(classSectionId || academicYearId
-        ? {
-            enrollments: {
-              some: {
-                ...(classSectionId ? { classSectionId } : {}),
-                ...(academicYearId ? { academicYearId } : {}),
-                ...(status && (classSectionId || academicYearId)
-                  ? { status }
-                  : {}),
-              },
-            },
-          }
+      schoolId,
+      ...(hasEnrollmentFilter
+        ? { enrollments: { some: enrollmentFilter } }
         : {}),
       ...(search
         ? {
@@ -512,12 +607,26 @@ export const listStudents = async (req, res) => {
               { email: { contains: search, mode: "insensitive" } },
               {
                 personalInfo: {
-                  firstName: { contains: search, mode: "insensitive" },
+                  is: {
+                    firstName: { contains: search, mode: "insensitive" },
+                  },
                 },
               },
               {
                 personalInfo: {
-                  lastName: { contains: search, mode: "insensitive" },
+                  is: {
+                    lastName: { contains: search, mode: "insensitive" },
+                  },
+                },
+              },
+              {
+                enrollments: {
+                  some: {
+                    admissionNumber: {
+                      contains: search,
+                      mode: "insensitive",
+                    },
+                  },
                 },
               },
             ],
@@ -525,61 +634,47 @@ export const listStudents = async (req, res) => {
         : {}),
     };
 
-    const [total, students] = await prisma.$transaction([
-      prisma.student.count({ where }),
-      prisma.student.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          admissionNumber: true,
-          createdAt: true,
-          personalInfo: {
-            select: {
-              firstName: true,
-              lastName: true,
-              status: true,
-              profileImage: true,
-              phone: true,
-              admissionDate: true,
-            },
+    const total = await prisma.student.count({ where });
+
+    const students = await prisma.student.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        personalInfo: {
+          select: {
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            phone: true,
+            casteCategory: true,
+            nationality: true,
+            motherTongue: true, // NEW
+            physicallyChallenged: true, // NEW
           },
-          enrollments: {
-            where: academicYearId ? { academicYearId } : {},
-            select: {
-              rollNumber: true,
-              externalId: true,
-              status: true,
-              classSection: {
-                select: {
-                  id: true, // FIX: id was missing — edit from list was broken
-                  name: true,
-                  grade: true,
-                  section: true,
-                  // FIX: include context for PUC and Degree
-                  streamId: true,
-                  stream: { select: { id: true, name: true } },
-                  combinationId: true,
-                  combination: { select: { id: true, name: true, code: true } },
-                  courseId: true,
-                  course: { select: { id: true, name: true } },
-                  branchId: true,
-                  branch: { select: { id: true, name: true, code: true } },
-                },
-              },
-              academicYear: { select: { id: true, name: true } },
-            },
-            orderBy: { createdAt: "desc" },
-            take: 1,
-          },
-          _count: { select: { documents: true } },
         },
-      }),
-    ]);
+        enrollments: {
+          where: academicYearId ? { academicYearId } : {},
+          include: {
+            classSection: {
+              include: {
+                stream: true,
+                combination: true,
+                course: true,
+                branch: true,
+              },
+            },
+            academicYear: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+        _count: {
+          select: { documents: true },
+        },
+      },
+    });
 
     const payload = {
       students,
@@ -588,7 +683,6 @@ export const listStudents = async (req, res) => {
       limit,
       pages: Math.ceil(total / limit),
     };
-
     await cacheService.set(key, payload);
     return res.json({ ...payload, fromCache: false });
   } catch (err) {
@@ -649,48 +743,43 @@ export const getProfileImage = async (req, res) => {
   try {
     if (!req.user?.role)
       return res.status(401).json({ message: "Unauthorized" });
- 
+
     const { id: studentId } = req.params;
- 
+
     const student = await prisma.student.findUnique({
       where: { id: studentId },
       select: { personalInfo: { select: { profileImage: true } } },
     });
- 
+
     if (!student?.personalInfo?.profileImage)
       return res.status(404).json({ message: "Profile image not found" });
 
-    const expiresIn = 86400;
     const signedUrl = await generateSignedUrl(
       student.personalInfo.profileImage,
-      expiresIn,
+      86400,
     );
-    return res.json({ url: signedUrl, expiresIn });
+    return res.json({ url: signedUrl, expiresIn: 86400 });
   } catch (err) {
     console.error("[getProfileImage]", err);
     return res.status(500).json({ message: "Server error" });
   }
 };
 
+// ── getMyStudent (student self-view) ──────────────────────────────────────────
 export const getMyStudent = async (req, res) => {
   try {
     const userId = req.user?.id;
     const schoolId = req.user?.schoolId;
-
     if (!userId || !schoolId)
       return res.status(400).json({ message: "Invalid token" });
 
-    // 🔹 Versioned cache key
     const baseKey = `students:me:${schoolId}:${userId}`;
     const key = await cacheService.buildKey(schoolId, baseKey);
 
-    // 🔹 Try cache first
     const cached = await cacheService.get(key);
-    if (cached) {
+    if (cached)
       return res.json({ student: JSON.parse(cached), fromCache: true });
-    }
 
-    // 🔹 Fetch from DB
     const student = await prisma.student.findUnique({
       where: { id: userId, schoolId },
       include: {
@@ -712,24 +801,16 @@ export const getMyStudent = async (req, res) => {
         parentLinks: {
           include: {
             parent: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-              },
+              select: { id: true, name: true, email: true, phone: true },
             },
           },
         },
       },
     });
 
-    if (!student)
-      return res.status(404).json({ message: "Student not found" });
+    if (!student) return res.status(404).json({ message: "Student not found" });
 
-    // 🔹 Save to cache
     await cacheService.set(key, student);
-
     return res.json({ student, fromCache: false });
   } catch (error) {
     console.error("[getMyStudent]", error);
@@ -737,30 +818,23 @@ export const getMyStudent = async (req, res) => {
   }
 };
 
+// ── getMyParentStudents ───────────────────────────────────────────────────────
 export const getMyParentStudents = async (req, res) => {
   try {
     const parentId = req.user?.id;
     const schoolId = req.user?.schoolId;
-
     if (!parentId || !schoolId)
       return res.status(400).json({ message: "Invalid token" });
 
-    // 🔹 Versioned cache key
     const baseKey = `students:parent:${schoolId}:${parentId}`;
     const key = await cacheService.buildKey(schoolId, baseKey);
 
-    // 🔹 Try cache first
     const cached = await cacheService.get(key);
-    if (cached) {
+    if (cached)
       return res.json({ students: JSON.parse(cached), fromCache: true });
-    }
 
-    // 🔹 Fetch linked students
     const links = await prisma.studentParent.findMany({
-      where: {
-        parentId,
-        student: { schoolId },
-      },
+      where: { parentId, student: { schoolId } },
       include: {
         student: {
           include: {
@@ -791,9 +865,7 @@ export const getMyParentStudents = async (req, res) => {
       student: link.student,
     }));
 
-    // 🔹 Save to cache
     await cacheService.set(key, students);
-
     return res.json({ students, fromCache: false });
   } catch (error) {
     console.error("[getMyParentStudents]", error);

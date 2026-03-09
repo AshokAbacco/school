@@ -153,13 +153,12 @@ export default function AddExtraClassModal({
     if (!open) return;
     if (editData) {
       setType(editData.type || "OTHER");
-      setMode(editData.recurringDays?.length ? "recurring" : "specific");
+      // ✅ Backend stores recurringDay (singular string), not recurringDays (array)
+      // Check recurringDay first; recurringDays array is only used in the create payload
+      const hasRecurring = !!editData.recurringDay;
+      setMode(hasRecurring ? "recurring" : "specific");
       setRecDays(
-        editData.recurringDays?.length
-          ? editData.recurringDays
-          : editData.recurringDay
-            ? [editData.recurringDay] // backwards compat with old single-day records
-            : ["SATURDAY"],
+        editData.recurringDay ? [editData.recurringDay] : ["SATURDAY"],
       );
       setSpecDate(
         editData.specificDate
