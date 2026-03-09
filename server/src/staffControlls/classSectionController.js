@@ -80,6 +80,7 @@ export const getClassSections = async (req, res) => {
       orderBy: [{ grade: "asc" }, { section: "asc" }],
       include: {
         stream: { select: { id: true, name: true } },
+        combination: { select: { id: true, name: true, code: true } }, // ✅ NEW
         course: { select: { id: true, name: true, totalSemesters: true } },
         branch: { select: { id: true, name: true, code: true } },
         academicYearLinks: {
@@ -190,7 +191,15 @@ export const createClassSection = async (req, res) => {
     if (!schoolId)
       return res.status(400).json({ message: "schoolId missing from token" });
 
-    const { grade, section, sections, streamId, courseId, branchId } = req.body;
+    const {
+      grade,
+      section,
+      sections,
+      streamId,
+      combinationId,
+      courseId,
+      branchId,
+    } = req.body;
 
     if (!grade?.trim())
       return res.status(400).json({ message: "Grade is required" });
@@ -262,6 +271,7 @@ export const createClassSection = async (req, res) => {
             section: secName,
             schoolId,
             streamId: streamId || null,
+            combinationId: combinationId || null,
             courseId: courseId || null,
             branchId: branchId || null,
           },
@@ -279,6 +289,7 @@ export const createClassSection = async (req, res) => {
             name,
             schoolId,
             streamId: streamId || null,
+            combinationId: combinationId || null,
             courseId: courseId || null,
             branchId: branchId || null,
           },
@@ -310,6 +321,7 @@ export const createClassSection = async (req, res) => {
         section: secName,
         schoolId,
         streamId: streamId || null,
+        combinationId: combinationId || null,
         courseId: courseId || null,
         branchId: branchId || null,
       },
@@ -323,11 +335,13 @@ export const createClassSection = async (req, res) => {
         name,
         schoolId,
         streamId: streamId || null,
+        combinationId: combinationId || null,
         courseId: courseId || null,
         branchId: branchId || null,
       },
       include: {
         stream: true,
+        combination: true,
         course: true,
         branch: true,
       },
@@ -551,6 +565,51 @@ export const removeTeacherAssignment = async (req, res) => {
     });
     if (section) await invalidate(section.schoolId);
     return res.json({ message: "Teacher assignment removed" });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// ── PATCH /api/academic-years/:id/activate ────────────────────────────────────
+// Sets the selected year as active and deactivates all other years for this school.
+// This is the key step after running promotion — admin switches to the new year.
+export const activateAcademicYear = async (req, res) => {
+  try {
+    const schoolId = req.user.schoolId;
+    const { id } = req.params;
+
+    // Verify the year belongs to this school
+    const year = await prisma.academicYear.findFirst({
+      where: { id, schoolId },
+    });
+    if (!year) {
+      return res.status(404).json({ message: "Academic year not found" });
+    }
+
+    // Already active — nothing to do
+    if (year.isActive) {
+      return res.json({ message: "Academic year is already active", year });
+    }
+
+    // Run in transaction: deactivate all → activate selected
+    await prisma.$transaction([
+      prisma.academicYear.updateMany({
+        where: { schoolId, isActive: true },
+        data: { isActive: false },
+      }),
+      prisma.academicYear.update({
+        where: { id },
+        data: { isActive: true },
+      }),
+    ]);
+
+    const updated = await prisma.academicYear.findUnique({ where: { id } });
+
+    await invalidate(schoolId);
+    return res.json({
+      message: `"${updated.name}" is now the active academic year`,
+      year: updated,
+    });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

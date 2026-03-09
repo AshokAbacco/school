@@ -6,6 +6,7 @@ import { uploadToR2, generateSignedUrl } from "../lib/r2.js";
 const prisma = new PrismaClient();
 
 const SALT_ROUNDS = 10;
+
 // ── POST /api/teachers/:id/profile-image ──────────────────────
 export async function uploadProfileImage(req, res) {
   try {
@@ -25,7 +26,7 @@ export async function uploadProfileImage(req, res) {
 
     const updated = await prisma.teacherProfile.update({
       where: { id },
-      data: { profileImage: key }, // store the R2 key, NOT the URL
+      data: { profileImage: key },
     });
 
     await cacheService.invalidateSchool(schoolId);
@@ -52,7 +53,7 @@ export async function getProfileImage(req, res) {
     if (!teacher?.profileImage)
       return res.status(404).json({ error: "Profile image not found" });
 
-    const expiresIn = 86400; // 24 hours — matches student pattern
+    const expiresIn = 86400;
     const signedUrl = await generateSignedUrl(teacher.profileImage, expiresIn);
 
     res.json({ url: signedUrl, expiresIn });
@@ -61,6 +62,48 @@ export async function getProfileImage(req, res) {
     res.status(500).json({ error: "Failed to fetch profile image" });
   }
 }
+
+// ── POST /api/teachers/:id/documents ─────────────────────────
+export async function uploadTeacherDocument(req, res) {
+  try {
+    const { id } = req.params;
+    const schoolId = req.user?.schoolId;
+    const { documentType, customLabel } = req.body;
+
+    if (!req.file) return res.status(400).json({ error: "No file received" });
+    if (!documentType)
+      return res.status(400).json({ error: "documentType is required" });
+
+    const teacher = await prisma.teacherProfile.findFirst({
+      where: { id, schoolId },
+      select: { id: true },
+    });
+    if (!teacher) return res.status(404).json({ error: "Teacher not found" });
+
+    const ext = req.file.originalname.split(".").pop();
+    const key = `teachers/${id}/documents/${documentType}-${Date.now()}.${ext}`;
+    await uploadToR2(key, req.file.buffer, req.file.mimetype);
+
+    const doc = await prisma.teacherDocument.create({
+      data: {
+        teacherId: id,
+        documentType,
+        customLabel: customLabel || null,
+        fileKey: key,
+        fileType: ext.toLowerCase(),
+        fileSizeBytes: req.file.size,
+        isVerified: false,
+      },
+    });
+
+    await cacheService.invalidateSchool(schoolId);
+    res.status(201).json({ data: doc });
+  } catch (err) {
+    console.error("[uploadTeacherDocument]", err);
+    res.status(500).json({ error: "Failed to upload document" });
+  }
+}
+
 // ── GET /api/teachers ─────────────────────────────────────────
 export async function getTeachers(req, res) {
   try {
@@ -80,7 +123,6 @@ export async function getTeachers(req, res) {
       `teachers:list:${JSON.stringify({ page, limit, search, status, department, employmentType })}`,
     );
 
-    // ── Cache hit — re-sign URLs before returning ──
     const cached = await cacheService.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
@@ -135,8 +177,9 @@ export async function getTeachers(req, res) {
           status: true,
           joiningDate: true,
           phone: true,
-          profileImage: true, // ← raw R2 key stored here
+          profileImage: true,
           experienceYears: true,
+          bloodGroup: true,
           user: { select: { email: true, isActive: true } },
           assignments: {
             select: {
@@ -160,10 +203,8 @@ export async function getTeachers(req, res) {
       totalPages: Math.ceil(total / Number(limit)),
     };
 
-    // ── Cache raw keys (NOT signed URLs — they expire) ──
     await cacheService.set(cacheKey, { data, meta });
 
-    // ── Sign URLs only for the response ──
     const signedData = await Promise.all(
       data.map(async (t) => {
         if (t.profileImage) {
@@ -194,7 +235,6 @@ export async function getTeacherById(req, res) {
     const cached = await cacheService.get(cacheKey);
     if (cached) {
       const teacher = JSON.parse(cached);
-      // Refresh signed URL on every fetch — URLs expire after 24h
       if (teacher.profileImage) {
         teacher.profileImage = await generateSignedUrl(
           teacher.profileImage,
@@ -237,10 +277,8 @@ export async function getTeacherById(req, res) {
 
     if (!teacher) return res.status(404).json({ error: "Teacher not found" });
 
-    // Cache the raw key, NOT the signed URL (URLs expire)
     await cacheService.set(cacheKey, teacher);
 
-    // Generate signed URL after caching
     if (teacher.profileImage) {
       teacher.profileImage = await generateSignedUrl(
         teacher.profileImage,
@@ -284,6 +322,11 @@ export async function createTeacher(req, res) {
       ifscCode,
       panNumber,
       aadhaarNumber,
+      // ── NEW fields ──
+      bloodGroup,
+      emergencyContact,
+      medicalConditions,
+      allergies,
     } = req.body;
 
     const schoolId = req.user?.schoolId;
@@ -329,6 +372,11 @@ export async function createTeacher(req, res) {
           ifscCode: ifscCode || null,
           panNumber: panNumber || null,
           aadhaarNumber: aadhaarNumber || null,
+          // ── NEW fields ──
+          bloodGroup: bloodGroup || null,
+          emergencyContact: emergencyContact || null,
+          medicalConditions: medicalConditions || null,
+          allergies: allergies || null,
         },
         include: { user: { select: { id: true, email: true } } },
       });
@@ -373,6 +421,11 @@ export async function updateTeacher(req, res) {
       "panNumber",
       "aadhaarNumber",
       "profileImage",
+      // ── NEW fields ──
+      "bloodGroup",
+      "emergencyContact",
+      "medicalConditions",
+      "allergies",
     ];
 
     const data = {};
@@ -385,6 +438,7 @@ export async function updateTeacher(req, res) {
     if (data.salary !== undefined) {
       data.salary = data.salary ? Number(data.salary) : null;
     }
+
     const updated = await prisma.teacherProfile.update({ where: { id }, data });
 
     const schoolId = req.user?.schoolId;
@@ -436,7 +490,6 @@ export async function addAssignment(req, res) {
     });
 
     await cacheService.invalidateSchool(schoolId);
-
     res.status(201).json({ data: assignment });
   } catch (err) {
     if (err.code === "P2002")
@@ -458,10 +511,39 @@ export async function removeAssignment(req, res) {
     await prisma.teacherAssignment.delete({ where: { id: aId } });
 
     await cacheService.invalidateSchool(schoolId);
-
     res.json({ message: "Assignment removed" });
   } catch (err) {
     console.error("[removeAssignment]", err);
     res.status(500).json({ error: "Failed to remove assignment" });
+  }
+}
+
+
+export async function getTeacherDocumentUrl(req, res) {
+  try {
+    const { id, docId } = req.params;
+    const schoolId = req.user?.schoolId;
+
+    // Verify teacher belongs to school
+    const teacher = await prisma.teacherProfile.findFirst({
+      where: { id, schoolId },
+      select: { id: true },
+    });
+    if (!teacher) return res.status(404).json({ error: "Teacher not found" });
+
+    // Fetch the document
+    const doc = await prisma.teacherDocument.findFirst({
+      where: { id: docId, teacherId: id },
+      select: { fileKey: true, fileType: true },
+    });
+    if (!doc) return res.status(404).json({ error: "Document not found" });
+
+    const expiresIn = 300; // 5 minutes
+    const url = await generateSignedUrl(doc.fileKey, expiresIn);
+
+    res.json({ url, expiresIn });
+  } catch (err) {
+    console.error("[getTeacherDocumentUrl]", err);
+    res.status(500).json({ error: "Failed to generate document URL" });
   }
 }

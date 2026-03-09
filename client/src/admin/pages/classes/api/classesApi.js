@@ -19,8 +19,22 @@ const toQuery = (params = {}) => {
 };
 
 const handle = async (r) => {
-  const j = await r.json();
-  if (!r.ok) throw new Error(j.message || j.error || `HTTP ${r.status}`);
+  let j = null;
+
+  try {
+    j = await r.json();
+  } catch {
+    j = null;
+  }
+
+  if (!r.ok) {
+    const err = new Error(j?.message || j?.error || `HTTP ${r.status}`);
+    if (j?.periodsWithEntries) err.periodsWithEntries = j.periodsWithEntries;
+    if (j?.conflicts) err.conflicts = j.conflicts;
+    if (j?.dayMismatch) err.dayMismatch = j.dayMismatch;
+    throw err;
+  }
+
   return j;
 };
 
@@ -372,4 +386,13 @@ export const readmitStudent = (studentId, data) =>
     method: "POST",
     headers: authHeaders(true),
     body: JSON.stringify(data),
+  }).then(handle);
+
+// Call: PATCH /api/class-sections/academic-years/:id/activate
+// Purpose: Sets the given year as active, deactivates all others for this school
+
+export const activateAcademicYear = (yearId) =>
+  fetch(`${BASE}/class-sections/academic-years/${yearId}/activate`, {
+    method: "PATCH",
+    headers: authHeaders(true),
   }).then(handle);

@@ -21,24 +21,39 @@ import {
   CheckCircle,
   XCircle,
   Info,
+  AlertCircle,
+  BookOpen,
 } from "lucide-react";
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
+// ── Design tokens — matches CurriculumPage exactly ────────────────────────────
 const C = {
-  primary: "#384959",
-  secondary: "#6A89A7",
-  accent: "#88BDF2",
-  light: "#BDDDFC",
-  border: "rgba(136,189,242,0.30)",
-  bg: "#F4F8FC",
-  cardBg: "white",
-  softBg: "rgba(189,221,252,0.08)",
+  slate: "#6A89A7",
+  mist: "#BDDDFC",
+  sky: "#88BDF2",
+  deep: "#384959",
+  deepDark: "#243340",
+  bg: "#EDF3FA",
+  white: "#FFFFFF",
+  border: "#C8DCF0",
+  borderLight: "#DDE9F5",
+  text: "#243340",
+  textLight: "#6A89A7",
 };
 
-const STAT_CARDS = [
-  { key: "PRESENT", label: "Present", icon: UserCheck, bar: "#22c55e" },
-  { key: "ABSENT", label: "Absent", icon: UserX, bar: "#ef4444" },
-];
+// ── Skeleton pulse (same as curriculum) ───────────────────────────────────────
+function Pulse({ w = "100%", h = 13, r = 8 }) {
+  return (
+    <div
+      className="animate-pulse"
+      style={{
+        width: w,
+        height: h,
+        borderRadius: r,
+        background: `${C.mist}55`,
+      }}
+    />
+  );
+}
 
 // ── Toast System ──────────────────────────────────────────────────────────────
 const TOAST_CFG = {
@@ -57,11 +72,11 @@ const TOAST_CFG = {
     iconColor: "#ef4444",
   },
   info: {
-    bg: "#eff6ff",
-    border: "#93c5fd",
-    color: "#1d4ed8",
+    bg: `${C.mist}55`,
+    border: C.sky,
+    color: C.deep,
     icon: Info,
-    iconColor: "#3b82f6",
+    iconColor: C.sky,
   },
   absent: {
     bg: "#fef2f2",
@@ -84,11 +99,11 @@ function ToastContainer({ toasts, onRemove }) {
     <div
       style={{
         position: "fixed",
-        bottom: "24px",
-        right: "24px",
+        bottom: 24,
+        right: 24,
         display: "flex",
         flexDirection: "column",
-        gap: "8px",
+        gap: 8,
         zIndex: 9999,
         pointerEvents: "none",
       }}
@@ -102,26 +117,29 @@ function ToastContainer({ toasts, onRemove }) {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "10px",
+              gap: 10,
               padding: "12px 16px",
-              borderRadius: "12px",
+              borderRadius: 14,
               background: cfg.bg,
               border: `1px solid ${cfg.border}`,
-              boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
-              minWidth: "260px",
-              maxWidth: "340px",
+              boxShadow: "0 4px 20px rgba(56,73,89,0.13)",
+              minWidth: 260,
+              maxWidth: 340,
               pointerEvents: "auto",
-              animation: "toastIn 0.25s cubic-bezier(0.34,1.56,0.64,1) both",
+              fontFamily: "'Sora',sans-serif",
               opacity: t.leaving ? 0 : 1,
               transform: t.leaving ? "translateX(20px)" : "translateX(0)",
               transition: t.leaving ? "all 0.2s ease" : "none",
+              animation: t.leaving
+                ? "none"
+                : "toastIn 0.28s cubic-bezier(0.34,1.56,0.64,1) both",
             }}
           >
-            <Icon size={16} style={{ color: cfg.iconColor, flexShrink: 0 }} />
+            <Icon size={15} style={{ color: cfg.iconColor, flexShrink: 0 }} />
             <span
               style={{
                 color: cfg.color,
-                fontSize: "13px",
+                fontSize: 13,
                 fontWeight: 600,
                 flex: 1,
               }}
@@ -136,7 +154,7 @@ function ToastContainer({ toasts, onRemove }) {
                 cursor: "pointer",
                 color: cfg.color,
                 opacity: 0.5,
-                padding: "0",
+                padding: 0,
                 display: "flex",
                 alignItems: "center",
               }}
@@ -154,12 +172,10 @@ function ToastContainer({ toasts, onRemove }) {
 function useToast() {
   const [toasts, setToasts] = useState([]);
   const timers = useRef({});
-
   const remove = useCallback((id) => {
     setToasts((p) => p.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
     setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 220);
   }, []);
-
   const toast = useCallback(
     (message, type = "info", duration = 2800) => {
       const id = Date.now() + Math.random();
@@ -168,19 +184,154 @@ function useToast() {
     },
     [remove],
   );
-
   return { toasts, toast, remove };
+}
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+function StatCard({ label, value, icon: Icon, accent }) {
+  return (
+    <div
+      style={{
+        background: C.white,
+        borderRadius: 18,
+        border: `1.5px solid ${C.borderLight}`,
+        boxShadow: "0 2px 16px rgba(56,73,89,0.06)",
+        overflow: "hidden",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: `linear-gradient(90deg, ${accent}, ${C.deep})`,
+          borderRadius: "18px 18px 0 0",
+        }}
+      />
+      <div style={{ padding: "16px 18px 14px" }}>
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 12,
+            background: `${accent}22`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 10,
+            border: `1px solid ${accent}33`,
+          }}
+        >
+          <Icon size={16} color={accent} strokeWidth={2} />
+        </div>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 24,
+            fontWeight: 800,
+            color: C.text,
+            lineHeight: 1,
+            fontFamily: "'Sora',sans-serif",
+          }}
+        >
+          {value}
+        </p>
+        <p
+          style={{
+            margin: "4px 0 0",
+            fontSize: 11,
+            fontWeight: 600,
+            color: C.textLight,
+            fontFamily: "'Sora',sans-serif",
+          }}
+        >
+          {label}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Progress bar (reused from curriculum) ─────────────────────────────────────
+function ProgressBar({ pct }) {
+  return (
+    <div style={{ width: "100%" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 5,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "'Sora',sans-serif",
+            fontSize: 11,
+            color: C.textLight,
+            fontWeight: 500,
+          }}
+        >
+          Completion
+        </span>
+        <span
+          style={{
+            fontFamily: "'Sora',sans-serif",
+            fontSize: 12,
+            fontWeight: 700,
+            color: C.deep,
+          }}
+        >
+          {pct}%
+        </span>
+      </div>
+      <div
+        style={{
+          height: 7,
+          borderRadius: 99,
+          background: `${C.mist}55`,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${pct}%`,
+            background: `linear-gradient(90deg, ${C.slate}, ${C.deep})`,
+            borderRadius: 99,
+            transition: "width 0.8s ease",
+          }}
+        />
+      </div>
+    </div>
+  );
 }
 
 export default function Attendance() {
   const [classes, setClasses] = useState([]);
+  const [activeAcademicYear, setActiveAcademicYear] = useState(null);
   const [selectedClassId, setSelectedClassId] = useState("");
   const [academicYearId, setAcademicYearId] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [initError, setInitError] = useState(null);
   const { toasts, toast, remove } = useToast();
+
+  const filteredStudents = searchQuery.trim()
+    ? students.filter((s) => {
+        const q = searchQuery.trim().toLowerCase();
+        return (
+          (s.name || "").toLowerCase().includes(q) ||
+          (s.rollNumber != null && String(s.rollNumber).includes(q)) ||
+          (s.tempIndex != null && String(s.tempIndex).includes(q))
+        );
+      })
+    : students;
 
   const loadStudents = useCallback(async (classId, yearId, targetDate) => {
     if (!classId || !yearId || !targetDate) return;
@@ -192,31 +343,44 @@ export default function Attendance() {
         date: targetDate,
       });
       setStudents(res?.data || []);
-    } catch (err) {
-      console.error("Error fetching students:", err.message);
+    } catch {
+      toast("Failed to load students. Please try again.", "error", 4000);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, []); // eslint-disable-line
 
   useEffect(() => {
     const init = async () => {
       try {
         const res = await fetchTeacherClasses();
+        if (res?.activeAcademicYear)
+          setActiveAcademicYear(res.activeAcademicYear);
         const assignedClasses = res?.data || [];
         setClasses(assignedClasses);
         if (assignedClasses.length > 0) {
           const first = assignedClasses[0];
           setSelectedClassId(first.classSectionId);
           setAcademicYearId(first.academicYearId);
-          loadStudents(first.classSectionId, first.academicYearId, date);
+        } else {
+          setInitError(
+            res?.activeAcademicYear
+              ? `No classes assigned to you for ${res.activeAcademicYear.name}. Please contact admin.`
+              : "No active academic year found. Please ask admin to activate the current year.",
+          );
         }
-      } catch (err) {
-        console.error("Initialization error:", err.message);
+      } catch {
+        setInitError("Failed to load your classes. Please refresh the page.");
+        toast("Failed to load your classes. Please refresh.", "error", 5000);
       }
     };
     init();
-  }, [loadStudents]);
+  }, []); // eslint-disable-line
+
+  useEffect(() => {
+    if (selectedClassId && academicYearId && date)
+      loadStudents(selectedClassId, academicYearId, date);
+  }, [selectedClassId, academicYearId, date, loadStudents]);
 
   const handleStatusChange = (studentId, status, studentName) => {
     setStudents((p) =>
@@ -227,26 +391,17 @@ export default function Attendance() {
     if (status === "ABSENT")
       toast(`${studentName} marked Absent`, "absent", 2000);
   };
-
   const handleRemarksChange = (studentId, remarks) =>
     setStudents((p) =>
       p.map((s) => (s.studentId === studentId ? { ...s, remarks } : s)),
     );
-
   const markAllPresent = () => {
     setStudents((p) => p.map((s) => ({ ...s, status: "PRESENT" })));
     toast(`All ${students.length} students marked Present`, "success", 3000);
   };
 
   const summary = useMemo(() => {
-    const r = {
-      PRESENT: 0,
-      ABSENT: 0,
-      LATE: 0,
-      HALF_DAY: 0,
-      EXCUSED: 0,
-      UNMARKED: 0,
-    };
+    const r = { PRESENT: 0, ABSENT: 0, UNMARKED: 0 };
     students.forEach((s) => {
       if (!s.status) r.UNMARKED++;
       else r[s.status] = (r[s.status] || 0) + 1;
@@ -258,6 +413,11 @@ export default function Attendance() {
   const completionPct = students.length
     ? Math.round(((students.length - summary.UNMARKED) / students.length) * 100)
     : 0;
+  const getClassLabel = (cls) =>
+    cls.name || `${cls.grade}${cls.section ? `-${cls.section}` : ""}`;
+  const selectedClass = classes.find(
+    (c) => c.classSectionId === selectedClassId,
+  );
 
   const handleSave = async () => {
     if (!students.length) return;
@@ -289,721 +449,766 @@ export default function Attendance() {
     }
   };
 
-  const selectedClass = classes.find(
-    (c) => c.classSectionId === selectedClassId,
-  );
-
-  const ghostBtn = {
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    padding: "8px 14px",
-    borderRadius: "10px",
-    border: `1px solid ${C.border}`,
-    background: "white",
-    color: C.secondary,
-    fontSize: "12px",
-    fontWeight: 600,
-    cursor: "pointer",
-    fontFamily: "Inter, sans-serif",
-  };
-
   return (
     <PageLayout>
-      <div style={{ padding: "24px", background: C.bg, minHeight: "100vh" }}>
-        {/* ── Page Header ─────────────────────────────────────────────── */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: "24px",
-            flexWrap: "wrap",
-            gap: "12px",
-          }}
-        >
-          <div>
-            <h2
-              style={{
-                color: C.primary,
-                fontSize: "20px",
-                fontWeight: 700,
-                margin: 0,
-              }}
-            >
-              Attendance Management
-            </h2>
-            <p
-              style={{
-                color: C.secondary,
-                fontSize: "13px",
-                fontWeight: 400,
-                margin: "4px 0 0",
-              }}
-            >
-              Mark and submit daily attendance for your assigned class
-            </p>
-          </div>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+      />
+      <style>{`
+        * { box-sizing: border-box; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+        .fade-up { animation: fadeUp 0.45s ease forwards; }
+        .att-page { padding: 20px 16px; }
+        .att-filter-bar { flex-direction: column !important; }
+        .att-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        @media (min-width: 480px) { .att-page { padding: 20px 20px; } }
+        @media (min-width: 768px) { .att-page { padding: 24px 28px; } .att-filter-bar { flex-direction: row !important; } }
+        @media (min-width: 1024px) { .att-page { padding: 28px 32px; } }
+        tr:hover td { background: ${C.bg} !important; }
+        input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.5; cursor: pointer; }
+      `}</style>
 
-          {students.length > 0 && (
+      <div
+        className="att-page"
+        style={{
+          minHeight: "100vh",
+          background: C.bg,
+          fontFamily: "'Sora',sans-serif",
+          backgroundImage: `radial-gradient(circle at 15% 0%, ${C.mist}28 0%, transparent 50%)`,
+        }}
+      >
+        {/* ── Page Header ── */}
+        <div style={{ marginBottom: 24 }} className="fade-up">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 5,
+            }}
+          >
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                background: "white",
-                border: `1px solid ${C.border}`,
-                borderRadius: "12px",
-                padding: "8px 14px",
+                width: 4,
+                height: 28,
+                borderRadius: 99,
+                background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`,
+                flexShrink: 0,
+              }}
+            />
+            <h1
+              style={{
+                margin: 0,
+                fontSize: "clamp(18px,5vw,26px)",
+                fontWeight: 800,
+                color: C.text,
+                letterSpacing: "-0.5px",
               }}
             >
-              <CalendarCheck size={14} style={{ color: C.accent }} />
-              <span
+              Attendance
+            </h1>
+          </div>
+          <p
+            style={{
+              margin: 0,
+              paddingLeft: 14,
+              fontSize: 12,
+              color: C.textLight,
+              fontWeight: 500,
+            }}
+          >
+            {activeAcademicYear
+              ? `Marking attendance for ${activeAcademicYear.name}`
+              : "Mark and submit daily attendance for your assigned class"}
+          </p>
+        </div>
+
+        {/* ── Error Banner ── */}
+        {initError && (
+          <div
+            className="fade-up"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "12px 16px",
+              borderRadius: 14,
+              background: "#fffbeb",
+              border: "1px solid #fcd34d",
+              marginBottom: 18,
+            }}
+          >
+            <AlertCircle
+              size={15}
+              style={{ color: "#d97706", flexShrink: 0 }}
+            />
+            <p
+              style={{
+                color: "#92400e",
+                fontSize: 13,
+                fontWeight: 500,
+                margin: 0,
+                fontFamily: "'Sora',sans-serif",
+              }}
+            >
+              {initError}
+            </p>
+          </div>
+        )}
+
+        {/* ── Stat Cards ── */}
+        {students.length > 0 && (
+          <div
+            className="att-stat-grid fade-up"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2,1fr)",
+              gap: 14,
+              marginBottom: 18,
+            }}
+          >
+            <StatCard
+              label="Present"
+              value={summary.PRESENT}
+              icon={UserCheck}
+              accent="#22c55e"
+            />
+            <StatCard
+              label="Absent"
+              value={summary.ABSENT}
+              icon={UserX}
+              accent="#ef4444"
+            />
+          </div>
+        )}
+
+        {/* ── Filter / Control Bar ── */}
+        <div
+          className="fade-up"
+          style={{
+            background: C.white,
+            borderRadius: 18,
+            border: `1.5px solid ${C.borderLight}`,
+            boxShadow: "0 2px 16px rgba(56,73,89,0.06)",
+            padding: "16px 18px",
+            marginBottom: 18,
+          }}
+        >
+          <div
+            className="att-filter-bar"
+            style={{
+              display: "flex",
+              gap: 14,
+              alignItems: "flex-end",
+              flexWrap: "wrap",
+            }}
+          >
+            {/* Class selector */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label
                 style={{
-                  color: C.secondary,
-                  fontSize: "12px",
-                  fontWeight: 500,
+                  fontFamily: "'Sora',sans-serif",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: C.textLight,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.07em",
                 }}
               >
-                Completion
-              </span>
-              <div
-                style={{
-                  width: "80px",
-                  height: "4px",
-                  background: "#E8F2FE",
-                  borderRadius: "99px",
-                  overflow: "hidden",
-                }}
-              >
-                <div
+                Class {activeAcademicYear ? `· ${activeAcademicYear.name}` : ""}
+              </label>
+              <div style={{ position: "relative" }}>
+                <select
+                  value={selectedClassId}
+                  onChange={(e) => {
+                    const cls = classes.find(
+                      (c) => c.classSectionId === e.target.value,
+                    );
+                    if (cls) {
+                      setSelectedClassId(cls.classSectionId);
+                      setAcademicYearId(cls.academicYearId);
+                    }
+                  }}
                   style={{
-                    height: "100%",
-                    width: `${completionPct}%`,
-                    background: `linear-gradient(90deg, ${C.accent}, ${C.secondary})`,
-                    borderRadius: "99px",
-                    transition: "width 0.4s ease",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    border: `1.5px solid ${C.border}`,
+                    borderRadius: 12,
+                    padding: "9px 36px 9px 14px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: C.text,
+                    background: C.bg,
+                    outline: "none",
+                    cursor: "pointer",
+                    minWidth: 220,
+                    fontFamily: "'Sora',sans-serif",
+                  }}
+                >
+                  {classes.length === 0 && (
+                    <option value="">No classes assigned</option>
+                  )}
+                  {classes.map((cls) => (
+                    <option key={cls.classSectionId} value={cls.classSectionId}>
+                      {getClassLabel(cls)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={13}
+                  style={{
+                    position: "absolute",
+                    right: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: C.textLight,
+                    pointerEvents: "none",
                   }}
                 />
               </div>
-              <span
-                style={{ color: C.primary, fontSize: "12px", fontWeight: 700 }}
-              >
-                {completionPct}%
-              </span>
             </div>
-          )}
-        </div>
 
-        {/* ── Stat Cards — Present & Absent only ───────────────────────── */}
-        {students.length > 0 && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "16px",
-              marginBottom: "20px",
-            }}
-          >
-            {STAT_CARDS.map(({ key, label, icon: Icon, bar }) => (
-              <div
-                key={key}
+            {/* Date picker */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label
                 style={{
-                  position: "relative",
-                  overflow: "hidden",
-                  borderRadius: "16px",
-                  background: "white",
-                  border: `1px solid ${C.border}`,
-                  boxShadow: "0 1px 3px rgba(136,189,242,0.10)",
+                  fontFamily: "'Sora',sans-serif",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: C.textLight,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.07em",
                 }}
               >
-                <div
+                Date
+              </label>
+              <div style={{ position: "relative" }}>
+                <CalendarDays
+                  size={13}
                   style={{
                     position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: "3px",
-                    background: bar,
-                    borderRadius: "16px 16px 0 0",
+                    left: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: C.textLight,
+                    pointerEvents: "none",
                   }}
                 />
-                <div style={{ padding: "16px 18px 14px" }}>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  style={{
+                    border: `1.5px solid ${C.border}`,
+                    borderRadius: 12,
+                    padding: "9px 14px 9px 32px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: C.text,
+                    background: C.bg,
+                    outline: "none",
+                    fontFamily: "'Sora',sans-serif",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Right: student count + refresh + completion */}
+            <div
+              style={{
+                marginLeft: "auto",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              {students.length > 0 && (
+                <div style={{ minWidth: 160 }}>
+                  <ProgressBar pct={completionPct} />
+                </div>
+              )}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  borderRadius: 20,
+                  background: `${C.mist}55`,
+                  border: `1px solid ${C.borderLight}`,
+                }}
+              >
+                <Users size={12} color={C.textLight} />
+                <span
+                  style={{
+                    fontFamily: "'Sora',sans-serif",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: C.deep,
+                  }}
+                >
+                  {students.length}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "'Sora',sans-serif",
+                    fontSize: 11,
+                    color: C.textLight,
+                  }}
+                >
+                  students
+                </span>
+              </div>
+              <button
+                onClick={() =>
+                  loadStudents(selectedClassId, academicYearId, date)
+                }
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 14px",
+                  borderRadius: 12,
+                  border: `1.5px solid ${C.border}`,
+                  background: C.white,
+                  color: C.textLight,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "'Sora',sans-serif",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = C.white)
+                }
+              >
+                <RefreshCw size={12} /> Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Main Content ── */}
+        {loading ? (
+          <div
+            className="fade-up"
+            style={{ display: "flex", flexDirection: "column", gap: 12 }}
+          >
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                style={{
+                  background: C.white,
+                  borderRadius: 16,
+                  border: `1.5px solid ${C.borderLight}`,
+                  padding: 18,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <Pulse w={36} h={36} r={99} />
                   <div
                     style={{
-                      width: "34px",
-                      height: "34px",
-                      borderRadius: "10px",
-                      background: `${bar}22`,
+                      flex: 1,
                       display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: "10px",
+                      flexDirection: "column",
+                      gap: 7,
                     }}
                   >
-                    <Icon size={15} style={{ color: bar }} />
+                    <Pulse w="40%" h={13} />
+                    <Pulse w="20%" h={9} />
                   </div>
-                  <p
-                    style={{
-                      fontSize: "22px",
-                      fontWeight: 700,
-                      color: C.primary,
-                      margin: 0,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {summary[key] ?? 0}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      color: C.secondary,
-                      margin: "4px 0 0",
-                    }}
-                  >
-                    {label}
-                  </p>
+                  <Pulse w={160} h={34} r={10} />
                 </div>
               </div>
             ))}
           </div>
-        )}
-
-        {/* ── Filter Bar ──────────────────────────────────────────────── */}
-        <div
-          style={{
-            background: "white",
-            borderRadius: "16px",
-            border: `1px solid ${C.border}`,
-            boxShadow: "0 1px 3px rgba(136,189,242,0.08)",
-            padding: "16px 20px",
-            marginBottom: "20px",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "12px",
-            alignItems: "flex-end",
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-            <label
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                color: C.secondary,
-                textTransform: "uppercase",
-                letterSpacing: "0.07em",
-              }}
-            >
-              Assigned Class
-            </label>
-            <div style={{ position: "relative" }}>
-              <select
-                value={selectedClassId}
-                onChange={(e) => {
-                  const cls = classes.find(
-                    (c) => c.classSectionId === e.target.value,
-                  );
-                  if (cls) {
-                    setSelectedClassId(cls.classSectionId);
-                    setAcademicYearId(cls.academicYearId);
-                    loadStudents(cls.classSectionId, cls.academicYearId, date);
-                  }
-                }}
-                style={{
-                  appearance: "none",
-                  WebkitAppearance: "none",
-                  border: `1px solid ${C.border}`,
-                  borderRadius: "10px",
-                  padding: "8px 36px 8px 12px",
-                  fontSize: "13px",
-                  fontWeight: 500,
-                  color: C.primary,
-                  background: "white",
-                  outline: "none",
-                  cursor: "pointer",
-                  minWidth: "220px",
-                  fontFamily: "Inter, sans-serif",
-                }}
-              >
-                {classes.map((cls) => (
-                  <option key={cls.classSectionId} value={cls.classSectionId}>
-                    {cls.grade}-{cls.section} ({cls.academicYearName})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={13}
-                style={{
-                  position: "absolute",
-                  right: "10px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: C.secondary,
-                  pointerEvents: "none",
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-            <label
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                color: C.secondary,
-                textTransform: "uppercase",
-                letterSpacing: "0.07em",
-              }}
-            >
-              Date
-            </label>
-            <div style={{ position: "relative" }}>
-              <CalendarDays
-                size={13}
-                style={{
-                  position: "absolute",
-                  left: "10px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: C.secondary,
-                  pointerEvents: "none",
-                }}
-              />
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => {
-                  setDate(e.target.value);
-                  if (selectedClassId)
-                    loadStudents(
-                      selectedClassId,
-                      academicYearId,
-                      e.target.value,
-                    );
-                }}
-                style={{
-                  border: `1px solid ${C.border}`,
-                  borderRadius: "10px",
-                  padding: "8px 12px 8px 30px",
-                  fontSize: "13px",
-                  fontWeight: 500,
-                  color: C.primary,
-                  background: "white",
-                  outline: "none",
-                  fontFamily: "Inter, sans-serif",
-                }}
-              />
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginLeft: "auto",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <Users size={13} style={{ color: C.secondary }} />
-              <span
-                style={{
-                  color: C.secondary,
-                  fontSize: "12px",
-                  fontWeight: 500,
-                }}
-              >
-                Active:
-              </span>
-              <span
-                style={{
-                  background: "rgba(136,189,242,0.18)",
-                  color: C.primary,
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  borderRadius: "20px",
-                  padding: "2px 10px",
-                }}
-              >
-                {students.length}
-              </span>
-            </div>
-            <button
-              onClick={() =>
-                loadStudents(selectedClassId, academicYearId, date)
-              }
-              style={ghostBtn}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "rgba(189,221,252,0.25)")
-              }
-              onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
-            >
-              <RefreshCw size={13} />
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        {/* ── Main Table Card ──────────────────────────────────────────── */}
-        {loading ? (
-          <div
-            style={{
-              background: "white",
-              borderRadius: "16px",
-              border: `1px solid ${C.border}`,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "80px 20px",
-              gap: "12px",
-            }}
-          >
-            <Loader2
-              size={28}
-              style={{ color: C.accent }}
-              className="animate-spin"
-            />
-            <p
-              style={{
-                color: C.secondary,
-                fontSize: "13px",
-                fontWeight: 500,
-                margin: 0,
-              }}
-            >
-              Loading students…
-            </p>
-          </div>
         ) : students.length > 0 ? (
           <div
+            className="fade-up"
             style={{
-              background: "white",
-              borderRadius: "16px",
-              border: `1px solid ${C.border}`,
-              boxShadow: "0 1px 3px rgba(136,189,242,0.08)",
+              background: C.white,
+              borderRadius: 18,
+              border: `1.5px solid ${C.borderLight}`,
+              boxShadow: "0 2px 16px rgba(56,73,89,0.06)",
               overflow: "hidden",
             }}
           >
-            {/* Card inner header */}
+            {/* Card header */}
             <div
               style={{
+                padding: "14px 18px",
+                background: `linear-gradient(90deg, ${C.bg}, ${C.white})`,
+                borderBottom: `1.5px solid ${C.borderLight}`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "14px 20px",
-                background: C.softBg,
-                borderBottom: "1px solid rgba(136,189,242,0.20)",
                 flexWrap: "wrap",
-                gap: "10px",
+                gap: 10,
               }}
             >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "10px" }}
-              >
-                {selectedClass && (
-                  <span
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: `0 4px 10px ${C.sky}44`,
+                    flexShrink: 0,
+                  }}
+                >
+                  <BookOpen size={17} color="#fff" strokeWidth={2} />
+                </div>
+                <div>
+                  <p
                     style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "5px",
-                      padding: "4px 12px",
-                      borderRadius: "10px",
-                      fontSize: "12px",
+                      margin: 0,
+                      fontSize: 14,
                       fontWeight: 700,
-                      background: "rgba(136,189,242,0.15)",
-                      color: C.primary,
+                      color: C.text,
                     }}
                   >
-                    Grade {selectedClass.grade} — Section{" "}
-                    {selectedClass.section}
-                  </span>
-                )}
-                {summary.UNMARKED > 0 ? (
-                  <span
-                    style={{
-                      color: C.secondary,
-                      fontSize: "12px",
-                      fontWeight: 500,
-                    }}
-                  >
-                    {summary.UNMARKED} student
-                    {summary.UNMARKED !== 1 ? "s" : ""} unmarked
-                  </span>
-                ) : (
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      color: "#16a34a",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <CheckCircle2 size={12} /> All marked
-                  </span>
-                )}
+                    {selectedClass ? getClassLabel(selectedClass) : "Class"} —{" "}
+                    {date}
+                  </p>
+                  <p style={{ margin: 0, fontSize: 11, color: C.textLight }}>
+                    {students.length} student{students.length !== 1 ? "s" : ""}{" "}
+                    enrolled
+                    {activeAcademicYear ? ` · ${activeAcademicYear.name}` : ""}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={markAllPresent}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
-                  padding: "7px 14px",
-                  borderRadius: "10px",
-                  border: "none",
-                  background: C.primary,
-                  color: "white",
-                  fontSize: "12px",
-                  fontWeight: 600,
+                  gap: 6,
+                  padding: "8px 16px",
+                  borderRadius: 12,
+                  background: `${C.sky}18`,
+                  border: `1px solid ${C.sky}44`,
+                  color: C.deep,
+                  fontSize: 12,
+                  fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                  fontFamily: "'Sora',sans-serif",
                 }}
                 onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = C.secondary)
+                  (e.currentTarget.style.background = `${C.sky}30`)
                 }
                 onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = C.primary)
+                  (e.currentTarget.style.background = `${C.sky}18`)
                 }
               >
-                <CheckCircle2 size={13} />
-                Mark All Present
+                <CheckCircle2 size={13} /> Mark All Present
               </button>
             </div>
 
-            {/* Table */}
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ background: "rgba(189,221,252,0.12)" }}>
-                    {[
-                      { label: "Roll No", align: "left" },
-                      { label: "Student Name", align: "left" },
-                      { label: "Attendance", align: "center" },
-                      { label: "Remarks", align: "left" },
-                    ].map(({ label, align }) => (
-                      <th
-                        key={label}
+            {/* Search bar */}
+            <div
+              style={{
+                padding: "10px 18px",
+                borderBottom: `1.5px solid ${C.borderLight}`,
+                background: `${C.bg}88`,
+              }}
+            >
+              <div style={{ position: "relative", maxWidth: 360 }}>
+                <Search
+                  size={13}
+                  style={{
+                    position: "absolute",
+                    left: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: C.textLight,
+                    pointerEvents: "none",
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Search by name or roll number…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: "100%",
+                    border: `1.5px solid ${C.border}`,
+                    borderRadius: 12,
+                    padding: "8px 36px 8px 34px",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: C.text,
+                    background: C.white,
+                    outline: "none",
+                    fontFamily: "'Sora',sans-serif",
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = C.sky)}
+                  onBlur={(e) => (e.target.style.borderColor = C.border)}
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: C.textLight,
+                      padding: 0,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+              {searchQuery && (
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: C.textLight,
+                    margin: "5px 0 0 2px",
+                    fontFamily: "'Sora',sans-serif",
+                  }}
+                >
+                  {filteredStudents.length} of {students.length} students
+                </p>
+              )}
+            </div>
+
+            {/* Student rows */}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {filteredStudents.map((student, idx) => {
+                const isPresent = student.status === "PRESENT";
+                const isAbsent = student.status === "ABSENT";
+                const isUnmarked = !student.status;
+
+                return (
+                  <div
+                    key={student.studentId}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 14,
+                      padding: "13px 18px",
+                      borderBottom: `1.5px solid ${C.borderLight}`,
+                      background: isUnmarked ? `#fffbeb` : C.white,
+                      transition: "background 0.15s",
+                      flexWrap: "wrap",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isUnmarked) e.currentTarget.style.background = C.bg;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = isUnmarked
+                        ? "#fffbeb"
+                        : C.white;
+                    }}
+                  >
+                    {/* Index */}
+                    <span
+                      style={{
+                        fontFamily: "'Sora',sans-serif",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: C.textLight,
+                        width: 22,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {idx + 1}
+                    </span>
+
+                    {/* Avatar + Name */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        flex: 1,
+                        minWidth: 140,
+                      }}
+                    >
+                      <div
                         style={{
-                          padding: "12px 20px",
-                          fontSize: "11px",
+                          width: 34,
+                          height: 34,
+                          borderRadius: "50%",
+                          background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fff",
+                          fontSize: 12,
                           fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em",
-                          color: C.secondary,
-                          textAlign: align,
-                          borderBottom: "1px solid rgba(136,189,242,0.20)",
+                          flexShrink: 0,
+                          boxShadow: `0 2px 8px ${C.sky}44`,
                         }}
                       >
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map((student, idx) => {
-                    const isEven = idx % 2 === 0;
-                    const rowBg = isEven ? "white" : "rgba(189,221,252,0.05)";
-                    const rowHover = "rgba(189,221,252,0.15)";
-                    const isPresent = student.status === "PRESENT";
-                    const isAbsent = student.status === "ABSENT";
-
-                    return (
-                      <tr
-                        key={student.studentId}
-                        style={{
-                          borderBottom: "1px solid rgba(136,189,242,0.12)",
-                          background: rowBg,
-                          transition: "background 0.1s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = rowHover)
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = rowBg)
-                        }
-                      >
-                        {/* Roll No */}
-                        <td style={{ padding: "12px 20px" }}>
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              minWidth: "34px",
-                              padding: "3px 8px",
-                              background: "rgba(189,221,252,0.20)",
-                              color: C.primary,
-                              fontSize: "12px",
-                              fontWeight: 700,
-                              borderRadius: "8px",
-                            }}
-                          >
-                            {student.rollNumber}
-                          </span>
-                        </td>
-
-                        {/* Name */}
-                        <td style={{ padding: "12px 20px" }}>
-                          <p
-                            style={{
-                              color: C.primary,
-                              fontSize: "14px",
-                              fontWeight: 600,
-                              margin: 0,
-                            }}
-                          >
-                            {student.name}
-                          </p>
-                        </td>
-
-                        {/* ── Present / Absent toggle ── */}
-                        <td
-                          style={{ padding: "10px 20px", textAlign: "center" }}
+                        {student.name?.charAt(0)?.toUpperCase() || "?"}
+                      </div>
+                      <div>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: C.text,
+                            fontFamily: "'Sora',sans-serif",
+                          }}
                         >
-                          <div
-                            style={{
-                              display: "inline-flex",
-                              borderRadius: "10px",
-                              overflow: "hidden",
-                              border: `1px solid ${C.border}`,
-                            }}
-                          >
-                            <button
-                              onClick={() =>
-                                handleStatusChange(
-                                  student.studentId,
-                                  "PRESENT",
-                                  student.name,
-                                )
-                              }
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "5px",
-                                padding: "7px 16px",
-                                border: "none",
-                                borderRight: `1px solid ${C.border}`,
-                                background: isPresent
-                                  ? "rgba(34,197,94,0.12)"
-                                  : "white",
-                                color: isPresent ? "#15803d" : C.secondary,
-                                fontSize: "12px",
-                                fontWeight: isPresent ? 700 : 500,
-                                cursor: "pointer",
-                                fontFamily: "Inter, sans-serif",
-                                transition: "all 0.15s",
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!isPresent) {
-                                  e.currentTarget.style.background =
-                                    "rgba(34,197,94,0.06)";
-                                  e.currentTarget.style.color = "#15803d";
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!isPresent) {
-                                  e.currentTarget.style.background = "white";
-                                  e.currentTarget.style.color = C.secondary;
-                                }
-                              }}
-                            >
-                              <Check
-                                size={13}
-                                strokeWidth={isPresent ? 3 : 2}
-                              />
-                              Present
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleStatusChange(
-                                  student.studentId,
-                                  "ABSENT",
-                                  student.name,
-                                )
-                              }
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "5px",
-                                padding: "7px 16px",
-                                border: "none",
-                                background: isAbsent
-                                  ? "rgba(239,68,68,0.10)"
-                                  : "white",
-                                color: isAbsent ? "#b91c1c" : C.secondary,
-                                fontSize: "12px",
-                                fontWeight: isAbsent ? 700 : 500,
-                                cursor: "pointer",
-                                fontFamily: "Inter, sans-serif",
-                                transition: "all 0.15s",
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!isAbsent) {
-                                  e.currentTarget.style.background =
-                                    "rgba(239,68,68,0.06)";
-                                  e.currentTarget.style.color = "#b91c1c";
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!isAbsent) {
-                                  e.currentTarget.style.background = "white";
-                                  e.currentTarget.style.color = C.secondary;
-                                }
-                              }}
-                            >
-                              <X size={13} strokeWidth={isAbsent ? 3 : 2} />
-                              Absent
-                            </button>
-                          </div>
-                        </td>
+                          {student.name}
+                        </p>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: 10,
+                            color: C.textLight,
+                            fontFamily: "'Sora',sans-serif",
+                          }}
+                        >
+                          Roll {student.rollNumber || "—"}
+                        </p>
+                      </div>
+                    </div>
 
-                        {/* Remarks */}
-                        <td style={{ padding: "12px 20px" }}>
-                          <input
-                            type="text"
-                            value={student.remarks || ""}
-                            onChange={(e) =>
-                              handleRemarksChange(
-                                student.studentId,
-                                e.target.value,
-                              )
-                            }
-                            placeholder="Add remark…"
-                            style={{
-                              width: "100%",
-                              padding: "7px 12px",
-                              borderRadius: "10px",
-                              border: "1px solid transparent",
-                              background: "rgba(189,221,252,0.12)",
-                              color: C.primary,
-                              fontSize: "13px",
-                              fontWeight: 400,
-                              outline: "none",
-                              fontFamily: "Inter, sans-serif",
-                              transition:
-                                "border-color 0.15s, background 0.15s",
-                              boxSizing: "border-box",
-                            }}
-                            onFocus={(e) => {
-                              e.target.style.borderColor = C.border;
-                              e.target.style.background = "white";
-                            }}
-                            onBlur={(e) => {
-                              e.target.style.borderColor = "transparent";
-                              e.target.style.background =
-                                "rgba(189,221,252,0.12)";
-                            }}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    {/* Present / Absent toggle */}
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        borderRadius: 12,
+                        border: `1.5px solid ${isPresent ? "#86efac" : isAbsent ? "#fca5a5" : C.border}`,
+                        overflow: "hidden",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <button
+                        onClick={() =>
+                          handleStatusChange(
+                            student.studentId,
+                            "PRESENT",
+                            student.name,
+                          )
+                        }
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: "8px 18px",
+                          border: "none",
+                          borderRight: `1.5px solid ${isPresent ? "#86efac" : C.borderLight}`,
+                          background: isPresent
+                            ? "rgba(34,197,94,0.12)"
+                            : C.white,
+                          color: isPresent ? "#15803d" : C.textLight,
+                          fontSize: 12,
+                          fontWeight: isPresent ? 800 : 600,
+                          cursor: "pointer",
+                          fontFamily: "'Sora',sans-serif",
+                          transition: "all 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isPresent) {
+                            e.currentTarget.style.background =
+                              "rgba(34,197,94,0.07)";
+                            e.currentTarget.style.color = "#15803d";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isPresent) {
+                            e.currentTarget.style.background = C.white;
+                            e.currentTarget.style.color = C.textLight;
+                          }
+                        }}
+                      >
+                        <Check size={13} strokeWidth={isPresent ? 3 : 2} />{" "}
+                        Present
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleStatusChange(
+                            student.studentId,
+                            "ABSENT",
+                            student.name,
+                          )
+                        }
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: "8px 18px",
+                          border: "none",
+                          background: isAbsent
+                            ? "rgba(239,68,68,0.12)"
+                            : C.white,
+                          color: isAbsent ? "#b91c1c" : C.textLight,
+                          fontSize: 12,
+                          fontWeight: isAbsent ? 800 : 600,
+                          cursor: "pointer",
+                          fontFamily: "'Sora',sans-serif",
+                          transition: "all 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isAbsent) {
+                            e.currentTarget.style.background =
+                              "rgba(239,68,68,0.07)";
+                            e.currentTarget.style.color = "#b91c1c";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isAbsent) {
+                            e.currentTarget.style.background = C.white;
+                            e.currentTarget.style.color = C.textLight;
+                          }
+                        }}
+                      >
+                        <X size={13} strokeWidth={isAbsent ? 3 : 2} /> Absent
+                      </button>
+                    </div>
+
+                    {/* Remarks */}
+                    <input
+                      type="text"
+                      value={student.remarks || ""}
+                      onChange={(e) =>
+                        handleRemarksChange(student.studentId, e.target.value)
+                      }
+                      placeholder="Add remark…"
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: 12,
+                        border: `1.5px solid transparent`,
+                        background: `${C.mist}33`,
+                        color: C.text,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        outline: "none",
+                        fontFamily: "'Sora',sans-serif",
+                        transition: "border-color 0.15s, background 0.15s",
+                        width: 160,
+                        flexShrink: 0,
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = C.sky;
+                        e.target.style.background = C.white;
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = "transparent";
+                        e.target.style.background = `${C.mist}33`;
+                      }}
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             {/* Card footer */}
@@ -1012,18 +1217,18 @@ export default function Attendance() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "16px 20px",
-                background: C.softBg,
-                borderTop: "1px solid rgba(136,189,242,0.20)",
+                padding: "14px 18px",
+                background: `linear-gradient(90deg, ${C.bg}, ${C.white})`,
+                borderTop: `1.5px solid ${C.borderLight}`,
                 flexWrap: "wrap",
-                gap: "10px",
+                gap: 10,
               }}
             >
               <p
                 style={{
-                  color: C.secondary,
-                  fontSize: "12px",
-                  fontWeight: 500,
+                  fontFamily: "'Sora',sans-serif",
+                  fontSize: 12,
+                  color: C.textLight,
                   margin: 0,
                 }}
               >
@@ -1037,26 +1242,24 @@ export default function Attendance() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "7px",
+                  gap: 7,
                   padding: "10px 24px",
-                  borderRadius: "12px",
+                  borderRadius: 13,
                   border: "none",
-                  background: C.primary,
-                  color: "white",
-                  fontSize: "13px",
-                  fontWeight: 600,
+                  background:
+                    saving || hasEmptyStatus
+                      ? C.border
+                      : `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
+                  color: saving || hasEmptyStatus ? C.textLight : "#fff",
+                  fontSize: 13,
+                  fontWeight: 700,
                   cursor: saving || hasEmptyStatus ? "not-allowed" : "pointer",
-                  opacity: saving || hasEmptyStatus ? 0.5 : 1,
-                  fontFamily: "Inter, sans-serif",
+                  fontFamily: "'Sora',sans-serif",
                   transition: "opacity 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  if (!saving && !hasEmptyStatus)
-                    e.currentTarget.style.background = C.secondary;
-                }}
-                onMouseLeave={(e) => {
-                  if (!saving && !hasEmptyStatus)
-                    e.currentTarget.style.background = C.primary;
+                  boxShadow:
+                    saving || hasEmptyStatus
+                      ? "none"
+                      : `0 4px 12px ${C.deep}44`,
                 }}
               >
                 {saving ? (
@@ -1072,50 +1275,47 @@ export default function Attendance() {
             </div>
           </div>
         ) : (
+          /* Empty state */
           <div
+            className="fade-up"
             style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              justifyContent: "center",
-              background: "white",
-              borderRadius: "16px",
-              border: `1px solid ${C.border}`,
-              padding: "80px 20px",
-              gap: "12px",
+              padding: "50px 0",
+              gap: 12,
             }}
           >
             <div
               style={{
-                width: "56px",
-                height: "56px",
-                borderRadius: "16px",
-                background: "rgba(189,221,252,0.25)",
+                width: 60,
+                height: 60,
+                borderRadius: 18,
+                background: `${C.sky}18`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                border: `1px solid ${C.sky}33`,
               }}
             >
-              <Search size={22} style={{ color: C.secondary }} />
+              <Search size={26} color={C.sky} strokeWidth={1.5} />
             </div>
             <p
               style={{
-                color: C.primary,
-                fontSize: "14px",
-                fontWeight: 600,
+                fontFamily: "'Sora',sans-serif",
+                fontSize: 13,
+                color: C.textLight,
                 margin: 0,
               }}
             >
-              No students found
-            </p>
-            <p style={{ color: C.secondary, fontSize: "12px", margin: 0 }}>
-              Select a class and date to load attendance
+              {classes.length > 0
+                ? "Select a class and date to load attendance"
+                : "No classes assigned for the current academic year"}
             </p>
           </div>
         )}
       </div>
 
-      {/* ── Toast Portal ─────────────────────────────────────────────── */}
       <ToastContainer toasts={toasts} onRemove={remove} />
     </PageLayout>
   );

@@ -1,4 +1,4 @@
-//client\src\teacher\Routes.jsx
+// client/src/teacher/Routes.jsx
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 import Dashboard from "./dashboard/Dashboard";
 import Attendance from "./pages/Attendance/Attendance";
+import CurriculumPage from "./pages/curriculum/CurriculumPage";
 
 function TeachersRoutes() {
   return (
@@ -17,9 +18,8 @@ function TeachersRoutes() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/attendance" element={<Attendance />} />
 
-      {/* Students Routes */}
-
-      {/* Students Routes */}
+      {/* Curriculum Route */}
+      <Route path="/curriculum" element={<CurriculumPage />} />
 
       {/* Redirect any unknown route to dashboard */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

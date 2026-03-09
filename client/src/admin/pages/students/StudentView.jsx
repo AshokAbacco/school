@@ -232,10 +232,10 @@ export default function StudentView() {
                 value={
                   pi?.dateOfBirth
                     ? new Date(pi.dateOfBirth).toLocaleDateString("en-IN", {
-                      day: "2-digit",
-                      month: "long",
-                      year: "numeric",
-                    })
+                        day: "2-digit",
+                        month: "long",
+                        year: "numeric",
+                      })
                     : null
                 }
               />
@@ -258,7 +258,7 @@ export default function StudentView() {
               <InfoRow
                 icon={Shield}
                 label="Admission Number"
-                value={student.admissionNumber}
+                value={enrollment?.admissionNumber}
               />
               <InfoRow
                 icon={Calendar}
@@ -272,6 +272,24 @@ export default function StudentView() {
                       })
                     : null
                 }
+              />
+              <InfoRow
+                icon={Shield}
+                label="Aadhaar"
+                value={pi?.aadhaarNumber}
+              />
+              <InfoRow icon={Shield} label="PAN" value={pi?.panNumber} />
+              <InfoRow icon={Shield} label="SATS No." value={pi?.satsNumber} />
+              <InfoRow
+                icon={User}
+                label="Nationality"
+                value={pi?.nationality}
+              />
+              <InfoRow icon={User} label="Religion" value={pi?.religion} />
+              <InfoRow
+                icon={Shield}
+                label="Caste Category"
+                value={pi?.casteCategory}
               />
             </SectionCard>
 
@@ -312,10 +330,10 @@ export default function StudentView() {
                 value={
                   pi?.admissionDate
                     ? new Date(pi.admissionDate).toLocaleDateString("en-IN", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
                     : null
                 }
               />
@@ -340,7 +358,7 @@ export default function StudentView() {
               <InfoRow
                 icon={Shield}
                 label="Admission Number"
-                value={student.admissionNumber}
+                value={enrollment?.admissionNumber}
               />
               <InfoRow
                 icon={Shield}
