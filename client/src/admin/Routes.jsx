@@ -24,7 +24,7 @@ import StreamsPage from "./pages/classes/StreamsPage";
 import CoursesPage from "./pages/classes/CoursesPage";
 import PromotionPage from "./pages/classes/PromotionPage";
 import ReadmissionPage from "./pages/classes/ReadmissionPage";
-
+import ExamsPage from "./pages/Exams/Examspage.jsx";
 function AdminRoutes() {
   return (
     <Routes>
@@ -77,6 +77,7 @@ function AdminRoutes() {
       {/* Other */}
       <Route path="/attendance" element={<AttendanceList />} />
       <Route path="/exams" element={<ExamsList />} />
+      <Route path="/exams-page" element={<ExamsPage />} />
       <Route path="/finance" element={<FinanceList />} />
       <Route path="/meetings" element={<MeetingsList />} />
       <Route path="/curriculum" element={<CurriculumList />} />

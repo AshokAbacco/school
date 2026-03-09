@@ -22,6 +22,8 @@ import meetingRoutes from "./staffRoutes/meetingRoutes.js";
 
 import attendanceRoutes from "./staffRoutes/attendanceRoutes.js";
 import adminAttendanceRoute from "./staffRoutes/adminAttendanceRoute.js";
+import examsRoutes from "./staffRoutes/ExamsRoutes.js";
+
 dotenv.config();
 
 const staff = express();
@@ -58,5 +60,6 @@ staff.use("/api/admin/attendance", adminAttendanceRoute); //for admin
 staff.use("/api/streams", streamsRouter);
 staff.use("/api/courses", coursesRouter);
 staff.use("/api/promotion", promotionRouter);
+staff.use("/api/exams", examsRoutes);
 
 export default staff;

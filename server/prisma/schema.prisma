@@ -274,20 +274,27 @@ model School {
   universityId String
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
 
-  superAdminAccess     SuperAdminSchoolAccess[]
-  users                User[]
-  students             Student[]
-  parents              Parent[]
-  teachers             TeacherProfile[]
-  academicYears        AcademicYear[]
-  classSections        ClassSection[]
-  subjects             Subject[] // ✅ NEW: central subject registry
-  timetableConfigs     TimetableConfig[]
-  timetableEntries     TimetableEntry[]
-  assessmentTerms      AssessmentTerm[]
-  assessmentGroups     AssessmentGroup[]
-  FinanceProfile       FinanceProfile[]
-  TeacherMonthlySalary TeacherMonthlySalary[]
+  superAdminAccess      SuperAdminSchoolAccess[]
+  users                 User[]
+  students              Student[]
+  parents               Parent[]
+  teachers              TeacherProfile[]
+  academicYears         AcademicYear[]
+  classSections         ClassSection[]
+  subjects              Subject[] // ✅ NEW: central subject registry
+  timetableConfigs      TimetableConfig[]
+  timetableEntries      TimetableEntry[]
+  assessmentTerms       AssessmentTerm[]
+  assessmentGroups      AssessmentGroup[]
+  FinanceProfile        FinanceProfile[]
+  TeacherMonthlySalary  TeacherMonthlySalary[]
+  Stream                Stream[]
+  Course                Course[]
+  SchoolPromotionConfig SchoolPromotionConfig?
+  PromotionLog          PromotionLog[]
+  ExtraClass            ExtraClass[]
+  Meeting               Meeting[]
+  TeacherAttendance     TeacherAttendance[]
 
   @@index([universityId])
   @@index([type])
@@ -529,8 +536,7 @@ model User {
   meetingParticipations    MeetingParticipant[]
   markedAttendances        AttendanceRecord[]   @relation("AttendanceMarkedBy")
   markedTeacherAttendances TeacherAttendance[]  @relation("TeacherAttendanceMarkedBy")
-  teacherProfile TeacherProfile?
-  financeProfile FinanceProfile?
+  financeProfile           FinanceProfile?
 
   @@unique([email, schoolId])
   @@index([role])
@@ -761,12 +767,13 @@ model TeacherProfile {
   panNumber       String?
   aadhaarNumber   String?
 
-  assignments        TeacherAssignment[]
-  documents          TeacherDocument[]
-  timetableEntries   TimetableEntry[]
-  classTeacherOf     ClassSectionAcademicYear[]
-  extraClasses       ExtraClass[]
-  teacherAttendances TeacherAttendance[]
+  assignments          TeacherAssignment[]
+  documents            TeacherDocument[]
+  timetableEntries     TimetableEntry[]
+  classTeacherOf       ClassSectionAcademicYear[]
+  extraClasses         ExtraClass[]
+  teacherAttendances   TeacherAttendance[]
+  TeacherMonthlySalary TeacherMonthlySalary[]
 
   @@index([schoolId])
   @@index([department])
@@ -1083,8 +1090,8 @@ model AssessmentSchedule {
   examDate     DateTime
   startTime    DateTime
   endTime      DateTime
-
-  marks Marks[]
+  venue        String?
+  marks        Marks[]
 
   @@index([classSectionId])
   @@index([assessmentGroupId])
@@ -1343,7 +1350,7 @@ model TeacherAttendance {
 // New model:
 model StreamCombination {
   id        String   @id @default(uuid())
-  name      String // "PCMB", "PCMC", "CEBA"
+  name      String
   code      String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -1356,6 +1363,8 @@ model StreamCombination {
   @@unique([name, streamId])
   @@index([streamId])
   @@map("stream_combinations")
+}
+
 //  Finance 
 model FinanceProfile {
   id     String @id @default(uuid())
