@@ -164,7 +164,7 @@ function Donut({ segments, size = 110, stroke = 11, centerLabel, centerSub }) {
             fontWeight: 800,
             color: C.text,
             lineHeight: 1,
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
           }}
         >
           {centerLabel}
@@ -174,7 +174,7 @@ function Donut({ segments, size = 110, stroke = 11, centerLabel, centerSub }) {
             fontSize: 9,
             color: C.textLight,
             marginTop: 3,
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             letterSpacing: "0.08em",
             textTransform: "uppercase",
           }}
@@ -245,7 +245,7 @@ function StatCard({
         cursor: "default",
         position: "relative",
         overflow: "hidden",
-        fontFamily: "'Sora',sans-serif",
+        fontFamily: "'Inter', sans-serif",
       }}
     >
       {/* top accent stripe */}
@@ -392,7 +392,7 @@ function SectionHead({ title, sub, IconComp, iconColor = C.slate }) {
         )}
         <span
           style={{
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             fontWeight: 700,
             color: C.text,
@@ -404,7 +404,7 @@ function SectionHead({ title, sub, IconComp, iconColor = C.slate }) {
       {sub && (
         <span
           style={{
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 10,
             color: C.textLight,
             fontWeight: 600,
@@ -452,7 +452,7 @@ function AttRow({ IconComp, label, value, max, color }) {
       />
       <span
         style={{
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 11,
           color: C.textLight,
           width: 52,
@@ -465,7 +465,7 @@ function AttRow({ IconComp, label, value, max, color }) {
       <MiniBar value={value || 0} max={max} color={color} />
       <span
         style={{
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 12,
           fontWeight: 700,
           color: C.text,
@@ -516,7 +516,7 @@ function PersonRow({ initials, name, sub, badge, badgeColor = C.success }) {
           color: "#fff",
           fontSize: 11,
           fontWeight: 700,
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
           boxShadow: `0 3px 10px ${C.sky}44`,
         }}
       >
@@ -526,7 +526,7 @@ function PersonRow({ initials, name, sub, badge, badgeColor = C.success }) {
         <p
           style={{
             margin: 0,
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 12,
             fontWeight: 600,
             color: C.text,
@@ -540,7 +540,7 @@ function PersonRow({ initials, name, sub, badge, badgeColor = C.success }) {
         <p
           style={{
             margin: 0,
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 10,
             color: C.textLight,
             overflow: "hidden",
@@ -554,7 +554,7 @@ function PersonRow({ initials, name, sub, badge, badgeColor = C.success }) {
       {badge && (
         <span
           style={{
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 9,
             fontWeight: 700,
             padding: "3px 9px",
@@ -600,7 +600,7 @@ function Empty({ IconComp, text }) {
       </div>
       <p
         style={{
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 12,
           color: C.textLight,
           margin: 0,
@@ -679,7 +679,7 @@ export default function Dashboard() {
           minHeight: "100vh",
           background: C.bg,
           padding: "28px 30px",
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
           backgroundImage: `radial-gradient(ellipse at 0% 0%, ${C.mist}40 0%, transparent 55%), radial-gradient(ellipse at 100% 100%, ${C.sky}18 0%, transparent 50%)`,
         }}
       >
@@ -1260,7 +1260,7 @@ export default function Dashboard() {
                       <p
                         style={{
                           margin: 0,
-                          fontFamily: "'Sora',sans-serif",
+                          fontFamily: "'Inter', sans-serif",
                           fontSize: 12,
                           fontWeight: 600,
                           color: C.text,
@@ -1274,7 +1274,7 @@ export default function Dashboard() {
                       <p
                         style={{
                           margin: "2px 0 0",
-                          fontFamily: "'Sora',sans-serif",
+                          fontFamily: "'Inter', sans-serif",
                           fontSize: 10,
                           color: C.textLight,
                         }}
@@ -1283,7 +1283,7 @@ export default function Dashboard() {
                       </p>
                       <span
                         style={{
-                          fontFamily: "'Sora',sans-serif",
+                          fontFamily: "'Inter', sans-serif",
                           fontSize: 9,
                           fontWeight: 700,
                           padding: "2px 8px",
@@ -1348,7 +1348,7 @@ export default function Dashboard() {
               </div>
               <span
                 style={{
-                  fontFamily: "'Sora',sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   fontSize: 11,
                   fontWeight: 700,
                   color: "#8b1c1c",
@@ -1378,7 +1378,7 @@ export default function Dashboard() {
                   <UserX size={10} color={C.danger} />
                   <span
                     style={{
-                      fontFamily: "'Sora',sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       fontSize: 11,
                       fontWeight: 600,
                       color: "#8b1c1c",
@@ -1388,7 +1388,7 @@ export default function Dashboard() {
                   </span>
                   <span
                     style={{
-                      fontFamily: "'Sora',sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       fontSize: 10,
                       color: "#b02020",
                     }}
@@ -1410,7 +1410,7 @@ export default function Dashboard() {
                 >
                   <span
                     style={{
-                      fontFamily: "'Sora',sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       fontSize: 11,
                       fontWeight: 700,
                       color: "#8b1c1c",

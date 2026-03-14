@@ -1,178 +1,651 @@
-import React, { useState } from 'react';
-import { Clock, Calendar, BookOpen, Coffee } from 'lucide-react';
-import PageLayout from '../../components/PageLayout';
+// client/src/student/pages/TimeTable/TimeTable.jsx
 
-function TimeTable() {
-  const [selectedDay, setSelectedDay] = useState('Monday');
-  
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  
-  const schedule = {
-    Monday: [
-      { time: '08:00 - 08:45', subject: 'Mathematics', teacher: 'Mr. Smith', room: '101' },
-      { time: '08:45 - 09:30', subject: 'Science', teacher: 'Ms. Johnson', room: '204' },
-      { time: '09:30 - 10:15', subject: 'English', teacher: 'Mrs. Williams', room: '105' },
-      { time: '10:15 - 10:30', subject: 'Break', teacher: '-', room: '-' },
-      { time: '10:30 - 11:15', subject: 'Social Studies', teacher: 'Mr. Brown', room: '203' },
-      { time: '11:15 - 12:00', subject: 'Hindi', teacher: 'Ms. Sharma', room: '107' },
-      { time: '12:00 - 12:45', subject: 'Computer Science', teacher: 'Mr. Kumar', room: 'Lab 1' },
-      { time: '12:45 - 01:30', subject: 'Lunch Break', teacher: '-', room: '-' },
-      { time: '01:30 - 02:15', subject: 'Physical Education', teacher: 'Coach Davis', room: 'Ground' },
-      { time: '02:15 - 03:00', subject: 'Art & Craft', teacher: 'Ms. Lee', room: '109' },
-    ],
-    Tuesday: [
-      { time: '08:00 - 08:45', subject: 'Science', teacher: 'Ms. Johnson', room: '204' },
-      { time: '08:45 - 09:30', subject: 'Mathematics', teacher: 'Mr. Smith', room: '101' },
-      { time: '09:30 - 10:15', subject: 'Hindi', teacher: 'Ms. Sharma', room: '107' },
-      { time: '10:15 - 10:30', subject: 'Break', teacher: '-', room: '-' },
-      { time: '10:30 - 11:15', subject: 'English', teacher: 'Mrs. Williams', room: '105' },
-      { time: '11:15 - 12:00', subject: 'Computer Science', teacher: 'Mr. Kumar', room: 'Lab 1' },
-      { time: '12:00 - 12:45', subject: 'Social Studies', teacher: 'Mr. Brown', room: '203' },
-      { time: '12:45 - 01:30', subject: 'Lunch Break', teacher: '-', room: '-' },
-      { time: '01:30 - 02:15', subject: 'Art & Craft', teacher: 'Ms. Lee', room: '109' },
-      { time: '02:15 - 03:00', subject: 'Library', teacher: 'Mrs. Clark', room: 'Library' },
-    ],
-    Wednesday: [
-      { time: '08:00 - 08:45', subject: 'Mathematics', teacher: 'Mr. Smith', room: '101' },
-      { time: '08:45 - 09:30', subject: 'English', teacher: 'Mrs. Williams', room: '105' },
-      { time: '09:30 - 10:15', subject: 'Science', teacher: 'Ms. Johnson', room: '204' },
-      { time: '10:15 - 10:30', subject: 'Break', teacher: '-', room: '-' },
-      { time: '10:30 - 11:15', subject: 'Computer Science', teacher: 'Mr. Kumar', room: 'Lab 1' },
-      { time: '11:15 - 12:00', subject: 'Hindi', teacher: 'Ms. Sharma', room: '107' },
-      { time: '12:00 - 12:45', subject: 'Social Studies', teacher: 'Mr. Brown', room: '203' },
-      { time: '12:45 - 01:30', subject: 'Lunch Break', teacher: '-', room: '-' },
-      { time: '01:30 - 02:15', subject: 'Physical Education', teacher: 'Coach Davis', room: 'Ground' },
-      { time: '02:15 - 03:00', subject: 'Music', teacher: 'Mr. Anderson', room: '110' },
-    ],
-    Thursday: [
-      { time: '08:00 - 08:45', subject: 'English', teacher: 'Mrs. Williams', room: '105' },
-      { time: '08:45 - 09:30', subject: 'Mathematics', teacher: 'Mr. Smith', room: '101' },
-      { time: '09:30 - 10:15', subject: 'Social Studies', teacher: 'Mr. Brown', room: '203' },
-      { time: '10:15 - 10:30', subject: 'Break', teacher: '-', room: '-' },
-      { time: '10:30 - 11:15', subject: 'Science', teacher: 'Ms. Johnson', room: '204' },
-      { time: '11:15 - 12:00', subject: 'Computer Science', teacher: 'Mr. Kumar', room: 'Lab 1' },
-      { time: '12:00 - 12:45', subject: 'Hindi', teacher: 'Ms. Sharma', room: '107' },
-      { time: '12:45 - 01:30', subject: 'Lunch Break', teacher: '-', room: '-' },
-      { time: '01:30 - 02:15', subject: 'Art & Craft', teacher: 'Ms. Lee', room: '109' },
-      { time: '02:15 - 03:00', subject: 'Physical Education', teacher: 'Coach Davis', room: 'Ground' },
-    ],
-    Friday: [
-      { time: '08:00 - 08:45', subject: 'Science', teacher: 'Ms. Johnson', room: '204' },
-      { time: '08:45 - 09:30', subject: 'Mathematics', teacher: 'Mr. Smith', room: '101' },
-      { time: '09:30 - 10:15', subject: 'Hindi', teacher: 'Ms. Sharma', room: '107' },
-      { time: '10:15 - 10:30', subject: 'Break', teacher: '-', room: '-' },
-      { time: '10:30 - 11:15', subject: 'English', teacher: 'Mrs. Williams', room: '105' },
-      { time: '11:15 - 12:00', subject: 'Social Studies', teacher: 'Mr. Brown', room: '203' },
-      { time: '12:00 - 12:45', subject: 'Computer Science', teacher: 'Mr. Kumar', room: 'Lab 1' },
-      { time: '12:45 - 01:30', subject: 'Lunch Break', teacher: '-', room: '-' },
-      { time: '01:30 - 02:15', subject: 'Club Activities', teacher: 'Various', room: 'Various' },
-      { time: '02:15 - 03:00', subject: 'Sports', teacher: 'Coach Davis', room: 'Ground' },
-    ],
-    Saturday: [
-      { time: '08:00 - 08:45', subject: 'Mathematics', teacher: 'Mr. Smith', room: '101' },
-      { time: '08:45 - 09:30', subject: 'Science', teacher: 'Ms. Johnson', room: '204' },
-      { time: '09:30 - 10:15', subject: 'English', teacher: 'Mrs. Williams', room: '105' },
-      { time: '10:15 - 10:30', subject: 'Break', teacher: '-', room: '-' },
-      { time: '10:30 - 11:15', subject: 'Extra Class', teacher: 'Various', room: 'Various' },
-      { time: '11:15 - 12:00', subject: 'Library', teacher: 'Mrs. Clark', room: 'Library' },
-    ],
-  };
+import React, { useState, useEffect } from "react";
+import {
+  Calendar, Clock, BookOpen, Coffee, UtensilsCrossed,
+  MapPin, User, AlertCircle,
+} from "lucide-react";
+import PageLayout from "../../components/PageLayout";
+import { getToken } from "../../../auth/storage.js";
 
-  const currentSchedule = schedule[selectedDay] || [];
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
+
+async function apiFetch(path) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("application/json"))
+    throw new Error(`Server error (${res.status})`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.message ?? "Request failed");
+  return json;
+}
+
+// ── C tokens (same as CurriculumList) ─────────────────────────
+const C = {
+  slate:       "#6A89A7",
+  mist:        "#BDDDFC",
+  sky:         "#88BDF2",
+  deep:        "#384959",
+  deepDark:    "#243340",
+  bg:          "#EDF3FA",
+  white:       "#FFFFFF",
+  border:      "#C8DCF0",
+  borderLight: "#DDE9F5",
+  text:        "#243340",
+  textLight:   "#6A89A7",
+  green:       "#22c55e",
+  amber:       "#f59e0b",
+  orange:      "#f97316",
+};
+
+const F = { fontFamily: "'Inter', sans-serif" };
+
+const DAY_LABELS = {
+  MONDAY: "Monday", TUESDAY: "Tuesday", WEDNESDAY: "Wednesday",
+  THURSDAY: "Thursday", FRIDAY: "Friday", SATURDAY: "Saturday", SUNDAY: "Sunday",
+};
+const DAY_SHORT = {
+  MONDAY: "Mon", TUESDAY: "Tue", WEDNESDAY: "Wed",
+  THURSDAY: "Thu", FRIDAY: "Fri", SATURDAY: "Sat", SUNDAY: "Sun",
+};
+
+function fmtTime(t) {
+  if (!t) return "—";
+  const [hh, mm] = t.split(":");
+  const h = parseInt(hh, 10);
+  return `${h % 12 || 12}:${mm} ${h >= 12 ? "PM" : "AM"}`;
+}
+
+const TODAY_KEY = new Date()
+  .toLocaleDateString("en-US", { weekday: "long" })
+  .toUpperCase();
+
+// ── Responsive breakpoint hook ────────────────────────────────
+function useWindowWidth() {
+  const [w, setW] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1024
+  );
+  useEffect(() => {
+    const handle = () => setW(window.innerWidth);
+    window.addEventListener("resize", handle);
+    return () => window.removeEventListener("resize", handle);
+  }, []);
+  return w;
+}
+
+// ── Pulse skeleton ────────────────────────────────────────────
+function Pulse({ w = "100%", h = 13, r = 8 }) {
+  return (
+    <div
+      className="animate-pulse"
+      style={{ width: w, height: h, borderRadius: r, background: `${C.mist}55` }}
+    />
+  );
+}
+
+// ── Loading skeleton ──────────────────────────────────────────
+function LoadingSkeleton({ isMobile }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div
+          key={i}
+          className="animate-pulse"
+          style={{
+            background: C.white,
+            borderRadius: 14,
+            border: `1.5px solid ${C.borderLight}`,
+            padding: isMobile ? "12px 14px" : "16px 20px",
+            display: "flex", alignItems: "center", gap: 12,
+          }}
+        >
+          <Pulse w={32} h={32} r={99} />
+          {!isMobile && <Pulse w={90} h={32} r={10} />}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+            <Pulse w="50%" h={13} />
+            <Pulse w="30%" h={10} />
+          </div>
+          <Pulse w={60} h={22} r={20} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Period Card ───────────────────────────────────────────────
+function PeriodCard({ slot, classIndex, isMobile, isTablet }) {
+  const isBreak    = slot.slotType === "BREAK" || slot.slotType === "LUNCH";
+  const isLunch    = slot.slotType === "LUNCH";
+  const accentColor = isLunch ? C.green : isBreak ? C.orange : C.sky;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: isMobile ? "flex-start" : "center",
+        gap: isMobile ? 10 : 14,
+        padding: isMobile ? "12px 14px" : "14px 20px",
+        background: C.white,
+        borderRadius: 14,
+        border: `1.5px solid ${C.borderLight}`,
+        boxShadow: "0 2px 10px rgba(56,73,89,0.05)",
+        transition: "box-shadow 0.2s, transform 0.2s",
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.boxShadow = `0 8px 24px ${C.sky}28`;
+        e.currentTarget.style.transform = "translateY(-2px)";
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.boxShadow = "0 2px 10px rgba(56,73,89,0.05)";
+        e.currentTarget.style.transform = "translateY(0)";
+      }}
+    >
+      {/* Period number / break icon */}
+      {!isBreak ? (
+        <div style={{
+          width: 30, height: 30, borderRadius: "50%",
+          background: `${C.sky}18`,
+          border: `1.5px solid ${C.sky}33`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+          fontSize: 11, fontWeight: 800, color: C.deep,
+        }}>
+          {classIndex + 1}
+        </div>
+      ) : (
+        <div style={{
+          width: 30, height: 30, borderRadius: "50%",
+          background: `${accentColor}18`,
+          border: `1.5px solid ${accentColor}33`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          {isLunch
+            ? <UtensilsCrossed size={13} color={accentColor} />
+            : <Coffee size={13} color={accentColor} />
+          }
+        </div>
+      )}
+
+      {/* Time block — hidden on mobile, shown inline on tablet+ */}
+      {!isMobile && (
+        <div style={{
+          minWidth: 94, flexShrink: 0,
+          padding: "5px 10px",
+          background: C.bg,
+          border: `1px solid ${C.borderLight}`,
+          borderRadius: 10,
+          display: "flex", alignItems: "center", gap: 5,
+        }}>
+          <Clock size={11} color={C.textLight} />
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>
+              {fmtTime(slot.startTime)}
+            </div>
+            <div style={{ fontSize: 10, color: C.textLight }}>
+              {fmtTime(slot.endTime)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Subject / break info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Name + code */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          {!isBreak && <BookOpen size={13} color={C.slate} style={{ flexShrink: 0 }} />}
+          <span style={{
+            fontSize: isMobile ? 13 : 14,
+            fontWeight: 700, color: C.text,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {slot.subject?.name ?? (isLunch ? "Lunch Break" : "Break")}
+          </span>
+          {slot.subject?.code && (
+            <span style={{
+              fontSize: 10, fontWeight: 600, color: C.textLight,
+              background: C.bg, border: `1px solid ${C.borderLight}`,
+              borderRadius: 20, padding: "1px 7px", flexShrink: 0,
+            }}>
+              {slot.subject.code}
+            </span>
+          )}
+        </div>
+
+        {/* Time on mobile — shown below name */}
+        {isMobile && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+            <Clock size={10} color={C.textLight} />
+            <span style={{ fontSize: 10, color: C.textLight, fontWeight: 500 }}>
+              {fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}
+            </span>
+          </div>
+        )}
+
+        {/* Teacher + room */}
+        {!isBreak && (slot.teacher?.name || slot.roomNumber) && (
+          <div style={{ display: "flex", gap: 10, marginTop: 3, flexWrap: "wrap" }}>
+            {slot.teacher?.name && (
+              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: C.textLight }}>
+                <User size={10} /> {slot.teacher.name}
+              </span>
+            )}
+            {slot.roomNumber && (
+              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: C.textLight }}>
+                <MapPin size={10} /> Room {slot.roomNumber}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Right badge */}
+      {isBreak ? (
+        <span style={{
+          fontSize: 10, fontWeight: 700,
+          background: `${accentColor}15`,
+          color: accentColor,
+          border: `1px solid ${accentColor}33`,
+          borderRadius: 20,
+          padding: isMobile ? "2px 8px" : "3px 10px",
+          flexShrink: 0,
+        }}>
+          {isLunch ? "Lunch" : "Break"}
+        </span>
+      ) : slot.roomNumber && !isMobile ? (
+        <span style={{
+          fontSize: 10, fontWeight: 700,
+          background: `${C.sky}18`,
+          color: C.deep,
+          border: `1px solid ${C.sky}33`,
+          borderRadius: 20, padding: "3px 10px", flexShrink: 0,
+        }}>
+          Room {slot.roomNumber}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+//  Main Page
+// ═════════════════════════════════════════════════════════════
+export default function TimeTable() {
+  const [data,      setData]      = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(null);
+  const [activeDay, setActiveDay] = useState(null);
+
+  const width    = useWindowWidth();
+  const isMobile = width < 640;
+  const isTablet = width >= 640 && width < 1024;
+
+  useEffect(() => {
+    apiFetch("/timetable")
+      .then((res) => {
+        if (!res.success) throw new Error(res.message ?? "Failed to load timetable");
+        setData(res.data);
+        const days = res.data.days ?? [];
+        setActiveDay(days.includes(TODAY_KEY) ? TODAY_KEY : days[0] ?? null);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const slots      = data?.timetable?.[activeDay] ?? [];
+  const classSlots = slots.filter(s => s.slotType !== "BREAK" && s.slotType !== "LUNCH");
+  const enrollment = data?.enrollment;
+  const stats      = data?.stats;
+
+  // Responsive values
+  const pagePadding = isMobile ? "20px 16px" : isTablet ? "24px 24px" : "28px 32px";
+  const titleSize   = isMobile ? 20 : 26;
 
   return (
     <PageLayout>
-      <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-2xl p-6 mb-6 shadow-lg">
-        <div className="flex items-center gap-3">
-          <Calendar className="w-10 h-10" />
-          <div>
-            <h1 className="text-2xl font-bold">Class Time Table</h1>
-            <p className="text-blue-100 mt-1">Grade 10 - Section A | Academic Year 2025-26</p>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+      />
+      <style>{`
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: ${C.sky}; border-radius: 99px; }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(14px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .fade-up { animation: fadeUp 0.38s ease forwards; opacity: 0; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .fade-in { animation: fadeIn 0.3s ease forwards; opacity: 0; }
+        .day-btn:hover {
+          background: ${C.bg} !important;
+          border-color: ${C.sky} !important;
+          color: ${C.deep} !important;
+        }
+        .stat-card {
+          background: ${C.white};
+          border-radius: 14px;
+          border: 1.5px solid ${C.borderLight};
+          padding: 14px 18px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          box-shadow: 0 2px 10px rgba(56,73,89,0.05);
+        }
+      `}</style>
+
+      <div style={{
+        minHeight: "100vh",
+        background: C.bg,
+        padding: pagePadding,
+        ...F,
+        backgroundImage: `radial-gradient(circle at 10% 0%, ${C.mist}28 0%, transparent 45%)`,
+      }}>
+
+        {/* ── Page header ── */}
+        <div className="fade-up" style={{ marginBottom: isMobile ? 16 : 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 5 }}>
+            <div style={{
+              width: 4,
+              height: isMobile ? 26 : 32,
+              borderRadius: 99,
+              background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`,
+              flexShrink: 0,
+            }} />
+            <h1 style={{
+              margin: 0,
+              fontSize: titleSize,
+              fontWeight: 800,
+              color: C.text,
+              letterSpacing: "-0.5px",
+            }}>
+              Class Time Table
+            </h1>
           </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-xl p-6">
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {days.map((day) => (
-            <button
-              key={day}
-              onClick={() => setSelectedDay(day)}
-              className={`px-6 py-2 rounded-lg font-semibold whitespace-nowrap transition ${
-                selectedDay === day
-                  ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {day}
-            </button>
-          ))}
+          <p style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: C.textLight, fontWeight: 500 }}>
+            {loading
+              ? "Loading schedule…"
+              : enrollment
+                ? `${enrollment.className} · ${enrollment.academicYear}`
+                : "View your daily class schedule"
+            }
+          </p>
         </div>
 
-        <div className="space-y-3">
-          {currentSchedule.map((period, index) => {
-            const isBreak = period.subject.includes('Break');
-            return (
-              <div
-                key={index}
-                className={`p-4 rounded-xl border-l-4 transition hover:shadow-md ${
-                  isBreak
-                    ? 'bg-orange-50 border-orange-500'
-                    : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-500'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="flex items-center gap-2 min-w-[140px]">
-                      <Clock className={`w-5 h-5 ${isBreak ? 'text-orange-600' : 'text-blue-600'}`} />
-                      <span className="font-semibold text-gray-700">{period.time}</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      {isBreak ? (
-                        <Coffee className="w-5 h-5 text-orange-600" />
-                      ) : (
-                        <BookOpen className="w-5 h-5 text-blue-600" />
-                      )}
-                      <span className="font-bold text-gray-800 text-lg">{period.subject}</span>
-                    </div>
+        {/* ── Error ── */}
+        {error && (
+          <div style={{
+            display: "flex", alignItems: "flex-start", gap: 8,
+            padding: "12px 16px", borderRadius: 12,
+            background: "#fee8e8", border: "1px solid #f5b0b0",
+            marginBottom: 16, fontSize: 13, color: "#8b1c1c",
+          }}>
+            <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {loading ? (
+          <LoadingSkeleton isMobile={isMobile} />
+        ) : (
+          <div className="fade-in">
+
+            {/* ── Stat cards ── */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: isMobile
+                ? "1fr 1fr"
+                : isTablet
+                  ? "repeat(3, 1fr)"
+                  : "repeat(3, 1fr)",
+              gap: isMobile ? 10 : 12,
+              marginBottom: isMobile ? 14 : 20,
+            }}>
+              {[
+                {
+                  label: "WORKING DAYS",
+                  value: stats?.workingDays ?? "—",
+                  sub: "days / week",
+                  accent: C.sky,
+                  icon: <Calendar size={isMobile ? 18 : 22} color={C.sky} />,
+                },
+                {
+                  label: "SCHOOL HOURS",
+                  value: fmtTime(stats?.dayStart),
+                  sub: `ends ${fmtTime(stats?.dayEnd)}`,
+                  accent: C.slate,
+                  icon: <Clock size={isMobile ? 18 : 22} color={C.slate} />,
+                },
+                {
+                  label: "CLASSES TODAY",
+                  value: classSlots.length,
+                  sub: `${slots.length} total slots`,
+                  accent: C.green,
+                  icon: <BookOpen size={isMobile ? 18 : 22} color={C.green} />,
+                },
+              ].map((card, idx) => (
+                // On mobile 2-col grid: last card spans full width
+                <div
+                  key={card.label}
+                  className="stat-card"
+                  style={{
+                    borderTop: `3px solid ${card.accent}`,
+                    gridColumn: isMobile && idx === 2 ? "1 / -1" : undefined,
+                  }}
+                >
+                  <div>
+                    <p style={{
+                      margin: 0, fontSize: 9, fontWeight: 700,
+                      color: C.textLight, letterSpacing: "0.5px",
+                      textTransform: "uppercase",
+                    }}>
+                      {card.label}
+                    </p>
+                    <p style={{
+                      margin: "3px 0 1px",
+                      fontSize: isMobile ? 20 : 24,
+                      fontWeight: 800,
+                      color: C.text,
+                      letterSpacing: "-0.5px",
+                      lineHeight: 1,
+                    }}>
+                      {card.value}
+                    </p>
+                    <p style={{ margin: 0, fontSize: 10, color: C.textLight }}>
+                      {card.sub}
+                    </p>
                   </div>
-
-                  {!isBreak && (
-                    <div className="flex gap-6 text-sm">
-                      <div className="text-right">
-                        <p className="text-gray-500 text-xs">Teacher</p>
-                        <p className="font-semibold text-gray-800">{period.teacher}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-gray-500 text-xs">Room</p>
-                        <p className="font-semibold text-blue-600">{period.room}</p>
-                      </div>
-                    </div>
-                  )}
+                  <div style={{
+                    width: isMobile ? 36 : 42,
+                    height: isMobile ? 36 : 42,
+                    borderRadius: 11,
+                    background: `${card.accent}15`,
+                    border: `1px solid ${card.accent}30`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    flexShrink: 0,
+                  }}>
+                    {card.icon}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+              ))}
+            </div>
 
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-blue-500">
-          <p className="text-gray-600 text-sm">Total Periods</p>
-          <p className="text-2xl font-bold text-blue-600 mt-1">10</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-green-500">
-          <p className="text-gray-600 text-sm">Class Timing</p>
-          <p className="text-2xl font-bold text-green-600 mt-1">8:00 AM - 3:00 PM</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-purple-500">
-          <p className="text-gray-600 text-sm">Working Days</p>
-          <p className="text-2xl font-bold text-blue-500 mt-1">6 Days/Week</p>
-        </div>
+            {/* ── Day selector ── */}
+            <div style={{
+              background: C.white,
+              borderRadius: 14,
+              border: `1.5px solid ${C.borderLight}`,
+              padding: isMobile ? "12px 14px" : "14px 20px",
+              marginBottom: isMobile ? 14 : 20,
+              boxShadow: "0 2px 10px rgba(56,73,89,0.05)",
+            }}>
+              <p style={{
+                margin: "0 0 10px",
+                fontSize: 10, fontWeight: 700,
+                color: C.textLight, letterSpacing: "0.5px",
+                textTransform: "uppercase",
+              }}>
+                Select Day
+              </p>
+              {/* Scrollable row on mobile */}
+              <div style={{
+                display: "flex", gap: 6,
+                overflowX: isMobile ? "auto" : "unset",
+                flexWrap: isMobile ? "nowrap" : "wrap",
+                paddingBottom: isMobile ? 2 : 0,
+                WebkitOverflowScrolling: "touch",
+              }}>
+                {(data?.days ?? []).map((day) => {
+                  const isActive = day === activeDay;
+                  const isToday  = day === TODAY_KEY;
+                  return (
+                    <button
+                      key={day}
+                      className="day-btn"
+                      onClick={() => setActiveDay(day)}
+                      style={{
+                        flexShrink: 0,
+                        padding: isMobile ? "6px 14px" : "7px 18px",
+                        borderRadius: 20,
+                        fontSize: isMobile ? 11 : 12,
+                        fontWeight: isActive ? 700 : 500,
+                        ...F,
+                        border: isActive
+                          ? `1.5px solid ${C.sky}`
+                          : `1.5px solid ${C.borderLight}`,
+                        background: isActive ? `${C.sky}22` : C.white,
+                        color: isActive ? C.deep : C.textLight,
+                        cursor: "pointer",
+                        position: "relative",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {isMobile ? DAY_SHORT[day]?.slice(0, 2) ?? day : DAY_SHORT[day] ?? day}
+                      {isToday && (
+                        <span style={{
+                          position: "absolute", top: -3, right: -3,
+                          width: 7, height: 7, borderRadius: "50%",
+                          background: C.green, border: `2px solid ${C.white}`,
+                        }} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Period list ── */}
+            <div style={{
+              background: C.white,
+              borderRadius: 14,
+              border: `1.5px solid ${C.borderLight}`,
+              padding: isMobile ? "14px 14px" : "16px 20px",
+              boxShadow: "0 2px 10px rgba(56,73,89,0.05)",
+            }}>
+              {/* Section heading */}
+              <div style={{
+                display: "flex",
+                alignItems: isMobile ? "flex-start" : "center",
+                justifyContent: "space-between",
+                flexDirection: isMobile ? "column" : "row",
+                gap: isMobile ? 10 : 0,
+                marginBottom: 14,
+                paddingBottom: 12,
+                borderBottom: `1px solid ${C.borderLight}`,
+              }}>
+                <div>
+                  <h2 style={{
+                    margin: 0,
+                    fontSize: isMobile ? 14 : 16,
+                    fontWeight: 800,
+                    color: C.text,
+                  }}>
+                    {DAY_LABELS[activeDay] ?? activeDay}
+                    {activeDay === TODAY_KEY && (
+                      <span style={{
+                        marginLeft: 7, fontSize: 9, fontWeight: 700,
+                        background: `${C.green}18`, color: C.green,
+                        border: `1px solid ${C.green}40`,
+                        borderRadius: 20, padding: "2px 7px",
+                        verticalAlign: "middle",
+                      }}>
+                        TODAY
+                      </span>
+                    )}
+                  </h2>
+                  <p style={{ margin: "3px 0 0", fontSize: 11, color: C.textLight }}>
+                    {classSlots.length} class{classSlots.length !== 1 ? "es" : ""} · {slots.length} total slots
+                  </p>
+                </div>
+
+                {stats && (
+                  <div style={{
+                    padding: isMobile ? "6px 10px" : "6px 14px",
+                    background: C.bg,
+                    border: `1px solid ${C.borderLight}`,
+                    borderRadius: 10,
+                    textAlign: isMobile ? "left" : "right",
+                    alignSelf: isMobile ? "flex-start" : "auto",
+                  }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.text }}>
+                      {fmtTime(stats.dayStart)} – {fmtTime(stats.dayEnd)}
+                    </p>
+                    <p style={{ margin: 0, fontSize: 10, color: C.textLight }}>School hours</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Empty state */}
+              {slots.length === 0 && (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: C.textLight }}>
+                  <div style={{
+                    width: 46, height: 46, borderRadius: 13,
+                    background: `${C.sky}18`, border: `1px solid ${C.sky}33`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    margin: "0 auto 12px",
+                  }}>
+                    <Calendar size={20} color={C.sky} />
+                  </div>
+                  <p style={{ fontWeight: 700, margin: 0, fontSize: 13, color: C.text }}>
+                    No periods scheduled
+                  </p>
+                  <p style={{ fontSize: 11, margin: "4px 0 0" }}>
+                    Nothing planned for {DAY_LABELS[activeDay] ?? "this day"}
+                  </p>
+                </div>
+              )}
+
+              {/* Period rows */}
+              {slots.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 8 : 10 }}>
+                  {(() => {
+                    let cc = 0;
+                    return slots.map((slot, i) => {
+                      const isBreak = slot.slotType === "BREAK" || slot.slotType === "LUNCH";
+                      const ci = isBreak ? 0 : cc;
+                      if (!isBreak) cc++;
+                      return (
+                        <PeriodCard
+                          key={slot.id ?? i}
+                          slot={slot}
+                          classIndex={ci}
+                          isMobile={isMobile}
+                          isTablet={isTablet}
+                        />
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
       </div>
     </PageLayout>
   );
 }
-
-export default TimeTable;

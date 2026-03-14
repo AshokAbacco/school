@@ -13,7 +13,7 @@ import {
 } from "./examsApi";
 
 /* ── Design tokens ── */
-const F = { fontFamily: "'Inter', 'DM Sans', sans-serif" };
+const F = { fontFamily: "'Inter', sans-serif" };
 const C = {
   dark: "#1e2d3d",
   navy: "#0f172a",

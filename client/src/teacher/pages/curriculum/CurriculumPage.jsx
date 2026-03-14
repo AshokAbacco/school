@@ -54,7 +54,7 @@ function ProgressBar({ completed, total }) {
       >
         <span
           style={{
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 11,
             color: C.textLight,
             fontWeight: 500,
@@ -64,7 +64,7 @@ function ProgressBar({ completed, total }) {
         </span>
         <span
           style={{
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 12,
             fontWeight: 700,
             color: C.deep,
@@ -176,7 +176,7 @@ export default function CurriculumPage() {
         style={{
           minHeight: "100vh",
           background: C.bg,
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
           backgroundImage: `radial-gradient(circle at 15% 0%, ${C.mist}28 0%, transparent 50%)`,
         }}
       >
@@ -301,7 +301,7 @@ export default function CurriculumPage() {
             </div>
             <p
               style={{
-                fontFamily: "'Sora',sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: 13,
                 color: C.textLight,
                 margin: 0,
@@ -403,7 +403,7 @@ export default function CurriculumPage() {
                       fontSize: 12,
                       fontWeight: 700,
                       cursor: "pointer",
-                      fontFamily: "'Sora',sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       whiteSpace: "nowrap",
                       flexShrink: 0,
                     }}
@@ -502,7 +502,7 @@ export default function CurriculumPage() {
                             fontSize: 12,
                             fontWeight: 700,
                             cursor: group.syllabus ? "pointer" : "not-allowed",
-                            fontFamily: "'Sora',sans-serif",
+                            fontFamily: "'Inter', sans-serif",
                           }}
                         >
                           <CheckCircle2 size={12} /> Update
@@ -590,7 +590,7 @@ function SetChaptersModal({ group, onClose, onSaved }) {
           fontSize: 12,
           color: C.textLight,
           margin: "0 0 16px",
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
         }}
       >
         Applies to all sections of{" "}
@@ -598,7 +598,7 @@ function SetChaptersModal({ group, onClose, onSaved }) {
       </p>
       <label
         style={{
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 12,
           fontWeight: 600,
           color: C.text,
@@ -619,7 +619,7 @@ function SetChaptersModal({ group, onClose, onSaved }) {
           padding: "10px 14px",
           borderRadius: 12,
           border: `1.5px solid ${C.border}`,
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 14,
           fontWeight: 600,
           color: C.text,
@@ -633,7 +633,7 @@ function SetChaptersModal({ group, onClose, onSaved }) {
             color: "#c0392b",
             fontSize: 11,
             margin: "8px 0 0",
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
           }}
         >
           {error}
@@ -649,7 +649,7 @@ function SetChaptersModal({ group, onClose, onSaved }) {
             border: `1.5px solid ${C.border}`,
             background: C.white,
             color: C.textLight,
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             fontWeight: 600,
             cursor: "pointer",
@@ -667,7 +667,7 @@ function SetChaptersModal({ group, onClose, onSaved }) {
             border: "none",
             background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
             color: "#fff",
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             fontWeight: 700,
             cursor: "pointer",
@@ -746,7 +746,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
           fontSize: 12,
           color: C.textLight,
           margin: "0 0 4px",
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
         }}
       >
         <strong style={{ color: C.deep }}>{group.subject?.name}</strong> ·{" "}
@@ -771,7 +771,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
         >
           <span
             style={{
-              fontFamily: "'Sora',sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: 11,
               color: C.textLight,
             }}
@@ -780,7 +780,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
           </span>
           <span
             style={{
-              fontFamily: "'Sora',sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: 13,
               fontWeight: 800,
               color: C.deep,
@@ -810,7 +810,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
       </div>
       <label
         style={{
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 12,
           fontWeight: 600,
           color: C.text,
@@ -832,7 +832,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
           padding: "10px 14px",
           borderRadius: 12,
           border: `1.5px solid ${C.border}`,
-          fontFamily: "'Sora',sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 14,
           fontWeight: 600,
           color: C.text,
@@ -846,7 +846,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
             color: "#c0392b",
             fontSize: 11,
             margin: "8px 0 0",
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
           }}
         >
           {error}
@@ -862,7 +862,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
             border: `1.5px solid ${C.border}`,
             background: C.white,
             color: C.textLight,
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             fontWeight: 600,
             cursor: "pointer",
@@ -880,7 +880,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
             border: "none",
             background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
             color: "#fff",
-            fontFamily: "'Sora',sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             fontWeight: 700,
             cursor: "pointer",
@@ -941,7 +941,7 @@ function Modal({ title, onClose, children }) {
           <h2
             style={{
               margin: 0,
-              fontFamily: "'Sora',sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: 14,
               fontWeight: 800,
               color: C.text,

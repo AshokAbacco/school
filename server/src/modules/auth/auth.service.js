@@ -190,8 +190,12 @@ export const loginStaffService = async ({ email, password }) => {
 // ✅ Returns active enrollment with classSection so frontend gets class info
 
 export const loginStudentService = async ({ email, password }) => {
+  // 1️⃣ Find student using the email from request
   const student = await prisma.student.findFirst({
-    where: { email, isActive: true },
+    where: {
+      email,
+      isActive: true,
+    },
     include: {
       school: {
         select: {
@@ -202,25 +206,35 @@ export const loginStudentService = async ({ email, password }) => {
           universityId: true,
         },
       },
+
       personalInfo: {
         select: {
           firstName: true,
           lastName: true,
           profileImage: true,
-          status: true,
-          admissionDate: true,
         },
       },
-      // ✅ Pull the most recent active enrollment for class info
+
       enrollments: {
         where: { status: "ACTIVE" },
         select: {
+          admissionDate: true,
           rollNumber: true,
           status: true,
           classSection: {
-            select: { id: true, name: true, grade: true, section: true },
+            select: {
+              id: true,
+              name: true,
+              grade: true,
+              section: true,
+            },
           },
-          academicYear: { select: { id: true, name: true } },
+          academicYear: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
         take: 1,
@@ -229,16 +243,27 @@ export const loginStudentService = async ({ email, password }) => {
     orderBy: { createdAt: "desc" },
   });
 
-  if (!student) throw { status: 401, message: "Invalid email or password" };
-  if (student.personalInfo?.status === "SUSPENDED")
+  // 2️⃣ Student not found
+  if (!student) {
+    throw { status: 401, message: "Invalid email or password" };
+  }
+
+  // 3️⃣ Password validation
+  const isValid = await bcrypt.compare(password, student.password);
+
+  if (!isValid) {
+    throw { status: 401, message: "Invalid email or password" };
+  }
+
+  // 4️⃣ Account status check
+  if (student.personalInfo?.status === "SUSPENDED") {
     throw {
       status: 403,
       message: "Your account is suspended. Contact your school.",
     };
+  }
 
-  const isValid = await bcrypt.compare(password, student.password);
-  if (!isValid) throw { status: 401, message: "Invalid email or password" };
-
+  // 5️⃣ Generate token
   const token = generateToken({
     id: student.id,
     role: "STUDENT",
@@ -247,6 +272,7 @@ export const loginStudentService = async ({ email, password }) => {
     universityId: student.school.universityId,
   });
 
+  // 6️⃣ Return normalized response
   return {
     token,
     user: {
@@ -257,7 +283,6 @@ export const loginStudentService = async ({ email, password }) => {
       userType: "student",
       school: student.school,
       personalInfo: student.personalInfo || null,
-      // ✅ current class info from enrollment
       currentEnrollment: student.enrollments[0] || null,
     },
   };

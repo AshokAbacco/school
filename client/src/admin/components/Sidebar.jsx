@@ -13,6 +13,10 @@ import {
   Library,
   Settings,
   X,
+  Camera,
+  Images,
+  CalendarDays,
+  Trophy,
 } from "lucide-react";
 
 const NAV = [
@@ -20,11 +24,15 @@ const NAV = [
   { icon: BookOpen, label: "Classes", to: "/classes" },
   { icon: Users, label: "Students", to: "/students" },
   { icon: GraduationCap, label: "Teachers", to: "/teachers" },
+  { icon: CalendarDays, label: "Holidays", to: "/holidays" },
   { icon: ClipboardCheck, label: "Attendance", to: "/attendance" },
+  { icon: Trophy, label: "Activities", to: "/activities" },
+  { icon: Trophy, label: "Awards", to: "/awards" },
   { icon: FileText, label: "Exams", to: "/exams" },
   { icon: DollarSign, label: "Finance", to: "/finance" },
   { icon: CalendarCheck, label: "Meetings", to: "/meetings" },
   { icon: Library, label: "Curriculum", to: "/curriculum" },
+  { icon: Images , label: "Gallery", to: "/gallery" },
   { icon: Settings, label: "Settings", to: "/settings" },
 ];
 

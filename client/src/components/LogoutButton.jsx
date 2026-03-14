@@ -3,7 +3,7 @@ import { clearAuth } from "../auth/storage";
 function LogoutButton() {
   const handleLogout = () => {
     clearAuth();
-    window.location.reload(); // forces App.jsx to re-check auth
+   window.location.href = "/";
   };
 
   return (

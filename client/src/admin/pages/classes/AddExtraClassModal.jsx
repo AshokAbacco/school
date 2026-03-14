@@ -86,7 +86,7 @@ const Label = ({ children }) => (
     style={{
       color: C.mid,
       letterSpacing: "0.5px",
-      fontFamily: "Inter, sans-serif",
+      fontFamily: "'Inter', sans-serif",
     }}
   >
     {children}
@@ -366,7 +366,7 @@ export default function AddExtraClassModal({
                         className="text-xs font-semibold"
                         style={{
                           color: sel ? t.color : C.primary,
-                          fontFamily: "Inter, sans-serif",
+                          fontFamily: "'Inter', sans-serif",
                         }}
                       >
                         {t.label}
@@ -401,7 +401,7 @@ export default function AddExtraClassModal({
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: "pointer",
-                    fontFamily: "Inter, sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     border: `1.5px solid ${scheduleMode === val ? C.primary : C.border}`,
                     background: scheduleMode === val ? C.primary : "#fff",
                     color: scheduleMode === val ? "#fff" : C.mid,
@@ -432,7 +432,7 @@ export default function AddExtraClassModal({
                         borderRadius: 20,
                         background: C.primary,
                         color: "#fff",
-                        fontFamily: "Inter, sans-serif",
+                        fontFamily: "'Inter', sans-serif",
                       }}
                     >
                       {recurringDays.length} selected
@@ -479,7 +479,7 @@ export default function AddExtraClassModal({
                           className="text-xs font-semibold"
                           style={{
                             color: sel ? "#fff" : C.mid,
-                            fontFamily: "Inter, sans-serif",
+                            fontFamily: "'Inter', sans-serif",
                           }}
                         >
                           {d.label.slice(0, 3)}
@@ -518,7 +518,7 @@ export default function AddExtraClassModal({
                         fontSize: 11,
                         fontWeight: 600,
                         cursor: "pointer",
-                        fontFamily: "Inter, sans-serif",
+                        fontFamily: "'Inter', sans-serif",
                         border: `1.5px solid ${C.border}`,
                         background: label === "Clear" ? "transparent" : C.pale,
                         color: label === "Clear" ? "#ef4444" : C.mid,
@@ -535,7 +535,7 @@ export default function AddExtraClassModal({
                     className="text-xs mt-1.5 flex items-center gap-1"
                     style={{
                       color: "#ef4444",
-                      fontFamily: "Inter, sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                     }}
                   >
                     <AlertCircle size={11} /> {errors.recurringDays}
@@ -568,7 +568,7 @@ export default function AddExtraClassModal({
                       outline: "none",
                       fontSize: 13,
                       color: C.primary,
-                      fontFamily: "Inter, sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       background: "transparent",
                       flex: 1,
                     }}
@@ -615,7 +615,7 @@ export default function AddExtraClassModal({
                       outline: "none",
                       fontSize: 13,
                       color: C.primary,
-                      fontFamily: "Inter, sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       background: "transparent",
                       flex: 1,
                     }}
@@ -666,7 +666,7 @@ export default function AddExtraClassModal({
                       outline: "none",
                       fontSize: 13,
                       color: C.primary,
-                      fontFamily: "Inter, sans-serif",
+                      fontFamily: "'Inter', sans-serif",
                       background: "transparent",
                       flex: 1,
                     }}
@@ -734,7 +734,7 @@ export default function AddExtraClassModal({
                         className="text-sm font-medium"
                         style={{
                           color: sel ? color : C.primary,
-                          fontFamily: "Inter, sans-serif",
+                          fontFamily: "'Inter', sans-serif",
                         }}
                       >
                         {s.name}
@@ -774,7 +774,7 @@ export default function AddExtraClassModal({
                   outline: "none",
                   fontSize: 12,
                   color: C.primary,
-                  fontFamily: "Inter, sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   flex: 1,
                   background: "transparent",
                 }}
@@ -836,7 +836,7 @@ export default function AddExtraClassModal({
                               ? "rgba(56,73,89,0.18)"
                               : "rgba(136,189,242,0.2)",
                             color: C.primary,
-                            fontFamily: "Inter, sans-serif",
+                            fontFamily: "'Inter', sans-serif",
                           }}
                         >
                           {initials}
@@ -846,7 +846,7 @@ export default function AddExtraClassModal({
                             className="text-sm font-semibold"
                             style={{
                               color: C.primary,
-                              fontFamily: "Inter, sans-serif",
+                              fontFamily: "'Inter', sans-serif",
                             }}
                           >
                             {t.firstName} {t.lastName}
@@ -858,7 +858,7 @@ export default function AddExtraClassModal({
                                 style={{
                                   background: "rgba(79,70,229,0.09)",
                                   color: "#4f46e5",
-                                  fontFamily: "Inter, sans-serif",
+                                  fontFamily: "'Inter', sans-serif",
                                 }}
                               >
                                 {t.department}
@@ -869,7 +869,7 @@ export default function AddExtraClassModal({
                                 className="text-xs"
                                 style={{
                                   color: C.mid,
-                                  fontFamily: "Inter, sans-serif",
+                                  fontFamily: "'Inter', sans-serif",
                                 }}
                               >
                                 {t.designation}
@@ -918,7 +918,7 @@ export default function AddExtraClassModal({
                 outline: "none",
                 fontSize: 13,
                 color: C.primary,
-                fontFamily: "Inter, sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 resize: "vertical",
                 boxSizing: "border-box",
               }}
@@ -940,7 +940,7 @@ export default function AddExtraClassModal({
               color: C.mid,
               background: "transparent",
               cursor: "pointer",
-              fontFamily: "Inter, sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: 13,
               fontWeight: 500,
             }}
@@ -956,7 +956,7 @@ export default function AddExtraClassModal({
               background: saving ? "rgba(106,137,167,0.5)" : C.primary,
               border: "none",
               cursor: saving ? "not-allowed" : "pointer",
-              fontFamily: "Inter, sans-serif",
+              fontFamily: "'Inter', sans-serif",
             }}
           >
             {saving ? (

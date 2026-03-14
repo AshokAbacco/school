@@ -21,7 +21,8 @@ export async function uploadProfileImage(req, res) {
     });
     if (!teacher) return res.status(404).json({ error: "Teacher not found" });
 
-    const key = `teachers/${id}/profile/${Date.now()}-${req.file.originalname}`;
+    const key = `schools/${schoolId}/teachers/${id}/profile/${Date.now()}-${req.file.originalname}`;
+
     await uploadToR2(key, req.file.buffer, req.file.mimetype);
 
     const updated = await prisma.teacherProfile.update({
@@ -81,7 +82,7 @@ export async function uploadTeacherDocument(req, res) {
     if (!teacher) return res.status(404).json({ error: "Teacher not found" });
 
     const ext = req.file.originalname.split(".").pop();
-    const key = `teachers/${id}/documents/${documentType}-${Date.now()}.${ext}`;
+    const key = `schools/${schoolId}/teachers/${id}/documents/${documentType}-${Date.now()}.${ext}`;
     await uploadToR2(key, req.file.buffer, req.file.mimetype);
 
     const doc = await prisma.teacherDocument.create({

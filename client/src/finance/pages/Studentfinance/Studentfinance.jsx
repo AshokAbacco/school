@@ -54,7 +54,6 @@ export default function StudentFeesPage() {
     return (
         <PageLayout>
             <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
         .sf2-root { --navy:#1E3448; --primary:#2E4F6B; --mid:#3D6480; --accent:#5A8FA8; --pale:#D6E8F2; --bg:#C8DCE9; --white:#fff; --success:#2A7A4F; --danger:#A83228; --warn:#A07010; --text:#162535; --muted:#5A7A90; --border:#A8C8DC; }
         .sf2-root * { box-sizing:border-box; }
