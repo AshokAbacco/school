@@ -1,5 +1,5 @@
 import { Router } from "express"
-import salaryController from "../Controlls/teacherController.js"
+import salaryController from "../Controls/teacherController.js"
 
 const router = Router()
 router.get(

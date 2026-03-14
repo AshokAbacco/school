@@ -332,3 +332,48 @@ export const loginParentService = async ({ email, password }) => {
     },
   };
 };
+
+export async function loginFinanceService({ email, password }) {
+  if (!email || !password) {
+    throw { status: 400, message: "Email and password required" };
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      email,
+      role: "FINANCE",
+    },
+  });
+
+  if (!user) {
+    throw { status: 401, message: "Invalid email or password" };
+  }
+
+  const valid = await bcrypt.compare(password, user.password);
+
+  if (!valid) {
+    throw { status: 401, message: "Invalid email or password" };
+  }
+
+  const token = jwt.sign(
+    {
+      id: user.id,
+      role: user.role,
+      schoolId: user.schoolId,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+
+  return {
+    message: "Finance login successful",
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      schoolId: user.schoolId,
+    },
+  };
+}

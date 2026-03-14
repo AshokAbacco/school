@@ -6,6 +6,7 @@ import {
   loginStaff,
   loginStudent,
   loginParent,
+  loginFinance,
 } from "./auth.controller.js";
 
 const router = Router();
@@ -27,5 +28,8 @@ router.post("/student/login", loginStudent);
 // ── Parent ─────────────────────────────────────────────────────
 // POST /api/auth/parent/login
 router.post("/parent/login", loginParent);
+
+///finance/login
+router.post("/finance/login", loginFinance);
 
 export default router;

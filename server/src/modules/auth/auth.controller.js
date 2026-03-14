@@ -5,6 +5,7 @@ import {
   loginStaffService,
   loginStudentService,
   loginParentService,
+  loginFinanceService,   // ✅ ADD THIS
 } from "./auth.service.js";
 
 const handle = (serviceFn) => async (req, res) => {
@@ -33,3 +34,6 @@ export const loginStudent = handle(loginStudentService);
 
 // POST /api/auth/parent/login
 export const loginParent = handle(loginParentService);
+
+// ✅ NEW: POST /api/auth/finance/login
+export const loginFinance = handle(loginFinanceService);

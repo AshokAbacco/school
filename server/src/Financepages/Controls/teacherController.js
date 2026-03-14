@@ -31,17 +31,17 @@ async getTeachersBySchool(req, res) {
 
     const { schoolId } = req.params;
 
-    const teachers = await prisma.teacherProfile.findMany({
-      where: {
-        schoolId: schoolId
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        salary: true
-      }
-    });
+const teachers = await prisma.teacherProfile.findMany({
+  where: {
+    schoolId: schoolId
+  },
+  select: {
+    id: true,
+    firstName: true,
+    lastName: true,
+    salary: true
+  }
+});
 
     console.log("Teachers Data:", teachers);  // 👈 ADD THIS
 
@@ -102,9 +102,9 @@ async createTeacherSalary(req, res) {
 
 
     const netSalary =
-      Number(teacher.salary) +
-      Number(bonus) -
-      Number(deductions)
+  Number(teacher.salary.toString()) +
+  Number(bonus) -
+  Number(deductions)
 
 
     const salary =
@@ -174,17 +174,25 @@ async paySalary(req, res) {
 
     const { salaryId } = req.params
 
-    const salary =
-      await prisma.teacherMonthlySalary.update({
+    const salaryRecord =
+  await prisma.teacherMonthlySalary.findUnique({
+    where: { id: salaryId }
+  });
 
-        where: { id: salaryId },
+if (!salaryRecord) {
+  return res.status(404).json({
+    message: "Salary record not found"
+  });
+}
 
-        data: {
-          status: "PAID",
-          paymentDate: new Date()
-        }
-
-      })
+const salary =
+  await prisma.teacherMonthlySalary.update({
+    where: { id: salaryId },
+    data: {
+      status: "PAID",
+      paymentDate: new Date()
+    }
+  });
 
     res.json(salary)
 
@@ -219,39 +227,50 @@ async getTeachersSalaryList(req, res) {
     const month = new Date().getMonth() + 1;
     const year = new Date().getFullYear();
 
-    const teachers = await prisma.teacherProfile.findMany({
-      where: { schoolId },
-      include: {
-        user: {
-          select: { email: true }
-        },
-        TeacherMonthlySalary: {
-          where: { month, year }
-        }
-      }
-    });
+   const teachers = await prisma.teacherProfile.findMany({
+  where: {
+    schoolId: schoolId
+  },
+  include: {
+    user: {
+      select: { email: true }
+    },
+    TeacherMonthlySalary: {
+      where: { month, year }
+    }
+  }
+});
 
     const formatted = teachers.map(t => {
+const salaryRecord = t.TeacherMonthlySalary[0];
 
-      const salaryRecord = t.TeacherMonthlySalary[0];
+return {
+ id: salaryRecord?.id || null,  // React key
+  salaryId: salaryRecord?.id ?? null,          // real salary id
+  teacherId: t.id,
 
-     return {
-  id: t.id,
   teacher: {
+    id: t.id,
     firstName: t.firstName,
     lastName: t.lastName,
     department: t.department,
     user: { email: t.user?.email }
   },
+
   month,
   year,
 
-  // 🔥 ADD THIS LINE
-  basicSalary: salaryRecord?.basicSalary || t.salary || 0,
+basicSalary: Number(t.salary?.toString() || 0),
+bonus: Number(salaryRecord?.bonus?.toString() || 0),
+deductions: Number(salaryRecord?.deductions?.toString() || 0),
 
-  bonus: salaryRecord?.bonus || 0,
-  deductions: salaryRecord?.deductions || 0,
-  netSalary: salaryRecord?.netSalary || 0,
+ netSalary: Number(
+  salaryRecord?.netSalary ??
+  (Number(t.salary || 0) +
+   Number(salaryRecord?.bonus || 0) -
+   Number(salaryRecord?.deductions || 0))
+),
+
   status: salaryRecord?.status || "PENDING"
 };
     });
@@ -271,21 +290,28 @@ async getAllSalaryHistoryBySchool(req, res) {
     const { schoolId } = req.params;
 
     const history = await prisma.teacherMonthlySalary.findMany({
-      where: { schoolId },
-      include: {
-        teacher: {
-          include: {
-            user: {
-              select: { email: true }
-            }
-          }
+  where: {
+    schoolId: schoolId
+    
+  },
+  include: {
+    teacher: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        department: true,
+        user: {
+          select: { email: true }
         }
-      },
-      orderBy: [
-        { year: "desc" },
-        { month: "desc" }
-      ]
-    });
+      }
+    }
+  },
+  orderBy: [
+    { year: "desc" },
+    { month: "desc" }
+  ]
+});
 
     res.json(history);
 

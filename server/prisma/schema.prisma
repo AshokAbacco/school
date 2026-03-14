@@ -1326,13 +1326,13 @@ model StreamCombination {
 
 //  Finance 
 model FinanceProfile {
-  id     String @id @default(uuid())
-  userId String @unique
-
+  id           String   @id @default(uuid())
+  userId       String   @unique
   schoolId     String
   employeeCode String?
   designation  String?
   phone        String?
+  salary       Decimal?
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1347,7 +1347,7 @@ model StudentFinance {
   email     String
   phone     String
   course    String?
-  fees      Float?
+  fees      Decimal?
   address   String?
   createdAt DateTime @default(now())
 
@@ -1384,6 +1384,37 @@ enum SalaryStatus {
   PAID
 }
 
+model StudentList {
+  id Int @id @default(autoincrement())
+
+  name  String
+  email String
+  phone String
+
+  course  String?
+  fees    Decimal?
+  address String?
+
+  createdAt DateTime @default(now())
+
+  @@map("student_list")
+}
+
+// GROUP B STAFF (Junior Faculty)
+
+model GroupBStaffSalary {
+  id Int @id @default(autoincrement())
+
+  name        String
+  designation String
+  school      String
+  department  String?
+
+  basicSalary Decimal
+  allowances  Decimal
+
+  status     String  @default("Active")
+  salaryPaid Boolean @default(false)
 model SubjectSyllabus {
   id String @id @default(uuid())
 

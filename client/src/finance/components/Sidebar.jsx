@@ -20,9 +20,9 @@ const NAV = [
 
 
   // Finance Section
-  { icon: LayoutDashboard, label: "Finance Dashboard", to: "/" },
-  { icon: GraduationCap, label: "Student Fees", to: "/studentfinance" },
-  { icon: Wallet, label: "Teacher Salary", to: "/teachersfinance" },
+  { icon: LayoutDashboard, label: "Dashboard", to: "/" },
+  { icon: GraduationCap, label: "Student", to: "/studentfinance" },
+  { icon: Wallet, label: "Staff", to: "/teachersfinance" },
 
 
 
