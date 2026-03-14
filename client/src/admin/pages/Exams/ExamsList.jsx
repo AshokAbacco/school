@@ -12,7 +12,7 @@ import PageLayout from "../../components/PageLayout.jsx";
 import { getToken } from "../../../auth/storage.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
-const font = { fontFamily: "'DM Sans', sans-serif" };
+const font = { fontFamily: "Inter, sans-serif" };
 const C = {
   dark: "#384959", mid: "#6A89A7", border: "#BDDDFC",
   bg: "#F4F9FF", card: "#ffffff", hover: "#EFF6FD",
@@ -200,7 +200,6 @@ export default function ExamsList() {
   return (
     <PageLayout>
       <div className="min-h-screen p-7" style={{ background: C.bg, ...font }}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');`}</style>
 
         {/* Page header */}
         <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
@@ -366,10 +365,10 @@ function TableRow({ group, index, actionMap, onView, onEdit, onDelete, onPublish
       style={{ borderBottom: `1px solid ${C.border}`, background: hov ? C.hover : "transparent", transition: "background .12s" }}>
 
       {/* # */}
-      <td style={{ padding: "13px 16px", fontSize: 12, color: C.mid, fontFamily: "'DM Sans', sans-serif", width: 40 }}>{index + 1}</td>
+      <td style={{ padding: "13px 16px", fontSize: 12, color: C.mid,  fontFamily: "'Inter', sans-serif", width: 40 }}>{index + 1}</td>
 
       {/* Exam Name */}
-      <td style={{ padding: "13px 16px", fontFamily: "'DM Sans', sans-serif" }}>
+      <td style={{ padding: "13px 16px", fontFamily: "Inter, sans-serif" }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.dark }}>{group.name}</div>
         {group.term?.name && (
           <div style={{ fontSize: 11, color: C.mid, marginTop: 2 }}>{group.term.name}</div>
@@ -377,20 +376,20 @@ function TableRow({ group, index, actionMap, onView, onEdit, onDelete, onPublish
       </td>
 
       {/* Student Classes */}
-      <td style={{ padding: "13px 16px", fontFamily: "'DM Sans', sans-serif" }}>
+      <td style={{ padding: "13px 16px", fontFamily: "Inter, sans-serif" }}>
         {gradeChips.length > 0 ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {visible.map((g, i) => (
               <span key={i} style={{
                 fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 20,
                 background: "#EFF6FD", color: C.dark, border: `1px solid ${C.border}`,
-                fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap",
+                 fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap",
               }}>
                 Grade {g.grade}{g.section ? ` – ${g.section}` : ""}
               </span>
             ))}
             {extra > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 20, background: "#f1f5f9", color: C.mid, fontFamily: "'DM Sans', sans-serif" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 20, background: "#f1f5f9", color: C.mid, fontFamily: "Inter, sans-serif" }}>
                 +{extra} more
               </span>
             )}

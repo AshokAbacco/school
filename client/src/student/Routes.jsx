@@ -1,7 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './dashboard/Dashboard';
-import Profile from './pages/profile';
+import Profile from './pages/profile/profile.jsx';
 import Attendance from './pages/attendance/Attendance';
 import Marks from './pages/marks/Marks';
 import TimeTable from './pages/TimeTable/TimeTable';

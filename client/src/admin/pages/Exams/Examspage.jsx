@@ -34,7 +34,7 @@ export default function ExamsPage() {
 
   if (yearLoading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", fontFamily: "'DM Sans', sans-serif", color: "#6A89A7", fontSize: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh",  fontFamily: "'Inter', sans-serif", color: "#6A89A7", fontSize: 14 }}>
         Loading…
       </div>
     );
@@ -42,7 +42,7 @@ export default function ExamsPage() {
 
   if (yearError) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", fontFamily: "'DM Sans', sans-serif", color: "#dc2626", fontSize: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh",  fontFamily: "'Inter', sans-serif", color: "#dc2626", fontSize: 14 }}>
         {yearError}
       </div>
     );

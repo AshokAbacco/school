@@ -26,6 +26,14 @@ import adminAttendanceRoute from "./staffRoutes/adminAttendanceRoute.js";
 import examsRoutes from "./staffRoutes/ExamsRoutes.js";
 import teacherCurriculumRoutes from "./staffRoutes/teacherCurriculumRoutes.js";
 import adminCurriculumRoutes from "./staffRoutes/adminCurriculumRoutes.js";
+import galleryRoutes from "./staffRoutes/gallery.routes.js";
+import adminHolidayRoute from "./staffRoutes/adminHolidayRoute.js"
+import adminActivityRoute from "./staffRoutes/adminActivityRoute.js";
+import teacherActivityRoute from "./staffRoutes/teacherActivityRoute.js";
+import awardRoutes from "./staffRoutes/Awardroutes.js";
+import adminAwardRoutes from "./staffRoutes/Adminawardroutes.js";
+
+
 
 dotenv.config();
 
@@ -47,6 +55,7 @@ staff.use("/api/users", userRoutes); // ← ADD
 staff.use("/api/superadmin/analytics", analyticsRouter);
 staff.use("/api/finance-profiles", financeProfileRoutes);
 
+
 // Routes
 // NOTE: All /api/class-sections/* routes (including timetable config + entries)
 // are handled inside classSectionRoutes. Static routes (/timetable/config) are
@@ -67,5 +76,12 @@ staff.use("/api/promotion", promotionRouter);
 staff.use("/api/exams", examsRoutes);
 staff.use("/api/teacher/curriculum", teacherCurriculumRoutes);
 staff.use("/api/admin/curriculum", adminCurriculumRoutes);
+staff.use("/api/gallery", galleryRoutes);
+staff.use("/api/admin/holidays", adminHolidayRoute);
+staff.use("/api/admin/activities", adminActivityRoute);
+staff.use("/api/teacher/activities", teacherActivityRoute);
+staff.use("/api/staff/awards", awardRoutes);
+staff.use("/api/admin/awards", adminAwardRoutes);
+
 
 export default staff;

@@ -207,7 +207,7 @@ function Toast({ type, msg, onClose }) {
         background: type === "success" ? "#f0fdf4" : "#fef2f2",
         border: `1.5px solid ${type === "success" ? "#bbf7d0" : "#fecaca"}`,
         color: type === "success" ? "#15803d" : "#dc2626",
-        fontFamily: "Inter, sans-serif",
+         fontFamily: "'Inter', sans-serif",
       }}
     >
       {type === "success" ? (
@@ -230,7 +230,7 @@ const Input = ({ label, type = "text", value, onChange, min, max }) => (
         fontWeight: 600,
         color: C.mid,
         marginBottom: 4,
-        fontFamily: "Inter, sans-serif",
+         fontFamily: "'Inter', sans-serif",
       }}
     >
       {label}
@@ -250,7 +250,7 @@ const Input = ({ label, type = "text", value, onChange, min, max }) => (
         borderRadius: 10,
         fontSize: 13,
         color: C.primary,
-        fontFamily: "Inter, sans-serif",
+         fontFamily: "'Inter', sans-serif",
         outline: "none",
         boxSizing: "border-box",
         background: "#fff",
@@ -310,7 +310,7 @@ function ConfigPanel({ cfg, onChange }) {
               fontWeight: 600,
               color: C.mid,
               marginBottom: 4,
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             End Time{" "}
@@ -326,7 +326,7 @@ function ConfigPanel({ cfg, onChange }) {
               borderRadius: 10,
               fontSize: 13,
               color: C.mid,
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
               background: "rgba(189,221,252,0.1)",
               boxSizing: "border-box",
             }}
@@ -359,7 +359,7 @@ function ConfigPanel({ cfg, onChange }) {
             style={{
               color: C.mid,
               letterSpacing: "0.5px",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             Breaks
@@ -378,7 +378,7 @@ function ConfigPanel({ cfg, onChange }) {
               display: "flex",
               alignItems: "center",
               gap: 4,
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             <Plus size={12} /> Add Break
@@ -429,7 +429,7 @@ function ConfigPanel({ cfg, onChange }) {
                   fontWeight: 600,
                   color: C.mid,
                   marginBottom: 4,
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 Type
@@ -444,7 +444,7 @@ function ConfigPanel({ cfg, onChange }) {
                   borderRadius: 10,
                   fontSize: 13,
                   color: C.primary,
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   outline: "none",
                   background: "#fff",
                 }}
@@ -480,7 +480,7 @@ function ConfigPanel({ cfg, onChange }) {
           style={{
             color: C.mid,
             letterSpacing: "0.5px",
-            fontFamily: "Inter, sans-serif",
+             fontFamily: "'Inter', sans-serif",
           }}
         >
           Preview
@@ -494,7 +494,7 @@ function ConfigPanel({ cfg, onChange }) {
                 borderRadius: 8,
                 fontSize: 12,
                 fontWeight: 500,
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 background:
                   s.type === "PERIOD"
                     ? C.pale
@@ -681,7 +681,7 @@ function ChangeWarningModal({
                           : c.type === "add"
                             ? "#166534"
                             : "#78350f",
-                      fontFamily: "Inter, sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                       lineHeight: 1.5,
                     }}
                   >
@@ -746,7 +746,7 @@ function ChangeWarningModal({
               color: C.mid,
               background: "#fff",
               cursor: "pointer",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
               fontSize: 13,
               fontWeight: 600,
             }}
@@ -768,7 +768,7 @@ function ChangeWarningModal({
                 color: "#fff",
                 cursor: saving ? "not-allowed" : "pointer",
                 opacity: saving ? 0.7 : 1,
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 fontSize: 13,
                 fontWeight: 700,
               }}
@@ -1004,7 +1004,7 @@ export default function SchoolTimingsPage() {
               color: C.mid,
               background: "transparent",
               cursor: "pointer",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
               fontSize: 13,
               marginBottom: 12,
             }}
@@ -1038,7 +1038,7 @@ export default function SchoolTimingsPage() {
               color: C.mid,
               marginBottom: 6,
               letterSpacing: "0.5px",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             ACADEMIC YEAR
@@ -1052,7 +1052,7 @@ export default function SchoolTimingsPage() {
                 border: `1.5px solid ${C.border}`,
                 borderRadius: 10,
                 color: C.primary,
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 fontSize: 13,
                 background: "#fff",
                 outline: "none",
@@ -1075,12 +1075,12 @@ export default function SchoolTimingsPage() {
                     ? {
                         background: "rgba(56,73,89,0.08)",
                         color: C.primary,
-                        fontFamily: "Inter, sans-serif",
+                         fontFamily: "'Inter', sans-serif",
                       }
                     : {
                         background: "rgba(34,197,94,0.1)",
                         color: "#166534",
-                        fontFamily: "Inter, sans-serif",
+                         fontFamily: "'Inter', sans-serif",
                       }
                 }
               >
@@ -1146,7 +1146,7 @@ export default function SchoolTimingsPage() {
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   border: `1.5px solid ${allSamePattern === val ? C.primary : C.border}`,
                   background: allSamePattern === val ? C.primary : "#fff",
                   color: allSamePattern === val ? "#fff" : C.mid,
@@ -1230,7 +1230,7 @@ export default function SchoolTimingsPage() {
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: "pointer",
-                    fontFamily: "Inter, sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                     border: `1.5px solid ${C.border}`,
                     background: satSameAsWeekday ? C.pale : "#fff",
                     color: C.primary,
@@ -1299,7 +1299,7 @@ export default function SchoolTimingsPage() {
                 borderRadius: 10,
                 color: "#fff",
                 cursor: saving || cfgLoading ? "not-allowed" : "pointer",
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 fontSize: 13,
                 fontWeight: 600,
               }}
@@ -1327,7 +1327,7 @@ export default function SchoolTimingsPage() {
                 borderRadius: 10,
                 color: saved ? "#fff" : C.mid,
                 cursor: "pointer",
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 fontSize: 13,
                 fontWeight: 600,
               }}

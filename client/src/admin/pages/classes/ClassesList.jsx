@@ -70,7 +70,7 @@ function Toast({ type, msg, onClose }) {
         gap: 10,
         padding: "12px 18px",
         borderRadius: 14,
-        fontFamily: "'Sora',sans-serif",
+         fontFamily: "'Inter', sans-serif",
         background: type === "success" ? "#f0fdf4" : "#fef2f2",
         border: `1.5px solid ${type === "success" ? "#86efac" : "#fca5a5"}`,
         color: type === "success" ? "#15803d" : "#b91c1c",
@@ -140,7 +140,7 @@ function PanelHead({ title, sub, IconComp, iconColor = C.sky, right }) {
           <p
             style={{
               margin: 0,
-              fontFamily: "'Sora',sans-serif",
+               fontFamily: "'Inter', sans-serif",
               fontSize: 14,
               fontWeight: 700,
               color: C.text,
@@ -152,7 +152,7 @@ function PanelHead({ title, sub, IconComp, iconColor = C.sky, right }) {
             <p
               style={{
                 margin: 0,
-                fontFamily: "'Sora',sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 fontSize: 11,
                 color: C.textLight,
                 marginTop: 1,
@@ -198,7 +198,7 @@ function StatCard({ title, value, sub, delay = 0 }) {
       <p
         style={{
           margin: 0,
-          fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
           fontSize: 10,
           fontWeight: 700,
           color: C.textLight,
@@ -212,7 +212,7 @@ function StatCard({ title, value, sub, delay = 0 }) {
       <p
         style={{
           margin: 0,
-          fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
           fontSize: 26,
           fontWeight: 800,
           color: C.text,
@@ -226,7 +226,7 @@ function StatCard({ title, value, sub, delay = 0 }) {
         <p
           style={{
             margin: "4px 0 0",
-            fontFamily: "'Sora',sans-serif",
+             fontFamily: "'Inter', sans-serif",
             fontSize: 10,
             color: C.textLight,
           }}
@@ -263,7 +263,7 @@ function QuickCard({ icon: Icon, title, desc, onClick, accent, badge, step }) {
         display: "flex",
         flexDirection: "column",
         gap: 10,
-        fontFamily: "'Sora',sans-serif",
+         fontFamily: "'Inter', sans-serif",
       }}
     >
       <div
@@ -425,7 +425,7 @@ function AssignTeacherModal({
           maxHeight: "88vh",
           display: "flex",
           flexDirection: "column",
-          fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
         }}
       >
         {/* Header */}
@@ -505,7 +505,7 @@ function AssignTeacherModal({
                 color: "#b91c1c",
                 fontSize: 12,
                 marginBottom: 14,
-                fontFamily: "'Sora',sans-serif",
+                 fontFamily: "'Inter', sans-serif",
               }}
             >
               <AlertCircle size={13} /> {error}
@@ -540,7 +540,7 @@ function AssignTeacherModal({
                   color: C.text,
                   background: C.bg,
                   outline: "none",
-                  fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 <option value="">Select year…</option>
@@ -594,7 +594,7 @@ function AssignTeacherModal({
                     border: "none",
                     background: "transparent",
                     color: "#ef4444",
-                    fontFamily: "'Sora',sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                   }}
                 >
                   Clear
@@ -640,7 +640,7 @@ function AssignTeacherModal({
                   fontSize: 13,
                   fontWeight: 600,
                   color: !selectedTeacherId ? "#b91c1c" : C.textLight,
-                  fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 No class teacher
@@ -674,7 +674,7 @@ function AssignTeacherModal({
                   outline: "none",
                   fontSize: 12,
                   color: C.text,
-                  fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   flex: 1,
                   background: "transparent",
                 }}
@@ -706,7 +706,7 @@ function AssignTeacherModal({
                   border: "1px solid #fde68a",
                   color: "#92400e",
                   fontSize: 12,
-                  fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 <AlertCircle size={13} /> No active teachers found.
@@ -718,7 +718,7 @@ function AssignTeacherModal({
                   fontSize: 12,
                   color: C.textLight,
                   padding: "16px 0",
-                  fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 No teachers match "{search}"
@@ -783,7 +783,7 @@ function AssignTeacherModal({
                               fontSize: 13,
                               fontWeight: 700,
                               color: C.text,
-                              fontFamily: "'Sora',sans-serif",
+                               fontFamily: "'Inter', sans-serif",
                             }}
                           >
                             {t.firstName} {t.lastName}
@@ -815,7 +815,7 @@ function AssignTeacherModal({
                                 style={{
                                   fontSize: 10,
                                   color: C.textLight,
-                                  fontFamily: "'Sora',sans-serif",
+                                   fontFamily: "'Inter', sans-serif",
                                 }}
                               >
                                 {t.designation}
@@ -866,7 +866,7 @@ function AssignTeacherModal({
                   cursor: saving ? "not-allowed" : "pointer",
                   background: "#fef2f2",
                   color: "#b91c1c",
-                  fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 <X size={12} /> Remove Teacher
@@ -883,7 +883,7 @@ function AssignTeacherModal({
                 color: C.textLight,
                 background: C.bg,
                 cursor: "pointer",
-                fontFamily: "'Sora',sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 fontSize: 13,
                 fontWeight: 600,
               }}
@@ -908,7 +908,7 @@ function AssignTeacherModal({
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: saving || !selectedYearId ? "not-allowed" : "pointer",
-                fontFamily: "'Sora',sans-serif",
+                 fontFamily: "'Inter', sans-serif",
               }}
             >
               {saving ? (
@@ -968,7 +968,7 @@ export default function ClassesList() {
       setClasses(cd.classSections || []);
       const yr = yd.academicYears || [];
       setYears(yr);
-      setTeachers(td.data || []);
+      setTeachers(td.teachers || td.data || []);
       if (!activeYearId) {
         const active = yr.find((y) => y.isActive);
         if (active) setYearId(active.id);
@@ -1185,7 +1185,7 @@ export default function ClassesList() {
           minHeight: "100vh",
           background: C.bg,
           padding: "28px 30px",
-          fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
           backgroundImage: `radial-gradient(ellipse at 0% 0%, ${C.mist}40 0%, transparent 55%)`,
         }}
       >
@@ -1290,7 +1290,7 @@ export default function ClassesList() {
                     background: C.bg,
                     outline: "none",
                     cursor: "pointer",
-                    fontFamily: "'Sora',sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                     minWidth: 150,
                   }}
                 >
@@ -1330,7 +1330,7 @@ export default function ClassesList() {
                     fontSize: 12,
                     fontWeight: 700,
                     cursor: activatingYear ? "not-allowed" : "pointer",
-                    fontFamily: "'Sora',sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                     opacity: activatingYear ? 0.7 : 1,
                   }}
                 >
@@ -1355,14 +1355,14 @@ export default function ClassesList() {
                     color: "#15803d",
                     fontSize: 12,
                     fontWeight: 700,
-                    fontFamily: "'Sora',sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                   }}
                 >
                   <Check size={12} /> Active
                 </span>
               )}
               <button
-                onClick={load}
+                onClick={() => load(yearId || undefined)}
                 style={{
                   width: 36,
                   height: 36,
@@ -1396,7 +1396,7 @@ export default function ClassesList() {
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   boxShadow: `0 4px 14px ${C.deep}44`,
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
@@ -1421,7 +1421,7 @@ export default function ClassesList() {
                     fontWeight: 700,
                     cursor: yearId ? "pointer" : "not-allowed",
                     opacity: yearId ? 1 : 0.5,
-                    fontFamily: "'Sora',sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                   }}
                 >
                   <Hash size={13} style={{ color: C.sky }} /> Roll Numbers
@@ -1455,7 +1455,7 @@ export default function ClassesList() {
             <p
               style={{
                 margin: 0,
-                fontFamily: "'Sora',sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 fontSize: 10,
                 fontWeight: 700,
                 color: C.textLight,
@@ -1552,7 +1552,7 @@ export default function ClassesList() {
                     color: C.text,
                     background: C.bg,
                     outline: "none",
-                    fontFamily: "'Sora',sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                     width: 240,
                   }}
                   onFocus={(e) => (e.target.style.borderColor = C.sky)}
@@ -1625,7 +1625,7 @@ export default function ClassesList() {
             >
               <p
                 style={{
-                  fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   fontSize: 13,
                   color: "#ef4444",
                   margin: 0,
@@ -1647,7 +1647,7 @@ export default function ClassesList() {
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 <RefreshCw size={13} /> Retry
@@ -1679,7 +1679,7 @@ export default function ClassesList() {
               </div>
               <p
                 style={{
-                  fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   fontSize: 13,
                   fontWeight: 600,
                   color: C.text,
@@ -1705,7 +1705,7 @@ export default function ClassesList() {
                     fontSize: 12,
                     fontWeight: 700,
                     cursor: "pointer",
-                    fontFamily: "'Sora',sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                   }}
                 >
                   <Plus size={13} /> Create Sections
@@ -1720,7 +1720,7 @@ export default function ClassesList() {
                   style={{
                     width: "100%",
                     borderCollapse: "collapse",
-                    fontFamily: "'Sora',sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                     fontSize: 13,
                   }}
                 >
@@ -1901,7 +1901,7 @@ export default function ClassesList() {
                                 background: teacher ? C.bg : `${C.sky}0a`,
                                 cursor: "pointer",
                                 transition: "all 0.14s",
-                                fontFamily: "'Sora',sans-serif",
+                                 fontFamily: "'Inter', sans-serif",
                               }}
                               onMouseEnter={(e) =>
                                 (e.currentTarget.style.borderColor = C.deep)
@@ -2250,7 +2250,7 @@ export default function ClassesList() {
                             fontSize: 12,
                             color: C.deep,
                             flexShrink: 0,
-                            fontFamily: "'Sora',sans-serif",
+                             fontFamily: "'Inter', sans-serif",
                           }}
                         >
                           {cls.grade?.replace(/\D/g, "")}
@@ -2269,7 +2269,7 @@ export default function ClassesList() {
                             <p
                               style={{
                                 margin: 0,
-                                fontFamily: "'Sora',sans-serif",
+                                 fontFamily: "'Inter', sans-serif",
                                 fontSize: 13,
                                 fontWeight: 700,
                                 color: C.text,
@@ -2375,7 +2375,7 @@ export default function ClassesList() {
                             border: `1.5px dashed ${teacher ? C.borderLight : C.sky + "88"}`,
                             background: teacher ? C.bg : `${C.sky}0a`,
                             cursor: "pointer",
-                            fontFamily: "'Sora',sans-serif",
+                             fontFamily: "'Inter', sans-serif",
                           }}
                         >
                           {teacher ? (
@@ -2439,7 +2439,7 @@ export default function ClassesList() {
                               fontSize: 11,
                               fontWeight: 700,
                               color: C.text,
-                              fontFamily: "'Sora',sans-serif",
+                               fontFamily: "'Inter', sans-serif",
                             }}
                           >
                             {students}
@@ -2456,7 +2456,7 @@ export default function ClassesList() {
                               background: `${C.mist}55`,
                               color: C.deep,
                               border: `1px solid ${C.borderLight}`,
-                              fontFamily: "'Sora',sans-serif",
+                               fontFamily: "'Inter', sans-serif",
                             }}
                           >
                             {link.academicYear.name}
@@ -2497,7 +2497,7 @@ export default function ClassesList() {
                               fontSize: 11,
                               fontWeight: 700,
                               cursor: "pointer",
-                              fontFamily: "'Sora',sans-serif",
+                               fontFamily: "'Inter', sans-serif",
                             }}
                           >
                             <Icon size={12} /> {label}
@@ -2525,7 +2525,7 @@ export default function ClassesList() {
                                   ? "not-allowed"
                                   : "pointer",
                               opacity: !yearId || !isActivated ? 0.4 : 1,
-                              fontFamily: "'Sora',sans-serif",
+                               fontFamily: "'Inter', sans-serif",
                             }}
                           >
                             <Hash size={12} style={{ color: C.sky }} /> Roll #

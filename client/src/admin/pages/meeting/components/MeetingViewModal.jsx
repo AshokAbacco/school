@@ -1,486 +1,262 @@
 // client/src/admin/pages/meeting/components/MeetingViewModal.jsx
 import React, { useState } from "react";
 import {
-  X,
-  CalendarDays,
-  Clock4,
-  MapPin,
-  Link2,
-  Users,
-  BookOpen,
-  User,
-  CheckCircle2,
-  Circle,
-  Loader2,
-  Bell,
-  Star,
-  FileText,
-  Save,
-  Wifi,
-  Building2,
-  MicVocal,
-  HelpCircle,
+  X, CalendarDays, Clock4, MapPin, Link2, Users, BookOpen,
+  User, CheckCircle2, Circle, Loader2, Bell, Star, FileText,
+  Save, Wifi, Building2, MicVocal, HelpCircle,
 } from "lucide-react";
 import {
-  markParticipantAttendance,
-  markStudentAttendance,
-  sendMeetingReminder,
-  updateMeetingStatus,
-  updateMeetingNotes,
+  markParticipantAttendance, markStudentAttendance,
+  sendMeetingReminder, updateMeetingStatus, updateMeetingNotes,
   fetchMeetingById,
 } from "../api/meetingsApi";
 
-/* ── helpers ─────────────────────────────────────────────────── */
+const C = {
+  slate: "#6A89A7", mist: "#BDDDFC", sky: "#88BDF2",
+  deep: "#384959", bg: "#EDF3FA", white: "#FFFFFF",
+  border: "#C8DCF0", borderLight: "#DDE9F5", text: "#243340", textLight: "#6A89A7",
+};
+
 const STATUS_STYLES = {
-  SCHEDULED: "bg-blue-50 text-blue-600 border-blue-200",
-  COMPLETED: "bg-emerald-50 text-emerald-600 border-emerald-200",
-  CANCELLED: "bg-rose-50 text-rose-500 border-rose-200",
-  POSTPONED: "bg-amber-50 text-amber-600 border-amber-200",
+  SCHEDULED: { bg: "#EFF6FF", color: "#2563EB", border: "#BFDBFE" },
+  COMPLETED: { bg: "#F0FDF4", color: "#16A34A", border: "#BBF7D0" },
+  CANCELLED: { bg: "#FFF1F2", color: "#E11D48", border: "#FECDD3" },
+  POSTPONED: { bg: "#FFFBEB", color: "#D97706", border: "#FDE68A" },
 };
-
-const TYPE_COLORS = {
-  STAFF: "bg-[#BDDDFC] text-[#384959]",
-  PARENT: "bg-purple-100 text-purple-700",
-  STUDENT: "bg-amber-100 text-amber-700",
-  GENERAL: "bg-slate-100 text-slate-600",
-  BOARD: "bg-[#88BDF2] text-[#384959]",
-  CUSTOM: "bg-gray-100 text-gray-600",
+const TYPE_STYLES = {
+  STAFF:   { bg: C.mist,       color: C.deep },
+  PARENT:  { bg: "#EDE9FE",    color: "#6D28D9" },
+  STUDENT: { bg: "#FEF3C7",    color: "#B45309" },
+  GENERAL: { bg: "#F1F5F9",    color: "#475569" },
+  BOARD:   { bg: `${C.sky}33`, color: C.deep },
+  CUSTOM:  { bg: "#F3F4F6",    color: "#4B5563" },
 };
+const VENUE_ICON = { CLASSROOM: MapPin, AUDITORIUM: MicVocal, STAFFROOM: Building2, ONLINE: Wifi, OTHER: HelpCircle };
 
-const VENUE_ICON = {
-  CLASSROOM: MapPin,
-  AUDITORIUM: MicVocal,
-  STAFFROOM: Building2,
-  ONLINE: Wifi,
-  OTHER: HelpCircle,
-};
-
-function formatDate(dateStr) {
-  if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-IN", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+function fmtDate(d) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
 }
 
-function SectionTitle({ children }) {
+function SectionHead({ icon: Icon, children }) {
   return (
-    <h3 className="text-sm font-semibold text-[#384959] border-b border-[#BDDDFC] pb-1.5 mb-3 flex items-center gap-1.5">
-      {children}
-    </h3>
+    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 0", borderBottom: `1.5px solid ${C.borderLight}`, marginBottom: 10 }}>
+      {Icon && <Icon size={13} color={C.textLight} />}
+      <span style={{ fontSize: 11, fontWeight: 600, color: C.textLight, textTransform: "uppercase", letterSpacing: "0.07em" }}>{children}</span>
+    </div>
   );
 }
 
-/* ── Attendance row ─────────────────────────────────────────── */
 function AttendanceRow({ label, attended, loading, onToggle }) {
+  const s = attended
+    ? { bg: "#F0FDF4", color: "#16A34A", border: "#BBF7D0" }
+    : { bg: C.bg,     color: C.textLight, border: C.border };
   return (
-    <div className="flex items-center justify-between bg-[#BDDDFC]/10 rounded-lg px-3 py-2">
-      <span className="text-sm text-[#384959]">{label}</span>
-      <button
-        onClick={onToggle}
-        disabled={loading}
-        className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
-          attended
-            ? "bg-emerald-50 text-emerald-600 border-emerald-200"
-            : "bg-white text-[#6A89A7] border-[#BDDDFC]"
-        }`}
-      >
-        {loading ? (
-          <Loader2 size={12} className="animate-spin" />
-        ) : attended ? (
-          <CheckCircle2 size={12} />
-        ) : (
-          <Circle size={12} />
-        )}
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: `${C.bg}88`, borderRadius: 10, padding: "9px 12px" }}>
+      <span style={{ fontSize: 13, color: C.text }}>{label}</span>
+      <button onClick={onToggle} disabled={loading}
+        style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, padding: "4px 12px", borderRadius: 99, border: `1px solid ${s.border}`, background: s.bg, color: s.color, cursor: "pointer" }}>
+        {loading ? <Loader2 size={11} className="animate-spin" /> : attended ? <CheckCircle2 size={11} /> : <Circle size={11} />}
         {attended ? "Present" : "Absent"}
       </button>
     </div>
   );
 }
 
-/* ── Attendance summary bar ─────────────────────────────────── */
 function AttendanceSummary({ present, total }) {
-  if (total === 0) return null;
+  if (!total) return null;
   const pct = Math.round((present / total) * 100);
   return (
-    <div className="flex items-center gap-3 mb-3">
-      <div className="flex-1 h-2 bg-[#BDDDFC]/40 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-emerald-400 rounded-full transition-all duration-500"
-          style={{ width: `${pct}%` }}
-        />
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+      <div style={{ flex: 1, height: 5, background: `${C.mist}55`, borderRadius: 99, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: "#22C55E", borderRadius: 99, transition: "width 0.5s ease" }} />
       </div>
-      <span className="text-xs font-semibold text-emerald-600 whitespace-nowrap">
-        {present}/{total} attended
-      </span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: "#16A34A", whiteSpace: "nowrap" }}>{present}/{total} attended</span>
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Main Component
-═══════════════════════════════════════════════════════════════ */
-export default function MeetingViewModal({
-  meeting: initialMeeting,
-  onClose,
-  onStatusChange,
-}) {
-  const [meeting, setMeeting] = useState(initialMeeting);
-  const [loadingFull, setLoadingFull] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
+export default function MeetingViewModal({ meeting: initialMeeting, onClose, onStatusChange }) {
+  const [meeting,         setMeeting]         = useState(initialMeeting);
+  const [loadingFull,     setLoadingFull]     = useState(false);
+  const [updatingStatus,  setUpdatingStatus]  = useState(false);
   const [sendingReminder, setSendingReminder] = useState(false);
-  const [togglingAttendance, setTogglingAttendance] = useState({});
+  const [togglingAtt,     setTogglingAtt]     = useState({});
+  const [editingNotes,    setEditingNotes]    = useState(false);
+  const [notesValue,      setNotesValue]      = useState(meeting.notes ?? "");
+  const [savingNotes,     setSavingNotes]     = useState(false);
 
-  // Notes editing
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [notesValue, setNotesValue] = useState(meeting.notes ?? "");
-  const [savingNotes, setSavingNotes] = useState(false);
-
-  /* ── fetch full meeting detail on open (list only has _count) ── */
   React.useEffect(() => {
     setLoadingFull(true);
     fetchMeetingById(initialMeeting.id)
-      .then((res) => {
-        const full = res?.data ?? res;
-        setMeeting(full);
-        setNotesValue(full.notes ?? "");
-      })
+      .then((res) => { const full = res?.data ?? res; setMeeting(full); setNotesValue(full.notes ?? ""); })
       .catch(() => {})
       .finally(() => setLoadingFull(false));
   }, [initialMeeting.id]);
 
-  /* ── status change ── */
   const handleStatusChange = async (status) => {
     setUpdatingStatus(true);
-    try {
-      await updateMeetingStatus(meeting.id, status);
-      setMeeting((m) => ({ ...m, status }));
-      onStatusChange?.();
-    } catch (_) {}
-    setUpdatingStatus(false);
+    try { await updateMeetingStatus(meeting.id, status); setMeeting((m) => ({ ...m, status })); onStatusChange?.(); }
+    catch {} finally { setUpdatingStatus(false); }
   };
-
-  /* ── reminder ── */
   const handleReminder = async () => {
     setSendingReminder(true);
-    try {
-      await sendMeetingReminder(meeting.id);
-      setMeeting((m) => ({ ...m, reminderSentAt: new Date().toISOString() }));
-    } catch (_) {}
-    setSendingReminder(false);
+    try { await sendMeetingReminder(meeting.id); setMeeting((m) => ({ ...m, reminderSentAt: new Date().toISOString() })); }
+    catch {} finally { setSendingReminder(false); }
   };
-
-  /* ── save notes ── */
   const handleSaveNotes = async () => {
     setSavingNotes(true);
-    try {
-      await updateMeetingNotes(meeting.id, notesValue);
-      setMeeting((m) => ({ ...m, notes: notesValue }));
-      setEditingNotes(false);
-    } catch (_) {}
-    setSavingNotes(false);
+    try { await updateMeetingNotes(meeting.id, notesValue); setMeeting((m) => ({ ...m, notes: notesValue })); setEditingNotes(false); }
+    catch {} finally { setSavingNotes(false); }
   };
 
-  /* ── attendance toggles ── */
-  const toggleParticipantAttendance = async (participant) => {
-    const key = `p-${participant.id}`;
-    setTogglingAttendance((s) => ({ ...s, [key]: true }));
+  const toggleParticipant = async (p) => {
+    const key = `p-${p.id}`; setTogglingAtt((s) => ({ ...s, [key]: true }));
     try {
-      const newVal = !participant.attended;
-      await markParticipantAttendance(meeting.id, participant.id, newVal);
-      setMeeting((m) => ({
-        ...m,
-        participants: m.participants.map((p) =>
-          p.id === participant.id ? { ...p, attended: newVal } : p,
-        ),
-      }));
-    } catch (_) {}
-    setTogglingAttendance((s) => ({ ...s, [key]: false }));
+      const v = !p.attended; await markParticipantAttendance(meeting.id, p.id, v);
+      setMeeting((m) => ({ ...m, participants: m.participants.map((x) => x.id === p.id ? { ...x, attended: v } : x) }));
+    } catch {} finally { setTogglingAtt((s) => ({ ...s, [key]: false })); }
+  };
+  const toggleStudent = async (ms) => {
+    const key = `s-${ms.studentId}`; setTogglingAtt((s) => ({ ...s, [key]: true }));
+    try {
+      const v = !ms.attended; await markStudentAttendance(meeting.id, ms.studentId, v);
+      setMeeting((m) => ({ ...m, students: m.students.map((s) => s.studentId === ms.studentId ? { ...s, attended: v } : s) }));
+    } catch {} finally { setTogglingAtt((s) => ({ ...s, [key]: false })); }
   };
 
-  const toggleStudentAttendance = async (ms) => {
-    const key = `s-${ms.studentId}`;
-    setTogglingAttendance((s) => ({ ...s, [key]: true }));
-    try {
-      const newVal = !ms.attended;
-      await markStudentAttendance(meeting.id, ms.studentId, newVal);
-      setMeeting((m) => ({
-        ...m,
-        students: m.students.map((s) =>
-          s.studentId === ms.studentId ? { ...s, attended: newVal } : s,
-        ),
-      }));
-    } catch (_) {}
-    setTogglingAttendance((s) => ({ ...s, [key]: false }));
-  };
+  const userP     = meeting.participants?.filter((p) => p.type === "USER")     ?? [];
+  const parentP   = meeting.participants?.filter((p) => p.type === "PARENT")   ?? [];
+  const externalP = meeting.participants?.filter((p) => p.type === "EXTERNAL") ?? [];
+  const studentP  = meeting.students ?? [];
 
-  /* ── derived participant groups ── */
-  const userParticipants =
-    meeting.participants?.filter((p) => p.type === "USER") ?? [];
-  const parentParticipants =
-    meeting.participants?.filter((p) => p.type === "PARENT") ?? [];
-  const externalParticipants =
-    meeting.participants?.filter((p) => p.type === "EXTERNAL") ?? [];
-  const studentParticipants = meeting.students ?? [];
-
-  // Build a map of classSectionId → coordinator participant
-  // The backend stores section IDs in participant.name as:
-  //   "__coord_sections:sectionId1,sectionId2"
-  // We parse this to correctly show each class's coordinator.
-  const allCoordinators = userParticipants.filter((p) => p.isCoordinator);
-  const coordBySectionId = new Map(); // classSectionId → participant
-  for (const p of allCoordinators) {
-    if (p.name?.startsWith("__coord_sections:")) {
-      const sectionIds = p.name.replace("__coord_sections:", "").split(",");
-      for (const sid of sectionIds) {
-        if (sid) coordBySectionId.set(sid, p);
-      }
-    }
+  const allCoords  = userP.filter((p) => p.isCoordinator);
+  const coordMap   = new Map();
+  for (const p of allCoords) {
+    if (p.name?.startsWith("__coord_sections:"))
+      p.name.replace("__coord_sections:", "").split(",").forEach((sid) => { if (sid) coordMap.set(sid, p); });
   }
-  // For header badge — unique coordinators by userId
-  const uniqueCoordinators = [
-    ...new Map(allCoordinators.map((p) => [p.userId, p])).values(),
-  ];
-  // Legacy single ref for parts of the UI that still need it
-  const coordinator = uniqueCoordinators[0] ?? null;
+  const uniqueCoords    = [...new Map(allCoords.map((p) => [p.userId, p])).values()];
+  const presentCount    = [...userP, ...parentP, ...studentP].filter((x) => x.attended).length;
+  const totalAtt        = userP.length + parentP.length + studentP.length;
+  const VenueIcon       = VENUE_ICON[meeting.venueType] ?? MapPin;
+  const statusStyle     = STATUS_STYLES[meeting.status] ?? { bg: "#F1F5F9", color: "#64748B", border: "#E2E8F0" };
+  const typeStyle       = TYPE_STYLES[meeting.type]     ?? { bg: "#F3F4F6", color: "#4B5563" };
 
-  // Attendance summary
-  const allAttendable = [
-    ...userParticipants.filter(
-      (p) => !p.isCoordinator || p.attended !== undefined,
-    ),
-    ...parentParticipants,
-    ...studentParticipants,
-  ];
-  const presentCount = [
-    ...userParticipants.filter((p) => p.attended),
-    ...parentParticipants.filter((p) => p.attended),
-    ...studentParticipants.filter((p) => p.attended),
-  ].length;
-  const totalAttendable =
-    userParticipants.length +
-    parentParticipants.length +
-    studentParticipants.length;
-
-  /* ── venue display ── */
-  const VenueIcon = VENUE_ICON[meeting.venueType] ?? MapPin;
+  const badge = (style, children, key) => (
+    <span key={key} style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, ...style }}>{children}</span>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#384959]/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-[#BDDDFC]">
-        {/* ── Header ── */}
-        <div className="flex items-start justify-between px-6 py-4 border-b border-[#BDDDFC]">
-          <div className="flex flex-col gap-1.5 flex-1 pr-4">
-            <h2 className="text-lg font-semibold text-[#384959] leading-snug">
-              {meeting.title}
-            </h2>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_STYLES[meeting.status] ?? ""}`}
-              >
-                {meeting.status}
-              </span>
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${TYPE_COLORS[meeting.type] ?? "bg-gray-100 text-gray-600"}`}
-              >
-                {meeting.type}
-              </span>
-              {uniqueCoordinators.slice(0, 2).map((coord) => (
-                <span
-                  key={coord.id}
-                  className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full"
-                >
-                  <Star
-                    size={10}
-                    fill="currentColor"
-                    className="text-amber-500"
-                  />
-                  {coord.user?.name ?? "Coordinator"}
-                </span>
-              ))}
-              {uniqueCoordinators.length > 2 && (
-                <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                  +{uniqueCoordinators.length - 2} more
-                </span>
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(56,73,89,0.45)", backdropFilter: "blur(8px)", padding: 16, fontFamily: "'Inter', sans-serif",}}>
+      <div style={{ background: C.white, borderRadius: 24, boxShadow: "0 24px 80px rgba(56,73,89,0.2)", width: "100%", maxWidth: 680, maxHeight: "92vh", display: "flex", flexDirection: "column", border: `1.5px solid ${C.borderLight}`, overflow: "hidden" }}>
+
+        {/* Header */}
+        <div style={{ background: `linear-gradient(135deg, ${C.bg} 0%, ${C.white} 100%)`, borderBottom: `1.5px solid ${C.borderLight}`, padding: "18px 22px", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+          <div style={{ flex: 1, paddingRight: 12 }}>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.text, letterSpacing: "-0.3px" }}>{meeting.title}</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+              {badge({ background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}` }, meeting.status)}
+              {badge({ background: typeStyle.bg, color: typeStyle.color }, meeting.type)}
+              {uniqueCoords.slice(0, 2).map((coord) =>
+                badge({ background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A", display: "inline-flex", alignItems: "center", gap: 4 },
+                  <><Star size={9} fill="currentColor" color="#F59E0B" /> {coord.user?.name ?? "Coordinator"}</>, coord.id)
               )}
-              {meeting.organizer && (
-                <span className="text-xs text-[#6A89A7]">
-                  by {meeting.organizer.name}
-                </span>
-              )}
+              {uniqueCoords.length > 2 && badge({ background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A" }, `+${uniqueCoords.length - 2} more`)}
+              {meeting.organizer && <span style={{ fontSize: 11, color: C.textLight }}>by {meeting.organizer.name}</span>}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-[#BDDDFC] transition-colors text-[#6A89A7]"
-          >
-            <X size={18} />
+          <button onClick={onClose}
+            style={{ width: 30, height: 30, borderRadius: 9, border: `1.5px solid ${C.borderLight}`, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.textLight, flexShrink: 0 }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = `${C.mist}88`)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = C.bg)}>
+            <X size={14} />
           </button>
         </div>
 
-        {/* ── Scrollable body ── */}
-        <div className="overflow-y-auto px-6 py-5 flex flex-col gap-6">
-          {/* Loading overlay while fetching full data */}
+        {/* Body */}
+        <div style={{ overflowY: "auto", padding: "20px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
           {loadingFull && (
-            <div className="flex items-center justify-center gap-2 py-8 text-[#6A89A7]">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "32px 0", color: C.textLight }}>
               <Loader2 size={18} className="animate-spin" />
-              <span className="text-sm">Loading meeting details…</span>
+              <span style={{ fontSize: 13 }}>Loading meeting details…</span>
             </div>
           )}
-          {/* Meta info grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-start gap-2 bg-[#BDDDFC]/20 rounded-xl p-3">
-              <CalendarDays
-                size={16}
-                className="text-[#6A89A7] mt-0.5 shrink-0"
-              />
-              <div>
-                <div className="text-xs text-[#6A89A7] font-medium">Date</div>
-                <div className="text-sm text-[#384959]">
-                  {formatDate(meeting.meetingDate)}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-start gap-2 bg-[#BDDDFC]/20 rounded-xl p-3">
-              <Clock4 size={16} className="text-[#6A89A7] mt-0.5 shrink-0" />
-              <div>
-                <div className="text-xs text-[#6A89A7] font-medium">Time</div>
-                <div className="text-sm text-[#384959]">
-                  {meeting.startTime} – {meeting.endTime}
-                </div>
-              </div>
-            </div>
-            {(meeting.venueType || meeting.location) && (
-              <div className="flex items-start gap-2 bg-[#BDDDFC]/20 rounded-xl p-3">
-                <VenueIcon
-                  size={16}
-                  className="text-[#6A89A7] mt-0.5 shrink-0"
-                />
+
+          {/* Meta grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {[
+              { Icon: CalendarDays, label: "Date",  val: fmtDate(meeting.meetingDate) },
+              { Icon: Clock4,       label: "Time",  val: `${meeting.startTime} – ${meeting.endTime}` },
+              ...((meeting.venueType || meeting.location) ? [{ Icon: VenueIcon, label: "Venue", val: meeting.venueType ? `${meeting.venueType.charAt(0) + meeting.venueType.slice(1).toLowerCase()}${meeting.venueDetail ? ` — ${meeting.venueDetail}` : ""}` : meeting.location }] : []),
+            ].map(({ Icon, label, val }) => (
+              <div key={label} style={{ display: "flex", alignItems: "flex-start", gap: 10, background: `${C.bg}88`, borderRadius: 12, padding: "11px 14px", border: `1px solid ${C.borderLight}` }}>
+                <Icon size={14} color={C.textLight} style={{ marginTop: 2, flexShrink: 0 }} />
                 <div>
-                  <div className="text-xs text-[#6A89A7] font-medium">
-                    Venue
-                  </div>
-                  <div className="text-sm text-[#384959]">
-                    {meeting.venueType
-                      ? `${meeting.venueType.charAt(0) + meeting.venueType.slice(1).toLowerCase()}${meeting.venueDetail ? ` — ${meeting.venueDetail}` : ""}`
-                      : meeting.location}
-                  </div>
+                  <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: C.textLight, textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</p>
+                  <p style={{ margin: "3px 0 0", fontSize: 13, fontWeight: 500, color: C.text }}>{val}</p>
                 </div>
               </div>
-            )}
+            ))}
             {meeting.meetingLink && (
-              <div className="flex items-start gap-2 bg-[#BDDDFC]/20 rounded-xl p-3">
-                <Link2 size={16} className="text-[#6A89A7] mt-0.5 shrink-0" />
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: `${C.bg}88`, borderRadius: 12, padding: "11px 14px", border: `1px solid ${C.borderLight}` }}>
+                <Link2 size={14} color={C.textLight} style={{ marginTop: 2 }} />
                 <div>
-                  <div className="text-xs text-[#6A89A7] font-medium">
-                    Join Link
-                  </div>
-                  <a
-                    href={meeting.meetingLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm text-[#88BDF2] hover:underline"
-                  >
-                    Open Link
-                  </a>
+                  <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: C.textLight, textTransform: "uppercase", letterSpacing: "0.07em" }}>Join Link</p>
+                  <a href={meeting.meetingLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: C.sky, textDecoration: "none", fontWeight: 500 }}>Open Link</a>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Agenda / Description */}
+          {/* Description */}
           {meeting.description && (
             <div>
-              <SectionTitle>Agenda / Description</SectionTitle>
-              <p className="text-sm text-[#6A89A7] leading-relaxed whitespace-pre-line">
+              <SectionHead icon={FileText}>Agenda</SectionHead>
+              <p style={{ margin: 0, fontSize: 13, color: C.textLight, lineHeight: 1.65, whiteSpace: "pre-line", background: `${C.bg}66`, borderRadius: 12, padding: "12px 14px", border: `1px solid ${C.borderLight}` }}>
                 {meeting.description}
               </p>
             </div>
           )}
 
-          {/* ── Per-Class Breakdown: Coordinator + Attendees ── */}
+          {/* Classes & Coordinators */}
           {!loadingFull && meeting.classes?.length > 0 && (
             <div>
-              <SectionTitle>
-                <BookOpen size={13} />
-                Classes & Coordinators
-              </SectionTitle>
-
-              {/* Class cards — coordinator matched by section ID, never by array index */}
-              <div className="flex flex-col gap-2">
+              <SectionHead icon={BookOpen}>Classes & Coordinators</SectionHead>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {meeting.classes.map((mc) => {
-                  // Match coordinator to this class using the section map.
-                  // Fallback: if only one coordinator (legacy or same-for-all),
-                  // apply them to every class.
-                  const coord =
-                    coordBySectionId.get(mc.classSectionId) ??
-                    coordBySectionId.get(mc.id) ??
-                    (uniqueCoordinators.length === 1
-                      ? uniqueCoordinators[0]
-                      : null);
+                  const coord = coordMap.get(mc.classSectionId) ?? coordMap.get(mc.id) ?? (uniqueCoords.length === 1 ? uniqueCoords[0] : null);
                   const coordName = coord?.user?.name ?? coord?.name ?? null;
-
                   return (
-                    <div
-                      key={mc.id}
-                      className="border border-[#BDDDFC] rounded-xl overflow-hidden"
-                    >
-                      {/* Class header */}
-                      <div className="bg-[#BDDDFC]/30 px-4 py-2.5 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <BookOpen size={13} className="text-[#384959]" />
-                          <span className="text-sm font-bold text-[#384959]">
-                            {mc.classSection?.name ?? mc.classSectionId}
-                          </span>
+                    <div key={mc.id} style={{ borderRadius: 14, overflow: "hidden", border: `1.5px solid ${C.borderLight}` }}>
+                      <div style={{ background: `linear-gradient(90deg, ${C.bg} 0%, ${C.white} 100%)`, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <BookOpen size={12} color={C.deep} />
+                          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{mc.classSection?.name ?? mc.classSectionId}</span>
                         </div>
-                        {coordName ? (
-                          <span className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
-                            <Star
-                              size={10}
-                              fill="currentColor"
-                              className="text-amber-500"
-                            />
-                            In-charge: {coordName}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-[#6A89A7] italic">
-                            No in-charge assigned
-                          </span>
-                        )}
+                        {coordName
+                          ? <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A", padding: "3px 10px", borderRadius: 99 }}>
+                              <Star size={9} fill="currentColor" color="#F59E0B" /> In-charge: {coordName}
+                            </span>
+                          : <span style={{ fontSize: 11, color: C.textLight, fontStyle: "italic" }}>No in-charge</span>
+                        }
                       </div>
-
-                      {/* Coordinator attendance row inside the class card */}
                       {coord && (
-                        <div className="px-3 py-2.5">
+                        <div style={{ padding: "8px 12px" }}>
                           <AttendanceRow
                             label={
-                              <span className="flex items-center gap-2">
-                                <span className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-700">
-                                  {(coord.user?.name ??
-                                    coord.name ??
-                                    "?")[0]?.toUpperCase()}
+                              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ width: 24, height: 24, borderRadius: "50%", background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#B45309" }}>
+                                  {(coord.user?.name ?? coord.name ?? "?")[0]?.toUpperCase()}
                                 </span>
-                                <span className="font-medium text-sm text-[#384959]">
-                                  {coord.user?.name ?? coord.name ?? "—"}
-                                </span>
-                                <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
-                                  In-charge
-                                </span>
+                                <span style={{ fontWeight: 500, fontSize: 13, color: C.text }}>{coord.user?.name ?? coord.name ?? "—"}</span>
+                                <span style={{ fontSize: 10, fontWeight: 600, background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A", padding: "1px 7px", borderRadius: 99 }}>In-charge</span>
                               </span>
                             }
                             attended={coord.attended}
-                            loading={!!togglingAttendance[`p-${coord.id}`]}
-                            onToggle={() => toggleParticipantAttendance(coord)}
+                            loading={!!togglingAtt[`p-${coord.id}`]}
+                            onToggle={() => toggleParticipant(coord)}
                           />
-                        </div>
-                      )}
-                      {!coord && (
-                        <div className="px-4 py-2">
-                          <p className="text-xs text-[#6A89A7] italic">
-                            No coordinator assigned.
-                          </p>
                         </div>
                       )}
                     </div>
@@ -488,78 +264,35 @@ export default function MeetingViewModal({
                 })}
               </div>
 
-              {/* ── All Attendees — each teacher appears ONCE regardless of how many classes they cover ── */}
+              {/* All Attendees */}
               {(() => {
-                const attendees = userParticipants.filter(
-                  (p) => !p.isCoordinator,
-                );
-                if (attendees.length === 0) return null;
+                const attendees = userP.filter((p) => !p.isCoordinator);
+                if (!attendees.length) return null;
                 return (
-                  <div className="mt-1">
-                    {/* Header */}
-                    <div className="flex items-center gap-2 bg-[#384959]/5 border border-[#BDDDFC] rounded-t-xl px-4 py-2.5">
-                      <Users size={14} className="text-[#384959]" />
-                      <span className="text-sm font-bold text-[#384959]">
-                        All Attendees
-                      </span>
-                      <span className="ml-auto text-xs text-[#6A89A7] bg-white border border-[#BDDDFC] px-2 py-0.5 rounded-full">
-                        {attendees.length} teacher
-                        {attendees.length !== 1 ? "s" : ""}
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ background: `${C.deep}08`, border: `1.5px solid ${C.borderLight}`, borderRadius: "12px 12px 0 0", padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+                      <Users size={13} color={C.deep} />
+                      <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>All Attendees</span>
+                      <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, background: C.white, border: `1px solid ${C.borderLight}`, color: C.textLight, padding: "2px 8px", borderRadius: 99 }}>
+                        {attendees.length} teacher{attendees.length !== 1 ? "s" : ""}
                       </span>
                     </div>
-                    {/* Class tags row */}
-                    <div className="flex items-center gap-1.5 flex-wrap px-4 py-2 bg-[#BDDDFC]/10 border-x border-[#BDDDFC]">
-                      <span className="text-[10px] text-[#6A89A7] font-semibold uppercase tracking-wide mr-1">
-                        Attending classes:
-                      </span>
-                      {meeting.classes.map((mc) => (
-                        <span
-                          key={mc.id}
-                          className="text-xs bg-[#384959] text-white px-2 py-0.5 rounded-full font-medium"
-                        >
-                          {mc.classSection?.name ?? mc.classSectionId}
-                        </span>
-                      ))}
-                    </div>
-                    {/* Attendee rows */}
-                    <div className="border border-t-0 border-[#BDDDFC] rounded-b-xl overflow-hidden divide-y divide-[#BDDDFC]/50">
+                    <div style={{ border: `1.5px solid ${C.borderLight}`, borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
                       {attendees.map((p, idx) => (
-                        <div
-                          key={p.id}
-                          className={`flex items-center justify-between px-4 py-3 ${idx % 2 === 0 ? "bg-white" : "bg-[#BDDDFC]/10"}`}
-                        >
-                          <span className="flex items-center gap-2.5">
-                            <span className="w-7 h-7 rounded-full bg-[#384959]/10 flex items-center justify-center text-[11px] font-bold text-[#384959] shrink-0">
-                              {(p.user?.name ??
-                                p.name ??
-                                "?")[0]?.toUpperCase()}
+                        <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: idx % 2 === 0 ? C.white : `${C.bg}55` }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ width: 28, height: 28, borderRadius: "50%", background: `${C.deep}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: C.deep }}>
+                              {(p.user?.name ?? p.name ?? "?")[0]?.toUpperCase()}
                             </span>
                             <div>
-                              <p className="text-sm font-medium text-[#384959]">
-                                {p.user?.name ?? p.name ?? p.email ?? "—"}
-                              </p>
-                              <p className="text-[10px] text-[#6A89A7]">
-                                Attendee · {meeting.classes.length} class
-                                {meeting.classes.length !== 1 ? "es" : ""}
-                              </p>
+                              <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: C.text }}>{p.user?.name ?? p.name ?? p.email ?? "—"}</p>
+                              <p style={{ margin: 0, fontSize: 10, color: C.textLight }}>Attendee · {meeting.classes?.length} class{meeting.classes?.length !== 1 ? "es" : ""}</p>
                             </div>
                           </span>
-                          <button
-                            onClick={() => toggleParticipantAttendance(p)}
-                            disabled={!!togglingAttendance[`p-${p.id}`]}
-                            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${
-                              p.attended
-                                ? "bg-emerald-50 text-emerald-600 border-emerald-200"
-                                : "bg-white text-[#6A89A7] border-[#BDDDFC] hover:border-[#88BDF2]"
-                            }`}
-                          >
-                            {togglingAttendance[`p-${p.id}`] ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : p.attended ? (
-                              <CheckCircle2 size={12} />
-                            ) : (
-                              <Circle size={12} />
-                            )}
+                          <button onClick={() => toggleParticipant(p)} disabled={!!togglingAtt[`p-${p.id}`]}
+                            style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 99, cursor: "pointer", transition: "all 0.15s",
+                              ...(p.attended ? { background: "#F0FDF4", color: "#16A34A", border: "1px solid #BBF7D0" } : { background: C.bg, color: C.textLight, border: `1px solid ${C.border}` }) }}>
+                            {togglingAtt[`p-${p.id}`] ? <Loader2 size={11} className="animate-spin" /> : p.attended ? <CheckCircle2 size={11} /> : <Circle size={11} />}
                             {p.attended ? "Present" : "Absent"}
                           </button>
                         </div>
@@ -571,224 +304,138 @@ export default function MeetingViewModal({
             </div>
           )}
 
-          {/* ── Attendance overall summary (when completed) ── */}
-          {!loadingFull &&
-            totalAttendable > 0 &&
-            meeting.status === "COMPLETED" && (
-              <AttendanceSummary
-                present={presentCount}
-                total={totalAttendable}
-              />
-            )}
+          {/* Attendance summary */}
+          {!loadingFull && totalAtt > 0 && meeting.status === "COMPLETED" && (
+            <AttendanceSummary present={presentCount} total={totalAtt} />
+          )}
 
-          {/* ── Fallback: staff participants when no classes are assigned ── */}
-          {!loadingFull &&
-            (!meeting.classes || meeting.classes.length === 0) &&
-            userParticipants.length > 0 && (
-              <div>
-                <SectionTitle>
-                  <User size={13} />
-                  Staff Participants
-                </SectionTitle>
-                <div className="flex flex-col gap-1.5">
-                  {userParticipants.map((p) => (
-                    <AttendanceRow
-                      key={p.id}
-                      label={
-                        <span className="flex items-center gap-1.5">
-                          {p.isCoordinator && (
-                            <Star
-                              size={11}
-                              fill="currentColor"
-                              className="text-amber-400"
-                            />
-                          )}
-                          {p.user?.name ?? p.name ?? p.email ?? "—"}
-                          {p.isCoordinator && (
-                            <span className="text-[10px] text-amber-600 font-semibold">
-                              (In-charge)
-                            </span>
-                          )}
-                        </span>
-                      }
-                      attended={p.attended}
-                      loading={!!togglingAttendance[`p-${p.id}`]}
-                      onToggle={() => toggleParticipantAttendance(p)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-          {/* Parent Participants */}
-          {parentParticipants.length > 0 && (
+          {/* Staff participants (no classes) */}
+          {!loadingFull && (!meeting.classes || meeting.classes.length === 0) && userP.length > 0 && (
             <div>
-              <SectionTitle>Parent Participants</SectionTitle>
-              <div className="flex flex-col gap-1.5">
-                {parentParticipants.map((p) => (
-                  <AttendanceRow
-                    key={p.id}
-                    label={p.parent?.name ?? p.name ?? p.email ?? "—"}
-                    attended={p.attended}
-                    loading={!!togglingAttendance[`p-${p.id}`]}
-                    onToggle={() => toggleParticipantAttendance(p)}
+              <SectionHead icon={User}>Staff Participants</SectionHead>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {userP.map((p) => (
+                  <AttendanceRow key={p.id}
+                    label={<span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {p.isCoordinator && <Star size={11} fill="currentColor" color="#F59E0B" />}
+                      {p.user?.name ?? p.name ?? p.email ?? "—"}
+                      {p.isCoordinator && <span style={{ fontSize: 10, color: "#B45309", fontWeight: 600 }}>(In-charge)</span>}
+                    </span>}
+                    attended={p.attended} loading={!!togglingAtt[`p-${p.id}`]} onToggle={() => toggleParticipant(p)}
                   />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Parents */}
+          {parentP.length > 0 && (
+            <div>
+              <SectionHead icon={Users}>Parent Participants</SectionHead>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {parentP.map((p) => (
+                  <AttendanceRow key={p.id} label={p.parent?.name ?? p.name ?? p.email ?? "—"}
+                    attended={p.attended} loading={!!togglingAtt[`p-${p.id}`]} onToggle={() => toggleParticipant(p)} />
                 ))}
               </div>
             </div>
           )}
 
           {/* Students */}
-          {studentParticipants.length > 0 && (
+          {studentP.length > 0 && (
             <div>
-              <SectionTitle>
-                <Users size={13} />
-                Student Participants
-              </SectionTitle>
-              <div className="flex flex-col gap-1.5">
-                {studentParticipants.map((ms) => (
-                  <AttendanceRow
-                    key={ms.studentId}
-                    label={ms.student?.name ?? ms.studentId}
-                    attended={ms.attended}
-                    loading={!!togglingAttendance[`s-${ms.studentId}`]}
-                    onToggle={() => toggleStudentAttendance(ms)}
-                  />
+              <SectionHead icon={Users}>Student Participants</SectionHead>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {studentP.map((ms) => (
+                  <AttendanceRow key={ms.studentId} label={ms.student?.name ?? ms.studentId}
+                    attended={ms.attended} loading={!!togglingAtt[`s-${ms.studentId}`]} onToggle={() => toggleStudent(ms)} />
                 ))}
               </div>
             </div>
           )}
 
           {/* External */}
-          {externalParticipants.length > 0 && (
+          {externalP.length > 0 && (
             <div>
-              <SectionTitle>External Participants</SectionTitle>
-              <div className="flex flex-col gap-1.5">
-                {externalParticipants.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-2 bg-[#BDDDFC]/10 rounded-lg px-3 py-2"
-                  >
-                    <span className="text-sm text-[#384959]">
-                      {p.name && <strong>{p.name} — </strong>}
-                      {p.email}
-                    </span>
+              <SectionHead>External Participants</SectionHead>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {externalP.map((p) => (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, background: `${C.bg}88`, borderRadius: 10, padding: "9px 12px" }}>
+                    <span style={{ fontSize: 13, color: C.text }}>{p.name && <strong>{p.name} — </strong>}{p.email}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Meeting Notes / Minutes */}
+          {/* Notes */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <SectionTitle>
-                <FileText size={13} />
-                Meeting Notes / Minutes
-              </SectionTitle>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <SectionHead icon={FileText}>Meeting Notes</SectionHead>
               {!editingNotes && (
-                <button
-                  onClick={() => {
-                    setNotesValue(meeting.notes ?? "");
-                    setEditingNotes(true);
-                  }}
-                  className="text-xs text-[#6A89A7] hover:text-[#384959] underline underline-offset-2 transition-colors"
-                >
+                <button onClick={() => { setNotesValue(meeting.notes ?? ""); setEditingNotes(true); }}
+                  style={{ fontSize: 11, color: C.sky, background: "none", border: "none", cursor: "pointer", fontWeight: 500, textDecoration: "underline", textUnderlineOffset: 2 }}>
                   {meeting.notes ? "Edit" : "Add Notes"}
                 </button>
               )}
             </div>
-
             {editingNotes ? (
-              <div className="flex flex-col gap-2">
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <textarea
-                  className="w-full border border-[#BDDDFC] rounded-xl px-3 py-2.5 text-sm text-[#384959] focus:outline-none focus:ring-2 focus:ring-[#88BDF2] resize-none"
-                  rows={5}
-                  placeholder="Record what was discussed, decisions made, action items…"
-                  value={notesValue}
-                  onChange={(e) => setNotesValue(e.target.value)}
-                  autoFocus
+                  style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "10px 14px", fontSize: 13, color: C.text, outline: "none", resize: "none", fontFamily: "Inter, sans-serif", background: C.bg, boxSizing: "border-box" }}
+                  rows={5} placeholder="Record discussion, decisions, action items…"
+                  value={notesValue} onChange={(e) => setNotesValue(e.target.value)} autoFocus
+                  onFocus={(e) => (e.target.style.borderColor = C.sky)}
+                  onBlur={(e)  => (e.target.style.borderColor = C.border)}
                 />
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => setEditingNotes(false)}
-                    className="px-3 py-1.5 text-xs text-[#6A89A7] hover:text-[#384959] transition-colors"
-                  >
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                  <button onClick={() => setEditingNotes(false)}
+                    style={{ padding: "7px 14px", fontSize: 12, color: C.textLight, background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}>
                     Cancel
                   </button>
-                  <button
-                    onClick={handleSaveNotes}
-                    disabled={savingNotes}
-                    className="flex items-center gap-1.5 px-4 py-1.5 bg-[#384959] text-white text-xs font-semibold rounded-lg hover:bg-[#6A89A7] transition-colors disabled:opacity-60"
-                  >
-                    {savingNotes ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Save size={12} />
-                    )}
-                    Save Notes
+                  <button onClick={handleSaveNotes} disabled={savingNotes}
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 10, border: "none", background: C.deep, color: "#fff", fontSize: 12, fontWeight: 600, cursor: savingNotes ? "not-allowed" : "pointer", opacity: savingNotes ? 0.7 : 1 }}>
+                    {savingNotes ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} Save Notes
                   </button>
                 </div>
               </div>
             ) : meeting.notes ? (
-              <p className="text-sm text-[#6A89A7] leading-relaxed whitespace-pre-line bg-[#BDDDFC]/10 rounded-xl px-3 py-2.5">
+              <p style={{ margin: 0, fontSize: 13, color: C.textLight, lineHeight: 1.65, whiteSpace: "pre-line", background: `${C.bg}66`, borderRadius: 12, padding: "12px 14px", border: `1px solid ${C.borderLight}` }}>
                 {meeting.notes}
               </p>
             ) : (
-              <p className="text-sm text-[#6A89A7] italic">
-                No notes recorded yet.
-              </p>
+              <p style={{ margin: 0, fontSize: 13, color: C.textLight, fontStyle: "italic" }}>No notes recorded yet.</p>
             )}
           </div>
 
-          {/* Reminder info */}
           {meeting.reminderSentAt && (
-            <p className="text-xs text-[#6A89A7]">
-              Reminder sent:{" "}
-              {new Date(meeting.reminderSentAt).toLocaleString("en-IN")}
+            <p style={{ margin: 0, fontSize: 11, color: C.textLight }}>
+              Reminder sent: {new Date(meeting.reminderSentAt).toLocaleString("en-IN")}
             </p>
           )}
         </div>
 
-        {/* ── Footer ── */}
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-[#BDDDFC]">
-          {/* Status change buttons */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {["SCHEDULED", "COMPLETED", "CANCELLED", "POSTPONED"]
-              .filter((s) => s !== meeting.status)
-              .map((s) => (
-                <button
-                  key={s}
-                  onClick={() => handleStatusChange(s)}
-                  disabled={updatingStatus}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[#BDDDFC] text-[#6A89A7] hover:bg-[#BDDDFC]/40 transition-colors disabled:opacity-50"
-                >
-                  {updatingStatus ? (
-                    <Loader2 size={11} className="animate-spin" />
-                  ) : (
-                    `→ ${s}`
-                  )}
-                </button>
-              ))}
+        {/* Footer */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "14px 22px", borderTop: `1.5px solid ${C.borderLight}`, background: C.white, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            {["SCHEDULED", "COMPLETED", "CANCELLED", "POSTPONED"].filter((s) => s !== meeting.status).map((s) => (
+              <button key={s} onClick={() => handleStatusChange(s)} disabled={updatingStatus}
+                style={{ padding: "6px 12px", fontSize: 11, fontWeight: 600, borderRadius: 8, border: `1.5px solid ${C.borderLight}`, background: C.bg, color: C.textLight, cursor: updatingStatus ? "not-allowed" : "pointer", opacity: updatingStatus ? 0.5 : 1, transition: "all 0.15s" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = C.mist; e.currentTarget.style.color = C.deep; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = C.bg;   e.currentTarget.style.color = C.textLight; }}>
+                {updatingStatus ? <Loader2 size={11} className="animate-spin" /> : `→ ${s}`}
+              </button>
+            ))}
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleReminder}
-              disabled={sendingReminder}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-[#BDDDFC] text-[#384959] rounded-lg hover:bg-[#88BDF2] transition-colors disabled:opacity-50"
-            >
-              {sendingReminder ? (
-                <Loader2 size={13} className="animate-spin" />
-              ) : (
-                <Bell size={13} />
-              )}
-              Send Reminder
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={handleReminder} disabled={sendingReminder}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", fontSize: 12, fontWeight: 600, borderRadius: 10, border: `1.5px solid ${C.border}`, background: C.mist, color: C.deep, cursor: sendingReminder ? "not-allowed" : "pointer", opacity: sendingReminder ? 0.6 : 1 }}>
+              {sendingReminder ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />} Send Reminder
             </button>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium bg-[#384959] text-white rounded-xl hover:bg-[#6A89A7] transition-colors"
-            >
+            <button onClick={onClose}
+              style={{ padding: "8px 20px", fontSize: 13, fontWeight: 600, borderRadius: 11, border: "none", background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`, color: "#fff", cursor: "pointer" }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}>
               Close
             </button>
           </div>

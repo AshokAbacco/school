@@ -418,7 +418,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     () => pucStreams.find((s) => s.id === selectedStreamId),
     [pucStreams, selectedStreamId],
   );
-  const streamHasCombinations = selectedStreamObj?.hasCombinations ?? false;
+  // Derived from actual data — true if this stream's sections actually have combinations
+  const streamHasCombinations = pucCombinations.length > 0;
 
   const degreeCourses = useMemo(() => {
     if (!showCourse) return [];
@@ -436,10 +437,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     () => degreeCourses.find((c) => c.id === selectedCourseId),
     [degreeCourses, selectedCourseId],
   );
-  const courseHasBranches = selectedCourseObj?.hasBranches ?? false;
-
+  // Use actual branch data presence, not just the hasBranches flag
+  // This handles cases where hasBranches flag may be false but sections have branches
   const degreeBranches = useMemo(() => {
-    if (!showCourse || !selectedCourseId || !courseHasBranches) return [];
+    if (!showCourse || !selectedCourseId) return [];
     const filtered = classSections.filter(
       (cs) => cs.courseId === selectedCourseId && cs.branch,
     );
@@ -451,7 +452,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       }
       return acc;
     }, []);
-  }, [classSections, showCourse, selectedCourseId, courseHasBranches]);
+  }, [classSections, showCourse, selectedCourseId]);
+
+  // Derived from actual data — true if this course's sections actually have branches
+  const courseHasBranches = degreeBranches.length > 0;
 
   const degreeSemesters = useMemo(() => {
     if (!showCourse || !selectedCourseId) return [];
@@ -1380,7 +1384,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       className="w-full bg-white md:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative"
       style={{
         maxWidth: isModal ? "75rem" : "100%",
-        minHeight: isModal ? "100svh" : undefined,
+        minHeight: isModal ? "auto" : undefined,
         border: `1px solid ${COLORS.border}`,
       }}
     >
@@ -1478,8 +1482,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         />
 
         <div
-          className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 pb-28"
-          style={{ maxHeight: isModal ? "55vh" : "70vh" }}
+          className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 pb-24"
+          style={{ maxHeight: isModal ? "75vh" : "80vh" }}
         >
           {/* Global error */}
           {err._g && (
@@ -1497,8 +1501,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
           {/* ═══ PERSONAL ═══ */}
           {tab === "personal" && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InputField
                   label="First Name *"
                   value={f.fn}
@@ -1531,7 +1535,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
               {/* Government ID section */}
               <div
-                className="rounded-xl p-4 space-y-4"
+                className="rounded-xl p-3 space-y-3"
                 style={{
                   background: COLORS.bgSoft,
                   border: `1px solid ${COLORS.border}`,
@@ -1605,7 +1609,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
               {/* Karnataka-specific section */}
               <div
-                className="rounded-xl p-4 space-y-4"
+                className="rounded-xl p-3 space-y-3"
                 style={{
                   background: COLORS.bgSoft,
                   border: `1px solid ${COLORS.border}`,
@@ -1658,7 +1662,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
           {/* ═══ CONTACT ═══ */}
           {tab === "contact" && (
-            <div className="space-y-5">
+            <div className="space-y-3">
               <InputField
                 label="Email Address *"
                 icon={Mail}
@@ -1711,7 +1715,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
           {/* ═══ LOGIN ═══ */}
           {tab === "login" && (
-            <div className="space-y-5">
+            <div className="space-y-3">
               <InputField
                 label={`Student Login Email${!isEdit ? " *" : ""}`}
                 icon={Mail}
@@ -1747,7 +1751,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
           {/* ═══ ACADEMIC ═══ */}
           {tab === "academic" && (
-            <div className="space-y-5">
+            <div className="space-y-3">
               <InputField
                 label="Admission Number *"
                 value={f.admissionNumber}
@@ -1758,7 +1762,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
               />
 
               <div
-                className="rounded-xl p-4 space-y-4"
+                className="rounded-xl p-3 space-y-3"
                 style={{
                   background: COLORS.bgSoft,
                   border: `1px solid ${COLORS.border}`,
@@ -1821,7 +1825,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
               {/* Previous institution */}
               <div
-                className="rounded-xl p-4 space-y-4"
+                className="rounded-xl p-3 space-y-3"
                 style={{
                   background: COLORS.bgSoft,
                   border: `1px solid ${COLORS.border}`,
@@ -1877,7 +1881,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
           {/* ═══ PARENT ═══ */}
           {tab === "parent" && (
-            <div className="space-y-5">
+            <div className="space-y-3">
               <div
                 className="flex gap-1 p-1 rounded-xl"
                 style={{
@@ -2059,7 +2063,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
           {/* ═══ HEALTH ═══ */}
           {tab === "health" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <StyledSelect
                 label="Blood Group"
                 value={f.blood}

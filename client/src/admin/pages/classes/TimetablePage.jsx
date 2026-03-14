@@ -183,7 +183,7 @@ function ExtraClassCard({ ec, onEdit, onDelete, subjectColor }) {
           borderRadius: 6,
           background: `${typeColor}18`,
           color: typeColor,
-          fontFamily: "Inter, sans-serif",
+           fontFamily: "'Inter', sans-serif",
         }}
       >
         {EXTRA_TYPE_LABELS[ec.type] || ec.type}
@@ -255,7 +255,7 @@ function ExtraClassCard({ ec, onEdit, onDelete, subjectColor }) {
           className="text-xs mt-1.5 italic"
           style={{
             color: C.mid,
-            fontFamily: "Inter, sans-serif",
+             fontFamily: "'Inter', sans-serif",
             lineHeight: 1.4,
           }}
         >
@@ -281,7 +281,7 @@ function ExtraClassCard({ ec, onEdit, onDelete, subjectColor }) {
             alignItems: "center",
             justifyContent: "center",
             gap: 4,
-            fontFamily: "Inter, sans-serif",
+             fontFamily: "'Inter', sans-serif",
           }}
         >
           <Pencil size={10} /> Edit
@@ -303,7 +303,7 @@ function ExtraClassCard({ ec, onEdit, onDelete, subjectColor }) {
             alignItems: "center",
             justifyContent: "center",
             gap: 4,
-            fontFamily: "Inter, sans-serif",
+             fontFamily: "'Inter', sans-serif",
           }}
         >
           {deleting ? (
@@ -544,6 +544,13 @@ export default function TimetablePage() {
     return result;
   })();
 
+  // Saturday has different period count or start time → render as separate table
+  const isCustomSat =
+    satSlots.length > 0 &&
+    (satSlots.filter((s) => s.slotType === "PERIOD").length !==
+      slots.filter((s) => s.slotType === "PERIOD").length ||
+      satSlots[0]?.startTime !== slots[0]?.startTime);
+
   const subjectColor = (id) => {
     const idx = subjects.findIndex((s) => s.id === id);
     return COLORS[idx >= 0 ? idx % COLORS.length : 0];
@@ -674,7 +681,7 @@ export default function TimetablePage() {
               color: C.mid,
               background: "transparent",
               cursor: "pointer",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             <ArrowLeft size={14} /> Back to Classes
@@ -701,7 +708,7 @@ export default function TimetablePage() {
               style={{
                 color: C.mid,
                 letterSpacing: "0.5px",
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
               }}
             >
               Academic Year
@@ -714,7 +721,7 @@ export default function TimetablePage() {
                 padding: "8px 12px",
                 border: `1.5px solid ${C.border}`,
                 color: C.primary,
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 background: "#fff",
               }}
             >
@@ -732,7 +739,7 @@ export default function TimetablePage() {
               style={{
                 color: C.mid,
                 letterSpacing: "0.5px",
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
               }}
             >
               Class Section
@@ -747,7 +754,7 @@ export default function TimetablePage() {
                 padding: "8px 12px",
                 border: `1.5px solid ${C.border}`,
                 color: C.primary,
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 background: "#fff",
                 minWidth: 160,
               }}
@@ -822,7 +829,7 @@ export default function TimetablePage() {
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   border: `1.5px solid ${samePattern === val ? C.primary : C.border}`,
                   background: samePattern === val ? C.primary : "#fff",
                   color: samePattern === val ? "#fff" : C.mid,
@@ -894,7 +901,7 @@ export default function TimetablePage() {
                 cursor: "pointer",
                 fontSize: 13,
                 fontWeight: 600,
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
               }}
             >
               Set Up School Timings
@@ -934,7 +941,7 @@ export default function TimetablePage() {
                         fontSize: 11,
                         fontWeight: 700,
                         color: C.mid,
-                        fontFamily: "Inter, sans-serif",
+                         fontFamily: "'Inter', sans-serif",
                         letterSpacing: "0.4px",
                         minWidth: 90,
                         position: "sticky",
@@ -968,7 +975,7 @@ export default function TimetablePage() {
                             fontWeight: 600,
                             color:
                               slot.slotType === "PERIOD" ? C.primary : C.mid,
-                            fontFamily: "Inter, sans-serif",
+                             fontFamily: "'Inter', sans-serif",
                             whiteSpace: "nowrap",
                           }}
                         >
@@ -978,7 +985,7 @@ export default function TimetablePage() {
                           style={{
                             fontSize: 10,
                             color: C.light,
-                            fontFamily: "Inter, sans-serif",
+                             fontFamily: "'Inter', sans-serif",
                             whiteSpace: "nowrap",
                           }}
                         >
@@ -1020,7 +1027,7 @@ export default function TimetablePage() {
                               fontSize: 13,
                               fontWeight: 700,
                               color: C.primary,
-                              fontFamily: "Inter, sans-serif",
+                               fontFamily: "'Inter', sans-serif",
                             }}
                           >
                             {DAY_SHORT[day]}
@@ -1030,7 +1037,7 @@ export default function TimetablePage() {
                               style={{
                                 fontSize: 9,
                                 color: C.light,
-                                fontFamily: "Inter, sans-serif",
+                                 fontFamily: "'Inter', sans-serif",
                               }}
                             >
                               auto
@@ -1088,7 +1095,7 @@ export default function TimetablePage() {
                                     style={{
                                       fontSize: 11,
                                       color: C.light,
-                                      fontFamily: "Inter, sans-serif",
+                                       fontFamily: "'Inter', sans-serif",
                                     }}
                                   >
                                     {slot.label}
@@ -1157,7 +1164,7 @@ export default function TimetablePage() {
                                           fontSize: 11,
                                           fontWeight: 600,
                                           color: C.primary,
-                                          fontFamily: "Inter, sans-serif",
+                                           fontFamily: "'Inter', sans-serif",
                                           lineHeight: 1.2,
                                         }}
                                       >
@@ -1168,7 +1175,7 @@ export default function TimetablePage() {
                                       style={{
                                         fontSize: 10,
                                         color: C.mid,
-                                        fontFamily: "Inter, sans-serif",
+                                         fontFamily: "'Inter', sans-serif",
                                       }}
                                     >
                                       {cell.teacherName}
@@ -1179,7 +1186,7 @@ export default function TimetablePage() {
                                     style={{
                                       fontSize: 10,
                                       color: C.light,
-                                      fontFamily: "Inter, sans-serif",
+                                       fontFamily: "'Inter', sans-serif",
                                     }}
                                   >
                                     + Assign
@@ -1193,8 +1200,8 @@ export default function TimetablePage() {
                     ),
                   )}
 
-                  {/* ── Divider row between Mon–Fri and Saturday ── */}
-                  {satSlots.length > 0 && (
+                  {/* ── Divider row between Mon–Fri and Saturday (same pattern only) ── */}
+                  {satSlots.length > 0 && !isCustomSat && (
                     <tr>
                       <td
                         colSpan={mergedGridSlots.length + 1}
@@ -1209,18 +1216,9 @@ export default function TimetablePage() {
                     </tr>
                   )}
 
-                  {/* ── Saturday row ── */}
-                  {satSlots.length > 0 &&
+                  {/* ── Saturday row — same pattern as weekdays only ── */}
+                  {satSlots.length > 0 && !isCustomSat &&
                     (() => {
-                      const satPeriods = satSlots.filter(
-                        (s) => s.slotType === "PERIOD",
-                      ).length;
-                      const wdPeriods = slots.filter(
-                        (s) => s.slotType === "PERIOD",
-                      ).length;
-                      const isCustomSat =
-                        satPeriods !== wdPeriods ||
-                        satSlots[0]?.startTime !== slots[0]?.startTime;
                       return (
                         <tr
                           key="SATURDAY"
@@ -1254,26 +1252,12 @@ export default function TimetablePage() {
                                 fontSize: 13,
                                 fontWeight: 700,
                                 color: C.primary,
-                                fontFamily: "Inter, sans-serif",
+                                 fontFamily: "'Inter', sans-serif",
                               }}
                             >
                               Sat
                             </p>
-                            {isCustomSat && (
-                              <span
-                                style={{
-                                  fontSize: 9,
-                                  fontWeight: 700,
-                                  padding: "1px 4px",
-                                  borderRadius: 3,
-                                  background: "rgba(245,158,11,0.15)",
-                                  color: "#b45309",
-                                  fontFamily: "Inter, sans-serif",
-                                }}
-                              >
-                                CUSTOM
-                              </span>
-                            )}
+
                           </td>
                           {/* Cells for Saturday — match against merged slot list */}
                           {mergedGridSlots.map((slot) => {
@@ -1339,7 +1323,7 @@ export default function TimetablePage() {
                                       style={{
                                         fontSize: 11,
                                         color: C.light,
-                                        fontFamily: "Inter, sans-serif",
+                                         fontFamily: "'Inter', sans-serif",
                                       }}
                                     >
                                       {satSlot.label.replace(/^(Sat\s)+/i, "")}
@@ -1409,7 +1393,7 @@ export default function TimetablePage() {
                                             fontSize: 11,
                                             fontWeight: 600,
                                             color: C.primary,
-                                            fontFamily: "Inter, sans-serif",
+                                             fontFamily: "'Inter', sans-serif",
                                             lineHeight: 1.2,
                                           }}
                                         >
@@ -1420,7 +1404,7 @@ export default function TimetablePage() {
                                         style={{
                                           fontSize: 10,
                                           color: C.mid,
-                                          fontFamily: "Inter, sans-serif",
+                                           fontFamily: "'Inter', sans-serif",
                                         }}
                                       >
                                         {cell.teacherName}
@@ -1431,7 +1415,7 @@ export default function TimetablePage() {
                                       style={{
                                         fontSize: 10,
                                         color: C.light,
-                                        fontFamily: "Inter, sans-serif",
+                                         fontFamily: "'Inter', sans-serif",
                                       }}
                                     >
                                       + Assign
@@ -1444,6 +1428,174 @@ export default function TimetablePage() {
                         </tr>
                       );
                     })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Saturday Schedule — separate table (custom Saturday only) ── */}
+        {!configLoading && satSlots.length > 0 && isCustomSat && (
+          <div
+            className="bg-white rounded-2xl shadow-sm overflow-hidden mb-4"
+            style={{ border: `1.5px solid rgba(136,189,242,0.35)` }}
+          >
+            {/* Header banner */}
+            <div
+              className="flex items-center gap-3 px-5 py-3"
+              style={{
+                background: "rgba(136,189,242,0.10)",
+                borderBottom: `1.5px solid rgba(136,189,242,0.25)`,
+              }}
+            >
+              <div
+                style={{
+                  width: 28, height: 28, borderRadius: 7,
+                  background: "rgba(245,158,11,0.12)",
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}
+              >
+                <Calendar size={14} style={{ color: "#b45309" }} />
+              </div>
+              <div>
+                <p className="text-sm font-bold" style={{ color: C.primary, fontFamily: "'Inter', sans-serif" }}>
+                  Saturday Schedule
+                </p>
+                <p className="text-xs" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>
+                  {satSlots.filter((s) => s.slotType === "PERIOD").length} periods
+                  {satSlots.filter((s) => s.slotType !== "PERIOD").length > 0 &&
+                    ` · ${satSlots.filter((s) => s.slotType !== "PERIOD").length} break${satSlots.filter((s) => s.slotType !== "PERIOD").length > 1 ? "s" : ""}`}
+                  {" · "}{fmtTime(satSlots[0]?.startTime)} – {fmtTime(satSlots[satSlots.length - 1]?.endTime)}
+                </p>
+              </div>
+              <span
+                style={{
+                  marginLeft: "auto", fontSize: 9, fontWeight: 700,
+                  padding: "2px 7px", borderRadius: 4,
+                  background: "rgba(245,158,11,0.15)", color: "#b45309",
+                  fontFamily: "'Inter', sans-serif", letterSpacing: "0.4px",
+                }}
+              >
+                CUSTOM
+              </span>
+            </div>
+
+            {/* Scrollable Saturday table */}
+            <div className="overflow-x-auto">
+              <table
+                style={{
+                  borderCollapse: "collapse",
+                  width: "100%",
+                  minWidth: `${130 + satSlots.length * 130}px`,
+                }}
+              >
+                <thead>
+                  <tr
+                    style={{
+                      background: "rgba(136,189,242,0.06)",
+                      borderBottom: `1.5px solid rgba(136,189,242,0.25)`,
+                    }}
+                  >
+                    <th
+                      style={{
+                        padding: "10px 16px", textAlign: "left", fontSize: 11,
+                        fontWeight: 700, color: C.mid, fontFamily: "'Inter', sans-serif",
+                        letterSpacing: "0.4px", minWidth: 90,
+                        position: "sticky", left: 0,
+                        background: "rgba(236,244,252,0.98)", zIndex: 2,
+                        borderRight: `1.5px solid rgba(136,189,242,0.25)`,
+                      }}
+                    >
+                      DAY
+                    </th>
+                    {satSlots.map((slot) => (
+                      <th
+                        key={slot.id}
+                        style={{
+                          padding: "8px 12px", textAlign: "left",
+                          minWidth: slot.slotType === "PERIOD" ? 130 : 90,
+                          maxWidth: slot.slotType === "PERIOD" ? 160 : 110,
+                          background: slot.slotType !== "PERIOD"
+                            ? "rgba(136,189,242,0.08)"
+                            : "rgba(236,244,252,0.95)",
+                          borderRight: `1px solid rgba(136,189,242,0.2)`,
+                        }}
+                      >
+                        <p style={{ fontSize: 11, fontWeight: 600, color: slot.slotType === "PERIOD" ? C.primary : C.mid, fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap" }}>
+                          {slot.label}
+                        </p>
+                        <p style={{ fontSize: 10, color: C.light, fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap" }}>
+                          {fmtTime(slot.startTime)}–{fmtTime(slot.endTime)}
+                        </p>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    style={{ borderBottom: `1px solid rgba(136,189,242,0.18)`, background: "rgba(136,189,242,0.025)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(136,189,242,0.07)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(136,189,242,0.025)")}
+                  >
+                    <td
+                      style={{
+                        padding: "8px 16px", position: "sticky", left: 0,
+                        background: "rgba(236,244,252,0.98)", zIndex: 1,
+                        borderRight: `1.5px solid rgba(136,189,242,0.25)`, minWidth: 90,
+                      }}
+                    >
+                      <p style={{ fontSize: 13, fontWeight: 700, color: C.primary, fontFamily: "'Inter', sans-serif" }}>
+                        Sat
+                      </p>
+                    </td>
+                    {satSlots.map((slot) => {
+                      if (slot.slotType !== "PERIOD") {
+                        return (
+                          <td
+                            key={slot.id}
+                            style={{ padding: "6px 10px", background: "rgba(136,189,242,0.06)", borderRight: `1px solid rgba(136,189,242,0.2)` }}
+                          >
+                            <div style={{ minHeight: 48, display: "flex", alignItems: "center" }}>
+                              <span style={{ fontSize: 11, color: C.light, fontFamily: "'Inter', sans-serif" }}>
+                                {slot.label}
+                              </span>
+                            </div>
+                          </td>
+                        );
+                      }
+                      const cell = timetable["SATURDAY"]?.[slot.id];
+                      const color = cell ? subjectColor(cell.subjectId) : null;
+                      return (
+                        <td key={slot.id} style={{ padding: "5px 6px", borderRight: `1px solid rgba(136,189,242,0.2)` }}>
+                          <div
+                            onClick={() => openCell("SATURDAY", slot)}
+                            style={{
+                              minHeight: 52, padding: "6px 8px", borderRadius: 8, cursor: "pointer",
+                              background: cell ? color + "14" : "rgba(136,189,242,0.06)",
+                              border: `1.5px solid ${cell ? color + "44" : "rgba(136,189,242,0.3)"}`,
+                              transition: "all 0.15s",
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = cell ? color + "22" : C.pale)}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = cell ? color + "14" : "rgba(136,189,242,0.06)")}
+                          >
+                            {cell ? (
+                              <>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: 2, background: color, flexShrink: 0 }} />
+                                  <p style={{ fontSize: 11, fontWeight: 600, color: C.primary, fontFamily: "'Inter', sans-serif", lineHeight: 1.2 }}>
+                                    {cell.subjectName}
+                                  </p>
+                                </div>
+                                <p style={{ fontSize: 10, color: C.mid, fontFamily: "'Inter', sans-serif" }}>{cell.teacherName}</p>
+                              </>
+                            ) : (
+                              <p style={{ fontSize: 10, color: C.light, fontFamily: "'Inter', sans-serif" }}>+ Assign</p>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -1476,7 +1628,7 @@ export default function TimetablePage() {
               border: "none",
               cursor:
                 saving || samePattern === null ? "not-allowed" : "pointer",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             {saving ? (
@@ -1517,7 +1669,7 @@ export default function TimetablePage() {
                     className="text-sm font-semibold"
                     style={{
                       color: C.primary,
-                      fontFamily: "Inter, sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                     }}
                   >
                     Extra Classes
@@ -1546,7 +1698,7 @@ export default function TimetablePage() {
                       : C.primary,
                   border: "none",
                   cursor: subjects.length === 0 ? "not-allowed" : "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
                 title={
                   subjects.length === 0
@@ -1639,7 +1791,7 @@ export default function TimetablePage() {
                             style={{
                               color: C.mid,
                               letterSpacing: "0.6px",
-                              fontFamily: "Inter, sans-serif",
+                               fontFamily: "'Inter', sans-serif",
                             }}
                           >
                             {label}
@@ -1654,7 +1806,7 @@ export default function TimetablePage() {
                               borderRadius: 6,
                               background: C.pale,
                               color: C.mid,
-                              fontFamily: "Inter, sans-serif",
+                               fontFamily: "'Inter', sans-serif",
                             }}
                           >
                             {items.length}{" "}
@@ -1825,7 +1977,7 @@ export default function TimetablePage() {
                       outline: "none",
                       fontSize: 12,
                       color: C.primary,
-                      fontFamily: "Inter, sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                       flex: 1,
                       background: "transparent",
                     }}
@@ -1920,7 +2072,7 @@ export default function TimetablePage() {
                                   className="text-sm font-semibold"
                                   style={{
                                     color: C.primary,
-                                    fontFamily: "Inter, sans-serif",
+                                     fontFamily: "'Inter', sans-serif",
                                   }}
                                 >
                                   {t.firstName} {t.lastName}
@@ -1932,7 +2084,7 @@ export default function TimetablePage() {
                                       style={{
                                         background: "rgba(79,70,229,0.09)",
                                         color: "#4f46e5",
-                                        fontFamily: "Inter, sans-serif",
+                                         fontFamily: "'Inter', sans-serif",
                                       }}
                                     >
                                       {t.department}
@@ -1943,7 +2095,7 @@ export default function TimetablePage() {
                                       className="text-xs"
                                       style={{
                                         color: C.mid,
-                                        fontFamily: "Inter, sans-serif",
+                                         fontFamily: "'Inter', sans-serif",
                                       }}
                                     >
                                       {t.qualification}
@@ -1977,7 +2129,7 @@ export default function TimetablePage() {
                   color: C.mid,
                   background: "transparent",
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   fontSize: 13,
                 }}
               >
@@ -1996,7 +2148,7 @@ export default function TimetablePage() {
                     color: "#ef4444",
                     background: "rgba(239,68,68,0.08)",
                     cursor: "pointer",
-                    fontFamily: "Inter, sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                     fontSize: 13,
                     fontWeight: 500,
                     display: "flex",
@@ -2019,7 +2171,7 @@ export default function TimetablePage() {
                       : C.primary,
                   border: "none",
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 <Check size={14} /> Assign

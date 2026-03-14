@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { fetchSchedules, calculateResults, publishGroup, lockGroup } from "./examsApi";
 
-const F = { fontFamily: "'DM Sans', sans-serif" };
+const F = { fontFamily: "'Inter', sans-serif" };
 const C = {
   dark:    "#384959",
   mid:     "#6A89A7",
@@ -193,7 +193,6 @@ export default function ViewExamsModal({ group, onClose, onEdit }) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
         @keyframes viewIn { from { opacity:0; transform:translate(-50%,-47%) scale(.97) } to { opacity:1; transform:translate(-50%,-50%) scale(1) } }
         @keyframes spin   { to   { transform:rotate(360deg) } }
         .vm-scroll::-webkit-scrollbar       { width: 4px; height: 4px }

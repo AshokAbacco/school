@@ -57,7 +57,7 @@ function ProgressBar({ completed, total, height = 6 }) {
       >
         <span
           style={{
-            fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
             fontSize: 11,
             color: C.textLight,
             fontWeight: 500,
@@ -67,7 +67,7 @@ function ProgressBar({ completed, total, height = 6 }) {
         </span>
         <span
           style={{
-            fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
             fontSize: 12,
             fontWeight: 800,
             color: C.deep,
@@ -118,7 +118,7 @@ function StatusPill({ pct }) {
         color: cfg.fg,
         fontSize: 10,
         fontWeight: 700,
-        fontFamily: "'Sora',sans-serif",
+       fontFamily: "'Inter', sans-serif",
         letterSpacing: "0.03em",
         whiteSpace: "nowrap",
       }}
@@ -136,7 +136,7 @@ function Breadcrumb({ items }) {
         alignItems: "center",
         gap: 6,
         marginBottom: 18,
-        fontFamily: "'Sora',sans-serif",
+       fontFamily: "'Inter', sans-serif",
         flexWrap: "wrap",
       }}
     >
@@ -154,7 +154,7 @@ function Breadcrumb({ items }) {
                 fontWeight: 600,
                 color: C.sky,
                 padding: 0,
-                fontFamily: "'Sora',sans-serif",
+               fontFamily: "'Inter', sans-serif",
               }}
             >
               {item.label}
@@ -323,7 +323,7 @@ export default function AdminCurriculumPage() {
           minHeight: "100vh",
           background: C.bg,
           padding: "28px 32px",
-          fontFamily: "'Sora',sans-serif",
+         fontFamily: "'Inter', sans-serif",
           backgroundImage: `radial-gradient(circle at 10% 0%, ${C.mist}28 0%, transparent 45%)`,
         }}
       >
@@ -383,7 +383,7 @@ export default function AdminCurriculumPage() {
               marginBottom: 20,
               fontSize: 13,
               color: "#8b1c1c",
-              fontFamily: "'Sora',sans-serif",
+             fontFamily: "'Inter', sans-serif",
             }}
           >
             <AlertCircle size={14} /> {error}
@@ -892,7 +892,7 @@ function Level3Sections({
                 fontSize: 12,
                 fontWeight: 700,
                 color: C.deep,
-                fontFamily: "'Sora',sans-serif",
+               fontFamily: "'Inter', sans-serif",
                 whiteSpace: "nowrap",
               }}
             >
@@ -908,7 +908,7 @@ function Level3Sections({
                 fontSize: 12,
                 fontWeight: 700,
                 color: "#991b1b",
-                fontFamily: "'Sora',sans-serif",
+               fontFamily: "'Inter', sans-serif",
               }}
             >
               No syllabus
@@ -1039,7 +1039,7 @@ function Level3Sections({
                         fontSize: 10,
                         fontWeight: 700,
                         flexShrink: 0,
-                        fontFamily: "'Sora',sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                       }}
                     >
                       {(teacher.firstName?.[0] || "") +
@@ -1076,7 +1076,7 @@ function Level3Sections({
                         margin: 0,
                         fontSize: 11,
                         color: "#991b1b",
-                        fontFamily: "'Sora',sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                       }}
                     >
                       No teacher assigned
@@ -1137,7 +1137,7 @@ function Level3Sections({
                             margin: 0,
                             fontSize: 9,
                             color: C.textLight,
-                            fontFamily: "'Sora',sans-serif",
+                           fontFamily: "'Inter', sans-serif",
                           }}
                         >
                           {s.label}
@@ -1158,7 +1158,7 @@ function Level3Sections({
                       fontSize: 10,
                       color: C.textLight,
                       textAlign: "right",
-                      fontFamily: "'Sora',sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                     }}
                   >
                     Updated{" "}
@@ -1174,7 +1174,7 @@ function Level3Sections({
                       fontSize: 10,
                       color: C.textLight,
                       textAlign: "right",
-                      fontFamily: "'Sora',sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                     }}
                   >
                     No updates yet
