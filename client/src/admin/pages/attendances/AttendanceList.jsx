@@ -18,6 +18,9 @@ import {
   Calendar as CalendarIcon,
   UserCheck,
   UserX,
+  Palmtree,
+  X,
+  Building2,
 } from "lucide-react";
 import AttendanceStatsCards from "./components/AttendanceStatsCards";
 import AttendanceTableRow from "./components/AttendanceTableRow";
@@ -177,6 +180,8 @@ export default function AttendanceList() {
   );
   const [summaryMap, setSummaryMap] = useState({}); // classSectionId → stats
   const [activeYearName, setActiveYearName] = useState("");
+  const [holidayInfo, setHolidayInfo] = useState(null); // { title, type, description } | null
+  const [holidayPanelOpen, setHolidayPanelOpen] = useState(false);
 
   // ── Load sections filtered to active year + summary stats ─────────────────
   const loadSummary = useCallback(async (date) => {
@@ -205,6 +210,18 @@ export default function AttendanceList() {
       });
       setSummaryMap(map);
       setActiveYearName(summaryRes.academicYear?.name || "");
+
+      // ── Check if selected date is a holiday ───────────────────────────
+      try {
+        const hRes = await fetch(
+          `${BASE}/admin/holidays/check?date=${date}`,
+          { headers: { Authorization: `Bearer ${getToken()}` } },
+        );
+        const hData = await hRes.json();
+        setHolidayInfo(hData.holiday || null);
+      } catch {
+        setHolidayInfo(null);
+      }
     } catch (err) {
       console.error("Failed to load sections/summary", err);
     } finally {
@@ -353,22 +370,56 @@ export default function AttendanceList() {
                 `Grade ${selectedGrade} · Section ${selectedSection?.section}`}
             </p>
           </div>
-          {/* ✅ Date picker — changing date refreshes all stats */}
-          <div className="relative">
-            <CalendarIcon
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2"
-              style={{ color: C.secondary }}
-            />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="text-sm pl-9 pr-4 py-2 rounded-xl bg-white focus:outline-none"
-              style={{ border: `1px solid ${C.border}`, color: C.primary }}
-              onFocus={(e) => (e.target.style.borderColor = C.accent)}
-              onBlur={(e) => (e.target.style.borderColor = C.border)}
-            />
+          {/* ── Date picker + Holiday indicator ─────────────────────────── */}
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              {/* Holiday dot indicator on date picker */}
+              <div className="relative">
+                <CalendarIcon
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2"
+                  style={{ color: holidayInfo ? "#b45309" : C.secondary }}
+                />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="text-sm pl-9 pr-4 py-2 rounded-xl bg-white focus:outline-none"
+                  style={{
+                    border: `1px solid ${holidayInfo ? "rgba(245,158,11,0.60)" : C.border}`,
+                    color: C.primary,
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = C.accent)}
+                  onBlur={(e) =>
+                    (e.target.style.borderColor = holidayInfo
+                      ? "rgba(245,158,11,0.60)"
+                      : C.border)
+                  }
+                />
+                {holidayInfo && (
+                  <span
+                    className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full border-2 border-white"
+                    style={{ background: "#f59e0b" }}
+                  />
+                )}
+              </div>
+
+              {/* Holiday quick-view button */}
+              {holidayInfo && (
+                <button
+                  onClick={() => setHolidayPanelOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
+                  style={{
+                    background: "rgba(245,158,11,0.12)",
+                    color: "#b45309",
+                    border: "1px solid rgba(245,158,11,0.30)",
+                  }}
+                >
+                  <Palmtree size={13} />
+                  Holiday
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -380,6 +431,66 @@ export default function AttendanceList() {
             onGradeClick={handleBackToGrades}
             onSectionClick={handleBackToSections}
           />
+        )}
+
+        {/* ── Holiday Banner ──────────────────────────────────────────────── */}
+        {holidayInfo && (
+          <div
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl mb-5"
+            style={{
+              background: "rgba(245,158,11,0.10)",
+              border: "1px solid rgba(245,158,11,0.30)",
+            }}
+          >
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: "rgba(245,158,11,0.18)" }}
+            >
+              <Palmtree size={15} style={{ color: "#b45309" }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold" style={{ color: "#92400e" }}>
+                {holidayInfo.title}
+                {holidayInfo.type === "GOVERNMENT" && (
+                  <span
+                    className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{
+                      background: "rgba(245,158,11,0.20)",
+                      color: "#b45309",
+                    }}
+                  >
+                    Government Holiday
+                  </span>
+                )}
+                {holidayInfo.type === "SCHOOL" && (
+                  <span
+                    className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{
+                      background: "rgba(245,158,11,0.20)",
+                      color: "#b45309",
+                    }}
+                  >
+                    School Holiday
+                  </span>
+                )}
+              </p>
+              {holidayInfo.description && (
+                <p className="text-xs mt-0.5" style={{ color: "#b45309" }}>
+                  {holidayInfo.description}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setHolidayPanelOpen(true)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
+              style={{
+                background: "rgba(245,158,11,0.18)",
+                color: "#b45309",
+              }}
+            >
+              Details
+            </button>
+          </div>
         )}
 
         {/* ══ LEVEL 1: Grade Cards ══════════════════════════════════════════ */}
@@ -827,6 +938,127 @@ export default function AttendanceList() {
           </div>
         )}
       </div>
+
+      {/* ── Holiday Detail Panel (slide-in modal) ──────────────────────────── */}
+      {holidayPanelOpen && holidayInfo && (
+        <div
+          className="fixed inset-0 z-40 flex items-end sm:items-center justify-center p-4"
+          style={{ background: "rgba(56,73,89,0.45)", backdropFilter: "blur(4px)" }}
+          onClick={(e) => e.target === e.currentTarget && setHolidayPanelOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden"
+            style={{ background: "white", border: `1px solid ${C.border}` }}
+          >
+            {/* Panel header */}
+            <div
+              className="flex items-center justify-between px-6 py-5"
+              style={{
+                background: "rgba(245,158,11,0.08)",
+                borderBottom: "1px solid rgba(245,158,11,0.20)",
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                  style={{ background: "rgba(245,158,11,0.18)" }}
+                >
+                  <Palmtree size={18} style={{ color: "#b45309" }} />
+                </div>
+                <div>
+                  <p className="font-bold text-sm" style={{ color: "#92400e" }}>
+                    Holiday Details
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: "#b45309" }}>
+                    {selectedDate}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setHolidayPanelOpen(false)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center"
+                style={{ background: "rgba(245,158,11,0.12)" }}
+              >
+                <X size={15} style={{ color: "#b45309" }} />
+              </button>
+            </div>
+
+            {/* Panel body */}
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <p className="text-xs font-semibold mb-1" style={{ color: C.secondary }}>
+                  Holiday Name
+                </p>
+                <p className="text-base font-bold" style={{ color: C.primary }}>
+                  {holidayInfo.title}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold mb-1" style={{ color: C.secondary }}>
+                  Type
+                </p>
+                <div className="flex items-center gap-2">
+                  {holidayInfo.type === "GOVERNMENT" ? (
+                    <Building2 size={14} style={{ color: "#b45309" }} />
+                  ) : (
+                    <GraduationCap size={14} style={{ color: "#b45309" }} />
+                  )}
+                  <p className="text-sm font-semibold" style={{ color: C.primary }}>
+                    {holidayInfo.type === "GOVERNMENT" ? "Government Holiday" : "School Holiday"}
+                  </p>
+                </div>
+                {holidayInfo.type === "GOVERNMENT" && (
+                  <p className="text-xs mt-1" style={{ color: C.secondary }}>
+                    Repeats every year on this date
+                  </p>
+                )}
+                {holidayInfo.type === "SCHOOL" && holidayInfo.academicYear?.name && (
+                  <p className="text-xs mt-1" style={{ color: C.secondary }}>
+                    Applies to academic year: {holidayInfo.academicYear.name}
+                  </p>
+                )}
+              </div>
+
+              {holidayInfo.description && (
+                <div>
+                  <p className="text-xs font-semibold mb-1" style={{ color: C.secondary }}>
+                    Note
+                  </p>
+                  <p className="text-sm" style={{ color: C.primary }}>
+                    {holidayInfo.description}
+                  </p>
+                </div>
+              )}
+
+              <div
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold"
+                style={{
+                  background: "rgba(245,158,11,0.10)",
+                  color: "#b45309",
+                  border: "1px solid rgba(245,158,11,0.25)",
+                }}
+              >
+                <Palmtree size={13} />
+                Attendance may not be marked on this date
+              </div>
+            </div>
+
+            <div
+              className="px-6 py-4"
+              style={{ borderTop: `1px solid ${C.border}` }}
+            >
+              <button
+                onClick={() => setHolidayPanelOpen(false)}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: C.softBg, color: C.secondary }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 }

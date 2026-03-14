@@ -1,275 +1,383 @@
-import React, { useState } from 'react';
-import { BookOpen, TrendingUp, Award, FileText, BarChart3, Target, Star, ChevronDown } from 'lucide-react';
-import PageLayout from '../../components/PageLayout';
+// client/src/student/pages/marks/Marks.jsx
+// Stormy Morning palette · Inter font · fully responsive
 
-function MarksResults() {
-  const [selectedTerm, setSelectedTerm] = useState('Term 2 - 2025-26');
+import { useState, useEffect, useCallback } from "react";
+import {
+  ChevronDown, AlertCircle, FileText,
+  EyeOff, Loader2, Download, Lock,
+} from "lucide-react";
 
-  const subjectMarks = [
-    { subject: 'Mathematics', obtained: 92, total: 100, grade: 'A+', percentage: 92, teacher: 'Mr. Smith' },
-    { subject: 'Science', obtained: 88, total: 100, grade: 'A+', percentage: 88, teacher: 'Ms. Johnson' },
-    { subject: 'English', obtained: 85, total: 100, grade: 'A', percentage: 85, teacher: 'Mrs. Williams' },
-    { subject: 'Social Studies', obtained: 90, total: 100, grade: 'A+', percentage: 90, teacher: 'Mr. Brown' },
-    { subject: 'Hindi', obtained: 78, total: 100, grade: 'B+', percentage: 78, teacher: 'Ms. Sharma' },
-    { subject: 'Computer Science', obtained: 95, total: 100, grade: 'A+', percentage: 95, teacher: 'Mr. Kumar' },
-    { subject: 'Physical Education', obtained: 82, total: 100, grade: 'A', percentage: 82, teacher: 'Coach Davis' },
-    { subject: 'Art & Craft', obtained: 87, total: 100, grade: 'A', percentage: 87, teacher: 'Ms. Lee' },
-  ];
+import PageLayout          from "../../components/PageLayout";
+import { getToken }        from "../../../auth/storage.js";
+import { C, FONT, GLOBAL_CSS } from "./tokens.js";
+import SummaryCards        from "./components/SummaryCards.jsx";
+import SubjectTable        from "./components/SubjectTable.jsx";
+import PerformanceInsights from "./components/PerformanceInsights.jsx";
+import ExamTabs            from "./components/ExamTabs.jsx";
+import { downloadReportPDF } from "./utils/downloadPDF.js";
 
-  const overallStats = {
-    totalMarks: 697,
-    maxMarks: 800,
-    percentage: 87.13,
-    grade: 'A',
-    rank: 21,
-    totalStudents: 150
-  };
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
 
-  const termResults = [
-    { term: 'Term 1 - 2025-26', percentage: 85.5, grade: 'A', rank: 23 },
-    { term: 'Term 2 - 2025-26', percentage: 87.13, grade: 'A', rank: 21 },
-  ];
+async function apiFetch(path) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("application/json"))
+    throw new Error(`Server error (${res.status})`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.message ?? "Unknown error");
+  return json.data;
+}
 
-  const getGradeColor = (grade) => {
-    if (grade.startsWith('A')) return 'bg-green-100 text-green-700 border-green-500';
-    if (grade.startsWith('B')) return 'bg-blue-100 text-blue-700 border-blue-500';
-    if (grade.startsWith('C')) return 'bg-yellow-100 text-yellow-700 border-yellow-500';
-    return 'bg-red-100 text-red-700 border-red-500';
-  };
+function useWindowWidth() {
+  const [w, setW] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1024
+  );
+  useEffect(() => {
+    const handle = () => setW(window.innerWidth);
+    window.addEventListener("resize", handle);
+    return () => window.removeEventListener("resize", handle);
+  }, []);
+  return w;
+}
 
-  const getPercentageColor = (percentage) => {
-    if (percentage >= 90) return 'text-green-600';
-    if (percentage >= 75) return 'text-blue-600';
-    if (percentage >= 60) return 'text-yellow-600';
-    return 'text-red-600';
-  };
+/* ── Not published state ── */
+function NotPublished({ isMobile }) {
+  return (
+    <div className="mrk-card" style={{
+      padding: isMobile ? "40px 20px" : "60px 32px",
+      textAlign: "center",
+      animation: "fadeUp 0.4s ease",
+    }}>
+      <div style={{
+        width: 68, height: 68, borderRadius: "50%",
+        background: `linear-gradient(135deg, rgba(189,221,252,0.45), rgba(136,189,242,0.22))`,
+        border: `2px dashed rgba(136,189,242,0.50)`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        margin: "0 auto 18px",
+      }}>
+        <EyeOff size={26} color={C.mid} />
+      </div>
+      <h2 style={{ fontSize: isMobile ? 16 : 18, fontWeight: 800, color: C.dark, margin: "0 0 8px", fontFamily: FONT.sans }}>
+        Results Not Published Yet
+      </h2>
+      <p style={{ fontSize: 13, color: C.mid, maxWidth: 360, margin: "0 auto 22px", lineHeight: 1.65, fontWeight: 500 }}>
+        Marks have not been released for this exam yet. Check back once your teacher publishes the results.
+      </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, maxWidth: 260, margin: "0 auto 18px" }}>
+        <div style={{ flex: 1, height: 1, background: "rgba(136,189,242,0.28)" }} />
+        <span style={{ fontSize: 9, color: C.mid, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+          What to Expect
+        </span>
+        <div style={{ flex: 1, height: 1, background: "rgba(136,189,242,0.28)" }} />
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", maxWidth: 460, margin: "0 auto" }}>
+        {[
+          { icon: "📋", text: "Subject-wise marks" },
+          { icon: "📊", text: "Grade & percentage" },
+          { icon: "🏆", text: "Class rank" },
+          { icon: "📄", text: "PDF report card" },
+        ].map(({ icon, text }) => (
+          <div key={text} style={{
+            display: "flex", alignItems: "center", gap: 7,
+            background: "rgba(237,243,250,0.80)", borderRadius: 10, padding: "8px 14px",
+            border: `1.5px solid rgba(136,189,242,0.22)`,
+          }}>
+            <span style={{ fontSize: 14 }}>{icon}</span>
+            <span style={{ fontSize: 11, color: C.mid, fontWeight: 600, fontFamily: FONT.sans }}>{text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-  const getProgressBarColor = (percentage) => {
-    if (percentage >= 90) return 'bg-gradient-to-r from-green-500 to-emerald-500';
-    if (percentage >= 75) return 'bg-gradient-to-r from-blue-500 to-indigo-500';
-    if (percentage >= 60) return 'bg-gradient-to-r from-yellow-500 to-orange-500';
-    return 'bg-gradient-to-r from-red-500 to-pink-500';
-  };
+/* ── Error banner ── */
+function ErrorBanner({ message }) {
+  if (!message) return null;
+  return (
+    <div style={{
+      background: "rgba(239,68,68,0.08)", border: "1.5px solid rgba(239,68,68,0.28)",
+      borderRadius: 13, padding: "13px 16px", marginBottom: 16,
+      display: "flex", gap: 10, alignItems: "flex-start",
+      animation: "fadeUp 0.3s ease",
+    }}>
+      <AlertCircle size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: 1 }} />
+      <div>
+        <p style={{ color: "#b91c1c", fontWeight: 700, fontSize: 13, margin: 0, fontFamily: FONT.sans }}>
+          Unable to load results
+        </p>
+        <p style={{ color: "#ef4444", fontSize: 12, margin: "3px 0 0" }}>{message}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ── Vertical accent bar header ── */
+function PageHeader({ loading, enrollment, isMobile }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+      <div style={{
+        width: 4, height: isMobile ? 26 : 32, borderRadius: 99, flexShrink: 0,
+        background: `linear-gradient(180deg, ${C.light} 0%, ${C.dark} 100%)`,
+      }} />
+      <div>
+        <h1 style={{
+          margin: 0,
+          fontSize: isMobile ? "clamp(17px,5vw,20px)" : "clamp(20px,3vw,26px)",
+          fontWeight: 800, color: C.dark, letterSpacing: "-0.5px",
+          fontFamily: FONT.sans,
+        }}>
+          Marks &amp; Report Card
+        </h1>
+        <p style={{ margin: "3px 0 0", fontSize: 11, color: C.textLight, fontWeight: 500 }}>
+          {loading ? "Loading enrollment…"
+            : enrollment
+              ? `${enrollment.className} · ${enrollment.admissionNumber} · ${enrollment.academicYearName}`
+              : "No active enrollment"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════
+   MAIN
+═══════════════════════════════ */
+export default function Marks() {
+  const width    = useWindowWidth();
+  const isMobile = width < 640;
+  const isTablet = width >= 640 && width < 1024;
+
+  const [examGroups,    setExamGroups]    = useState([]);
+  const [selectedId,    setSelectedId]    = useState(null);
+  const [reportData,    setReportData]    = useState(null);
+  const [enrollment,    setEnrollment]    = useState(null);
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [errorGroups,   setErrorGroups]   = useState(null);
+  const [errorReport,   setErrorReport]   = useState(null);
+  const [pdfLoading,    setPdfLoading]    = useState(false);
+  const [notPublished,  setNotPublished]  = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      setLoadingGroups(true); setErrorGroups(null);
+      try {
+        const data = await apiFetch("/marks/exam-groups");
+        setExamGroups(data.examGroups ?? []);
+        setEnrollment(data.enrollment ?? null);
+        if (data.examGroups?.length > 0)
+          setSelectedId(data.examGroups[data.examGroups.length - 1].id);
+      } catch (e) { setErrorGroups(e.message); }
+      finally { setLoadingGroups(false); }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    (async () => {
+      setLoadingReport(true); setErrorReport(null);
+      setReportData(null); setNotPublished(false);
+      try {
+        const data = await apiFetch(`/marks/report/${selectedId}`);
+        setReportData(data);
+      } catch (e) {
+        if (e.message?.toLowerCase().includes("not") && e.message?.toLowerCase().includes("publish"))
+          setNotPublished(true);
+        else setErrorReport(e.message);
+      } finally { setLoadingReport(false); }
+    })();
+  }, [selectedId]);
+
+  const selectedGroup = examGroups.find((g) => g.id === selectedId);
+  const showReport    = !loadingReport && !!reportData;
+
+  const handleDownload = useCallback(() => {
+    if (!reportData) return;
+    setPdfLoading(true);
+    const enriched = {
+      ...reportData,
+      enrollment: { ...reportData.enrollment, schoolName: enrollment?.schoolName ?? "School" },
+    };
+    try { downloadReportPDF(enriched); }
+    finally { setTimeout(() => setPdfLoading(false), 600); }
+  }, [reportData, enrollment]);
 
   return (
     <PageLayout>
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl p-6 mb-6 shadow-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Award className="w-10 h-10" />
-            <div>
-              <h1 className="text-2xl font-bold">Marks & Results</h1>
-              <p className="text-blue-100 mt-1">Student XYZ Surname - SLC20252026 - Grade 10 Section A</p>
-            </div>
-          </div>
-          <select 
-            value={selectedTerm}
-            onChange={(e) => setSelectedTerm(e.target.value)}
-            className="px-4 py-2 bg-white text-gray-800 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
-          >
-            {termResults.map((term) => (
-              <option key={term.term} value={term.term}>{term.term}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <style>{GLOBAL_CSS}</style>
 
-      {/* Overall Performance Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm font-medium">Total Marks</p>
-              <p className="text-3xl font-bold text-blue-600 mt-2">{overallStats.totalMarks}/{overallStats.maxMarks}</p>
-            </div>
-            <FileText className="w-12 h-12 text-blue-500 opacity-20" />
-          </div>
-        </div>
+      <div className="mrk-page">
 
-        <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm font-medium">Percentage</p>
-              <p className="text-3xl font-bold text-green-600 mt-2">{overallStats.percentage}%</p>
-            </div>
-            <TrendingUp className="w-12 h-12 text-green-500 opacity-20" />
-          </div>
-        </div>
+        {/* ─── HEADER ROW ─── */}
+        <div className="anim-1" style={{
+          display: "flex",
+          alignItems: isMobile ? "flex-start" : "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap", gap: 12,
+          marginBottom: isMobile ? 14 : 20,
+        }}>
+          <PageHeader loading={loadingGroups} enrollment={enrollment} isMobile={isMobile} />
 
-        <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm font-medium">Overall Grade</p>
-              <p className="text-3xl font-bold text-blue-600 mt-2">{overallStats.grade}</p>
-            </div>
-            <Star className="w-12 h-12 text-blue-500 opacity-20" />
-          </div>
-        </div>
+          {/* Controls */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+            width: isMobile ? "100%" : "auto",
+          }}>
+            {!loadingGroups && examGroups.length > 0 && (
+              <div style={{ position: "relative", flex: isMobile ? "1" : "unset" }}>
+                <select
+                  className="mrk-select"
+                  value={selectedId ?? ""}
+                  onChange={(e) => setSelectedId(e.target.value)}
+                  style={{ width: isMobile ? "100%" : "auto" }}
+                >
+                  {examGroups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.term ? `${g.term.name}: ` : ""}{g.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={13} color={C.textLight} style={{
+                  position: "absolute", right: 11, top: "50%",
+                  transform: "translateY(-50%)", pointerEvents: "none",
+                }} />
+              </div>
+            )}
 
-        <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-500 text-sm font-medium">Class Rank</p>
-              <p className="text-3xl font-bold text-orange-600 mt-2">#{overallStats.rank}</p>
-              <p className="text-xs text-gray-500 mt-1">of {overallStats.totalStudents} students</p>
-            </div>
-            <Award className="w-12 h-12 text-orange-500 opacity-20" />
+            {showReport && (
+              <button
+                className="mrk-dl-btn"
+                onClick={handleDownload}
+                disabled={pdfLoading}
+                style={{ flex: isMobile ? "1" : "unset" }}
+              >
+                {pdfLoading
+                  ? <Loader2 size={13} style={{ animation: "spin 0.9s linear infinite" }} />
+                  : <Download size={13} />}
+                {pdfLoading ? "Preparing…" : "Download PDF"}
+              </button>
+            )}
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Subject-wise Marks */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-blue-600" />
-            Subject-wise Performance
-          </h2>
-          
-          <div className="space-y-4">
-            {subjectMarks.map((subject, index) => (
-              <div key={index} className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-bold text-gray-800">{subject.subject}</h3>
-                    <p className="text-xs text-gray-500 mt-1">Teacher: {subject.teacher}</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className={`text-2xl font-bold ${getPercentageColor(subject.percentage)}`}>
-                        {subject.obtained}/{subject.total}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">{subject.percentage}%</p>
-                    </div>
-                    <div className={`px-4 py-2 rounded-lg border-2 ${getGradeColor(subject.grade)} font-bold text-lg min-w-[60px] text-center`}>
-                      {subject.grade}
-                    </div>
-                  </div>
+        {/* ─── EXAM TABS ─── */}
+        {!loadingGroups && examGroups.length > 0 && (
+          <div className="anim-1" style={{ marginBottom: isMobile ? 14 : 20 }}>
+            <ExamTabs
+              examGroups={examGroups}
+              selectedGroupId={selectedId}
+              onChange={setSelectedId}
+              isMobile={isMobile}
+            />
+          </div>
+        )}
+
+        {/* ─── ERRORS ─── */}
+        <ErrorBanner message={errorGroups} />
+        <ErrorBanner message={errorReport} />
+
+        {/* ─── NO EXAMS ─── */}
+        {!loadingGroups && examGroups.length === 0 && !errorGroups && (
+          <div className="mrk-card" style={{
+            padding: isMobile ? "40px 20px" : "56px 24px",
+            textAlign: "center",
+          }}>
+            <FileText size={44} color="rgba(136,189,242,0.35)" style={{ margin: "0 auto 14px", display: "block" }} />
+            <p style={{ color: C.dark, fontWeight: 700, fontSize: 16, margin: "0 0 6px", fontFamily: FONT.sans }}>
+              No Exams Available
+            </p>
+            <p style={{ color: C.mid, fontSize: 13, margin: 0 }}>
+              No published exam results for your current enrollment.
+            </p>
+          </div>
+        )}
+
+        {/* ─── NOT PUBLISHED ─── */}
+        {!loadingReport && notPublished && <NotPublished isMobile={isMobile} />}
+
+        {/* ─── MAIN REPORT ─── */}
+        {(loadingReport || showReport) && (
+          <div style={{ animation: showReport ? "fadeUp 0.4s ease" : "none" }}>
+
+            <SummaryCards
+              summary={reportData?.summary}
+              loading={loadingReport}
+              isMobile={isMobile}
+              isTablet={isTablet}
+            />
+
+            {/* Table + Insights side by side on desktop */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: isMobile || isTablet ? "1fr" : "1fr 284px",
+              gap: isMobile ? 12 : 18,
+              alignItems: "start",
+            }}>
+              <SubjectTable
+                subjects={reportData?.subjectResults}
+                summary={reportData?.summary}
+                loading={loadingReport}
+                isLocked={selectedGroup?.isLocked}
+                isMobile={isMobile}
+              />
+              <PerformanceInsights
+                subjects={reportData?.subjectResults}
+                summary={reportData?.summary}
+                loading={loadingReport}
+                isMobile={isMobile}
+              />
+            </div>
+
+            {/* ─── Footer download bar ─── */}
+            {showReport && (
+              <div className="mrk-card" style={{
+                marginTop: isMobile ? 12 : 18,
+                padding: isMobile ? "14px 16px" : "16px 22px",
+                display: "flex",
+                alignItems: isMobile ? "flex-start" : "center",
+                justifyContent: "space-between",
+                flexDirection: isMobile ? "column" : "row",
+                gap: 12,
+                animation: "fadeUp 0.5s ease",
+              }}>
+                <div>
+                  <p style={{
+                    margin: 0, fontWeight: 700, color: C.dark,
+                    fontSize: isMobile ? 13 : 14, fontFamily: FONT.sans,
+                  }}>
+                    {reportData?.exam?.name}
+                    {reportData?.exam?.term ? ` — ${reportData.exam.term.name}` : ""}
+                  </p>
+                  <p style={{ margin: "3px 0 0", color: C.textLight, fontSize: 11, fontWeight: 500 }}>
+                    {reportData?.enrollment?.className}
+                    {reportData?.student?.rollNumber ? ` · Roll No: ${reportData.student.rollNumber}` : ""}
+                    {reportData?.enrollment?.academicYear ? ` · ${reportData.enrollment.academicYear}` : ""}
+                  </p>
                 </div>
-                
-                {/* Progress Bar */}
-                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                  <div 
-                    className={`h-full ${getProgressBarColor(subject.percentage)} transition-all duration-500`}
-                    style={{ width: `${subject.percentage}%` }}
-                  ></div>
-                </div>
+                <button
+                  className="mrk-dl-btn"
+                  onClick={handleDownload}
+                  disabled={pdfLoading}
+                  style={{
+                    padding: "10px 22px", fontSize: 13,
+                    width: isMobile ? "100%" : "auto",
+                  }}
+                >
+                  {pdfLoading
+                    ? <Loader2 size={14} style={{ animation: "spin 0.9s linear infinite" }} />
+                    : <Download size={14} />}
+                  {pdfLoading ? "Preparing PDF…" : "Print / Download Report Card"}
+                </button>
               </div>
-            ))}
+            )}
           </div>
-        </div>
+        )}
 
-        {/* Performance Analysis */}
-        <div className="space-y-6">
-          {/* Grade Distribution */}
-          <div className="bg-white rounded-2xl shadow-xl p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-blue-600" />
-              Grade Distribution
-            </h2>
-            
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-green-500 rounded flex items-center justify-center text-white font-bold text-sm">A+</div>
-                  <span className="text-sm text-gray-600">Excellent</span>
-                </div>
-                <span className="font-bold text-gray-800">5 subjects</span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-blue-500 rounded flex items-center justify-center text-white font-bold text-sm">A</div>
-                  <span className="text-sm text-gray-600">Very Good</span>
-                </div>
-                <span className="font-bold text-gray-800">2 subjects</span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-yellow-500 rounded flex items-center justify-center text-white font-bold text-sm">B+</div>
-                  <span className="text-sm text-gray-600">Good</span>
-                </div>
-                <span className="font-bold text-gray-800">1 subject</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Strengths & Improvements */}
-          <div className="bg-white rounded-2xl shadow-xl p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Target className="w-6 h-6 text-blue-600" />
-              Performance Insights
-            </h2>
-            
-            <div className="space-y-4">
-              <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded">
-                <p className="text-green-800 font-semibold text-sm mb-2">🏆 Top Performers</p>
-                <ul className="text-green-700 text-xs space-y-1">
-                  <li>• Computer Science (95%)</li>
-                  <li>• Mathematics (92%)</li>
-                  <li>• Social Studies (90%)</li>
-                </ul>
-              </div>
-              
-              <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
-                <p className="text-yellow-800 font-semibold text-sm mb-2">📈 Room for Improvement</p>
-                <ul className="text-yellow-700 text-xs space-y-1">
-                  <li>• Hindi (78%)</li>
-                  <li>• Focus on grammar & comprehension</li>
-                </ul>
-              </div>
-
-              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
-                <p className="text-blue-800 font-semibold text-sm mb-2">💡 Teacher's Recommendation</p>
-                <p className="text-blue-700 text-xs">Excellent overall performance! Keep up the consistent effort in all subjects.</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Term Comparison */}
-          <div className="bg-white rounded-2xl shadow-xl p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <TrendingUp className="w-6 h-6 text-blue-600" />
-              Term Comparison
-            </h2>
-            
-            <div className="space-y-3">
-              {termResults.map((term, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-semibold text-gray-800">{term.term}</p>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${getGradeColor(term.grade)}`}>
-                      {term.grade}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-600">Percentage: <span className="font-bold text-blue-600">{term.percentage}%</span></span>
-                    <span className="text-gray-600">Rank: <span className="font-bold text-orange-600">#{term.rank}</span></span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Download Report Button */}
-      <div className="mt-6 bg-white rounded-2xl shadow-lg p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-gray-800">Download Report Card</h3>
-            <p className="text-sm text-gray-600 mt-1">Get your detailed performance report in PDF format</p>
-          </div>
-          <button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-8 rounded-xl font-semibold transition shadow-md hover:shadow-lg transform hover:-translate-y-1 flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            Download Report
-          </button>
-        </div>
       </div>
     </PageLayout>
   );
 }
-
-export default MarksResults;

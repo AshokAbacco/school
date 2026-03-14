@@ -40,7 +40,7 @@ const IS = {
   borderRadius: 10,
   fontSize: 13,
   color: "#384959",
-  fontFamily: "Inter, sans-serif",
+   fontFamily: "'Inter', sans-serif",
   outline: "none",
   background: "#fff",
 };

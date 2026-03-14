@@ -307,6 +307,11 @@ model School {
   TimetableEntry        TimetableEntry[]
   subjectSyllabus       SubjectSyllabus[]
   portionProgress       SectionPortionProgress[]
+  galleryAlbums         GalleryAlbum[]
+  holidays              SchoolHoliday[]
+  activities            Activity[]
+  activityEvents        ActivityEvent[]
+  Award                 Award[]
 
   @@index([universityId])
   @@index([type])
@@ -503,6 +508,13 @@ model User {
   markedAttendances        AttendanceRecord[]   @relation("AttendanceMarkedBy")
   markedTeacherAttendances TeacherAttendance[]  @relation("TeacherAttendanceMarkedBy")
   financeProfile           FinanceProfile?
+  galleryAlbumsCreated     GalleryAlbum[]       @relation("UserGalleryAlbums")
+  SchoolHoliday            SchoolHoliday[]
+  createdActivities        Activity[]
+  createdEvents            ActivityEvent[]
+  createdTeams             EventTeam[]
+  recordedResults          EventResult[]
+  StudentAward             StudentAward[]
 
   @@unique([email, schoolId])
   @@index([role])
@@ -523,18 +535,25 @@ model Student {
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  personalInfo      StudentPersonalInfo?
-  documents         StudentDocumentInfo[]
-  enrollments       StudentEnrollment[]
-  marks             Marks[]
-  resultSummaries   ResultSummary[]
-  parentLinks       StudentParent[]
-  meetings          MeetingStudent[]
-  attendanceRecords AttendanceRecord[]
-  readmissions      StudentReadmission[]
+  personalInfo        StudentPersonalInfo?
+  documents           StudentDocumentInfo[]
+  enrollments         StudentEnrollment[]
+  marks               Marks[]
+  resultSummaries     ResultSummary[]
+  parentLinks         StudentParent[]
+  meetings            MeetingStudent[]
+  attendanceRecords   AttendanceRecord[]
+  readmissions        StudentReadmission[]
+  activityEnrollments StudentActivityEnrollment[]
+  eventParticipants   EventParticipant[]
+  teamMemberships     EventTeamMember[]
+  eventResults        EventResult[]
+  certificates        Certificate[]
+  StudentAward        StudentAward[]
 
   @@unique([email, schoolId])
   @@index([schoolId])
+  @@index([schoolId, isActive, createdAt])
   @@map("students")
 }
 
@@ -624,6 +643,7 @@ model StudentEnrollment {
   @@unique([classSectionId, academicYearId, rollNumber])
   @@index([classSectionId])
   @@index([academicYearId])
+  @@index([academicYearId, status])
   @@map("student_enrollments")
 }
 
@@ -750,6 +770,7 @@ model TeacherProfile {
   @@index([schoolId])
   @@index([department])
   @@index([status])
+  @@index([schoolId, createdAt])
   @@map("teacher_profiles")
 }
 
@@ -807,24 +828,30 @@ model AcademicYear {
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  classSectionYears  ClassSectionAcademicYear[]
-  timetableConfigs   TimetableConfig[]
-  classSubjects      ClassSubject[]
-  teacherAssignments TeacherAssignment[]
-  assessmentTerms    AssessmentTerm[]
-  assessmentGroups   AssessmentGroup[]
-  resultSummaries    ResultSummary[]
-  studentEnrollments StudentEnrollment[]
-  extraClasses       ExtraClass[]
-  meetings           Meeting[]
-  attendanceRecords  AttendanceRecord[]
-  TeacherAttendance  TeacherAttendance[]
-  TimetableEntry     TimetableEntry[]
-  subjectSyllabus    SubjectSyllabus[]
-  portionProgress    SectionPortionProgress[]
+  classSectionYears   ClassSectionAcademicYear[]
+  timetableConfigs    TimetableConfig[]
+  classSubjects       ClassSubject[]
+  teacherAssignments  TeacherAssignment[]
+  assessmentTerms     AssessmentTerm[]
+  assessmentGroups    AssessmentGroup[]
+  resultSummaries     ResultSummary[]
+  studentEnrollments  StudentEnrollment[]
+  extraClasses        ExtraClass[]
+  meetings            Meeting[]
+  attendanceRecords   AttendanceRecord[]
+  TeacherAttendance   TeacherAttendance[]
+  TimetableEntry      TimetableEntry[]
+  subjectSyllabus     SubjectSyllabus[]
+  portionProgress     SectionPortionProgress[]
+  holidays            SchoolHoliday[]
+  activities          Activity[]
+  activityEvents      ActivityEvent[]
+  activityEnrollments StudentActivityEnrollment[]
+  StudentAward        StudentAward[]
 
   @@unique([name, schoolId])
   @@index([schoolId])
+  @@index([schoolId, isActive])
   @@map("academic_years")
 }
 
@@ -859,6 +886,9 @@ model ClassSection {
   attendanceRecords   AttendanceRecord[]
   timetableEntries    TimetableEntry[]
   portionProgress     SectionPortionProgress[]
+  activityClasses     ActivityClass[]
+  eventClasses        EventClass[]
+  StudentAward        StudentAward[]
 
   @@index([schoolId])
   @@index([grade, schoolId])
@@ -1162,6 +1192,7 @@ model Meeting {
   @@index([schoolId])
   @@index([meetingDate])
   @@index([type])
+  @@index([schoolId, status, meetingDate])
   @@map("meetings")
 }
 
@@ -1242,6 +1273,8 @@ model AttendanceRecord {
   @@index([classSectionId, date])
   @@index([academicYearId])
   @@index([studentId])
+  @@index([academicYearId, date, status])
+  @@index([academicYearId, status, date])
   @@map("attendance_records")
 }
 
@@ -1270,6 +1303,7 @@ model TeacherAttendance {
   @@index([date])
   @@index([teacherId])
   @@index([schoolId])
+  @@index([schoolId, date, status])
   @@map("teacher_attendance")
 }
 
@@ -1408,4 +1442,468 @@ model SectionPortionProgress {
   @@index([schoolId])
   @@index([classSectionId])
   @@map("section_portion_progress")
+}
+
+model GalleryAlbum {
+  id String @id @default(uuid())
+
+  title       String
+  description String?
+  eventDate   DateTime?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User   @relation("UserGalleryAlbums", fields: [createdById], references: [id])
+
+  coverImageUrl String?
+
+  isPublished Boolean @default(true)
+
+  images GalleryImage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@map("gallery_albums")
+}
+
+model GalleryImage {
+  id String @id @default(uuid())
+
+  albumId String
+  album   GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  fileKey  String // full-resolution WebP (or PNG if transparent)
+  thumbKey String? // ← NEW: 300×300 WebP thumbnail key in R2
+  fileUrl  String? // deprecated — use signed URLs instead
+
+  fileType      String
+  fileSizeBytes Int?
+
+  caption    String?
+  uploadedAt DateTime @default(now())
+
+  @@index([albumId])
+  @@map("gallery_images")
+}
+
+enum HolidayType {
+  GOVERNMENT
+  SCHOOL
+}
+
+model SchoolHoliday {
+  id String @id @default(uuid())
+
+  title       String
+  description String?
+
+  type HolidayType
+
+  // GOVERNMENT holiday (repeat every year)
+  month Int?
+  day   Int?
+
+  // SCHOOL holiday (academic year specific)
+  startDate DateTime?
+  endDate   DateTime?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  academicYearId String?
+  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, month, day])
+  @@index([schoolId])
+  @@index([type])
+  @@index([title])
+  @@index([academicYearId, startDate])
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ACTIVITIES & EVENTS MODULE
+// ═══════════════════════════════════════════════════════════════
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum ActivityCategory {
+  SPORTS
+  CULTURAL
+  ACADEMIC
+  OTHER
+}
+
+enum ActivityParticipationType {
+  INDIVIDUAL
+  TEAM
+}
+
+enum EventParticipationMode {
+  INDIVIDUAL
+  TEAM
+  BOTH
+}
+
+enum EventType {
+  COMPETITION
+  CULTURAL
+  PARTICIPATION
+  CEREMONY
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  COMPLETED
+  CANCELLED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ResultType {
+  WINNER
+  RUNNER_UP
+  THIRD_PLACE
+  PARTICIPATED
+  SPECIAL_AWARD
+}
+
+enum CertificateStatus {
+  PENDING
+  GENERATED
+  ISSUED
+}
+
+// ─── Activity ────────────────────────────────────────────────────────────────
+
+model Activity {
+  id                String                    @id @default(uuid())
+  name              String
+  description       String?
+  category          ActivityCategory
+  participationType ActivityParticipationType
+  isArchived        Boolean                   @default(false)
+
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  activityClasses ActivityClass[]
+  enrollments     StudentActivityEnrollment[]
+  events          ActivityEvent[]
+
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([isArchived])
+  @@map("activities")
+}
+
+// ─── ActivityClass ───────────────────────────────────────────────────────────
+
+model ActivityClass {
+  id String @id @default(uuid())
+
+  activityId     String
+  activity       Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, classSectionId])
+  @@map("activity_classes")
+}
+
+// ─── StudentActivityEnrollment ───────────────────────────────────────────────
+
+model StudentActivityEnrollment {
+  id String @id @default(uuid())
+
+  studentId      String
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  activityId     String
+  activity       Activity     @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+
+  status     MembershipStatus @default(ACTIVE)
+  enrolledAt DateTime         @default(now())
+  leftAt     DateTime?
+
+  @@unique([studentId, activityId, academicYearId])
+  @@index([activityId])
+  @@index([studentId])
+  @@index([academicYearId])
+  @@map("student_activity_enrollments")
+}
+
+// ─── ActivityEvent ───────────────────────────────────────────────────────────
+
+model ActivityEvent {
+  id                  String                 @id @default(uuid())
+  name                String
+  description         String?
+  eventType           EventType
+  participationMode   EventParticipationMode
+  status              EventStatus            @default(DRAFT)
+  isArchived          Boolean                @default(false)
+  isAutoGenerated     Boolean                @default(false)
+  eventDate           DateTime?
+  venue               String?
+  maxTeamsPerClass    Int?
+  maxStudentsPerClass Int?
+
+  activityId     String?
+  activity       Activity?    @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  eligibleClasses EventClass[]
+  teams           EventTeam[]
+  participants    EventParticipant[]
+  results         EventResult[]
+  certificates    Certificate[]
+
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([activityId])
+  @@index([status])
+  @@index([isArchived])
+  @@index([isAutoGenerated])
+  @@map("activity_events")
+}
+
+// ─── EventClass ──────────────────────────────────────────────────────────────
+
+model EventClass {
+  id String @id @default(uuid())
+
+  eventId        String
+  event          ActivityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  classSectionId String
+  classSection   ClassSection  @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, classSectionId])
+  @@map("event_classes")
+}
+
+// ─── EventTeam ───────────────────────────────────────────────────────────────
+
+model EventTeam {
+  id       String  @id @default(uuid())
+  name     String
+  colorHex String?
+
+  eventId     String
+  event       ActivityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  members      EventTeamMember[]
+  results      EventResult[]
+  certificates Certificate[]
+
+  @@index([eventId])
+  @@map("event_teams")
+}
+
+// ─── EventTeamMember ─────────────────────────────────────────────────────────
+
+model EventTeamMember {
+  id String @id @default(uuid())
+
+  teamId    String
+  team      EventTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  studentId String
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  role      String?
+
+  @@unique([teamId, studentId])
+  @@index([studentId])
+  @@map("event_team_members")
+}
+
+// ─── EventParticipant ────────────────────────────────────────────────────────
+
+model EventParticipant {
+  id String @id @default(uuid())
+
+  eventId   String
+  event     ActivityEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  studentId String
+  student   Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  role         String?
+  participated Boolean @default(true)
+  score        Float?
+  remarks      String?
+
+  @@unique([eventId, studentId])
+  @@index([eventId])
+  @@index([studentId])
+  @@map("event_participants")
+}
+
+// ─── EventResult ─────────────────────────────────────────────────────────────
+// Single source of truth for all results.
+// Either studentId OR teamId must be set — enforced in controller logic.
+
+model EventResult {
+  id String @id @default(uuid())
+
+  eventId   String
+  event     ActivityEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  studentId String?
+  student   Student?      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  teamId    String?
+  team      EventTeam?    @relation(fields: [teamId], references: [id], onDelete: Restrict)
+
+  resultType ResultType
+  position   Int?
+  awardTitle String?
+  remarks    String?
+
+  recordedById String?
+  recordedBy   User?    @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  recordedAt   DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  certificates Certificate[]
+
+  @@unique([eventId, studentId])
+  @@unique([eventId, teamId])
+  @@index([eventId])
+  @@index([studentId])
+  @@index([teamId])
+  @@map("event_results")
+}
+
+// ─── Certificate ─────────────────────────────────────────────────────────────
+// Lightweight snapshot — content frozen at time of issuance.
+// PDF is generated dynamically from these fields, not stored.
+
+model Certificate {
+  id String @id @default(uuid())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  eventId String?
+  event   ActivityEvent? @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  teamId String?
+  team   EventTeam? @relation(fields: [teamId], references: [id], onDelete: Restrict)
+
+  resultId String?
+  result   EventResult? @relation(fields: [resultId], references: [id], onDelete: Restrict)
+
+  studentAwardId String?
+  studentAward   StudentAward? @relation(fields: [studentAwardId], references: [id], onDelete: Restrict)
+
+  studentName     String
+  eventName       String?
+  achievementText String
+  academicYear    String
+
+  issuedDate DateTime          @default(now())
+  status     CertificateStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, resultId]) // ✅ ADD
+  @@unique([studentId, studentAwardId]) // ✅ ADD
+  @@index([studentId])
+  @@index([eventId])
+  @@index([resultId])
+  @@index([studentAwardId])
+  @@index([status])
+  @@map("certificates")
+}
+
+enum AwardCategory {
+  ACADEMIC
+  ATTENDANCE
+  SPORTS
+  CULTURAL
+  DISCIPLINE
+  LEADERSHIP
+  SPECIAL
+}
+
+model Award {
+  id String @id @default(uuid())
+
+  name        String
+  description String?
+  category    AwardCategory
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentAwards StudentAward[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@map("awards")
+}
+
+model StudentAward {
+  id String @id @default(uuid())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  awardId String
+  award   Award  @relation(fields: [awardId], references: [id], onDelete: Restrict)
+
+  classSectionId String?
+  classSection   ClassSection? @relation(fields: [classSectionId], references: [id], onDelete: SetNull)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+
+  givenById String
+  givenBy   User   @relation(fields: [givenById], references: [id], onDelete: Restrict)
+
+  remarks String?
+
+  createdAt DateTime @default(now())
+
+  certificates Certificate[]
+
+  @@unique([studentId, awardId, academicYearId])
+  @@index([studentId])
+  @@index([academicYearId])
+  @@index([classSectionId])
+  @@map("student_awards")
 }

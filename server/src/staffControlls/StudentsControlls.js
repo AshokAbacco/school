@@ -288,7 +288,7 @@ export const savePersonalInfo = async (req, res) => {
     // ── Profile image upload ────────────────────────────────────────────────
     let profileImageUrl;
     if (req.file) {
-      const key = `students/${studentId}/profile/${Date.now()}-${req.file.originalname}`;
+      const key = `schools/${student.schoolId}/students/${studentId}/profile/${Date.now()}-${req.file.originalname}`;
       profileImageUrl = await uploadToR2(
         key,
         req.file.buffer,
@@ -460,7 +460,7 @@ export const uploadDocumentsBulk = async (req, res) => {
     const created = await Promise.all(
       req.files.map(async (file, idx) => {
         const { documentName, customLabel } = metadata[idx];
-        const key = `students/${studentId}/documents/${Date.now()}-${file.originalname}`;
+       const key = `schools/${student.schoolId}/students/${studentId}/documents/${Date.now()}-${file.originalname}`;
         await uploadToR2(key, file.buffer, file.mimetype);
         return prisma.studentDocumentInfo.create({
           data: {

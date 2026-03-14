@@ -142,7 +142,7 @@ function StatCards({ stats }) {
                 fontWeight: 800,
                 color: C.text,
                 lineHeight: 1,
-                fontFamily: "'Sora',sans-serif",
+               fontFamily: "'Inter', sans-serif",
                 letterSpacing: "-1px",
               }}
             >
@@ -154,7 +154,7 @@ function StatCards({ stats }) {
                 fontSize: 11,
                 fontWeight: 600,
                 color: C.textLight,
-                fontFamily: "'Sora',sans-serif",
+               fontFamily: "'Inter', sans-serif",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
               }}
@@ -203,7 +203,7 @@ function PanelHead({ title, sub, IconComp, iconColor = C.slate, right }) {
           <p
             style={{
               margin: 0,
-              fontFamily: "'Sora',sans-serif",
+             fontFamily: "'Inter', sans-serif",
               fontSize: 14,
               fontWeight: 700,
               color: C.text,
@@ -215,7 +215,7 @@ function PanelHead({ title, sub, IconComp, iconColor = C.slate, right }) {
             <p
               style={{
                 margin: 0,
-                fontFamily: "'Sora',sans-serif",
+               fontFamily: "'Inter', sans-serif",
                 fontSize: 11,
                 color: C.textLight,
                 marginTop: 1,
@@ -252,7 +252,7 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
         </div>
         <p
           style={{
-            fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             fontWeight: 600,
             color: C.text,
@@ -263,7 +263,7 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
         </p>
         <p
           style={{
-            fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
             fontSize: 12,
             color: C.textLight,
             margin: 0,
@@ -347,7 +347,7 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
               <p
                 style={{
                   margin: 0,
-                  fontFamily: "'Sora',sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                   fontSize: 16,
                   fontWeight: 800,
                   color: C.text,
@@ -360,7 +360,7 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
                 <p
                   style={{
                     margin: "3px 0 0",
-                    fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                     fontSize: 11,
                     color: C.textLight,
                   }}
@@ -381,7 +381,7 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
                     <span
                       key={chip}
                       style={{
-                        fontFamily: "'Sora',sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                         fontSize: 10,
                         fontWeight: 700,
                         padding: "2px 8px",
@@ -446,7 +446,7 @@ function Breadcrumb({ crumbs, onNavigate }) {
                   gap: 5,
                   padding: "5px 12px",
                   borderRadius: 10,
-                  fontFamily: "'Sora',sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                   fontSize: 12,
                   fontWeight: 700,
                   color: C.deep,
@@ -466,7 +466,7 @@ function Breadcrumb({ crumbs, onNavigate }) {
                   gap: 5,
                   padding: "5px 12px",
                   borderRadius: 10,
-                  fontFamily: "'Sora',sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                   fontSize: 12,
                   fontWeight: 600,
                   color: C.textLight,
@@ -508,7 +508,7 @@ function StatusBadge({ status = "" }) {
         gap: 6,
         padding: "3px 10px",
         borderRadius: 20,
-        fontFamily: "'Sora',sans-serif",
+       fontFamily: "'Inter', sans-serif",
         fontSize: 11,
         fontWeight: 700,
         background: s.bg,
@@ -557,7 +557,7 @@ function Avatar({ student }) {
         fontWeight: 700,
         flexShrink: 0,
         boxShadow: `0 3px 10px ${C.sky}44`,
-        fontFamily: "'Sora',sans-serif",
+       fontFamily: "'Inter', sans-serif",
       }}
     >
       {initials}
@@ -588,7 +588,7 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
         <Loader2 size={30} className="animate-spin" style={{ color: C.sky }} />
         <p
           style={{
-            fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             color: C.textLight,
             margin: 0,
@@ -627,7 +627,7 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
         </div>
         <p
           style={{
-            fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             fontWeight: 600,
             color: C.text,
@@ -638,7 +638,7 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
         </p>
         <p
           style={{
-            fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
             fontSize: 12,
             color: C.textLight,
             margin: 0,
@@ -681,7 +681,7 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p
                   style={{
-                    fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                     fontSize: 13,
                     fontWeight: 700,
                     color: C.text,
@@ -695,7 +695,7 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
                 </p>
                 <p
                   style={{
-                    fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                     fontSize: 11,
                     color: C.textLight,
                     margin: "2px 0 0",
@@ -717,7 +717,7 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
                   {enroll?.rollNumber && (
                     <span
                       style={{
-                        fontFamily: "'Sora',sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                         fontSize: 10,
                         fontWeight: 600,
                         color: C.textLight,
@@ -774,7 +774,7 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
           style={{
             width: "100%",
             borderCollapse: "collapse",
-            fontFamily: "'Sora',sans-serif",
+           fontFamily: "'Inter', sans-serif",
             fontSize: 13,
           }}
         >
@@ -1030,7 +1030,7 @@ function Pagination({ page, totalPages, total, showing, onPageChange }) {
       style={{
         padding: "7px 14px",
         borderRadius: 11,
-        fontFamily: "'Sora',sans-serif",
+       fontFamily: "'Inter', sans-serif",
         fontSize: 12,
         fontWeight: 700,
         background: active
@@ -1068,7 +1068,7 @@ function Pagination({ page, totalPages, total, showing, onPageChange }) {
     >
       <p
         style={{
-          fontFamily: "'Sora',sans-serif",
+         fontFamily: "'Inter', sans-serif",
           fontSize: 12,
           color: C.textLight,
           margin: 0,
@@ -1449,7 +1449,7 @@ function StudentsList() {
   const handleLevel1Select = (item) => {
     if (item.isLeaf) {
       setNavStack((p) => [
-        ...p.slice(0, 1),
+        ...p.slice(0, -0 || p.length),
         { label: item.label, icon: item.icon },
       ]);
       setSelectedSection(item.sectionObj);
@@ -1458,8 +1458,9 @@ function StudentsList() {
     } else {
       const l2 = buildLevel2Items(item.children);
       setLevel1Items(l2);
+      // Push onto the navStack so viewLevel increases and back-nav works
       setNavStack((p) => [
-        ...p.slice(0, 1),
+        ...p,
         { label: item.label, icon: item.icon },
       ]);
       setSelectedSection(null);
@@ -1471,10 +1472,18 @@ function StudentsList() {
       setLevel1Items([]);
       setSelectedSection(null);
       setStudents([]);
-    } else if (idx === 1) {
+    } else {
+      // Navigate back to any intermediate level
       setSelectedSection(null);
       setStudents([]);
-      setNavStack((p) => p.slice(0, 1));
+      setNavStack((p) => p.slice(0, idx));
+      // Rebuild level1Items for the parent at idx-1
+      const parentItem = level0Items.find(
+        (item) => item.label === navStack[0]?.label,
+      );
+      if (idx === 1 && parentItem?.children) {
+        setLevel1Items(buildLevel1Items(parentItem.children));
+      }
     }
   };
 
@@ -1501,7 +1510,7 @@ function StudentsList() {
           minHeight: "100vh",
           background: C.bg,
           padding: "28px 30px",
-          fontFamily: "'Sora',sans-serif",
+         fontFamily: "'Inter', sans-serif",
           backgroundImage: `radial-gradient(ellipse at 0% 0%, ${C.mist}40 0%, transparent 55%)`,
         }}
       >
@@ -1557,6 +1566,7 @@ function StudentsList() {
               >
                 {viewLevel === 0 && "Select to browse students"}
                 {viewLevel === 1 && `${navStack[0]?.label} — Select section`}
+                {viewLevel >= 2 && !selectedSection && `${navStack[navStack.length - 1]?.label} — Select section`}
                 {viewLevel >= 2 && selectedSection && selectedSection.name}
               </p>
             </div>
@@ -1574,7 +1584,7 @@ function StudentsList() {
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: "pointer",
-                fontFamily: "'Sora',sans-serif",
+               fontFamily: "'Inter', sans-serif",
                 boxShadow: `0 4px 14px ${C.deep}44`,
                 transition: "all 0.2s",
                 flexShrink: 0,
@@ -1654,8 +1664,8 @@ function StudentsList() {
           </div>
         )}
 
-        {/* ── LEVEL 1: Sub-items ── */}
-        {viewLevel === 1 && !selectedSection && (
+        {/* ── LEVEL 1+: Sub-items (handles BE→course, PUC→stream→combo, etc.) ── */}
+        {viewLevel >= 1 && !selectedSection && (
           <div
             className="fade-up"
             style={{
@@ -1667,9 +1677,9 @@ function StudentsList() {
             }}
           >
             <PanelHead
-              title={navStack[0]?.label}
+              title={navStack[navStack.length - 1]?.label}
               sub={`${level1Items.length} items`}
-              IconComp={navStack[0]?.icon || GraduationCap}
+              IconComp={navStack[navStack.length - 1]?.icon || GraduationCap}
               iconColor={C.sky}
               right={
                 <button
@@ -1686,7 +1696,7 @@ function StudentsList() {
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: "pointer",
-                    fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   }}
                   onMouseEnter={(e) =>
                     (e.currentTarget.style.background = `${C.mist}55`)
@@ -1755,7 +1765,7 @@ function StudentsList() {
                     color: C.text,
                     background: C.bg,
                     outline: "none",
-                    fontFamily: "'Sora',sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   }}
                   onFocus={(e) => (e.target.style.borderColor = C.sky)}
                   onBlur={(e) => (e.target.style.borderColor = C.border)}
@@ -1776,7 +1786,7 @@ function StudentsList() {
                   color: C.text,
                   background: C.bg,
                   outline: "none",
-                  fontFamily: "'Sora',sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                   minWidth: 140,
                 }}
               >
@@ -1805,7 +1815,7 @@ function StudentsList() {
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer",
-                  fontFamily: "'Sora',sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 }}
                 onMouseEnter={(e) =>
                   (e.currentTarget.style.background = `${C.mist}55`)
@@ -1833,7 +1843,7 @@ function StudentsList() {
                   color: "#8b1c1c",
                   fontSize: 13,
                   marginBottom: 14,
-                  fontFamily: "'Sora',sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 }}
               >
                 <AlertCircle size={14} style={{ flexShrink: 0 }} /> {error}
@@ -1872,7 +1882,7 @@ function StudentsList() {
                         background: `${C.sky}18`,
                         color: C.deep,
                         border: `1px solid ${C.sky}33`,
-                        fontFamily: "'Sora',sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                       }}
                     >
                       <BookOpen size={11} /> {selectedSection.name}
@@ -1882,6 +1892,24 @@ function StudentsList() {
                         setSelectedSection(null);
                         setStudents([]);
                         setNavStack((p) => p.slice(0, -1));
+                        // If going back to level 1, restore the correct level1Items
+                        if (navStack.length >= 2) {
+                          const parentItem = level0Items.find(
+                            (item) => item.label === navStack[0]?.label,
+                          );
+                          if (parentItem?.children) {
+                            const l1 = buildLevel1Items(parentItem.children);
+                            // Find the level-1 item that matches navStack[1]
+                            const l1Item = l1.find(
+                              (i) => i.label === navStack[1]?.label,
+                            );
+                            if (l1Item?.children) {
+                              setLevel1Items(buildLevel2Items(l1Item.children));
+                            } else {
+                              setLevel1Items(l1);
+                            }
+                          }
+                        }
                       }}
                       style={{
                         display: "flex",
@@ -1895,7 +1923,7 @@ function StudentsList() {
                         fontSize: 12,
                         fontWeight: 600,
                         cursor: "pointer",
-                        fontFamily: "'Sora',sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                       }}
                       onMouseEnter={(e) =>
                         (e.currentTarget.style.background = `${C.mist}55`)

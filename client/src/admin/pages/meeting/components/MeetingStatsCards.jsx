@@ -1,96 +1,39 @@
 // client/src/admin/pages/meeting/components/MeetingStatsCards.jsx
 import React from "react";
-import {
-  CalendarDays,
-  CheckCircle2,
-  Clock4,
-  XCircle,
-  Users,
-  TrendingUp,
-} from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock4, XCircle, Users, TrendingUp } from "lucide-react";
+
+const C = {
+  slate: "#6A89A7", mist: "#BDDDFC", sky: "#88BDF2",
+  deep: "#384959", bg: "#EDF3FA", white: "#FFFFFF",
+  border: "#C8DCF0", borderLight: "#DDE9F5", text: "#243340", textLight: "#6A89A7",
+};
 
 const cards = [
-  {
-    key: "total",
-    label: "Total Meetings",
-    icon: CalendarDays,
-    bg: "bg-[#BDDDFC]",
-    iconColor: "text-[#384959]",
-    textColor: "text-[#384959]",
-    border: "border-[#88BDF2]",
-  },
-  {
-    key: "scheduled",
-    label: "Scheduled",
-    icon: Clock4,
-    bg: "bg-white",
-    iconColor: "text-[#6A89A7]",
-    textColor: "text-[#384959]",
-    border: "border-[#BDDDFC]",
-  },
-  {
-    key: "completed",
-    label: "Completed",
-    icon: CheckCircle2,
-    bg: "bg-white",
-    iconColor: "text-emerald-500",
-    textColor: "text-[#384959]",
-    border: "border-[#BDDDFC]",
-  },
-  {
-    key: "cancelled",
-    label: "Cancelled",
-    icon: XCircle,
-    bg: "bg-white",
-    iconColor: "text-rose-400",
-    textColor: "text-[#384959]",
-    border: "border-[#BDDDFC]",
-  },
-  {
-    key: "totalParticipants",
-    label: "Total Participants",
-    icon: Users,
-    bg: "bg-white",
-    iconColor: "text-[#6A89A7]",
-    textColor: "text-[#384959]",
-    border: "border-[#BDDDFC]",
-  },
-  {
-    key: "thisMonth",
-    label: "This Month",
-    icon: TrendingUp,
-    bg: "bg-white",
-    iconColor: "text-[#88BDF2]",
-    textColor: "text-[#384959]",
-    border: "border-[#BDDDFC]",
-  },
+  { key: "total",             label: "Total Meetings", icon: CalendarDays,  accent: C.deep,    accentBg: C.mist },
+  { key: "scheduled",         label: "Scheduled",      icon: Clock4,        accent: "#3B82F6", accentBg: "#EFF6FF" },
+  { key: "completed",         label: "Completed",      icon: CheckCircle2,  accent: "#10B981", accentBg: "#F0FDF4" },
+  { key: "cancelled",         label: "Cancelled",      icon: XCircle,       accent: "#F43F5E", accentBg: "#FFF1F2" },
+  { key: "totalParticipants", label: "Participants",   icon: Users,         accent: C.slate,   accentBg: `${C.mist}66` },
+  { key: "thisMonth",         label: "This Month",     icon: TrendingUp,    accent: C.sky,     accentBg: `${C.sky}22` },
 ];
 
 export default function MeetingStatsCards({ stats = {}, loading = false }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
-      {cards.map(
-        ({ key, label, icon: Icon, bg, iconColor, textColor, border }) => (
-          <div
-            key={key}
-            className={`rounded-xl border ${border} ${bg} p-4 flex flex-col gap-2 shadow-sm`}
-          >
-            <div className="flex items-center justify-between">
-              <span className={`text-sm font-medium ${textColor} opacity-70`}>
-                {label}
-              </span>
-              <Icon size={16} className={iconColor} />
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px,1fr))", gap: 12, marginBottom: 20 }}>
+      {cards.map(({ key, label, icon: Icon, accent, accentBg }) => (
+        <div key={key} style={{ background: C.white, borderRadius: 16, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 2px 12px rgba(56,73,89,0.05)", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10,  fontFamily: "'Inter', sans-serif", }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 11, fontWeight: 500, color: C.textLight }}>{label}</span>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: accentBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon size={14} color={accent} />
             </div>
-            {loading ? (
-              <div className="h-7 w-12 bg-[#BDDDFC] rounded animate-pulse" />
-            ) : (
-              <span className={`text-xl font-bold ${textColor}`}>
-                {stats[key] ?? 0}
-              </span>
-            )}
           </div>
-        ),
-      )}
+          {loading
+            ? <div style={{ height: 28, width: 48, borderRadius: 8, background: `${C.mist}88` }} />
+            : <span style={{ fontSize: 24, fontWeight: 700, color: C.text, letterSpacing: "-0.5px", lineHeight: 1 }}>{stats[key] ?? 0}</span>
+          }
+        </div>
+      ))}
     </div>
   );
 }

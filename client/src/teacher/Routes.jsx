@@ -9,6 +9,8 @@ import {
 import Dashboard from "./dashboard/Dashboard";
 import Attendance from "./pages/Attendance/Attendance";
 import CurriculumPage from "./pages/curriculum/CurriculumPage";
+import ActivitiesAndEvents from "./pages/Activities/index";
+import AwardsPage from "./pages/awardspage/Awardspage";
 
 function TeachersRoutes() {
   return (
@@ -20,6 +22,8 @@ function TeachersRoutes() {
 
       {/* Curriculum Route */}
       <Route path="/curriculum" element={<CurriculumPage />} />
+     <Route path="/activities" element={<ActivitiesAndEvents />} />
+     <Route path="/teacher/awards" element={<AwardsPage />} />
 
       {/* Redirect any unknown route to dashboard */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
