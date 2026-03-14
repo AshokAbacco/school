@@ -38,7 +38,7 @@ const IS = {
   borderRadius: 10,
   fontSize: 13,
   color: "#384959",
-  fontFamily: "Inter, sans-serif",
+   fontFamily: "'Inter', sans-serif",
   outline: "none",
   width: "100%",
   background: "#fff",
@@ -154,7 +154,8 @@ function ReadmitModal({ student, years, grade8Sections, onClose, onSuccess }) {
               Previous Admission Info
             </p>
             <p className="text-xs" style={{ color: "#92400e" }}>
-              Admission No: <strong>{student.admissionNumber}</strong>
+              Admission No:{" "}
+              <strong>{lastEnrollment?.admissionNumber || "-"}</strong>
             </p>
             <p className="text-xs" style={{ color: "#92400e" }}>
               Last Class:{" "}
@@ -353,7 +354,7 @@ function StudentCard({ student, onReadmit }) {
           </p>
           <div className="flex items-center gap-2">
             <span className="text-xs" style={{ color: C.mid }}>
-              Adm: {student.admissionNumber}
+              Adm: {lastEnrollment?.admissionNumber || "-"}
             </span>
             {lastEnrollment && (
               <span className="text-xs" style={{ color: C.mid }}>
@@ -430,7 +431,7 @@ export default function ReadmissionPage() {
   const filtered = students.filter((s) => {
     const name =
       `${s.personalInfo?.firstName} ${s.personalInfo?.lastName}`.toLowerCase();
-    const adm = s.admissionNumber?.toLowerCase();
+    const adm = s.enrollments?.[0]?.admissionNumber?.toLowerCase();
     const q = search.toLowerCase();
     return name.includes(q) || adm?.includes(q);
   });

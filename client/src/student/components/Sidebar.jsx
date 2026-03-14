@@ -1,85 +1,212 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Home, User, BookOpen, GraduationCap, CalendarCheck, BarChart3, Clock, Activity, X, Award, School } from 'lucide-react';
+import React from "react";
+import { Link, useLocation } from "react-router-dom";
+import {
+  Home,
+  User,
+  CalendarCheck,
+  BarChart3,
+  Clock,
+  Activity,
+  Award,
+  GraduationCap,
+  X,
+} from "lucide-react";
 
-function Sidebar({ isOpen, onClose }) {
-  const location = useLocation();
-  
-  const menuItems = [
-    { icon: Home, label: "Dashboard", href: "/dashboard" },
-    { icon: User, label: "Profile", href: "/profile" },
-    { icon: CalendarCheck, label: "Attendance", href: "/attendance" },
-    { icon: BarChart3, label: "Marks & Results", href: "/marks" },
-    { icon: Clock, label: "Time Table", href: "/time-table" },
-    { icon: Activity, label: "Activities", href: "/activites" },
-    { icon: Award, label: "Certificates", href: "/certicates" },
-    // { icon: School, label: "ClassRoom", href: "/settings" },
-  ];
-    
-  const isActive = (href) => {
-    return location.pathname === href || location.pathname.startsWith(href + '/');
-  };
+const NAV = [
+  { icon: Home,         label: "Dashboard",     to: "/dashboard" },
+  { icon: User,         label: "Profile",        to: "/profile" },
+  { icon: CalendarCheck,label: "Attendance",     to: "/attendance" },
+  { icon: BarChart3,    label: "Marks & Results",to: "/marks" },
+  { icon: Clock,        label: "Time Table",     to: "/time-table" },
+  { icon: Activity,     label: "Activities",     to: "/activites" },
+  { icon: Award,        label: "Certificates",   to: "/certicates" },
+];
+
+const initials = (name = "AU") =>
+  name
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+export default function Sidebar({ isOpen, onClose, user }) {
+  const { pathname } = useLocation();
+  const isActive = (to) => pathname === to || pathname.startsWith(to + "/");
+
+  const displayName = user?.name || "Student User";
+  const displayRole = user?.role || "Student";
 
   return (
     <>
-      {/* Overlay for mobile */}
+      {/* Mobile overlay */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          style={{
+            background: "rgba(106,137,167,0.35)",
+            backdropFilter: "blur(2px)",
+          }}
           onClick={onClose}
         />
       )}
-      
-      {/* Sidebar */}
-      <aside 
-        className={`${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0 fixed md:static inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transition-transform duration-300 flex flex-col`}
+
+      <aside
+        className={`
+          fixed md:static inset-y-0 left-0 z-50
+          flex flex-col w-64 h-screen
+          transition-transform duration-300
+          ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        `}
+        style={{ background: "#3f556b", fontFamily: "'Inter', sans-serif" }}
       >
-        {/* Logo & Close Button */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-300"> 
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-white" />
+        {/* ── Logo ── */}
+        <div
+          className="flex items-center justify-between px-5 h-16 flex-shrink-0"
+          style={{ borderBottom: "1px solid rgba(136,189,242,0.12)" }}
+        >
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{
+                background: "linear-gradient(135deg, #88BDF2, #6A89A7)",
+              }}
+            >
+              <GraduationCap size={18} color="#fff" />
             </div>
-            <h1 className="text-xl font-bold text-gray-800"> Student SchoolHub</h1>
+            <div className="leading-tight">
+              <p className="font-bold text-sm" style={{ color: "#fff" }}>
+                SchoolHub
+              </p>
+              <p
+                className="text-[10px] font-semibold uppercase tracking-[0.12em]"
+                style={{ color: "rgb(200, 200, 200)" }}
+              >
+                Student Portal
+              </p>
+            </div>
           </div>
-          <button 
-            onClick={onClose} 
-            className="md:hidden text-gray-500 hover:text-gray-700"
+          <button
+            onClick={onClose}
+            className="md:hidden rounded-lg p-1 transition-opacity hover:opacity-60"
+            style={{
+              color: "#6A89A7",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+            }}
           >
-            <X className="w-6 h-6" />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {menuItems.map((item) => (
-            <Link
-              key={item.label}
-              to={item.href}
-              onClick={() => onClose()}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                isActive(item.href)
-                  ? 'bg-blue-50 text-blue-600 font-medium'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <item.icon className="w-5 h-5" />
-              <span>{item.label}</span>
-            </Link>
-          ))}
+        {/* ── Nav items ── */}
+        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
+          {NAV.map(({ icon: Icon, label, to }) => {
+            const active = isActive(to);
+            return (
+              <Link
+                key={to}
+                to={to}
+                onClick={onClose}
+                style={{ textDecoration: "none" }}
+              >
+                <div
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 relative"
+                  style={{
+                    background: active
+                      ? "rgba(136,189,242,0.15)"
+                      : "transparent",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!active)
+                      e.currentTarget.style.background =
+                        "rgba(136,189,242,0.07)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active)
+                      e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  {/* Active left bar */}
+                  {active && (
+                    <span
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
+                      style={{ background: "#88BDF2" }}
+                    />
+                  )}
+
+                  <Icon
+                    size={17}
+                    style={{
+                      color: active ? "#88BDF2" : "#6A89A7",
+                      flexShrink: 0,
+                    }}
+                  />
+
+                  <span
+                    className="text-sm"
+                    style={{
+                      color: active ? "#e8f4fd" : "#8fafc4",
+                      fontWeight: active ? 600 : 400,
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    {label}
+                  </span>
+
+                  {/* Active dot */}
+                  {active && (
+                    <span
+                      className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0"
+                      style={{ background: "#88BDF2" }}
+                    />
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </nav>
 
-        {/* User Profile Section */}
-        <div className="p-4 border-t">
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
-              AU
+        {/* ── User card ── */}
+        <div
+          className="px-3 py-3 flex-shrink-0"
+          style={{ borderTop: "1px solid rgba(136,189,242,0.12)" }}
+        >
+          <div
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+            style={{ background: "rgba(136,189,242,0.08)" }}
+          >
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+              style={{
+                background: "linear-gradient(135deg, #6A89A7, #384959)",
+                color: "#BDDDFC",
+              }}
+            >
+              {initials(displayName)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm text-gray-800 truncate">Student User</p>
-              <p className="text-xs text-gray-500">Administrator</p>
+              <p
+                className="text-sm font-semibold truncate"
+                style={{
+                  color: "#e8f4fd",
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                {displayName}
+              </p>
+              <p
+                className="text-[11px] truncate"
+                style={{
+                  color: "#6A89A7",
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                {displayRole}
+              </p>
             </div>
           </div>
         </div>
@@ -87,5 +214,3 @@ function Sidebar({ isOpen, onClose }) {
     </>
   );
 }
-
-export default Sidebar;

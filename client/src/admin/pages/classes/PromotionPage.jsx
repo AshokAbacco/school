@@ -20,7 +20,6 @@ import { useNavigate } from "react-router-dom";
 import PageLayout from "../../components/PageLayout";
 import {
   fetchAcademicYears,
-  createAcademicYear,
   fetchPromotionPreview,
   runPromotion as apiRunPromotion,
 } from "./api/classesApi";
@@ -41,7 +40,7 @@ const IS = {
   borderRadius: 10,
   fontSize: 13,
   color: "#384959",
-  fontFamily: "Inter, sans-serif",
+   fontFamily: "'Inter', sans-serif",
   outline: "none",
   background: "#fff",
 };
@@ -289,9 +288,34 @@ export default function PromotionPage() {
   };
 
   const handleRun = async () => {
+    if (!fromYearId)
+      return setToast({ type: "error", msg: "Select source academic year" });
+
+    if (!toYearName.trim())
+      return setToast({
+        type: "error",
+        msg: "Enter target academic year name",
+      });
+
+    const existingYear = years.find(
+      (y) => y.name.toLowerCase() === toYearName.trim().toLowerCase(),
+    );
+
+    // If year doesn't exist, dates are mandatory
+    if (!existingYear) {
+      if (!toYearStart || !toYearEnd) {
+        return setToast({
+          type: "error",
+          msg: "Start and End date required when creating a new academic year",
+        });
+      }
+    }
+
     if (
       !window.confirm(
-        `This will promote students from ${years.find((y) => y.id === fromYearId)?.name} to ${toYearName}. This cannot be undone easily. Continue?`,
+        `This will promote students from ${
+          years.find((y) => y.id === fromYearId)?.name
+        } to ${toYearName}. This cannot be undone easily. Continue?`,
       )
     )
       return;
@@ -305,6 +329,7 @@ export default function PromotionPage() {
         toAcademicYearEndDate: toYearEnd || undefined,
         gradeFilter: gradeFilter || undefined,
       });
+
       setResult(res.results);
       setStep(3);
       setToast({ type: "success", msg: "Promotion completed successfully!" });
@@ -846,7 +871,7 @@ export default function PromotionPage() {
             <div className="flex gap-3">
               {config.hasReadmission && result.skipped > 0 && (
                 <button
-                  onClick={() => navigate("/admin/readmission")}
+                  onClick={() => navigate("/classes/readmission")}
                   style={{
                     flex: 1,
                     padding: "10px 0",
@@ -869,6 +894,10 @@ export default function PromotionPage() {
                   setSummary(null);
                   setResult(null);
                   setToYearName("");
+                  setToYearStart("");
+                  setToYearEnd("");
+                  setGradeFilter("");
+                  setFromYearId(years.find((y) => y.isActive)?.id || "");
                 }}
                 className="flex items-center justify-center gap-2 text-sm font-bold text-white rounded-xl"
                 style={{

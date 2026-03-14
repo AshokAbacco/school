@@ -1,7 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 //  ACADEMIC ERP — UPDATED PRISMA SCHEMA
-//  Added: Stream, Course, CourseBranch, SchoolPromotionConfig,
-//         StudentReadmission, updated StudentStatus + SchoolType
+//  Added: heightCm, weightKg, identifyingMarks, motherTongue,
+//         subcaste, annualIncome, physicallyChallenged,
+//         disabilityType, domicileState on StudentPersonalInfo
+//  Added: previousSchoolName, previousSchoolBoard, udiseCode,
+//         lateralEntry on StudentEnrollment
 // ═══════════════════════════════════════════════════════════════
 
 generator client {
@@ -12,10 +15,6 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  ENUMS
-// ═══════════════════════════════════════════════════════════════
 
 enum StaffRole {
   SUPER_ADMIN
@@ -30,13 +29,19 @@ enum Gender {
   OTHER
 }
 
+enum SlotDayType {
+  WEEKDAY
+  SATURDAY
+}
+
 enum StudentStatus {
   ACTIVE
-  INACTIVE // Transferred to another school
-  GRADUATED // Completed last grade
-  SUSPENDED // Admin decides manually
-  PENDING_READMISSION // Grade 7 skip — waiting for re-admission
-  FAILED // Held back, repeats same grade next year
+  COMPLETED
+  INACTIVE
+  GRADUATED
+  SUSPENDED
+  PENDING_READMISSION
+  FAILED
 }
 
 enum BloodGroup {
@@ -92,13 +97,12 @@ enum TeacherDocumentType {
   CUSTOM
 }
 
-// ── UPDATED: Simplified school types ────────────────────────────
 enum SchoolType {
-  SCHOOL // Grade 1–10 (Primary, Upper Primary, High School all combined)
-  PUC // Grade 11–12 with streams
-  DIPLOMA // Semester-based (3 years typically)
-  DEGREE // Semester-based (3–5 years)
-  POSTGRADUATE // Semester-based (2 years)
+  SCHOOL
+  PUC
+  DIPLOMA
+  DEGREE
+  POSTGRADUATE
   OTHER
 }
 
@@ -176,23 +180,37 @@ enum TeacherAttendanceStatus {
   ON_LEAVE
 }
 
-// ── NEW: Course type enum ────────────────────────────────────────
 enum CourseType {
-  STREAM // PUC: Science, Commerce, Arts
-  DEGREE_COURSE // Degree/Diploma/PG: BTech, BA, BCom
+  STREAM
+  DEGREE_COURSE
 }
 
-// ── NEW: Promotion action enum ───────────────────────────────────
 enum PromotionAction {
   PROMOTED
   GRADUATED
-  SKIPPED // Grade 7 — PENDING_READMISSION
+  SKIPPED
   READMITTED
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  UNIVERSITY
-// ═══════════════════════════════════════════════════════════════
+enum CasteCategory {
+  SC
+  ST
+  OBC
+  GM
+  OTHER
+}
+
+// ── NEW: Previous school board enum ───────────────────────────
+enum SchoolBoard {
+  KSEEB // Karnataka State Board
+  CBSE
+  ICSE
+  NIOS // National Institute of Open Schooling
+  IB // International Baccalaureate
+  IGCSE
+  STATE // Other state boards
+  OTHER
+}
 
 model University {
   id        String   @id @default(uuid())
@@ -215,10 +233,6 @@ model University {
   @@index([code])
   @@map("universities")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  SUPER ADMIN
-// ═══════════════════════════════════════════════════════════════
 
 model SuperAdmin {
   id           String    @id @default(uuid())
@@ -253,10 +267,6 @@ model SuperAdminSchoolAccess {
   @@map("super_admin_school_access")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  SCHOOL
-// ═══════════════════════════════════════════════════════════════
-
 model School {
   id        String     @id @default(uuid())
   name      String
@@ -281,9 +291,8 @@ model School {
   teachers              TeacherProfile[]
   academicYears         AcademicYear[]
   classSections         ClassSection[]
-  subjects              Subject[] // ✅ NEW: central subject registry
+  subjects              Subject[]
   timetableConfigs      TimetableConfig[]
-  timetableEntries      TimetableEntry[]
   assessmentTerms       AssessmentTerm[]
   assessmentGroups      AssessmentGroup[]
   FinanceProfile        FinanceProfile[]
@@ -295,6 +304,14 @@ model School {
   ExtraClass            ExtraClass[]
   Meeting               Meeting[]
   TeacherAttendance     TeacherAttendance[]
+  TimetableEntry        TimetableEntry[]
+  subjectSyllabus       SubjectSyllabus[]
+  portionProgress       SectionPortionProgress[]
+  galleryAlbums         GalleryAlbum[]
+  holidays              SchoolHoliday[]
+  activities            Activity[]
+  activityEvents        ActivityEvent[]
+  Award                 Award[]
 
   @@index([universityId])
   @@index([type])
@@ -302,14 +319,10 @@ model School {
   @@map("schools")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  NEW: STREAM (PUC only — Science, Commerce, Arts etc.)
-// ═══════════════════════════════════════════════════════════════
-
 model Stream {
   id              String   @id @default(uuid())
-  name            String // "Science", "Commerce", "Arts", "Vocational"
-  code            String? // Optional short code
+  name            String
+  code            String?
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -325,16 +338,12 @@ model Stream {
   @@map("streams")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  NEW: COURSE (Degree/Diploma/PG — BTech, BA, BCom etc.)
-// ═══════════════════════════════════════════════════════════════
-
 model Course {
   id             String     @id @default(uuid())
-  name           String // "BTech", "BA", "BCom", "Civil Engineering"
-  code           String? // Optional short code "CS", "ME"
+  name           String
+  code           String?
   type           CourseType @default(DEGREE_COURSE)
-  totalSemesters Int // BTech=8, BA=6, Diploma=6
+  totalSemesters Int
   isActive       Boolean    @default(true)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
@@ -350,14 +359,10 @@ model Course {
   @@map("courses")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  NEW: COURSE BRANCH (CSE, ECE under BTech etc.)
-// ═══════════════════════════════════════════════════════════════
-
 model CourseBranch {
   id        String   @id @default(uuid())
-  name      String // "Computer Science", "Electronics"
-  code      String? // "CSE", "ECE"
+  name      String
+  code      String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
@@ -371,11 +376,6 @@ model CourseBranch {
   @@map("course_branches")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  NEW: SCHOOL PROMOTION CONFIG
-//  Auto-created when school is created based on schoolType
-// ═══════════════════════════════════════════════════════════════
-
 model SchoolPromotionConfig {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
@@ -384,26 +384,12 @@ model SchoolPromotionConfig {
   schoolId String @unique
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  // Grades to skip during promotion (only for SCHOOL type)
-  // e.g., ["Grade 7"] — these students get PENDING_READMISSION
   skipGrades String[]
-
-  // Last grade/semester — students here get GRADUATED
-  // e.g., "Grade 10", "Grade 12", "Semester 8"
-  // For DEGREE/DIPLOMA: handled per-course via Course.totalSemesters
-  lastGrade String?
-
-  // First grade/semester — always empty (fresh admissions)
-  // e.g., "Grade 1", "Grade 11", "Semester 1"
+  lastGrade  String?
   firstGrade String?
 
   @@map("school_promotion_configs")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  NEW: PROMOTION LOG
-//  Tracks each promotion run for audit trail
-// ═══════════════════════════════════════════════════════════════
 
 model PromotionLog {
   id        String   @id @default(uuid())
@@ -417,21 +403,16 @@ model PromotionLog {
 
   totalPromoted  Int @default(0)
   totalGraduated Int @default(0)
-  totalSkipped   Int @default(0) // PENDING_READMISSION
+  totalSkipped   Int @default(0)
   totalFailed    Int @default(0)
   totalInactive  Int @default(0)
 
-  triggeredById String // userId of admin who ran promotion
+  triggeredById String
   notes         String?
 
   @@index([schoolId])
   @@map("promotion_logs")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  NEW: STUDENT READMISSION
-//  Tracks Grade 7 → Grade 8 re-admissions (School type only)
-// ═══════════════════════════════════════════════════════════════
 
 model StudentReadmission {
   id        String   @id @default(uuid())
@@ -440,15 +421,13 @@ model StudentReadmission {
   studentId String
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  // Previous info (preserved history)
   previousAdmissionNumber String
-  previousGrade           String // "Grade 7"
+  previousGrade           String
   previousAcademicYearId  String
   previousClassSectionId  String
 
-  // New info after re-admission
   newAdmissionNumber String
-  newGrade           String // "Grade 8"
+  newGrade           String
   newAcademicYearId  String
   newClassSectionId  String
 
@@ -458,10 +437,6 @@ model StudentReadmission {
   @@index([studentId])
   @@map("student_readmissions")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  PARENT
-// ═══════════════════════════════════════════════════════════════
 
 enum ParentRelation {
   FATHER
@@ -513,10 +488,6 @@ model StudentParent {
   @@map("student_parents")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  USER
-// ═══════════════════════════════════════════════════════════════
-
 model User {
   id          String    @id @default(uuid())
   name        String
@@ -537,6 +508,13 @@ model User {
   markedAttendances        AttendanceRecord[]   @relation("AttendanceMarkedBy")
   markedTeacherAttendances TeacherAttendance[]  @relation("TeacherAttendanceMarkedBy")
   financeProfile           FinanceProfile?
+  galleryAlbumsCreated     GalleryAlbum[]       @relation("UserGalleryAlbums")
+  SchoolHoliday            SchoolHoliday[]
+  createdActivities        Activity[]
+  createdEvents            ActivityEvent[]
+  createdTeams             EventTeam[]
+  recordedResults          EventResult[]
+  StudentAward             StudentAward[]
 
   @@unique([email, schoolId])
   @@index([role])
@@ -544,10 +522,6 @@ model User {
   @@index([schoolId])
   @@map("users")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  STUDENT
-// ═══════════════════════════════════════════════════════════════
 
 model Student {
   id        String   @id @default(uuid())
@@ -558,31 +532,30 @@ model Student {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  admissionNumber String
-  schoolId        String
-  school          School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  personalInfo      StudentPersonalInfo?
-  documents         StudentDocumentInfo[]
-  enrollments       StudentEnrollment[]
-  marks             Marks[]
-  resultSummaries   ResultSummary[]
-  parentLinks       StudentParent[]
-  meetings          MeetingStudent[]
-  attendanceRecords AttendanceRecord[]
-
-  // ── NEW ────────────────────────────────────────────────────
-  readmissions StudentReadmission[]
+  personalInfo        StudentPersonalInfo?
+  documents           StudentDocumentInfo[]
+  enrollments         StudentEnrollment[]
+  marks               Marks[]
+  resultSummaries     ResultSummary[]
+  parentLinks         StudentParent[]
+  meetings            MeetingStudent[]
+  attendanceRecords   AttendanceRecord[]
+  readmissions        StudentReadmission[]
+  activityEnrollments StudentActivityEnrollment[]
+  eventParticipants   EventParticipant[]
+  teamMemberships     EventTeamMember[]
+  eventResults        EventResult[]
+  certificates        Certificate[]
+  StudentAward        StudentAward[]
 
   @@unique([email, schoolId])
-  @@unique([admissionNumber, schoolId])
   @@index([schoolId])
+  @@index([schoolId, isActive, createdAt])
   @@map("students")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  STUDENT PERSONAL INFO
-// ═══════════════════════════════════════════════════════════════
 
 model StudentPersonalInfo {
   id        String   @id @default(uuid())
@@ -598,15 +571,26 @@ model StudentPersonalInfo {
   gender       Gender?
   profileImage String?
 
-  phone   String?
-  address String?
-  city    String?
-  state   String?
-  zipCode String?
+  phone         String?
+  address       String?
+  city          String?
+  state         String?
+  zipCode       String?
+  aadhaarNumber String?        @db.VarChar(12)
+  panNumber     String?        @db.VarChar(10)
+  satsNumber    String?
+  nationality   String?        @default("Indian")
+  religion      String?
+  casteCategory CasteCategory?
 
-  admissionDate DateTime
-  rollNumber    String?
-  status        StudentStatus @default(ACTIVE)
+  // ── NEW: Karnataka / India specific identity fields ────────
+  motherTongue         String? // Kannada, Telugu, Tamil, Hindi, English, Urdu, Other
+  subcaste             String? // Sub-caste (needed for SC/ST/OBC certificates)
+  domicileState        String? @default("Karnataka")
+  annualIncome         Float? // Family annual income (needed for fee waivers)
+  physicallyChallenged Boolean @default(false)
+  disabilityType       String? // e.g. Visual, Hearing, Locomotor, etc.
+  // ──────────────────────────────────────────────────────────
 
   parentName       String?
   parentEmail      String?
@@ -617,17 +601,22 @@ model StudentPersonalInfo {
   medicalConditions String?
   allergies         String?
 
+  // ── NEW: Health measurements ───────────────────────────────
+  heightCm         Float?
+  weightKg         Float?
+  identifyingMarks String? // Birthmarks, scars, etc.
+  // ──────────────────────────────────────────────────────────
+
   @@map("student_personal_info")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  STUDENT ENROLLMENT
-// ═══════════════════════════════════════════════════════════════
 
 model StudentEnrollment {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  admissionNumber String
+  admissionDate   DateTime
 
   studentId String
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -642,16 +631,21 @@ model StudentEnrollment {
   externalId String?
   status     StudentStatus @default(ACTIVE)
 
-  @@unique([classSectionId, academicYearId, rollNumber])
+  // ── NEW: Previous institution details ─────────────────────
+  previousSchoolName  String? // Name of school/college student came from
+  previousSchoolBoard SchoolBoard? // KSEEB, CBSE, ICSE, etc.
+  udiseCode           String? // Karnataka: UDISE code of previous school
+  lateralEntry        Boolean      @default(false) // Diploma/Degree lateral entry
+  // ──────────────────────────────────────────────────────────
+
   @@unique([studentId, academicYearId])
+  @@unique([admissionNumber, academicYearId])
+  @@unique([classSectionId, academicYearId, rollNumber])
   @@index([classSectionId])
   @@index([academicYearId])
+  @@index([academicYearId, status])
   @@map("student_enrollments")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  STUDENT DOCUMENTS
-// ═══════════════════════════════════════════════════════════════
 
 model StudentDocumentInfo {
   id        String   @id @default(uuid())
@@ -677,10 +671,6 @@ model StudentDocumentInfo {
   @@map("student_document_info")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  SUBJECT
-// ═══════════════════════════════════════════════════════════════
-
 model Subject {
   id          String  @id @default(uuid())
   name        String
@@ -693,20 +683,18 @@ model Subject {
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   classSubjects       ClassSubject[]
-  timetableEntries    TimetableEntry[]
   assessmentSchedules AssessmentSchedule[]
   TeacherAssignment   TeacherAssignment[]
   extraClasses        ExtraClass[]
+  timetableEntries    TimetableEntry[]
+  subjectSyllabus     SubjectSyllabus[]
+  portionProgress     SectionPortionProgress[]
 
   @@unique([code, schoolId])
   @@index([schoolId])
   @@index([gradeLevel])
   @@map("subjects")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  CLASS SUBJECT
-// ═══════════════════════════════════════════════════════════════
 
 model ClassSubject {
   id        String   @id @default(uuid())
@@ -726,10 +714,6 @@ model ClassSubject {
   @@index([academicYearId])
   @@map("class_subjects")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  TEACHER PROFILE
-// ═══════════════════════════════════════════════════════════════
 
 model TeacherProfile {
   id        String   @id @default(uuid())
@@ -767,23 +751,28 @@ model TeacherProfile {
   panNumber       String?
   aadhaarNumber   String?
 
+  bloodGroup        BloodGroup? // reuses existing BloodGroup enum
+  emergencyContact  String? // single emergency phone number
+  medicalConditions String? // free-text e.g. "Diabetes, Hypertension"
+  allergies         String? // free-text e.g. "Penicillin, Peanuts"
+
   assignments          TeacherAssignment[]
   documents            TeacherDocument[]
-  timetableEntries     TimetableEntry[]
   classTeacherOf       ClassSectionAcademicYear[]
   extraClasses         ExtraClass[]
   teacherAttendances   TeacherAttendance[]
   TeacherMonthlySalary TeacherMonthlySalary[]
+  timetableEntries     TimetableEntry[]
+  syllabusCreated      SubjectSyllabus[]          @relation("SyllabusCreatedBy")
+  syllabusUpdated      SubjectSyllabus[]          @relation("SyllabusUpdatedBy")
+  portionProgress      SectionPortionProgress[]
 
   @@index([schoolId])
   @@index([department])
   @@index([status])
+  @@index([schoolId, createdAt])
   @@map("teacher_profiles")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  TEACHER ASSIGNMENT
-// ═══════════════════════════════════════════════════════════════
 
 model TeacherAssignment {
   id        String   @id @default(uuid())
@@ -807,10 +796,6 @@ model TeacherAssignment {
   @@map("teacher_assignments")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  TEACHER DOCUMENTS
-// ═══════════════════════════════════════════════════════════════
-
 model TeacherDocument {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
@@ -833,10 +818,6 @@ model TeacherDocument {
   @@map("teacher_documents")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  ACADEMIC YEAR
-// ═══════════════════════════════════════════════════════════════
-
 model AcademicYear {
   id        String   @id @default(uuid())
   name      String
@@ -847,34 +828,38 @@ model AcademicYear {
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  classSectionYears  ClassSectionAcademicYear[]
-  timetableConfigs   TimetableConfig[]
-  timetableEntries   TimetableEntry[]
-  classSubjects      ClassSubject[]
-  teacherAssignments TeacherAssignment[]
-  assessmentTerms    AssessmentTerm[]
-  assessmentGroups   AssessmentGroup[]
-  resultSummaries    ResultSummary[]
-  studentEnrollments StudentEnrollment[]
-  extraClasses       ExtraClass[]
-  meetings           Meeting[]
-  attendanceRecords  AttendanceRecord[]
-  TeacherAttendance  TeacherAttendance[]
+  classSectionYears   ClassSectionAcademicYear[]
+  timetableConfigs    TimetableConfig[]
+  classSubjects       ClassSubject[]
+  teacherAssignments  TeacherAssignment[]
+  assessmentTerms     AssessmentTerm[]
+  assessmentGroups    AssessmentGroup[]
+  resultSummaries     ResultSummary[]
+  studentEnrollments  StudentEnrollment[]
+  extraClasses        ExtraClass[]
+  meetings            Meeting[]
+  attendanceRecords   AttendanceRecord[]
+  TeacherAttendance   TeacherAttendance[]
+  TimetableEntry      TimetableEntry[]
+  subjectSyllabus     SubjectSyllabus[]
+  portionProgress     SectionPortionProgress[]
+  holidays            SchoolHoliday[]
+  activities          Activity[]
+  activityEvents      ActivityEvent[]
+  activityEnrollments StudentActivityEnrollment[]
+  StudentAward        StudentAward[]
 
   @@unique([name, schoolId])
   @@index([schoolId])
+  @@index([schoolId, isActive])
   @@map("academic_years")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  CLASS SECTION  — UPDATED with stream/course/branch
-// ═══════════════════════════════════════════════════════════════
-
 model ClassSection {
   id      String  @id @default(uuid())
-  grade   String // "Grade 1", "Grade 11", "Semester 1"
-  section String? // Optional — null means only one section for this grade
-  name    String // Auto-generated display name
+  grade   String
+  section String?
+  name    String
 
   combinationId String?
 
@@ -882,11 +867,9 @@ model ClassSection {
   school      School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   combination StreamCombination? @relation(fields: [combinationId], references: [id], onDelete: SetNull)
 
-  // ── PUC only ──────────────────────────────────────────────
   streamId String?
   stream   Stream? @relation(fields: [streamId], references: [id], onDelete: SetNull)
 
-  // ── Degree/Diploma/PG only ────────────────────────────────
   courseId String?
   course   Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
 
@@ -896,25 +879,23 @@ model ClassSection {
   academicYearLinks   ClassSectionAcademicYear[]
   classSubjects       ClassSubject[]
   teacherAssignments  TeacherAssignment[]
-  timetableEntries    TimetableEntry[]
   assessmentSchedules AssessmentSchedule[]
   studentEnrollments  StudentEnrollment[]
   extraClasses        ExtraClass[]
   meetings            MeetingClass[]
   attendanceRecords   AttendanceRecord[]
+  timetableEntries    TimetableEntry[]
+  portionProgress     SectionPortionProgress[]
+  activityClasses     ActivityClass[]
+  eventClasses        EventClass[]
+  StudentAward        StudentAward[]
 
-  // Note: unique constraint needs to account for nullable section
-  // Handled at application level for flexibility
   @@index([schoolId])
   @@index([grade, schoolId])
   @@index([streamId])
   @@index([courseId])
   @@map("class_sections")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  CLASS SECTION × ACADEMIC YEAR
-// ═══════════════════════════════════════════════════════════════
 
 model ClassSectionAcademicYear {
   id        String   @id @default(uuid())
@@ -936,10 +917,6 @@ model ClassSectionAcademicYear {
   @@map("class_section_academic_years")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  TIMETABLE CONFIG
-// ═══════════════════════════════════════════════════════════════
-
 model TimetableConfig {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
@@ -951,37 +928,39 @@ model TimetableConfig {
   academicYearId String
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
-  startTime      String
-  endTime        String
-  periodDuration Int
-  totalPeriods   Int
+  weekdayTotalPeriods  Int @default(0)
+  saturdayTotalPeriods Int @default(0)
 
-  slots TimetablePeriodSlot[]
+  periodDefinitions PeriodDefinition[]
+  timetableEntries  TimetableEntry[]
 
   @@unique([schoolId, academicYearId])
   @@map("timetable_configs")
 }
 
-model TimetablePeriodSlot {
-  id String @id @default(uuid())
+model PeriodDefinition {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   configId String
-  config   TimetableConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  config   TimetableConfig @relation(fields: [configId], references: [id], onDelete: Restrict)
 
-  slotOrder        Int
-  slotType         SlotType
-  startTime        String
-  endTime          String
-  label            String
+  periodNumber Int
+  label        String
+  slotType     SlotType
+  dayType      SlotDayType
+  startTime    String
+  endTime      String
+  order        Int
+
   timetableEntries TimetableEntry[]
 
+  @@unique([configId, periodNumber, dayType])
   @@index([configId])
-  @@map("timetable_period_slots")
+  @@index([dayType])
+  @@map("period_definitions")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  TIMETABLE ENTRY
-// ═══════════════════════════════════════════════════════════════
 
 model TimetableEntry {
   id        String   @id @default(uuid())
@@ -999,24 +978,25 @@ model TimetableEntry {
   teacherId String
   teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
-  periodSlotId String
-  periodSlot   TimetablePeriodSlot @relation(fields: [periodSlotId], references: [id], onDelete: Cascade)
-
   subjectId String
   subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
+  configId String
+  config   TimetableConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  periodDefinitionId String
+  periodDefinition   PeriodDefinition @relation(fields: [periodDefinitionId], references: [id], onDelete: Restrict)
+
   day WeekDay
 
-  @@unique([classSectionId, day, periodSlotId])
-  @@unique([teacherId, day, periodSlotId])
+  @@unique([classSectionId, day, periodDefinitionId])
+  @@unique([teacherId, day, periodDefinitionId])
   @@index([schoolId])
   @@index([teacherId])
+  @@index([classSectionId])
+  @@index([academicYearId])
   @@map("timetable_entries")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  ASSESSMENT TERM
-// ═══════════════════════════════════════════════════════════════
 
 model AssessmentTerm {
   id    String @id @default(uuid())
@@ -1038,10 +1018,6 @@ model AssessmentTerm {
   @@index([academicYearId])
   @@map("assessment_terms")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  ASSESSMENT GROUP
-// ═══════════════════════════════════════════════════════════════
 
 model AssessmentGroup {
   id          String  @id @default(uuid())
@@ -1069,10 +1045,6 @@ model AssessmentGroup {
   @@map("assessment_groups")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  ASSESSMENT SCHEDULE
-// ═══════════════════════════════════════════════════════════════
-
 model AssessmentSchedule {
   id String @id @default(uuid())
 
@@ -1090,17 +1062,13 @@ model AssessmentSchedule {
   examDate     DateTime
   startTime    DateTime
   endTime      DateTime
-
-  marks Marks[]
+  venue        String?
+  marks        Marks[]
 
   @@index([classSectionId])
   @@index([assessmentGroupId])
   @@map("assessment_schedules")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  MARKS
-// ═══════════════════════════════════════════════════════════════
 
 model Marks {
   id String @id @default(uuid())
@@ -1122,10 +1090,6 @@ model Marks {
   @@index([studentId])
   @@map("marks")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  RESULT SUMMARY
-// ═══════════════════════════════════════════════════════════════
 
 model ResultSummary {
   id String @id @default(uuid())
@@ -1153,10 +1117,6 @@ model ResultSummary {
   @@index([academicYearId])
   @@map("result_summaries")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  EXTRA CLASS
-// ═══════════════════════════════════════════════════════════════
 
 model ExtraClass {
   id        String   @id @default(uuid())
@@ -1192,10 +1152,6 @@ model ExtraClass {
   @@index([teacherId])
   @@map("extra_classes")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  MEETING
-// ═══════════════════════════════════════════════════════════════
 
 model Meeting {
   id          String  @id @default(uuid())
@@ -1236,6 +1192,7 @@ model Meeting {
   @@index([schoolId])
   @@index([meetingDate])
   @@index([type])
+  @@index([schoolId, status, meetingDate])
   @@map("meetings")
 }
 
@@ -1316,6 +1273,8 @@ model AttendanceRecord {
   @@index([classSectionId, date])
   @@index([academicYearId])
   @@index([studentId])
+  @@index([academicYearId, date, status])
+  @@index([academicYearId, status, date])
   @@map("attendance_records")
 }
 
@@ -1344,13 +1303,13 @@ model TeacherAttendance {
   @@index([date])
   @@index([teacherId])
   @@index([schoolId])
+  @@index([schoolId, date, status])
   @@map("teacher_attendance")
 }
 
-// New model:
 model StreamCombination {
   id        String   @id @default(uuid())
-  name      String // "PCMB", "PCMC", "CEBA"
+  name      String
   code      String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -1456,87 +1415,526 @@ model GroupBStaffSalary {
 
   status     String  @default("Active")
   salaryPaid Boolean @default(false)
+model SubjectSyllabus {
+  id String @id @default(uuid())
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  grade String
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  totalChapters Int
+
+  createdById String
+  createdBy   TeacherProfile @relation("SyllabusCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  updatedById String
+  updatedBy   TeacherProfile @relation("SyllabusUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("groupb_staff_salary")
+  @@unique([subjectId, grade, academicYearId])
+  @@index([schoolId])
+  @@index([subjectId])
+  @@map("subject_syllabus")
 }
 
-// GROUP C STAFF (Support Staff)
+model SectionPortionProgress {
+  id String @id @default(uuid())
 
-model GroupCStaffSalary {
-  id Int @id @default(autoincrement())
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
-  name     String
-  role     String
-  school   String
-  category String?
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
 
-  basicSalary Decimal
-  allowances  Decimal
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
-  status     String  @default("Active")
-  salaryPaid Boolean @default(false)
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  completedChapters Int @default(0)
+
+  updatedById String
+  updatedBy   TeacherProfile @relation(fields: [updatedById], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("groupc_staff_salary")
+  @@unique([subjectId, classSectionId, academicYearId])
+  @@index([schoolId])
+  @@index([classSectionId])
+  @@map("section_portion_progress")
 }
 
-// GROUP D STAFF (Administrative Staff)
+model GalleryAlbum {
+  id String @id @default(uuid())
 
-model GroupDStaffSalary {
-  id Int @id @default(autoincrement())
+  title       String
+  description String?
+  eventDate   DateTime?
 
-  name     String
-  position String
-  school   String
-  section  String?
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  basicSalary Decimal
-  allowances  Decimal
+  createdById String
+  createdBy   User   @relation("UserGalleryAlbums", fields: [createdById], references: [id])
 
-  status     String  @default("Active")
-  salaryPaid Boolean @default(false)
+  coverImageUrl String?
+
+  isPublished Boolean @default(true)
+
+  images GalleryImage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("groupd_staff_salary")
+  @@index([schoolId])
+  @@map("gallery_albums")
 }
 
-model ExpenseCategory {
+model GalleryImage {
+  id String @id @default(uuid())
+
+  albumId String
+  album   GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  fileKey  String // full-resolution WebP (or PNG if transparent)
+  thumbKey String? // ← NEW: 300×300 WebP thumbnail key in R2
+  fileUrl  String? // deprecated — use signed URLs instead
+
+  fileType      String
+  fileSizeBytes Int?
+
+  caption    String?
+  uploadedAt DateTime @default(now())
+
+  @@index([albumId])
+  @@map("gallery_images")
+}
+
+enum HolidayType {
+  GOVERNMENT
+  SCHOOL
+}
+
+model SchoolHoliday {
+  id String @id @default(uuid())
+
+  title       String
+  description String?
+
+  type HolidayType
+
+  // GOVERNMENT holiday (repeat every year)
+  month Int?
+  day   Int?
+
+  // SCHOOL holiday (academic year specific)
+  startDate DateTime?
+  endDate   DateTime?
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  academicYearId String?
+  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, month, day])
+  @@index([schoolId])
+  @@index([type])
+  @@index([title])
+  @@index([academicYearId, startDate])
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ACTIVITIES & EVENTS MODULE
+// ═══════════════════════════════════════════════════════════════
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum ActivityCategory {
+  SPORTS
+  CULTURAL
+  ACADEMIC
+  OTHER
+}
+
+enum ActivityParticipationType {
+  INDIVIDUAL
+  TEAM
+}
+
+enum EventParticipationMode {
+  INDIVIDUAL
+  TEAM
+  BOTH
+}
+
+enum EventType {
+  COMPETITION
+  CULTURAL
+  PARTICIPATION
+  CEREMONY
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  COMPLETED
+  CANCELLED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ResultType {
+  WINNER
+  RUNNER_UP
+  THIRD_PLACE
+  PARTICIPATED
+  SPECIAL_AWARD
+}
+
+enum CertificateStatus {
+  PENDING
+  GENERATED
+  ISSUED
+}
+
+// ─── Activity ────────────────────────────────────────────────────────────────
+
+model Activity {
+  id                String                    @id @default(uuid())
+  name              String
+  description       String?
+  category          ActivityCategory
+  participationType ActivityParticipationType
+  isArchived        Boolean                   @default(false)
+
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  activityClasses ActivityClass[]
+  enrollments     StudentActivityEnrollment[]
+  events          ActivityEvent[]
+
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([isArchived])
+  @@map("activities")
+}
+
+// ─── ActivityClass ───────────────────────────────────────────────────────────
+
+model ActivityClass {
+  id String @id @default(uuid())
+
+  activityId     String
+  activity       Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, classSectionId])
+  @@map("activity_classes")
+}
+
+// ─── StudentActivityEnrollment ───────────────────────────────────────────────
+
+model StudentActivityEnrollment {
+  id String @id @default(uuid())
+
+  studentId      String
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  activityId     String
+  activity       Activity     @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+
+  status     MembershipStatus @default(ACTIVE)
+  enrolledAt DateTime         @default(now())
+  leftAt     DateTime?
+
+  @@unique([studentId, activityId, academicYearId])
+  @@index([activityId])
+  @@index([studentId])
+  @@index([academicYearId])
+  @@map("student_activity_enrollments")
+}
+
+// ─── ActivityEvent ───────────────────────────────────────────────────────────
+
+model ActivityEvent {
+  id                  String                 @id @default(uuid())
+  name                String
+  description         String?
+  eventType           EventType
+  participationMode   EventParticipationMode
+  status              EventStatus            @default(DRAFT)
+  isArchived          Boolean                @default(false)
+  isAutoGenerated     Boolean                @default(false)
+  eventDate           DateTime?
+  venue               String?
+  maxTeamsPerClass    Int?
+  maxStudentsPerClass Int?
+
+  activityId     String?
+  activity       Activity?    @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  eligibleClasses EventClass[]
+  teams           EventTeam[]
+  participants    EventParticipant[]
+  results         EventResult[]
+  certificates    Certificate[]
+
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([activityId])
+  @@index([status])
+  @@index([isArchived])
+  @@index([isAutoGenerated])
+  @@map("activity_events")
+}
+
+// ─── EventClass ──────────────────────────────────────────────────────────────
+
+model EventClass {
+  id String @id @default(uuid())
+
+  eventId        String
+  event          ActivityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  classSectionId String
+  classSection   ClassSection  @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, classSectionId])
+  @@map("event_classes")
+}
+
+// ─── EventTeam ───────────────────────────────────────────────────────────────
+
+model EventTeam {
   id       String  @id @default(uuid())
   name     String
-  icon     String?
-  color    String?
-  schoolId String?
+  colorHex String?
 
-  expenses ExpenseCategoryMap[]
+  eventId     String
+  event       ActivityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  members      EventTeamMember[]
+  results      EventResult[]
+  certificates Certificate[]
+
+  @@index([eventId])
+  @@map("event_teams")
+}
+
+// ─── EventTeamMember ─────────────────────────────────────────────────────────
+
+model EventTeamMember {
+  id String @id @default(uuid())
+
+  teamId    String
+  team      EventTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  studentId String
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  role      String?
+
+  @@unique([teamId, studentId])
+  @@index([studentId])
+  @@map("event_team_members")
+}
+
+// ─── EventParticipant ────────────────────────────────────────────────────────
+
+model EventParticipant {
+  id String @id @default(uuid())
+
+  eventId   String
+  event     ActivityEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  studentId String
+  student   Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  role         String?
+  participated Boolean @default(true)
+  score        Float?
+  remarks      String?
+
+  @@unique([eventId, studentId])
+  @@index([eventId])
+  @@index([studentId])
+  @@map("event_participants")
+}
+
+// ─── EventResult ─────────────────────────────────────────────────────────────
+// Single source of truth for all results.
+// Either studentId OR teamId must be set — enforced in controller logic.
+
+model EventResult {
+  id String @id @default(uuid())
+
+  eventId   String
+  event     ActivityEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  studentId String?
+  student   Student?      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  teamId    String?
+  team      EventTeam?    @relation(fields: [teamId], references: [id], onDelete: Restrict)
+
+  resultType ResultType
+  position   Int?
+  awardTitle String?
+  remarks    String?
+
+  recordedById String?
+  recordedBy   User?    @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  recordedAt   DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  certificates Certificate[]
+
+  @@unique([eventId, studentId])
+  @@unique([eventId, teamId])
+  @@index([eventId])
+  @@index([studentId])
+  @@index([teamId])
+  @@map("event_results")
+}
+
+// ─── Certificate ─────────────────────────────────────────────────────────────
+// Lightweight snapshot — content frozen at time of issuance.
+// PDF is generated dynamically from these fields, not stored.
+
+model Certificate {
+  id String @id @default(uuid())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  eventId String?
+  event   ActivityEvent? @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  teamId String?
+  team   EventTeam? @relation(fields: [teamId], references: [id], onDelete: Restrict)
+
+  resultId String?
+  result   EventResult? @relation(fields: [resultId], references: [id], onDelete: Restrict)
+
+  studentAwardId String?
+  studentAward   StudentAward? @relation(fields: [studentAwardId], references: [id], onDelete: Restrict)
+
+  studentName     String
+  eventName       String?
+  achievementText String
+  academicYear    String
+
+  issuedDate DateTime          @default(now())
+  status     CertificateStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, resultId]) // ✅ ADD
+  @@unique([studentId, studentAwardId]) // ✅ ADD
+  @@index([studentId])
+  @@index([eventId])
+  @@index([resultId])
+  @@index([studentAwardId])
+  @@index([status])
+  @@map("certificates")
+}
+
+enum AwardCategory {
+  ACADEMIC
+  ATTENDANCE
+  SPORTS
+  CULTURAL
+  DISCIPLINE
+  LEADERSHIP
+  SPECIAL
+}
+
+model Award {
+  id String @id @default(uuid())
+
+  name        String
+  description String?
+  category    AwardCategory
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  studentAwards StudentAward[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@map("awards")
 }
 
-model Expense {
-  id       String  @id @default(uuid())
-  label    String
-  amount   Float
-  icon     String?
-  schoolId String?
+model StudentAward {
+  id String @id @default(uuid())
 
-  categories ExpenseCategoryMap[]
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  awardId String
+  award   Award  @relation(fields: [awardId], references: [id], onDelete: Restrict)
+
+  classSectionId String?
+  classSection   ClassSection? @relation(fields: [classSectionId], references: [id], onDelete: SetNull)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+
+  givenById String
+  givenBy   User   @relation(fields: [givenById], references: [id], onDelete: Restrict)
+
+  remarks String?
 
   createdAt DateTime @default(now())
-} 
 
-model ExpenseCategoryMap {
-  id         String @id @default(uuid())
-  expenseId  String
-  categoryId String
+  certificates Certificate[]
 
-  expense  Expense         @relation(fields: [expenseId], references: [id])
-  category ExpenseCategory @relation(fields: [categoryId], references: [id])
+  @@unique([studentId, awardId, academicYearId])
+  @@index([studentId])
+  @@index([academicYearId])
+  @@index([classSectionId])
+  @@map("student_awards")
 }

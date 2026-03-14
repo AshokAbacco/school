@@ -4,10 +4,14 @@ import cors from "cors";
 import dotenv from "dotenv";
 import studentsRoutes from "./staffRoutes/studentsRoutes.js";
 import teachersRoutes from "./staffRoutes/teachersRoutes.js";
+import admindashboardRoutes from "./staffRoutes/admindashboardRoutes.js";
 import schoolRoutes from "./superAdmin/routes/school.Routes.js";
 import schoolAdminRoutes from "./superAdmin/routes/schoolAdmin.Routes.js";
 import userRoutes from "./superAdmin/routes/users.Routes.js"; // ← ADD
 import analyticsRouter from "./superAdmin/routes/analytics.Routes.js";
+import financeProfileRoutes from "./superAdmin/routes/financeProfile.routes.js";
+
+// import classSectionRoutes from "./staffRoutes/classSectionRoutes.js";
 import classSectionRoutes, {
   streamsRouter,
   coursesRouter,
@@ -19,6 +23,18 @@ import meetingRoutes from "./staffRoutes/meetingRoutes.js";
 
 import attendanceRoutes from "./staffRoutes/attendanceRoutes.js";
 import adminAttendanceRoute from "./staffRoutes/adminAttendanceRoute.js";
+import examsRoutes from "./staffRoutes/ExamsRoutes.js";
+import teacherCurriculumRoutes from "./staffRoutes/teacherCurriculumRoutes.js";
+import adminCurriculumRoutes from "./staffRoutes/adminCurriculumRoutes.js";
+import galleryRoutes from "./staffRoutes/gallery.routes.js";
+import adminHolidayRoute from "./staffRoutes/adminHolidayRoute.js"
+import adminActivityRoute from "./staffRoutes/adminActivityRoute.js";
+import teacherActivityRoute from "./staffRoutes/teacherActivityRoute.js";
+import awardRoutes from "./staffRoutes/Awardroutes.js";
+import adminAwardRoutes from "./staffRoutes/Adminawardroutes.js";
+
+
+
 dotenv.config();
 
 const staff = express();
@@ -37,6 +53,8 @@ staff.use("/api/schools", schoolRoutes);
 staff.use("/api/school-admins", schoolAdminRoutes);
 staff.use("/api/users", userRoutes); // ← ADD
 staff.use("/api/superadmin/analytics", analyticsRouter);
+staff.use("/api/finance-profiles", financeProfileRoutes);
+
 
 // Routes
 // NOTE: All /api/class-sections/* routes (including timetable config + entries)
@@ -45,6 +63,7 @@ staff.use("/api/superadmin/analytics", analyticsRouter);
 // as an :id param - which was causing timetable data to vanish on page refresh.
 staff.use("/api/students", studentsRoutes);
 staff.use("/api/teachers", teachersRoutes);
+staff.use("/api/admindashboard", admindashboardRoutes);
 staff.use("/api/class-sections", classSectionRoutes);
 staff.use("/api/academic-years", academicYearRoutes);
 staff.use("/api/subjects", subjectRoutes);
@@ -54,5 +73,15 @@ staff.use("/api/admin/attendance", adminAttendanceRoute); //for admin
 staff.use("/api/streams", streamsRouter);
 staff.use("/api/courses", coursesRouter);
 staff.use("/api/promotion", promotionRouter);
+staff.use("/api/exams", examsRoutes);
+staff.use("/api/teacher/curriculum", teacherCurriculumRoutes);
+staff.use("/api/admin/curriculum", adminCurriculumRoutes);
+staff.use("/api/gallery", galleryRoutes);
+staff.use("/api/admin/holidays", adminHolidayRoute);
+staff.use("/api/admin/activities", adminActivityRoute);
+staff.use("/api/teacher/activities", teacherActivityRoute);
+staff.use("/api/staff/awards", awardRoutes);
+staff.use("/api/admin/awards", adminAwardRoutes);
+
 
 export default staff;

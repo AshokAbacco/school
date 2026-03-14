@@ -47,7 +47,7 @@ const IS = {
   borderRadius: 10,
   fontSize: 13,
   color: "#384959",
-  fontFamily: "Inter, sans-serif",
+   fontFamily: "'Inter', sans-serif",
   outline: "none",
   boxSizing: "border-box",
   width: "100%",
@@ -60,7 +60,7 @@ const LabelStyle = {
   fontWeight: 600,
   color: "#6A89A7",
   marginBottom: 4,
-  fontFamily: "Inter, sans-serif",
+   fontFamily: "'Inter', sans-serif",
 };
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
@@ -210,7 +210,7 @@ export default function CreateSectionsPage() {
       setYears(yr);
       const active = yr.find((y) => y.isActive);
       if (active) setActiveYearId(active.id);
-      setTeachers(td.teachers || td.data || []);
+      setTeachers(td.data || []);
 
       if (showStream && extra[0]) setStreams(extra[0].streams || []);
       if (showCourse) {
@@ -467,7 +467,7 @@ export default function CreateSectionsPage() {
               color: C.mid,
               background: "transparent",
               cursor: "pointer",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             <ArrowLeft size={14} /> Back to Classes
@@ -498,7 +498,7 @@ export default function CreateSectionsPage() {
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: "pointer",
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 border: `1.5px solid ${mode === m ? C.primary : C.border}`,
                 background: mode === m ? C.primary : "#fff",
                 color: mode === m ? "#fff" : C.mid,
@@ -681,7 +681,7 @@ export default function CreateSectionsPage() {
                 background: saving ? "rgba(106,137,167,0.5)" : C.primary,
                 border: "none",
                 cursor: saving ? "not-allowed" : "pointer",
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
               }}
             >
               {saving ? (
@@ -880,7 +880,7 @@ export default function CreateSectionsPage() {
                   display: "flex",
                   alignItems: "center",
                   gap: 5,
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 <Plus size={12} /> Add Section
@@ -896,7 +896,7 @@ export default function CreateSectionsPage() {
                 background: saving ? "rgba(106,137,167,0.5)" : C.primary,
                 border: "none",
                 cursor: saving ? "not-allowed" : "pointer",
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
               }}
             >
               {saving ? (
@@ -1028,7 +1028,7 @@ export default function CreateSectionsPage() {
                                     fontWeight: 600,
                                     color: C.primary,
                                     cursor: "pointer",
-                                    fontFamily: "Inter, sans-serif",
+                                     fontFamily: "'Inter', sans-serif",
                                   }}
                                 >
                                   Activate
@@ -1149,7 +1149,7 @@ export default function CreateSectionsPage() {
                   padding: "8px 11px",
                   border: `1.5px solid ${C.border}`,
                   color: C.primary,
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   background: "#fff",
                 }}
               >
@@ -1177,7 +1177,7 @@ export default function CreateSectionsPage() {
                   padding: "8px 11px",
                   border: `1.5px solid ${C.border}`,
                   color: C.primary,
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   background: "#fff",
                 }}
               >
@@ -1200,7 +1200,7 @@ export default function CreateSectionsPage() {
                   color: C.mid,
                   background: "transparent",
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   fontSize: 13,
                 }}
               >
@@ -1215,7 +1215,7 @@ export default function CreateSectionsPage() {
                   background: C.primary,
                   border: "none",
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   opacity: actSaving ? 0.7 : 1,
                 }}
               >

@@ -3,10 +3,11 @@ import React, { useState, useEffect } from "react";
 import {
   Plus, Search, Edit, Trash2, UserCog,
   ShieldCheck, ShieldX, Mail, RefreshCw, Building2,
+  X, AlertTriangle, Loader2,
 } from "lucide-react";
 import PageLayout from "../../components/PageLayout";
 import AddSchoolAdminModal from "./AddScholAdmin";
-import { getSchoolAdmins, deleteSchoolAdmin } from "./components/schoolAdminApi";
+import { getSchoolAdmins, deleteSchoolAdmin, updateSchoolAdmin } from "./components/schoolAdminApi";
 
 const font = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -16,13 +17,106 @@ const SCHOOL_TYPE_LABELS = {
   DEGREE: "Degree", POSTGRADUATE: "Postgraduate", OTHER: "Other",
 };
 
+// ── Deactivate Confirm Dialog ────────────────────────────────────────────────
+function DeactivateDialog({ admin, onConfirm, onCancel, loading }) {
+  useEffect(() => {
+    const h = (e) => e.key === "Escape" && onCancel();
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onCancel]);
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40"
+        style={{ background: "rgba(56,73,89,0.35)", backdropFilter: "blur(2px)" }}
+        onClick={onCancel}
+      />
+      <div
+        className="fixed z-50 flex flex-col overflow-hidden"
+        style={{
+          top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+          width: 420, maxWidth: "92vw",
+          background: "#fff", borderRadius: 18,
+          boxShadow: "0 20px 60px rgba(56,73,89,0.22)",
+          animation: "modalIn 0.18s ease",
+          ...font,
+        }}
+      >
+        <div className="px-6 pt-6 pb-5">
+          {/* Icon */}
+          <div className="flex justify-center mb-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #fef2f2, #fee2e2)" }}>
+              <AlertTriangle size={26} color="#ef4444" />
+            </div>
+          </div>
+
+          {/* Text */}
+          <h3 className="text-base font-bold text-center mb-1.5" style={{ color: "#384959" }}>
+            Deactivate Admin?
+          </h3>
+          <p className="text-sm text-center mb-1" style={{ color: "#6A89A7" }}>
+            You're about to deactivate
+          </p>
+          <p className="text-sm font-semibold text-center mb-1" style={{ color: "#384959" }}>
+            {admin.name}
+          </p>
+          <p className="text-xs text-center mb-4" style={{ color: "#6A89A7" }}>
+            {admin.email}
+          </p>
+          <div className="px-4 py-2.5 rounded-xl text-xs text-center mb-5"
+            style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
+            The admin will lose access to their school dashboard immediately.
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              disabled={loading}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              style={{ background: "#f3f8fd", color: "#384959", border: "none", cursor: "pointer" }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={loading}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+              style={{
+                background: "#ef4444", color: "#fff", border: "none",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
+              }}
+            >
+              {loading
+                ? <><Loader2 size={14} className="animate-spin" /> Deactivating…</>
+                : <><ShieldX size={14} /> Deactivate</>
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Main Component ───────────────────────────────────────────────────────────
 export default function SchoolAdmins() {
   const [admins, setAdmins]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
   const [search, setSearch]   = useState("");
-  const [modal, setModal]     = useState(false);
 
+  // Modal: null | { mode: "add" } | { mode: "edit", admin: {...} }
+  const [modal, setModal] = useState(null);
+
+  // Deactivate dialog: null | { admin: {...} }
+  const [deactivateDialog, setDeactivateDialog]   = useState(null);
+  const [deactivateLoading, setDeactivateLoading] = useState(false);
+
+  // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchAdmins = async () => {
     setLoading(true);
     setError("");
@@ -38,20 +132,42 @@ export default function SchoolAdmins() {
 
   useEffect(() => { fetchAdmins(); }, []);
 
+  // ── Handlers ───────────────────────────────────────────────────────────────
   const handleCreated = (newAdmin) => {
     setAdmins((prev) => [newAdmin, ...prev]);
   };
 
-  const handleDeactivate = async (id) => {
-    if (!window.confirm("Deactivate this admin?")) return;
+  const handleUpdated = (updatedAdmin) => {
+    setAdmins((prev) =>
+      prev.map((a) => {
+        if (a.id !== updatedAdmin.id) return a;
+        // Deep-merge school so existing school.type is never lost
+        return {
+          ...a,
+          ...updatedAdmin,
+          school: { ...a.school, ...(updatedAdmin.school || {}) },
+        };
+      })
+    );
+  };
+
+  const handleDeactivateConfirm = async () => {
+    if (!deactivateDialog) return;
+    setDeactivateLoading(true);
     try {
-      await deleteSchoolAdmin(id);
-      setAdmins((prev) => prev.map((a) => a.id === id ? { ...a, isActive: false } : a));
+      await deleteSchoolAdmin(deactivateDialog.admin.id);
+      setAdmins((prev) =>
+        prev.map((a) => a.id === deactivateDialog.admin.id ? { ...a, isActive: false } : a)
+      );
+      setDeactivateDialog(null);
     } catch {
-      alert("Failed to deactivate admin.");
+      // Keep dialog open on error — user can retry
+    } finally {
+      setDeactivateLoading(false);
     }
   };
 
+  // ── Derived ────────────────────────────────────────────────────────────────
   const filtered = admins.filter((a) =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -64,6 +180,7 @@ export default function SchoolAdmins() {
     inactive: admins.filter((a) => !a.isActive).length,
   };
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <PageLayout>
       <div className="p-4 sm:p-6 min-h-screen bg-[#EFF6FD]" style={font}>
@@ -88,7 +205,7 @@ export default function SchoolAdmins() {
               <RefreshCw size={15} />
             </button>
             <button
-              onClick={() => setModal(true)}
+              onClick={() => setModal({ mode: "add" })}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#384959] hover:bg-[#6A89A7] shadow-md shadow-[#384959]/30 hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all border-0 cursor-pointer"
               style={font}
             >
@@ -101,8 +218,8 @@ export default function SchoolAdmins() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {[
             { label: "Total Admins", value: totals.total,    color: "from-[#88BDF2] to-[#6A89A7]", shadow: "shadow-[#88BDF2]/30", icon: UserCog     },
-            { label: "Active",       value: totals.active,   color: "from-[#88BDF2] to-[#6A89A7]", shadow: "shadow-[#88BDF2]/30",  icon: ShieldCheck },
-            { label: "Inactive",     value: totals.inactive, color: "from-red-400 to-red-500",         shadow: "shadow-red-200",      icon: ShieldX     },
+            { label: "Active",       value: totals.active,   color: "from-[#88BDF2] to-[#6A89A7]", shadow: "shadow-[#88BDF2]/30", icon: ShieldCheck },
+            { label: "Inactive",     value: totals.inactive, color: "from-red-400 to-red-500",       shadow: "shadow-red-200",     icon: ShieldX     },
           ].map(({ label, value, color, shadow, icon: Icon }) => (
             <div key={label} className="bg-white rounded-2xl p-4 border border-[#BDDDFC]/50 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow">
               <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shadow-sm ${shadow} flex-shrink-0`}>
@@ -127,6 +244,11 @@ export default function SchoolAdmins() {
             className="w-full text-sm outline-none text-[#384959] placeholder-[#6A89A7]/60"
             style={font}
           />
+          {search && (
+            <button onClick={() => setSearch("")} className="text-[#6A89A7] hover:text-[#384959]">
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         {/* ── Loading ── */}
@@ -203,15 +325,19 @@ export default function SchoolAdmins() {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <div className="flex justify-center gap-2">
-                            <button className="p-1.5 rounded-lg hover:bg-[#BDDDFC]/50 text-[#88BDF2] hover:text-[#384959] transition-colors" title="Edit">
+                            <button
+                              onClick={() => setModal({ mode: "edit", admin })}
+                              className="p-1.5 rounded-lg hover:bg-[#BDDDFC]/50 text-[#88BDF2] hover:text-[#384959] transition-colors"
+                              title="Edit admin"
+                            >
                               <Edit size={14} />
                             </button>
                             <button
-                              onClick={() => handleDeactivate(admin.id)}
+                              onClick={() => setDeactivateDialog({ admin })}
                               className="p-1.5 rounded-lg hover:bg-red-100 text-red-300 hover:text-red-500 transition-colors"
-                              title="Deactivate"
+                              title={admin.isActive ? "Deactivate admin" : "Already inactive"}
                               disabled={!admin.isActive}
-                              style={{ opacity: admin.isActive ? 1 : 0.4 }}
+                              style={{ opacity: admin.isActive ? 1 : 0.35, cursor: admin.isActive ? "pointer" : "not-allowed" }}
                             >
                               <Trash2 size={14} />
                             </button>
@@ -276,14 +402,19 @@ export default function SchoolAdmins() {
                     )}
                   </div>
                   <div className="flex justify-end gap-2">
-                    <button className="p-1.5 rounded-lg hover:bg-[#BDDDFC]/50 text-[#88BDF2] hover:text-[#384959] transition-colors">
+                    <button
+                      onClick={() => setModal({ mode: "edit", admin })}
+                      className="p-1.5 rounded-lg hover:bg-[#BDDDFC]/50 text-[#88BDF2] hover:text-[#384959] transition-colors"
+                      title="Edit admin"
+                    >
                       <Edit size={14} />
                     </button>
                     <button
-                      onClick={() => handleDeactivate(admin.id)}
+                      onClick={() => setDeactivateDialog({ admin })}
                       className="p-1.5 rounded-lg hover:bg-red-100 text-red-300 hover:text-red-500 transition-colors"
                       disabled={!admin.isActive}
-                      style={{ opacity: admin.isActive ? 1 : 0.4 }}
+                      style={{ opacity: admin.isActive ? 1 : 0.35, cursor: admin.isActive ? "pointer" : "not-allowed" }}
+                      title={admin.isActive ? "Deactivate admin" : "Already inactive"}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -302,14 +433,32 @@ export default function SchoolAdmins() {
         )}
       </div>
 
-      {modal && (
+      {/* ── Add / Edit Modal ── */}
+      {modal?.mode === "add" && (
         <AddSchoolAdminModal
-          onClose={() => setModal(false)}
+          onClose={() => setModal(null)}
           onSuccess={handleCreated}
         />
       )}
+      {modal?.mode === "edit" && (
+        <AddSchoolAdminModal
+          admin={modal.admin}
+          onClose={() => setModal(null)}
+          onSuccess={handleUpdated}
+        />
+      )}
 
-      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      {/* ── Deactivate Dialog ── */}
+      {deactivateDialog && (
+        <DeactivateDialog
+          admin={deactivateDialog.admin}
+          loading={deactivateLoading}
+          onConfirm={handleDeactivateConfirm}
+          onCancel={() => setDeactivateDialog(null)}
+        />
+      )}
+
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes modalIn{from{opacity:0;transform:translate(-50%,-47%)}to{opacity:1;transform:translate(-50%,-50%)}}`}</style>
     </PageLayout>
   );
 }

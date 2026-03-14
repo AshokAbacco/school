@@ -43,7 +43,7 @@ const IS = {
   borderRadius: 10,
   fontSize: 13,
   color: "#384959",
-  fontFamily: "Inter, sans-serif",
+   fontFamily: "'Inter', sans-serif",
   outline: "none",
   width: "100%",
   background: "#fff",
@@ -253,7 +253,7 @@ function AddComboRow({ streamId, onAdded, setToast }) {
           fontWeight: 600,
           color: C.primary,
           cursor: "pointer",
-          fontFamily: "Inter, sans-serif",
+           fontFamily: "'Inter', sans-serif",
         }}
       >
         + Add Group

@@ -88,7 +88,7 @@ const IS = {
   borderRadius: 10,
   fontSize: 13,
   color: "#384959",
-  fontFamily: "Inter, sans-serif",
+   fontFamily: "'Inter', sans-serif",
   outline: "none",
   width: "100%",
   boxSizing: "border-box",
@@ -102,7 +102,7 @@ const Lbl = ({ children }) => (
       fontWeight: 600,
       color: C.mid,
       marginBottom: 4,
-      fontFamily: "Inter, sans-serif",
+       fontFamily: "'Inter', sans-serif",
     }}
   >
     {children}
@@ -342,7 +342,7 @@ export default function SubjectsPage() {
               color: C.mid,
               background: "transparent",
               cursor: "pointer",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             <ArrowLeft size={14} /> Back to Classes
@@ -374,7 +374,7 @@ export default function SubjectsPage() {
                   background: C.primary,
                   border: "none",
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 <Plus size={14} /> Add Subject
@@ -388,7 +388,7 @@ export default function SubjectsPage() {
                   border: `1.5px solid ${C.border}`,
                   color: C.mid,
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 Next: Timetable <ArrowRight size={13} />
@@ -406,7 +406,7 @@ export default function SubjectsPage() {
               background: "rgba(79,70,229,0.06)",
               border: "1.5px solid rgba(79,70,229,0.15)",
               color: "#4f46e5",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             <Layers size={14} />
@@ -429,7 +429,7 @@ export default function SubjectsPage() {
               background: "rgba(245,158,11,0.07)",
               border: "1.5px solid rgba(245,158,11,0.25)",
               color: "#92400e",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             <AlertCircle size={14} />
@@ -443,7 +443,7 @@ export default function SubjectsPage() {
                 border: "none",
                 cursor: "pointer",
                 color: "#92400e",
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
               }}
             >
               Create sections first →
@@ -466,7 +466,7 @@ export default function SubjectsPage() {
               outline: "none",
               fontSize: 13,
               color: C.primary,
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
               flex: 1,
               background: "transparent",
             }}
@@ -522,7 +522,7 @@ export default function SubjectsPage() {
                         background:
                           grade === "General" ? C.pale : "rgba(79,70,229,0.1)",
                         color: grade === "General" ? C.mid : "#4f46e5",
-                        fontFamily: "Inter, sans-serif",
+                         fontFamily: "'Inter', sans-serif",
                       }}
                     >
                       {grade === "General"
@@ -751,7 +751,7 @@ export default function SubjectsPage() {
                       className="text-sm"
                       style={{
                         color: C.primary,
-                        fontFamily: "Inter, sans-serif",
+                         fontFamily: "'Inter', sans-serif",
                       }}
                     >
                       Elective subject
@@ -791,7 +791,7 @@ export default function SubjectsPage() {
                         padding: "6px 12px",
                         borderRadius: 20,
                         fontSize: 12,
-                        fontFamily: "Inter, sans-serif",
+                         fontFamily: "'Inter', sans-serif",
                         border: `1.5px solid ${form.gradeLevel === "" ? C.primary : C.border}`,
                         background: form.gradeLevel === "" ? C.primary : "#fff",
                         color: form.gradeLevel === "" ? "#fff" : C.mid,
@@ -815,7 +815,7 @@ export default function SubjectsPage() {
                           padding: "6px 12px",
                           borderRadius: 20,
                           fontSize: 12,
-                          fontFamily: "Inter, sans-serif",
+                           fontFamily: "'Inter', sans-serif",
                           border: `1.5px solid ${form.gradeLevel === g ? "#4f46e5" : C.border}`,
                           background:
                             form.gradeLevel === g ? "#4f46e5" : "#fff",
@@ -856,7 +856,7 @@ export default function SubjectsPage() {
                     className="text-sm font-semibold mb-3"
                     style={{
                       color: "#4f46e5",
-                      fontFamily: "Inter, sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                     }}
                   >
                     <Layers
@@ -886,7 +886,7 @@ export default function SubjectsPage() {
                             ? "rgba(56,73,89,0.06)"
                             : "#fff",
                         cursor: "pointer",
-                        fontFamily: "Inter, sans-serif",
+                         fontFamily: "'Inter', sans-serif",
                       }}
                     >
                       <div
@@ -958,7 +958,7 @@ export default function SubjectsPage() {
                                 ? "rgba(16,185,129,0.06)"
                                 : "#fff",
                             cursor: "pointer",
-                            fontFamily: "Inter, sans-serif",
+                             fontFamily: "'Inter', sans-serif",
                           }}
                         >
                           <div
@@ -1021,7 +1021,7 @@ export default function SubjectsPage() {
                             ? "rgba(245,158,11,0.06)"
                             : "#fff",
                         cursor: "pointer",
-                        fontFamily: "Inter, sans-serif",
+                         fontFamily: "'Inter', sans-serif",
                       }}
                     >
                       <div
@@ -1070,7 +1070,7 @@ export default function SubjectsPage() {
                         className="text-xs font-semibold mb-2"
                         style={{
                           color: C.mid,
-                          fontFamily: "Inter, sans-serif",
+                           fontFamily: "'Inter', sans-serif",
                         }}
                       >
                         Select classes:
@@ -1092,7 +1092,7 @@ export default function SubjectsPage() {
                                   className="text-xs font-semibold mb-1.5"
                                   style={{
                                     color: C.mid,
-                                    fontFamily: "Inter, sans-serif",
+                                     fontFamily: "'Inter', sans-serif",
                                   }}
                                 >
                                   Grade {grade}
@@ -1110,7 +1110,7 @@ export default function SubjectsPage() {
                                           padding: "5px 11px",
                                           borderRadius: 20,
                                           fontSize: 12,
-                                          fontFamily: "Inter, sans-serif",
+                                           fontFamily: "'Inter', sans-serif",
                                           fontWeight: 600,
                                           border: `1.5px solid ${sel ? "#f59e0b" : C.border}`,
                                           background: sel
@@ -1144,7 +1144,7 @@ export default function SubjectsPage() {
                           className="text-xs mt-2 font-medium"
                           style={{
                             color: "#f59e0b",
-                            fontFamily: "Inter, sans-serif",
+                             fontFamily: "'Inter', sans-serif",
                           }}
                         >
                           ✓ {form.selectedSections.length} section
@@ -1168,7 +1168,7 @@ export default function SubjectsPage() {
                   color: C.mid,
                   background: "transparent",
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   fontSize: 13,
                 }}
               >
@@ -1183,7 +1183,7 @@ export default function SubjectsPage() {
                   background: saving ? "rgba(106,137,167,0.5)" : C.primary,
                   border: "none",
                   cursor: saving ? "not-allowed" : "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   opacity: saving ? 0.7 : 1,
                 }}
               >

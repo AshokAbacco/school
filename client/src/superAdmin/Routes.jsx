@@ -16,6 +16,10 @@ import Analytics from "./pages/Analytics/Analytics";
 import Mettings from "./pages/mettings/Mettings";
 import Fees from "./pages/Fees/Fees";
 import AddFee from "./pages/Fees/AddFee";
+import Finance from "./pages/Finance/Finance"
+import AddFinance from "./pages/Finance/AddFinancers";
+
+
 function App() {
   return (
       <Routes>
@@ -32,10 +36,8 @@ function App() {
         <Route path="/mettings" element={<Mettings/>}/>
         <Route path="/fees" element={<Fees/>}/>
         <Route path="/fees-add" element={<AddFee/>}/>
-
-      {/* Students Routes */}
-
-        {/* Students Routes */}
+        <Route path="/finance" element={<Finance/>}/>
+        <Route path="/finance-add" element={<AddFinance />} />
        
         {/* Redirect any unknown route to dashboard */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

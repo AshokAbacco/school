@@ -1,0 +1,1408 @@
+// client/src/admin/pages/exams/components/AddExam.jsx
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  ClipboardList, Calendar, X, Check, Loader2, Info,
+  Plus, Trash2, AlertCircle, Users, User, Layers,
+  ChevronRight, ChevronLeft, Clock, BookOpen, GraduationCap,
+  Settings, CheckCircle2,
+} from "lucide-react";
+import {
+  fetchSchedules, deleteSchedule,
+  createGroup, updateGroup, createSchedule,
+  fetchClassSections, fetchClassSectionById,
+} from "./examsApi";
+
+/* ── Design tokens ── */
+const F = { fontFamily: "'Inter', sans-serif" };
+const C = {
+  dark: "#1e2d3d",
+  navy: "#0f172a",
+  mid: "#64748b",
+  light: "#94a3b8",
+  border: "#e2e8f0",
+  hover: "#f8fafc",
+  green: "#10b981",
+  red: "#ef4444",
+  accent: "#3b82f6",
+  accentDark: "#1d4ed8",
+  bg: "#f1f5f9",
+  cardBg: "#ffffff",
+};
+
+/* ── Stepper config ── */
+const STEPS = [
+  { id: 1, label: "Configure Timings", sub: "Date range & slots", icon: Clock },
+  { id: 2, label: "Select Classes", sub: "Grades & sections", icon: GraduationCap },
+  { id: 3, label: "Build Schedule", sub: "Assign subjects", icon: BookOpen },
+  { id: 4, label: "Review & Save", sub: "Confirm & publish", icon: CheckCircle2 },
+];
+
+/* ── Helpers ── */
+const emptyIndividual = () => ({
+  _key: Date.now() + Math.random(),
+  grade: "", classSectionId: "", subjectId: "",
+  maxMarks: "", passingMarks: "", examDate: "",
+  startTime: "", endTime: "", slotKey: "",
+  markPresetId: "",
+  _saved: false, _savedId: null,
+});
+
+const emptyBulkRow = () => ({
+  _key: Date.now() + Math.random(),
+  examDate: "", startTime: "", endTime: "",
+  maxMarks: "", passingMarks: "",
+  subjectPerClass: {},
+});
+
+const fmtDate = (date) => {
+  if (!date) return { dateNum: "—", month: "", day: "" };
+  const d = new Date(date + "T00:00:00");
+  return {
+    dateNum: d.getDate(),
+    month: d.toLocaleDateString("en-US", { month: "short" }).toUpperCase(),
+    day: d.toLocaleDateString("en-US", { weekday: "short" }),
+    full: d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+  };
+};
+
+const fmtTime = (t) => {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hr = h % 12 || 12;
+  return `${hr}:${String(m).padStart(2, "0")} ${ampm}`;
+};
+
+/* ── Primitives ── */
+const Label = ({ children, required }) => (
+  <label style={{ ...F, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: C.mid }}>
+    {children}{required && <span style={{ color: C.red }}> *</span>}
+  </label>
+);
+
+const ErrMsg = ({ msg }) => !msg ? null : (
+  <span style={{ ...F, fontSize: 11, color: C.red, display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+    <AlertCircle size={10} />{msg}
+  </span>
+);
+
+const FieldWrap = ({ children, error }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+    {children}<ErrMsg msg={error} />
+  </div>
+);
+
+function InputBase({ value, onChange, type = "text", placeholder, disabled, min, max, error }) {
+  const [focus, setFocus] = useState(false);
+  return (
+    <input type={type} value={value} onChange={e => onChange(e.target.value)}
+      placeholder={placeholder} disabled={disabled} min={min} max={max}
+      style={{
+        padding: "10px 14px", borderRadius: 10, fontSize: 13, width: "100%", boxSizing: "border-box",
+        border: `1.5px solid ${error ? "#fca5a5" : focus ? C.accent : C.border}`,
+        ...F, color: C.dark, background: disabled ? "#f8fafc" : "#fff",
+        outline: "none", cursor: disabled ? "not-allowed" : "text",
+        boxShadow: focus && !disabled ? "0 0 0 3px rgba(59,130,246,0.12)" : "none",
+        transition: "border-color .15s, box-shadow .15s",
+      }}
+      onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
+    />
+  );
+}
+
+function SelectBase({ value, onChange, children, disabled, error, loading }) {
+  const [focus, setFocus] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <select value={value} onChange={e => onChange(e.target.value)}
+        disabled={disabled || loading}
+        style={{
+          padding: "10px 34px 10px 14px", borderRadius: 10, fontSize: 13, width: "100%",
+          border: `1.5px solid ${error ? "#fca5a5" : focus ? C.accent : C.border}`,
+          ...F, color: value ? C.dark : C.light,
+          background: (disabled || loading) ? "#f8fafc" : "#fff",
+          outline: "none", cursor: (disabled || loading) ? "not-allowed" : "pointer",
+          appearance: "none", boxSizing: "border-box",
+          boxShadow: focus && !disabled ? "0 0 0 3px rgba(59,130,246,0.12)" : "none",
+          transition: "border-color .15s, box-shadow .15s",
+        }}
+        onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}>
+        {children}
+      </select>
+      <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+        {loading
+          ? <Loader2 size={13} color={C.mid} style={{ animation: "ae-spin .8s linear infinite" }} />
+          : <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.mid} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+        }
+      </div>
+    </div>
+  );
+}
+
+const FInput = ({ label, required, error, ...rest }) => (
+  <FieldWrap error={error}>
+    <Label required={required}>{label}</Label>
+    <InputBase error={error} {...rest} />
+  </FieldWrap>
+);
+
+/* ══════════════════════════════════════════════
+   TOP STEPPER
+══════════════════════════════════════════════ */
+function TopStepper({ currentStep, completedSteps }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "18px 32px", background: "#fff", borderBottom: `1px solid ${C.border}`,
+      gap: 0, flexShrink: 0,
+    }}>
+      {STEPS.map((step, i) => {
+        const done = completedSteps.includes(step.id);
+        const active = currentStep === step.id;
+        const Ic = step.icon;
+        return (
+          <React.Fragment key={step.id}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 120 }}>
+              {/* Circle */}
+              <div style={{
+                width: 38, height: 38, borderRadius: "50%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: done ? C.green : active ? C.accent : "#f1f5f9",
+                border: `2px solid ${done ? C.green : active ? C.accent : C.border}`,
+                transition: "all .2s",
+                boxShadow: active ? "0 0 0 4px rgba(59,130,246,0.15)" : "none",
+              }}>
+                {done
+                  ? <Check size={16} color="#fff" strokeWidth={2.5} />
+                  : <Ic size={16} color={active ? "#fff" : C.light} />
+                }
+              </div>
+              {/* Labels */}
+              <div style={{ textAlign: "center" }}>
+                <div style={{ ...F, fontSize: 12, fontWeight: 700, color: active ? C.dark : done ? C.green : C.light, whiteSpace: "nowrap" }}>
+                  {step.label}
+                </div>
+                <div style={{ ...F, fontSize: 10, color: C.light, marginTop: 1 }}>{step.sub}</div>
+              </div>
+            </div>
+            {/* Connector */}
+            {i < STEPS.length - 1 && (
+              <div style={{
+                flex: 1, height: 2, maxWidth: 60,
+                background: completedSteps.includes(step.id) ? C.green : C.border,
+                margin: "0 4px", marginTop: -20, transition: "background .2s",
+              }} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   STEP 1 — Configure Timings
+══════════════════════════════════════════════ */
+function StepConfigureTimings({ data, onChange, errors }) {
+  // ✅ Fix: sync slots from parent data so edit-mode pre-filled slots show correctly
+  const [slots, setSlots] = useState(data.timeSlots || []);
+
+  useEffect(() => {
+    setSlots(data.timeSlots || []);
+  }, [data.timeSlots]);
+
+  const addSlot = () => {
+    const newSlots = [...slots, { _key: Date.now(), name: "", startTime: "", endTime: "" }];
+    setSlots(newSlots);
+    onChange("timeSlots", newSlots);
+  };
+
+  const removeSlot = (key) => {
+    const newSlots = slots.filter(s => s._key !== key);
+    setSlots(newSlots);
+    onChange("timeSlots", newSlots);
+  };
+
+  const updateSlot = (key, field, val) => {
+    const newSlots = slots.map(s => s._key === key ? { ...s, [field]: val } : s);
+    setSlots(newSlots);
+    onChange("timeSlots", newSlots);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: "28px 32px" }}>
+      <div>
+        <h2 style={{ ...F, fontSize: 22, fontWeight: 700, color: C.dark, margin: 0 }}>Configure Exam Timings</h2>
+        <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 0 }}>Set the exam name, date range, and time slots.</p>
+      </div>
+
+      {/* Exam Name */}
+      <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ClipboardList size={16} color={C.accent} />
+          </div>
+          <div>
+            <div style={{ ...F, fontSize: 14, fontWeight: 700, color: C.dark }}>Assessment Name</div>
+            <div style={{ ...F, fontSize: 12, color: C.mid }}>Name for this exam group</div>
+          </div>
+        </div>
+        <div style={{ padding: "16px 20px" }}>
+          <FieldWrap error={errors.name}>
+            <Label required>Assessment / Exam Name</Label>
+            <InputBase
+              value={data.name}
+              onChange={v => onChange("name", v)}
+              placeholder="e.g. Unit Test 1, Mid-Term Exam, Final Exam"
+              error={errors.name}
+            />
+          </FieldWrap>
+        </div>
+      </div>
+
+      {/* Date Range */}
+      <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Calendar size={16} color={C.accent} />
+          </div>
+          <div>
+            <div style={{ ...F, fontSize: 14, fontWeight: 700, color: C.dark }}>Exam Date Range</div>
+            <div style={{ ...F, fontSize: 12, color: C.mid }}>Start and end of the exam period</div>
+          </div>
+        </div>
+        <div style={{ padding: "16px 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <FieldWrap error={errors.fromDate}>
+            <Label required>From Date</Label>
+            <InputBase type="date" value={data.fromDate || ""} onChange={v => onChange("fromDate", v)} error={errors.fromDate} />
+          </FieldWrap>
+          <FieldWrap error={errors.toDate}>
+            <Label required>To Date</Label>
+            <InputBase type="date" value={data.toDate || ""} onChange={v => onChange("toDate", v)} error={errors.toDate} />
+          </FieldWrap>
+        </div>
+      </div>
+
+      {/* Time Slots */}
+      <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: "#fdf4ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Clock size={16} color="#a855f7" />
+          </div>
+          <div>
+            <div style={{ ...F, fontSize: 14, fontWeight: 700, color: C.dark }}>Time Slots</div>
+            <div style={{ ...F, fontSize: 12, color: C.mid }}>Define exam windows (Morning, Afternoon etc.)</div>
+          </div>
+        </div>
+        <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {slots.map((slot, i) => (
+            <div key={slot._key} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 12, alignItems: "end", background: "#f8fafc", borderRadius: 12, padding: "12px 14px", border: `1px solid ${C.border}` }}>
+              <FInput label="Slot Name" value={slot.name} onChange={v => updateSlot(slot._key, "name", v)} placeholder="e.g. Morning" />
+              <FInput label="Start Time" type="time" value={slot.startTime} onChange={v => updateSlot(slot._key, "startTime", v)} />
+              <FInput label="End Time" type="time" value={slot.endTime} onChange={v => updateSlot(slot._key, "endTime", v)} />
+              <button onClick={() => removeSlot(slot._key)}
+                style={{ width: 36, height: 36, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", background: "#fef2f2", border: "none", cursor: "pointer", color: "#ef4444", marginBottom: 2 }}
+                onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
+                onMouseLeave={e => e.currentTarget.style.background = "#fef2f2"}>
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+          <button onClick={addSlot}
+            style={{ border: `1.5px dashed ${C.border}`, background: "transparent", color: C.accent, cursor: "pointer", ...F, borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, width: "fit-content" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#eff6ff"; e.currentTarget.style.borderColor = C.accent; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.border; }}>
+            <Plus size={14} /> Add Custom Slot
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   STEP 2 — Select Classes
+══════════════════════════════════════════════ */
+function StepSelectClasses({ classSections, classLoading, selectedSections, onToggleSection, onToggleGrade }) {
+  const [expandedGrades, setExpandedGrades] = useState({});
+
+  const gradeGroups = useMemo(() => {
+    const g = {};
+    classSections.forEach(cs => {
+      if (!g[cs.grade]) g[cs.grade] = [];
+      g[cs.grade].push(cs);
+    });
+    return g;
+  }, [classSections]);
+
+  const toggleGradeExpand = (grade) => {
+    setExpandedGrades(p => ({ ...p, [grade]: !p[grade] }));
+  };
+
+  const selectedCount = selectedSections.length;
+
+  return (
+    <div style={{ display: "flex", gap: 24, padding: "28px 32px", alignItems: "flex-start" }}>
+      {/* Left panel */}
+      <div style={{ flex: 1 }}>
+        <h2 style={{ ...F, fontSize: 22, fontWeight: 700, color: C.dark, margin: 0 }}>Select Classes & Sections</h2>
+        <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 20 }}>Choose grades and sections for this exam.</p>
+
+        <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <GraduationCap size={16} color={C.green} />
+            </div>
+            <div>
+              <div style={{ ...F, fontSize: 14, fontWeight: 700, color: C.dark }}>Select Grade & Sections</div>
+              <div style={{ ...F, fontSize: 12, color: C.mid }}>Click grade to expand sections</div>
+            </div>
+          </div>
+
+          {classLoading ? (
+            <div style={{ padding: "40px 20px", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: C.mid, ...F, fontSize: 13 }}>
+              <Loader2 size={16} style={{ animation: "ae-spin .8s linear infinite" }} /> Loading classes…
+            </div>
+          ) : (
+            <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+              {Object.keys(gradeGroups).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0)).map(grade => {
+                const sections = gradeGroups[grade];
+                const selCount = sections.filter(cs => selectedSections.includes(cs.id)).length;
+                const allSel = selCount === sections.length;
+                const isExp = expandedGrades[grade];
+
+                return (
+                  <div key={grade} style={{ border: `1.5px solid ${selCount > 0 ? "#bbf7d0" : C.border}`, borderRadius: 12, overflow: "hidden" }}>
+                    {/* Grade row */}
+                    <div
+                      onClick={() => toggleGradeExpand(grade)}
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", cursor: "pointer", background: selCount > 0 ? "#f0fdf4" : "#fafafa" }}
+                      onMouseEnter={e => e.currentTarget.style.background = selCount > 0 ? "#dcfce7" : C.hover}
+                      onMouseLeave={e => e.currentTarget.style.background = selCount > 0 ? "#f0fdf4" : "#fafafa"}>
+                      {/* Checkbox */}
+                      <div
+                        onClick={e => { e.stopPropagation(); onToggleGrade(grade, sections, !allSel); }}
+                        style={{
+                          width: 20, height: 20, borderRadius: 6, border: `2px solid ${allSel ? C.accent : selCount > 0 ? C.accent : C.border}`,
+                          background: allSel ? C.accent : selCount > 0 ? "#eff6ff" : "#fff",
+                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer",
+                        }}>
+                        {allSel && <Check size={11} color="#fff" strokeWidth={3} />}
+                        {!allSel && selCount > 0 && <div style={{ width: 8, height: 2, background: C.accent, borderRadius: 2 }} />}
+                      </div>
+                      <span style={{ ...F, fontSize: 14, fontWeight: 700, color: C.dark, flex: 1 }}>Grade {grade}</span>
+                      {selCount > 0 && <span style={{ ...F, fontSize: 11, fontWeight: 700, color: C.accent }}>{selCount} sel.</span>}
+                      <span style={{ ...F, fontSize: 11, color: C.light }}>{sections.length} sections</span>
+                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.light} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
+                        style={{ transform: isExp ? "rotate(180deg)" : "rotate(0deg)", transition: "transform .2s" }}>
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </div>
+
+                    {/* Sections */}
+                    {isExp && (
+                      <div style={{ padding: "8px 14px 12px", borderTop: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 6, background: "#fff" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <span style={{ ...F, fontSize: 11, color: C.light, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Sections</span>
+                          <button onClick={() => onToggleGrade(grade, sections, !allSel)}
+                            style={{ background: "none", border: "none", cursor: "pointer", ...F, fontSize: 11, fontWeight: 700, color: C.accent }}>
+                            {allSel ? "Deselect All" : "Select All"}
+                          </button>
+                        </div>
+                        {sections.map(cs => {
+                          const isSel = selectedSections.includes(cs.id);
+                          return (
+                            <div key={cs.id}
+                              onClick={() => onToggleSection(cs.id)}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10,
+                                border: `1.5px solid ${isSel ? C.accent : C.border}`,
+                                background: isSel ? "#eff6ff" : "#fff", cursor: "pointer",
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = isSel ? "#dbeafe" : "#f8fafc"}
+                              onMouseLeave={e => e.currentTarget.style.background = isSel ? "#eff6ff" : "#fff"}>
+                              <div style={{
+                                width: 18, height: 18, borderRadius: 5, border: `2px solid ${isSel ? C.accent : C.border}`,
+                                background: isSel ? C.accent : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                              }}>
+                                {isSel && <Check size={10} color="#fff" strokeWidth={3} />}
+                              </div>
+                              <span style={{ ...F, fontSize: 13, fontWeight: 600, color: C.dark }}>
+                                {cs.section ? `Section ${cs.section}` : "Main Section"}
+                              </span>
+                              <span style={{ ...F, fontSize: 11, color: C.light, marginLeft: "auto" }}>
+                                {/* subject count if available */}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right panel */}
+      <div style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Selected count */}
+        <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, padding: "16px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Users size={15} color={C.green} />
+            </div>
+            <div>
+              <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>Selected Sections</div>
+              <div style={{ ...F, fontSize: 11, color: C.mid }}>{selectedCount} section{selectedCount !== 1 ? "s" : ""} chosen</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {selectedCount === 0 && (
+              <div style={{ ...F, fontSize: 12, color: C.light, textAlign: "center", padding: "10px 0", fontStyle: "italic" }}>No sections selected yet</div>
+            )}
+            {classSections.filter(cs => selectedSections.includes(cs.id)).map(cs => (
+              <div key={cs.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 9, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+                <span style={{ ...F, fontSize: 12, fontWeight: 600, color: "#065f46" }}>Grade {cs.grade}{cs.section ? ` — Section ${cs.section}` : ""}</span>
+                <button onClick={() => onToggleSection(cs.id)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#10b981", display: "flex", padding: 2 }}>
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA */}
+        {selectedCount > 0 && (
+          <div style={{ background: "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)", borderRadius: 16, padding: "18px 18px" }}>
+            <div style={{ ...F, fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Ready to Build Schedule</div>
+            <div style={{ ...F, fontSize: 11, color: "rgba(255,255,255,0.75)", marginBottom: 14 }}>
+              {selectedCount} section{selectedCount !== 1 ? "s" : ""} · assign subjects & times
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, ...F, fontSize: 12, fontWeight: 600, color: "#fff" }}>
+              <Settings size={13} />
+              Build Exam Schedule →
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   STEP 3 — Build Schedule (Individual)
+══════════════════════════════════════════════ */
+
+/* ── Marks Preset Manager ── */
+function MarksPresetManager({ presets, onPresetsChange }) {
+  const addPreset = () => {
+    onPresetsChange([...presets, { id: Date.now() + Math.random(), maxMarks: "", passingMarks: "" }]);
+  };
+  const removePreset = (id) => onPresetsChange(presets.filter(p => p.id !== id));
+  const updatePreset = (id, field, val) => onPresetsChange(presets.map(p => p.id === id ? { ...p, [field]: val } : p));
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden", marginBottom: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: `1px solid ${C.border}`, background: "#fafafa" }}>
+        <div style={{ width: 32, height: 32, borderRadius: 9, background: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Settings size={15} color="#f97316" />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>Marks Presets</div>
+          <div style={{ ...F, fontSize: 11, color: C.mid }}>Create mark templates — select one per exam to auto-fill marks</div>
+        </div>
+        <button type="button" onClick={addPreset}
+          style={{ ...F, border: `1.5px solid #fed7aa`, background: "#fff7ed", color: "#f97316", cursor: "pointer", borderRadius: 9, padding: "6px 14px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}
+          onMouseEnter={e => e.currentTarget.style.background = "#ffedd5"}
+          onMouseLeave={e => e.currentTarget.style.background = "#fff7ed"}>
+          <Plus size={12} /> Add Preset
+        </button>
+      </div>
+
+      {presets.length === 0 ? (
+        <div style={{ padding: "14px 20px", ...F, fontSize: 12, color: C.light, fontStyle: "italic" }}>
+          No presets yet — click "Add Preset" to create mark templates (e.g. 100/35, 75/25)
+        </div>
+      ) : (
+        <div style={{ padding: "12px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+          {presets.map((p, i) => (
+            <div key={p.id} style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr auto", gap: 10, alignItems: "end", background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+              <div style={{ ...F, fontSize: 10, fontWeight: 700, color: C.light, textTransform: "uppercase", letterSpacing: "0.06em", paddingBottom: 12 }}>#{i + 1}</div>
+              <FieldWrap>
+                <Label>Max Marks</Label>
+                <InputBase type="number" value={p.maxMarks} onChange={v => updatePreset(p.id, "maxMarks", v)} placeholder="100" />
+              </FieldWrap>
+              <FieldWrap>
+                <Label>Passing Marks</Label>
+                <InputBase type="number" value={p.passingMarks} onChange={v => updatePreset(p.id, "passingMarks", v)} placeholder="35" />
+              </FieldWrap>
+              <button type="button" onClick={() => removePreset(p.id)}
+                style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#fef2f2", border: "none", cursor: "pointer", color: "#ef4444", marginBottom: 2 }}
+                onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
+                onMouseLeave={e => e.currentTarget.style.background = "#fef2f2"}>
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StepBuildSchedule({
+  classSections, selectedSections, schedules, setSched, schedErrors, setSchedErrors,
+  subjectsMap, classLoading, loadSched, gradeOptions, sectionsFor, fetchSubjectsFor,
+  handleGradeChange, handleSectionChange, setSchedField, removeSched, timingData,
+}) {
+  const selectedCS = classSections.filter(cs => selectedSections.includes(cs.id));
+
+  /* ── Marks presets state ── */
+  const [marksPresets, setMarksPresets] = useState([]);
+
+  /* ── Track which sections have been "copied from" a source section (same timetable) ── */
+  // copiedSections: Set of csId that were auto-populated from another section
+  const [copiedSections, setCopiedSections] = useState({});
+  // dismissed banners: Set of csId where banner was dismissed
+  const [dismissedBanners, setDismissedBanners] = useState({});
+
+  /* ── Generate date options from Step 1 range ── */
+  const examDateOptions = useMemo(() => {
+    if (!timingData.fromDate || !timingData.toDate) return [];
+    const dates = [];
+    const cur = new Date(timingData.fromDate + "T00:00:00");
+    const end = new Date(timingData.toDate + "T00:00:00");
+    while (cur <= end) {
+      // Build ISO string from local date parts to avoid timezone shift
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, "0");
+      const d = String(cur.getDate()).padStart(2, "0");
+      const iso = `${y}-${m}-${d}`;
+      const info = fmtDate(iso);
+      dates.push({ value: iso, label: `${info.day}, ${info.dateNum} ${info.month} ${y}` });
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  }, [timingData.fromDate, timingData.toDate]);
+
+  const timeSlots = timingData.timeSlots || [];
+
+  /* ── Group selected sections by grade ── */
+  const gradeGroups = useMemo(() => {
+    const g = {};
+    selectedCS.forEach(cs => {
+      if (!g[cs.grade]) g[cs.grade] = [];
+      g[cs.grade].push(cs);
+    });
+    return g;
+  }, [selectedCS]);
+
+  /* ── Copy timetable from one section to another ── */
+  const copyTimetableTo = (sourceCs, targetCs) => {
+    const sourceSlots = schedules.filter(s => s.classSectionId === sourceCs.id && !s._saved);
+    if (sourceSlots.length === 0) return;
+    // Remove existing unsaved slots for target
+    setSched(p => {
+      const filtered = p.filter(s => s.classSectionId !== targetCs.id || s._saved);
+      const copies = sourceSlots.map(s => ({
+        ...s,
+        _key: Date.now() + Math.random(),
+        _saved: false,
+        _savedId: null,
+        classSectionId: targetCs.id,
+        grade: targetCs.grade,
+      }));
+      return [...filtered, ...copies];
+    });
+    setCopiedSections(p => ({ ...p, [targetCs.id]: sourceCs.id }));
+    fetchSubjectsFor(targetCs.id);
+  };
+
+  /* ── Render per-grade group with same-timetable prompt ── */
+  const renderGradeGroup = (grade, sections) => {
+    // The "source" section for this grade = the first one with slots, or the first one overall
+    const sourceCs = sections.find(cs => schedules.filter(s => s.classSectionId === cs.id).length > 0) || sections[0];
+    const sourceHasSlots = schedules.filter(s => s.classSectionId === sourceCs.id).length > 0;
+
+    return sections.map((cs, sIdx) => {
+      const sectionSchedules = schedules.filter(s => s.classSectionId === cs.id);
+      const isSource = cs.id === sourceCs.id;
+      const isCopied = !!copiedSections[cs.id];
+      const isDismissed = !!dismissedBanners[cs.id];
+
+      // Show "same timetable?" banner for non-source sections of the same grade
+      // only when: source has slots, this section has 0 slots, not dismissed, grade has >1 section
+      const showCopyBanner = !isSource && sections.length > 1 && sourceHasSlots
+        && sectionSchedules.length === 0 && !isDismissed && !isCopied;
+
+      return (
+        <div key={cs.id} style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
+          {/* Section header */}
+          <div style={{ background: "linear-gradient(135deg, #1e2d3d 0%, #2d4a6e 100%)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ ...F, fontSize: 15, fontWeight: 700, color: "#fff" }}>
+                Grade {cs.grade}{cs.section ? ` — Section ${cs.section}` : ""}
+              </div>
+              {timingData.fromDate && timingData.toDate && (
+                <div style={{ ...F, fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
+                  {sectionSchedules.length} slot{sectionSchedules.length !== 1 ? "s" : ""} · {timingData.fromDate} → {timingData.toDate}
+                </div>
+              )}
+            </div>
+            {isCopied && (
+              <span style={{ ...F, fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: "rgba(16,185,129,0.2)", color: "#6ee7b7" }}>
+                ✓ Copied from {sourceCs.section ? `Section ${sourceCs.section}` : "Section A"}
+              </span>
+            )}
+          </div>
+
+          {/* ── Same timetable banner ── */}
+          {showCopyBanner && (
+            <div style={{ margin: "12px 16px 0", padding: "12px 16px", borderRadius: 12, background: "#eff6ff", border: `1.5px solid #bfdbfe`, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 9, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Layers size={15} color={C.accent} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>Same timetable as Section {sourceCs.section || "A"}?</div>
+                <div style={{ ...F, fontSize: 11, color: C.mid, marginTop: 2 }}>
+                  Copy the {schedules.filter(s => s.classSectionId === sourceCs.id).length} exam slot(s) from Section {sourceCs.section || "A"} to this section.
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button type="button"
+                  onClick={() => copyTimetableTo(sourceCs, cs)}
+                  style={{ ...F, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.background = C.accentDark}
+                  onMouseLeave={e => e.currentTarget.style.background = C.accent}>
+                  Yes, Copy
+                </button>
+                <button type="button"
+                  onClick={() => setDismissedBanners(p => ({ ...p, [cs.id]: true }))}
+                  style={{ ...F, fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 9, border: `1.5px solid ${C.border}`, background: "#fff", color: C.mid, cursor: "pointer" }}>
+                  No, Individual
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Schedule cards for this section */}
+          <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+            {loadSched ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.mid, ...F, fontSize: 13, padding: "20px 0" }}>
+                <Loader2 size={16} style={{ animation: "ae-spin .8s linear infinite" }} /> Loading schedules…
+              </div>
+            ) : (
+              <>
+                {schedules.filter(s => s.classSectionId === cs.id).map((sc, idx) => {
+                  // Subjects already used in OTHER slots for this same section
+                  const usedSubjectIds = new Set(
+                    schedules
+                      .filter(s => s.classSectionId === cs.id && s._key !== sc._key && s.subjectId)
+                      .map(s => s.subjectId)
+                  );
+                  return (
+                    <ExamDateCard
+                      key={sc._key}
+                      sc={sc} idx={idx}
+                      errors={schedErrors}
+                      subjectsMap={subjectsMap}
+                      prefilledSection={cs}
+                      onChange={(f, v) => setSchedField(sc._key, f, v)}
+                      onRemove={() => removeSched(sc)}
+                      timeSlots={timeSlots}
+                      examDateOptions={examDateOptions}
+                      marksPresets={marksPresets}
+                      usedSubjectIds={usedSubjectIds}
+                    />
+                  );
+                })}
+
+                <button type="button"
+                  onClick={() => {
+                    setSched(p => [...p, { ...emptyIndividual(), grade: cs.grade, classSectionId: cs.id }]);
+                    fetchSubjectsFor(cs.id);
+                  }}
+                  style={{ border: `1.5px dashed ${C.border}`, background: "transparent", color: C.accent, cursor: "pointer", ...F, borderRadius: 12, padding: "10px 18px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#eff6ff"; e.currentTarget.style.borderColor = C.accent; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.border; }}>
+                  <Plus size={14} /> Add Exam for this Section
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    });
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: "28px 32px" }}>
+      <div>
+        <h2 style={{ ...F, fontSize: 22, fontWeight: 700, color: C.dark, margin: 0 }}>Build Exam Schedule</h2>
+        <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 0 }}>Assign subjects and time slots for each exam date.</p>
+      </div>
+
+      {/* ── Marks Presets ── */}
+      <MarksPresetManager presets={marksPresets} onPresetsChange={setMarksPresets} />
+
+      {/* Render grade groups */}
+      {Object.keys(gradeGroups).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0)).map(grade =>
+        renderGradeGroup(grade, gradeGroups[grade])
+      )}
+
+      {selectedCS.length === 0 && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "60px 0", color: C.light, ...F }}>
+          <BookOpen size={32} style={{ opacity: .3 }} />
+          <p style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>No sections selected. Go back to Step 2.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Exam Date Card (used in Step 3) ── */
+function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, prefilledSection, timeSlots, examDateOptions, marksPresets, usedSubjectIds }) {
+  const err = f => errors[`${sc._key}_${f}`];
+  const allSubjects = subjectsMap[sc.classSectionId];
+  const subsLoading = allSubjects === null;
+  const dateInfo = fmtDate(sc.examDate);
+
+  /* Filter out subjects already used in other slots of the same section */
+  const availableSubjects = useMemo(() => {
+    if (!Array.isArray(allSubjects)) return [];
+    return allSubjects.filter(s => !usedSubjectIds.has(s.id) || s.id === sc.subjectId);
+  }, [allSubjects, usedSubjectIds, sc.subjectId]);
+
+  /* When slot is selected, auto-fill start/end time */
+  const handleSlotSelect = (slotKey) => {
+    const slot = timeSlots.find(s => String(s._key) === String(slotKey));
+    onChange("slotKey", slotKey);
+    if (slot) {
+      onChange("startTime", slot.startTime || "");
+      onChange("endTime", slot.endTime || "");
+    }
+  };
+
+  /* When marks preset is selected, auto-fill max/passing marks */
+  const handlePresetSelect = (presetId) => {
+    onChange("markPresetId", presetId);
+    const preset = marksPresets.find(p => String(p.id) === String(presetId));
+    if (preset) {
+      onChange("maxMarks", preset.maxMarks || "");
+      onChange("passingMarks", preset.passingMarks || "");
+    }
+  };
+
+  return (
+    <div style={{ border: `1.5px solid ${sc._saved ? "#bbf7d0" : C.border}`, borderRadius: 14, overflow: "hidden", background: "#fafcff" }}>
+      {/* Date header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: sc._saved ? "#f0fdf4" : "#f8fafc", borderBottom: `1px solid ${sc._saved ? "#bbf7d0" : C.border}` }}>
+        <div style={{
+          width: 46, height: 46, borderRadius: 12, background: sc._saved ? C.green : C.accent,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <span style={{ ...F, fontSize: 18, fontWeight: 800, color: "#fff", lineHeight: 1 }}>{sc.examDate ? dateInfo.dateNum : idx + 1}</span>
+          <span style={{ ...F, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.8)", textTransform: "uppercase" }}>{sc.examDate ? dateInfo.month : "NEW"}</span>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>
+            {sc.examDate ? dateInfo.full : `Exam Slot ${idx + 1}`}
+          </div>
+          <div style={{ ...F, fontSize: 11, color: C.mid }}>
+            {sc.examDate ? `${dateInfo.day} · ` : ""}
+            {sc.startTime && sc.endTime ? `${fmtTime(sc.startTime)} – ${fmtTime(sc.endTime)}` : "Time not set"}
+            {sc._saved && <span style={{ marginLeft: 8, padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 700, background: "#dcfce7", color: C.green }}>✓ Saved</span>}
+          </div>
+        </div>
+        {!sc._saved && (
+          <button onClick={onRemove}
+            style={{ width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#fef2f2", border: "none", cursor: "pointer", color: "#ef4444" }}
+            onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
+            onMouseLeave={e => e.currentTarget.style.background = "#fef2f2"}>
+            <Trash2 size={12} />
+          </button>
+        )}
+      </div>
+
+      {/* Fields */}
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+
+        {/* Row 1: Exam Date + Time Slot */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <FieldWrap error={err("examDate")}>
+            <Label required>Exam Date</Label>
+            {examDateOptions.length > 0 ? (
+              <SelectBase value={sc.examDate} onChange={v => onChange("examDate", v)} disabled={sc._saved} error={err("examDate")}>
+                <option value="">— Select Date —</option>
+                {examDateOptions.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+              </SelectBase>
+            ) : (
+              <InputBase type="date" value={sc.examDate} onChange={v => onChange("examDate", v)} disabled={sc._saved} error={err("examDate")} />
+            )}
+          </FieldWrap>
+
+          <FieldWrap>
+            <Label>Time Slot</Label>
+            {timeSlots.length > 0 ? (
+              <SelectBase value={sc.slotKey || ""} onChange={handleSlotSelect} disabled={sc._saved}>
+                <option value="">— Select Slot —</option>
+                {timeSlots.map(slot => (
+                  <option key={slot._key} value={slot._key}>
+                    {slot.name || "Unnamed"}{slot.startTime ? ` (${fmtTime(slot.startTime)}${slot.endTime ? ` – ${fmtTime(slot.endTime)}` : ""})` : ""}
+                  </option>
+                ))}
+              </SelectBase>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <InputBase type="time" value={sc.startTime} onChange={v => onChange("startTime", v)} disabled={sc._saved} />
+                <InputBase type="time" value={sc.endTime} onChange={v => onChange("endTime", v)} disabled={sc._saved} />
+              </div>
+            )}
+          </FieldWrap>
+        </div>
+
+        {/* Row 2: Marks Preset + Max + Pass */}
+        <div style={{ background: "#f0f9ff", borderRadius: 10, padding: "10px 14px", border: `1px solid #bae6fd` }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "end" }}>
+            <FieldWrap>
+              <Label>Marks Preset</Label>
+              <SelectBase value={sc.markPresetId || ""} onChange={handlePresetSelect} disabled={sc._saved}>
+                <option value="">— Select Preset or enter manually —</option>
+                {marksPresets.filter(p => p.maxMarks).map(p => (
+                  <option key={p.id} value={p.id}>Max: {p.maxMarks} · Pass: {p.passingMarks || "—"}</option>
+                ))}
+              </SelectBase>
+            </FieldWrap>
+            <FieldWrap error={err("maxMarks")}>
+              <Label required>Max Marks</Label>
+              <InputBase type="number" value={sc.maxMarks} onChange={v => { onChange("maxMarks", v); onChange("markPresetId", ""); }} placeholder="100" disabled={sc._saved} error={err("maxMarks")} />
+            </FieldWrap>
+            <FieldWrap>
+              <Label>Passing Marks</Label>
+              <InputBase type="number" value={sc.passingMarks} onChange={v => { onChange("passingMarks", v); onChange("markPresetId", ""); }} placeholder="35" disabled={sc._saved} />
+            </FieldWrap>
+          </div>
+        </div>
+
+        {/* Row 3: Subject — already-used subjects filtered out */}
+        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 12, alignItems: "end", background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+          <div style={{ ...F, fontSize: 10, fontWeight: 700, color: C.light, textTransform: "uppercase", letterSpacing: "0.06em", paddingBottom: 2, whiteSpace: "nowrap" }}>EXAM {idx + 1}</div>
+          <FieldWrap error={err("subjectId")}>
+            <Label required>Subject</Label>
+            <SelectBase value={sc.subjectId} onChange={v => onChange("subjectId", v)} disabled={sc._saved} loading={subsLoading} error={err("subjectId")}>
+              <option value="">
+                {!sc.classSectionId ? "— Select —" : subsLoading ? "Loading…" : availableSubjects.length === 0 ? "All subjects assigned" : "— Select —"}
+              </option>
+              {availableSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </SelectBase>
+            {Array.isArray(allSubjects) && usedSubjectIds.size > 0 && (
+              <span style={{ ...F, fontSize: 10, color: C.light, marginTop: 2 }}>
+                {usedSubjectIds.size} subject{usedSubjectIds.size !== 1 ? "s" : ""} already assigned in other slots
+              </span>
+            )}
+          </FieldWrap>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   STEP 4 — Review & Save
+══════════════════════════════════════════════ */
+function StepReview({ timingData, selectedSections, classSections, schedules, academicYearLabel }) {
+  const selectedCS = classSections.filter(cs => selectedSections.includes(cs.id));
+  const newSchedules = schedules.filter(s => !s._saved);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: "28px 32px" }}>
+      <div>
+        <h2 style={{ ...F, fontSize: 22, fontWeight: 700, color: C.dark, margin: 0 }}>Review & Save</h2>
+        <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 0 }}>Confirm everything before publishing the exam schedule.</p>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div style={{ background: "#fff", borderRadius: 14, border: `1.5px solid ${C.border}`, padding: "16px 18px" }}>
+          <div style={{ ...F, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.light, marginBottom: 6 }}>Assessment Name</div>
+          <div style={{ ...F, fontSize: 15, fontWeight: 700, color: C.dark }}>{timingData.name || "—"}</div>
+          <div style={{ ...F, fontSize: 12, color: C.mid, marginTop: 3 }}>{academicYearLabel}</div>
+        </div>
+        <div style={{ background: "#fff", borderRadius: 14, border: `1.5px solid ${C.border}`, padding: "16px 18px" }}>
+          <div style={{ ...F, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.light, marginBottom: 6 }}>Date Range</div>
+          <div style={{ ...F, fontSize: 15, fontWeight: 700, color: C.dark }}>{timingData.fromDate || "—"} → {timingData.toDate || "—"}</div>
+          <div style={{ ...F, fontSize: 12, color: C.mid, marginTop: 3 }}>{(timingData.timeSlots || []).length} time slot(s)</div>
+        </div>
+        <div style={{ background: "#fff", borderRadius: 14, border: `1.5px solid ${C.border}`, padding: "16px 18px" }}>
+          <div style={{ ...F, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.light, marginBottom: 6 }}>Selected Classes</div>
+          <div style={{ ...F, fontSize: 15, fontWeight: 700, color: C.dark }}>{selectedCS.length} section(s)</div>
+          <div style={{ ...F, fontSize: 12, color: C.mid, marginTop: 3 }}>
+            {selectedCS.slice(0, 3).map(cs => `Grade ${cs.grade}${cs.section ? `-${cs.section}` : ""}`).join(", ")}
+            {selectedCS.length > 3 ? ` +${selectedCS.length - 3} more` : ""}
+          </div>
+        </div>
+        <div style={{ background: "#fff", borderRadius: 14, border: `1.5px solid ${C.border}`, padding: "16px 18px" }}>
+          <div style={{ ...F, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.light, marginBottom: 6 }}>Schedules</div>
+          <div style={{ ...F, fontSize: 15, fontWeight: 700, color: C.dark }}>{newSchedules.length} to create</div>
+          <div style={{ ...F, fontSize: 12, color: C.mid, marginTop: 3 }}>{schedules.filter(s => s._saved).length} already saved</div>
+        </div>
+      </div>
+
+      {/* Schedule list */}
+      {newSchedules.length > 0 && (
+        <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, ...F, fontSize: 14, fontWeight: 700, color: C.dark }}>
+            Schedules to Create
+          </div>
+          <div style={{ maxHeight: 240, overflowY: "auto" }}>
+            {newSchedules.map((sc, i) => {
+              const cs = classSections.find(c => c.id === sc.classSectionId);
+              return (
+                <div key={sc._key} style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr 1fr", gap: 14, padding: "11px 20px", borderBottom: i < newSchedules.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "center" }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", ...F, fontSize: 11, fontWeight: 700, color: C.accent }}>{i + 1}</div>
+                  <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.dark }}>
+                    Grade {sc.grade || cs?.grade}{sc.classSectionId && cs?.section ? ` - ${cs.section}` : ""}
+                  </div>
+                  <div style={{ ...F, fontSize: 12, color: C.mid }}>{sc.examDate || "—"}</div>
+                  <div style={{ ...F, fontSize: 12, color: C.mid }}>Max: {sc.maxMarks || "—"} · Pass: {sc.passingMarks || "—"}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   MAIN MODAL
+══════════════════════════════════════════════ */
+export default function AddExamsModal({
+  academicYearId, academicYearLabel = "",
+  group = null, onClose, onSuccess,
+}) {
+  const isEdit = Boolean(group);
+
+  /* ── Wizard state ── */
+  const [currentStep, setCurrentStep] = useState(1);
+  const [completedSteps, setCompletedSteps] = useState(isEdit ? [1, 2, 3] : []);
+
+  /* ── Timing data (step 1) ── */
+  const [timingData, setTimingData] = useState({
+    name: group?.name || "",
+    fromDate: "",
+    toDate: "",
+    timeSlots: [],
+  });
+  const [timingErrors, setTimingErrors] = useState({});
+
+  /* ── Class selection (step 2) ── */
+  const [selectedSections, setSelectedSections] = useState([]);
+
+  /* ── Schedules (step 3) ── */
+  const [schedules, setSched] = useState([]);
+  const [schedErrors, setSchedErrors] = useState({});
+
+  /* ── Shared ── */
+  const [apiError, setApiError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadSched, setLoadSched] = useState(false);
+  const [groupId, setGroupId] = useState(group?.id || null);
+
+  const [classSections, setClassSections] = useState([]);
+  const [classLoading, setClassLoading] = useState(false);
+  const [subjectsMap, setSubjectsMap] = useState({});
+
+  /* ── Fetch class sections ── */
+  useEffect(() => {
+    setClassLoading(true);
+    fetchClassSections()
+      .then(d => setClassSections(d.classSections || []))
+      .catch(console.error)
+      .finally(() => setClassLoading(false));
+  }, []);
+
+  /* ── Preload subjects ── */
+  useEffect(() => {
+    if (classSections.length === 0) return;
+    classSections.forEach(cs => {
+      if (subjectsMap[cs.id] !== undefined) return;
+      setSubjectsMap(p => ({ ...p, [cs.id]: null }));
+      fetchClassSectionById(cs.id)
+        .then(d => {
+          const subs = d.classSection?.classSubjects?.map(x => x.subject) || [];
+          setSubjectsMap(p => ({ ...p, [cs.id]: subs }));
+        })
+        .catch(() => setSubjectsMap(p => ({ ...p, [cs.id]: [] })));
+    });
+  }, [classSections]);
+
+  /* ── Edit mode load ── */
+  useEffect(() => {
+    if (!isEdit || !group) return;
+    setGroupId(group.id);
+    setLoadSched(true);
+    fetchSchedules(group.id)
+      .then(list => {
+        // ✅ Fix: parse plain "HH:MM:SS" time strings directly (no new Date())
+        const toHHMM = (t) => t ? String(t).substring(0, 5) : "";
+
+        const loaded = list.map(sc => ({
+          _key: sc.id,
+          _saved: false,   // ✅ Fix: set false so all fields are editable
+          _savedId: sc.id, // keep id for delete/update operations
+          _isExisting: true, // track that this is an existing record
+          grade: sc.classSection?.grade || "",
+          classSectionId: sc.classSectionId || "",
+          subjectId: sc.subjectId || "",
+          maxMarks: sc.maxMarks ?? "",
+          passingMarks: sc.passingMarks ?? "",
+          examDate: sc.examDate ? sc.examDate.split("T")[0] : "",
+          startTime: toHHMM(sc.startTime),
+          endTime: toHHMM(sc.endTime),
+          slotKey: "",
+        }));
+
+        setSched(loaded);
+        const csIds = [...new Set(loaded.map(s => s.classSectionId).filter(Boolean))];
+        setSelectedSections(csIds);
+
+        // ✅ Fix: derive fromDate, toDate, timeSlots from loaded schedules
+        if (loaded.length > 0) {
+          const dates = loaded.map(s => s.examDate).filter(Boolean).sort();
+          const fromDate = dates[0] || "";
+          const toDate   = dates[dates.length - 1] || "";
+
+          // Build unique time slots from the loaded schedules
+          const slotMap = new Map();
+          loaded.forEach(s => {
+            if (s.startTime && s.endTime) {
+              const key = `${s.startTime}|${s.endTime}`;
+              if (!slotMap.has(key)) {
+                slotMap.set(key, {
+                  _key: key,
+                  name: "",
+                  startTime: s.startTime,
+                  endTime: s.endTime,
+                });
+              }
+            }
+          });
+          const timeSlots = Array.from(slotMap.values());
+
+          setTimingData(p => ({
+            ...p,
+            name: group.name || "",
+            fromDate,
+            toDate,
+            timeSlots,
+          }));
+        } else {
+          setTimingData(p => ({ ...p, name: group.name || "" }));
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoadSched(false));
+  }, [isEdit, group]);
+
+  /* ── Escape key ── */
+  useEffect(() => {
+    const h = e => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  /* ── Grade / Section helpers ── */
+  const gradeOptions = useMemo(() => {
+    const seen = new Set();
+    return classSections
+      .filter(cs => { if (seen.has(cs.grade)) return false; seen.add(cs.grade); return true; })
+      .map(cs => ({ value: cs.grade, label: cs.grade }));
+  }, [classSections]);
+
+  const sectionsFor = grade =>
+    classSections.filter(cs => cs.grade === grade)
+      .map(cs => ({ value: cs.id, label: cs.section ? `Section ${cs.section}` : "Main" }));
+
+  const fetchSubjectsFor = cid => {
+    if (!cid || subjectsMap[cid] !== undefined) return;
+    setSubjectsMap(p => ({ ...p, [cid]: null }));
+    fetchClassSectionById(cid)
+      .then(d => {
+        const subs = d.classSection?.classSubjects?.map(cs => cs.subject) || [];
+        setSubjectsMap(p => ({ ...p, [cid]: subs }));
+      })
+      .catch(() => setSubjectsMap(p => ({ ...p, [cid]: [] })));
+  };
+
+  /* ── Schedule field helpers ── */
+  const setSchedField = (key, field, value) => {
+    setSched(p => p.map(s => s._key === key ? { ...s, [field]: value } : s));
+    setSchedErrors(p => ({ ...p, [`${key}_${field}`]: "" }));
+  };
+  const handleGradeChange = (key, grade) => {
+    setSched(p => p.map(s => s._key === key ? { ...s, grade, classSectionId: "", subjectId: "" } : s));
+    const secs = classSections.filter(cs => cs.grade === grade);
+    if (secs.length === 1) {
+      setSched(p => p.map(s => s._key === key ? { ...s, grade, classSectionId: secs[0].id, subjectId: "" } : s));
+      fetchSubjectsFor(secs[0].id);
+    }
+  };
+  const handleSectionChange = (key, cid) => {
+    setSched(p => p.map(s => s._key === key ? { ...s, classSectionId: cid, subjectId: "" } : s));
+    fetchSubjectsFor(cid);
+  };
+  const removeSched = async sc => {
+    // ✅ Use _isExisting (not _saved) since we set _saved=false for editability
+    if (sc._isExisting && sc._savedId) {
+      if (!window.confirm("Remove this schedule from the server?")) return;
+      try { await deleteSchedule(sc._savedId); } catch (e) { alert(e.message); return; }
+    }
+    setSched(p => p.filter(s => s._key !== sc._key));
+  };
+
+  /* ── Section toggle ── */
+  const toggleSection = (csId) => {
+    setSelectedSections(p =>
+      p.includes(csId) ? p.filter(id => id !== csId) : [...p, csId]
+    );
+  };
+  const toggleGrade = (grade, sections, select) => {
+    setSelectedSections(p => {
+      const ids = sections.map(cs => cs.id);
+      if (select) return [...new Set([...p, ...ids])];
+      return p.filter(id => !ids.includes(id));
+    });
+  };
+
+  /* ── Step navigation ── */
+  const validateStep = (step) => {
+    if (step === 1) {
+      const errs = {};
+      if (!timingData.name.trim()) errs.name = "Exam name is required";
+      if (Object.keys(errs).length) { setTimingErrors(errs); return false; }
+      setTimingErrors({});
+    }
+    if (step === 2) {
+      if (selectedSections.length === 0) {
+        alert("Please select at least one section.");
+        return false;
+      }
+    }
+    if (step === 3) {
+      const sErrs = {};
+      schedules.forEach(sc => {
+        if (!sc.classSectionId) sErrs[`${sc._key}_classSectionId`] = "Required";
+        if (!sc.subjectId) sErrs[`${sc._key}_subjectId`] = "Required";
+        if (!sc.examDate) sErrs[`${sc._key}_examDate`] = "Required";
+        if (!sc.maxMarks) sErrs[`${sc._key}_maxMarks`] = "Required";
+      });
+      if (Object.keys(sErrs).length) { setSchedErrors(sErrs); return false; }
+    }
+    return true;
+  };
+
+  const goNext = () => {
+    if (!validateStep(currentStep)) return;
+    setCompletedSteps(p => [...new Set([...p, currentStep])]);
+    setCurrentStep(s => Math.min(s + 1, 4));
+  };
+
+  const goBack = () => setCurrentStep(s => Math.max(s - 1, 1));
+
+  /* ── Final submit ── */
+  const handleSubmit = async () => {
+    if (!validateStep(3)) return;
+    setLoading(true); setApiError("");
+    try {
+      let gId = groupId;
+      const payload = { name: timingData.name.trim(), academicYearId };
+      if (isEdit && gId) { await updateGroup(gId, payload); }
+      else { const r = await createGroup(payload); gId = r.id; setGroupId(gId); }
+
+      // Normalize time to valid "HH:MM"
+      const normalizeTime = (t) => {
+        if (!t || typeof t !== "string") return "00:00";
+        const clean = t.trim().substring(0, 5);
+        return /^\d{2}:\d{2}$/.test(clean) ? clean : "00:00";
+      };
+
+      for (const sc of schedules) {
+        if (!sc.subjectId || !sc.classSectionId || !sc.examDate) continue;
+        const scheduleData = {
+          assessmentGroupId: gId,
+          subjectId: sc.subjectId,
+          classSectionId: sc.classSectionId,
+          maxMarks: Number(sc.maxMarks) || 0,
+          passingMarks: Number(sc.passingMarks) || 0,
+          examDate: sc.examDate,
+          startTime: normalizeTime(sc.startTime),
+          endTime:   normalizeTime(sc.endTime),
+        };
+
+        if (sc._isExisting && sc._savedId) {
+          // Existing schedule — delete old and recreate with updated data
+          await deleteSchedule(sc._savedId);
+          await createSchedule(scheduleData);
+        } else {
+          // Brand new schedule
+          await createSchedule(scheduleData);
+        }
+      }
+      onSuccess(); onClose();
+    } catch (err) {
+      setApiError(err.message || "Something went wrong. Please try again.");
+    } finally { setLoading(false); }
+  };
+
+  const progressPct = (currentStep / 4) * 100;
+
+  /* ── Render ── */
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @keyframes modalIn { from{opacity:0;transform:translate(-50%,-47%) scale(.97)} to{opacity:1;transform:translate(-50%,-50%) scale(1)} }
+        @keyframes ae-spin { to { transform:rotate(360deg) } }
+        .ae-scroll::-webkit-scrollbar { width:4px }
+        .ae-scroll::-webkit-scrollbar-thumb { background:#e2e8f0; border-radius:8px }
+      `}</style>
+
+      {/* Backdrop */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(6px)" }} />
+
+      {/* Modal */}
+      <div style={{
+        position: "fixed", zIndex: 50, top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+        width: "min(98vw, 920px)", maxWidth: "96vw", maxHeight: "94vh",
+        background: C.bg, borderRadius: 24, display: "flex", flexDirection: "column", overflow: "hidden",
+        boxShadow: "0 32px 80px rgba(15,23,42,0.25), 0 4px 16px rgba(15,23,42,0.1)",
+        animation: "modalIn 0.22s ease", ...F,
+      }}>
+
+        {/* ── Header bar ── */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", background: C.navy, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: "rgba(59,130,246,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ClipboardList size={18} color="#93c5fd" />
+            </div>
+            <div>
+              <div style={{ ...F, fontSize: 15, fontWeight: 700, color: "#fff" }}>
+                {isEdit ? "Edit Assessment" : "Exam Setup"}
+              </div>
+              <div style={{ ...F, fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
+                {academicYearLabel || "New Exam Configuration"}
+              </div>
+            </div>
+          </div>
+          <button onClick={onClose}
+            style={{ background: "rgba(255,255,255,0.08)", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.6)", padding: 8, borderRadius: 9, display: "flex" }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
+            onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* ── Top Stepper ── */}
+        <TopStepper currentStep={currentStep} completedSteps={completedSteps} />
+
+        {/* ── API Error ── */}
+        {apiError && (
+          <div style={{ margin: "12px 24px 0", padding: "11px 14px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", color: C.red, fontSize: 13, ...F, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <AlertCircle size={14} style={{ flexShrink: 0 }} />{apiError}
+          </div>
+        )}
+
+        {/* ── Body ── */}
+        <div className="ae-scroll" style={{ flex: 1, overflowY: "auto" }}>
+          {currentStep === 1 && (
+            <StepConfigureTimings
+              data={timingData}
+              onChange={(field, val) => setTimingData(p => ({ ...p, [field]: val }))}
+              errors={timingErrors}
+            />
+          )}
+          {currentStep === 2 && (
+            <StepSelectClasses
+              classSections={classSections}
+              classLoading={classLoading}
+              selectedSections={selectedSections}
+              onToggleSection={toggleSection}
+              onToggleGrade={toggleGrade}
+            />
+          )}
+          {currentStep === 3 && (
+            <StepBuildSchedule
+              classSections={classSections}
+              selectedSections={selectedSections}
+              schedules={schedules}
+              setSched={setSched}
+              schedErrors={schedErrors}
+              setSchedErrors={setSchedErrors}
+              subjectsMap={subjectsMap}
+              classLoading={classLoading}
+              loadSched={loadSched}
+              gradeOptions={gradeOptions}
+              sectionsFor={sectionsFor}
+              fetchSubjectsFor={fetchSubjectsFor}
+              handleGradeChange={handleGradeChange}
+              handleSectionChange={handleSectionChange}
+              setSchedField={setSchedField}
+              removeSched={removeSched}
+              timingData={timingData}
+            />
+          )}
+          {currentStep === 4 && (
+            <StepReview
+              timingData={timingData}
+              selectedSections={selectedSections}
+              classSections={classSections}
+              schedules={schedules}
+              academicYearLabel={academicYearLabel}
+            />
+          )}
+        </div>
+
+        {/* ── Footer ── */}
+        <div style={{ padding: "0 32px 20px", flexShrink: 0, background: C.bg }}>
+          {/* Progress bar */}
+          <div style={{ height: 3, background: C.border, borderRadius: 99, marginBottom: 16, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${progressPct}%`, background: "linear-gradient(90deg, #3b82f6, #1d4ed8)", borderRadius: 99, transition: "width .3s ease" }} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ ...F, fontSize: 12, color: C.light }}>Step {currentStep} of 4</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              {currentStep > 1 && (
+                <button onClick={goBack}
+                  style={{ ...F, border: `1.5px solid ${C.border}`, borderRadius: 11, padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: "#fff", color: C.mid, display: "flex", alignItems: "center", gap: 6 }}>
+                  <ChevronLeft size={15} /> Back
+                </button>
+              )}
+              <button onClick={onClose}
+                style={{ ...F, border: "none", borderRadius: 11, padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: "#f1f5f9", color: C.mid }}>
+                Cancel
+              </button>
+              {currentStep < 4 ? (
+                <button onClick={goNext}
+                  style={{ ...F, border: "none", borderRadius: 11, padding: "9px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)", color: "#fff", display: "flex", alignItems: "center", gap: 6, boxShadow: "0 4px 14px rgba(59,130,246,0.3)" }}>
+                  {currentStep === 2 ? "Build Schedule" : "Next"}
+                  <ChevronRight size={15} />
+                </button>
+              ) : (
+                <button onClick={handleSubmit} disabled={loading}
+                  style={{ ...F, border: "none", borderRadius: 11, padding: "9px 22px", fontSize: 13, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", background: loading ? "#a0b5c8" : "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff", display: "flex", alignItems: "center", gap: 6, boxShadow: loading ? "none" : "0 4px 14px rgba(16,185,129,0.3)" }}>
+                  {loading ? <><Loader2 size={14} style={{ animation: "ae-spin .8s linear infinite" }} />{isEdit ? "Saving…" : "Creating…"}</> : <><Check size={14} />{isEdit ? "Save Changes" : "Create Assessment"}</>}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

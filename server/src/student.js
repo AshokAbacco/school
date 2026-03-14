@@ -1,21 +1,41 @@
-//server\src\student.js
+// server/src/student.js
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+
+import dashboardRouter   from "./student/routes/dashboard.routes.js";   // ← ADD
+import attendanceRouter from "./student/routes/attendance.routes.js";
+import profileRouter    from "./student/routes/profile.routes.js";
+import marksRoutes    from "./student/routes/marksRoutes.js";
+import timetableRoutes   from "./student/routes/timetableRoutes.js";
+import activitiesRoute from "./student/routes/activities.routes.js";
+import certificateRoutes from "./student/routes/certificateRoutes.js";
+
+
+
 
 dotenv.config();
 
 const student = express();
 
-// middlewares
-student.use(
+// ── Middlewares ───────────────────────────────────────────────────────────────
+student.use(  
   cors({
     origin: process.env.CLIENT_ORIGIN,
     credentials: true,
-  }),
+  })
 );
 student.use(express.json());
 
-// routes
+// ── Routes ────────────────────────────────────────────────────────────────────
+student.use("/dashboard",    dashboardRouter);   // ← ADD
+student.use("/attendance", attendanceRouter);
+student.use("/profile",    profileRouter);
+student.use("/marks",      marksRoutes); 
+student.use("/timetable",  timetableRoutes);
+student.use("/activities", activitiesRoute);
+student.use("/certificates", certificateRoutes);
+
 
 export default student;

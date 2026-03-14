@@ -1,9 +1,9 @@
 // client/src/superAdmin/pages/schools/Schools.jsx
 import React, { useState, useEffect } from "react";
-import { Plus, Search, Edit, Trash2, Building2, CheckCircle, Ban, RefreshCw } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Building2, CheckCircle, Ban, RefreshCw, X, AlertTriangle, Loader2 } from "lucide-react";
 import PageLayout from "../../components/PageLayout";
 import AddSchoolModal from "./AddSchool";
-import { getSchools } from "./components/SchoolsApi";
+import { getSchools, deleteSchool } from "./components/SchoolsApi";
 
 const SCHOOL_TYPE_LABELS = {
   PRIMARY:       "Primary (1–5)",
@@ -28,13 +28,101 @@ const StatusBadge = ({ isActive }) => {
   );
 };
 
-export default function Schools() {
-  const [schools, setSchools] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState("");
-  const [search, setSearch]   = useState("");
-  const [modal, setModal]     = useState(false);
+// ── Delete Confirm Dialog ────────────────────────────────────────────────────
+function DeleteConfirmDialog({ school, onConfirm, onCancel, loading }) {
+  useEffect(() => {
+    const h = (e) => e.key === "Escape" && onCancel();
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onCancel]);
 
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40"
+        style={{ background: "rgba(56,73,89,0.35)", backdropFilter: "blur(2px)" }}
+        onClick={onCancel}
+      />
+      <div
+        className="fixed z-50 flex flex-col overflow-hidden"
+        style={{
+          top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+          width: 420, maxWidth: "92vw",
+          background: "#fff", borderRadius: 18,
+          boxShadow: "0 20px 60px rgba(56,73,89,0.22)",
+          animation: "modalIn 0.18s ease",
+          fontFamily: "'DM Sans', sans-serif",
+        }}
+      >
+        <div className="px-6 pt-6 pb-5">
+          {/* Icon */}
+          <div className="flex justify-center mb-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #fef2f2, #fee2e2)" }}>
+              <AlertTriangle size={26} color="#ef4444" />
+            </div>
+          </div>
+
+          {/* Text */}
+          <h3 className="text-base font-bold text-center mb-1.5" style={{ color: "#384959" }}>
+            Delete School?
+          </h3>
+          <p className="text-sm text-center mb-1" style={{ color: "#6A89A7" }}>
+            You're about to permanently delete
+          </p>
+          <p className="text-sm font-semibold text-center mb-4" style={{ color: "#384959" }}>
+            "{school.name}"
+          </p>
+          <div className="px-4 py-2.5 rounded-xl text-xs text-center mb-5"
+            style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
+            This action cannot be undone. All associated data will be lost.
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              disabled={loading}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              style={{ background: "#f3f8fd", color: "#384959", border: "none", cursor: "pointer" }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={loading}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+              style={{
+                background: "#ef4444", color: "#fff", border: "none",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
+              }}
+            >
+              {loading ? <><Loader2 size={14} className="animate-spin" /> Deleting…</> : <><Trash2 size={14} /> Delete</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Main Component ───────────────────────────────────────────────────────────
+export default function Schools() {
+  const [schools, setSchools]         = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState("");
+
+  const [search, setSearch]           = useState("");
+
+  // Modal state: null = closed, { mode: "add" } or { mode: "edit", school: {...} }
+  const [modal, setModal]             = useState(null);
+
+  // Delete dialog state: null = closed, { school: {...} }
+  const [deleteDialog, setDeleteDialog] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchSchools = async () => {
     setLoading(true);
     setError("");
@@ -50,10 +138,37 @@ export default function Schools() {
 
   useEffect(() => { fetchSchools(); }, []);
 
+  // ── Handlers ───────────────────────────────────────────────────────────────
   const handleSchoolCreated = (newSchool) => {
     setSchools((prev) => [newSchool, ...prev]);
   };
 
+  const handleSchoolUpdated = (updatedSchool) => {
+    setSchools((prev) =>
+      prev.map((s) => (s.id === updatedSchool.id ? updatedSchool : s))
+    );
+  };
+
+  const openEdit = (school) => setModal({ mode: "edit", school });
+
+  const openDeleteDialog = (school) => setDeleteDialog({ school });
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteDialog) return;
+    setDeleteLoading(true);
+    try {
+      await deleteSchool(deleteDialog.school.id);
+      setSchools((prev) => prev.filter((s) => s.id !== deleteDialog.school.id));
+      setDeleteDialog(null);
+    } catch (err) {
+      console.error("Delete failed:", err);
+      // Optionally show an error inside the dialog
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // ── Derived ────────────────────────────────────────────────────────────────
   const filtered = schools.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
     (s.city || "").toLowerCase().includes(search.toLowerCase())
@@ -65,6 +180,7 @@ export default function Schools() {
     inactive: schools.filter((s) => !s.isActive).length,
   };
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <PageLayout>
       <div className="p-4 sm:p-6 min-h-screen bg-[#EFF6FD]">
@@ -89,10 +205,12 @@ export default function Schools() {
               <RefreshCw size={15} />
             </button>
             <button
-              onClick={() => setModal(true)}
+              onClick={() => setModal({ mode: "add" })}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#384959] hover:bg-[#6A89A7] shadow-md shadow-[#384959]/30 hover:shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all border-0 cursor-pointer"
             >
-              <Plus size={16} /> <span className="hidden xs:inline">Add School</span><span className="xs:hidden">Add</span>
+              <Plus size={16} />
+              <span className="hidden xs:inline">Add School</span>
+              <span className="xs:hidden">Add</span>
             </button>
           </div>
         </div>
@@ -102,7 +220,7 @@ export default function Schools() {
           {[
             { label: "Total Schools", value: totals.total,    color: "from-[#88BDF2] to-[#6A89A7]", shadow: "shadow-[#88BDF2]/30", icon: Building2   },
             { label: "Active",        value: totals.active,   color: "from-[#88BDF2] to-[#6A89A7]", shadow: "shadow-[#88BDF2]/30", icon: CheckCircle },
-            { label: "Inactive",      value: totals.inactive, color: "from-red-400 to-red-500",         shadow: "shadow-red-200",     icon: Ban         },
+            { label: "Inactive",      value: totals.inactive, color: "from-red-400 to-red-500",       shadow: "shadow-red-200",     icon: Ban         },
           ].map(({ label, value, color, shadow, icon: Icon }) => (
             <div key={label} className="bg-white rounded-2xl p-4 border border-[#BDDDFC]/50 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow">
               <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center shadow-sm ${shadow} flex-shrink-0`}>
@@ -126,6 +244,11 @@ export default function Schools() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full text-sm outline-none text-[#384959] placeholder-[#6A89A7]/60"
           />
+          {search && (
+            <button onClick={() => setSearch("")} className="text-[#6A89A7] hover:text-[#384959]">
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         {/* ── Loading ── */}
@@ -189,10 +312,18 @@ export default function Schools() {
                         <td className="px-4 py-3 text-center"><StatusBadge isActive={s.isActive} /></td>
                         <td className="px-4 py-3 text-center">
                           <div className="flex justify-center gap-2">
-                            <button className="p-1.5 rounded-lg hover:bg-[#BDDDFC]/50 text-[#88BDF2] hover:text-[#384959] transition-colors">
+                            <button
+                              onClick={() => openEdit(s)}
+                              className="p-1.5 rounded-lg hover:bg-[#BDDDFC]/50 text-[#88BDF2] hover:text-[#384959] transition-colors"
+                              title="Edit school"
+                            >
                               <Edit size={14} />
                             </button>
-                            <button className="p-1.5 rounded-lg hover:bg-red-100 text-red-300 hover:text-red-500 transition-colors">
+                            <button
+                              onClick={() => openDeleteDialog(s)}
+                              className="p-1.5 rounded-lg hover:bg-red-100 text-red-300 hover:text-red-500 transition-colors"
+                              title="Delete school"
+                            >
                               <Trash2 size={14} />
                             </button>
                           </div>
@@ -246,10 +377,18 @@ export default function Schools() {
                       {SCHOOL_TYPE_LABELS[s.type] || s.type}
                     </span>
                     <div className="flex gap-2">
-                      <button className="p-1.5 rounded-lg hover:bg-[#BDDDFC]/50 text-[#88BDF2] hover:text-[#384959] transition-colors">
+                      <button
+                        onClick={() => openEdit(s)}
+                        className="p-1.5 rounded-lg hover:bg-[#BDDDFC]/50 text-[#88BDF2] hover:text-[#384959] transition-colors"
+                        title="Edit school"
+                      >
                         <Edit size={14} />
                       </button>
-                      <button className="p-1.5 rounded-lg hover:bg-red-100 text-red-300 hover:text-red-500 transition-colors">
+                      <button
+                        onClick={() => openDeleteDialog(s)}
+                        className="p-1.5 rounded-lg hover:bg-red-100 text-red-300 hover:text-red-500 transition-colors"
+                        title="Delete school"
+                      >
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -268,10 +407,28 @@ export default function Schools() {
         )}
       </div>
 
-      {modal && (
+      {/* ── Add / Edit Modal ── */}
+      {modal?.mode === "add" && (
         <AddSchoolModal
-          onClose={() => setModal(false)}
+          onClose={() => setModal(null)}
           onSuccess={handleSchoolCreated}
+        />
+      )}
+      {modal?.mode === "edit" && (
+        <AddSchoolModal
+          school={modal.school}
+          onClose={() => setModal(null)}
+          onSuccess={handleSchoolUpdated}
+        />
+      )}
+
+      {/* ── Delete Confirm Dialog ── */}
+      {deleteDialog && (
+        <DeleteConfirmDialog
+          school={deleteDialog.school}
+          loading={deleteLoading}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteDialog(null)}
         />
       )}
 

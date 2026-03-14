@@ -48,9 +48,18 @@ export async function getAllUsers(req, res) {
     // ── 2. Users (ADMIN + TEACHER) ──────────────────────────────
     let staffUsers = [];
     const staffRoles = [];
-    if (role === "ALL")         staffRoles.push("ADMIN", "TEACHER");
-    if (role === "ADMIN")       staffRoles.push("ADMIN");
-    if (role === "TEACHER")     staffRoles.push("TEACHER");
+
+    if (role === "ALL")
+      staffRoles.push("ADMIN", "TEACHER", "FINANCE");
+
+    if (role === "ADMIN")
+      staffRoles.push("ADMIN");
+
+    if (role === "TEACHER")
+      staffRoles.push("TEACHER");
+
+    if (role === "FINANCE")
+      staffRoles.push("FINANCE");
 
     if (staffRoles.length > 0) {
       const rows = await prisma.user.findMany({
@@ -119,6 +128,7 @@ export async function getAllUsers(req, res) {
       superAdmin:  all.filter((u) => u.role === "SUPER_ADMIN").length,
       admin:       all.filter((u) => u.role === "ADMIN").length,
       teacher:     all.filter((u) => u.role === "TEACHER").length,
+      finance:     all.filter((u) => u.role === "FINANCE").length, // ✅ ADD
       student:     all.filter((u) => u.role === "STUDENT").length,
       parent:      all.filter((u) => u.role === "PARENT").length,
       active:      all.filter((u) => u.isActive).length,

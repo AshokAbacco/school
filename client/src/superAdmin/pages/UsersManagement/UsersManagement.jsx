@@ -18,6 +18,7 @@ const ROLE_OPTIONS = [
   { value: "TEACHER",     label: "Teacher"      },
   { value: "STUDENT",     label: "Student"      },
   { value: "PARENT",      label: "Parent"       },
+  { value: "FINANCE",     label: "Finance"      }, // ✅ ADD THIS
 ];
 
 const STATUS_OPTIONS = [
@@ -32,6 +33,7 @@ const ROLE_BADGE = {
   TEACHER:     { label: "Teacher",      bg: "#dcfce7", color: "#16a34a"  },
   STUDENT:     { label: "Student",      bg: "#fef9c3", color: "#ca8a04"  },
   PARENT:      { label: "Parent",       bg: "#fce7f3", color: "#db2777"  },
+  FINANCE:     { label: "Finance",      bg: "#e0f2fe", color: "#0284c7"  }, // ✅
 };
 
 function RoleBadge({ role }) {
@@ -97,6 +99,7 @@ export default function UsersManagement() {
     { label: "Teachers",      value: counts.teacher ?? 0, color: "from-[#88BDF2] to-[#6A89A7]",     shadow: "shadow-[#88BDF2]/30",    icon: BookOpen      },
     { label: "Students",      value: counts.student ?? 0, color: "from-[#6A89A7] to-[#384959]",       shadow: "shadow-[#6A89A7]/30",    icon: GraduationCap },
     { label: "Parents",       value: counts.parent  ?? 0, color: "from-[#88BDF2] to-[#6A89A7]",          shadow: "shadow-[#88BDF2]/30",      icon: Users2        },
+    {label: "Finance",        value: counts.finance ?? 0, color: "from-[#0ea5e9] to-[#0284c7]",        shadow: "shadow-[#0ea5e9]/30",   icon: Building2,},
     { label: "Active",        value: counts.active  ?? 0, color: "from-[#6A89A7] to-[#384959]",         shadow: "shadow-[#6A89A7]/30",    icon: ShieldCheck   },
   ];
 
@@ -127,7 +130,7 @@ export default function UsersManagement() {
         </div>
 
         {/* ── Stat Cards ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3 mb-6">
           {statCards.map(({ label, value, color, shadow, icon: Icon }) => (
             <div key={label} className="bg-white rounded-2xl p-3 border border-[#BDDDFC]/50 shadow-sm flex items-center gap-2.5 hover:shadow-md transition-shadow">
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br ${color} shadow-sm ${shadow}`}>

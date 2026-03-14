@@ -152,7 +152,7 @@ export async function updateSchoolAdmin(req, res) {
       select: {
         id: true, name: true, email: true, isActive: true,
         schoolId: true,
-        school: { select: { id: true, name: true, code: true } },
+        school: { select: { id: true, name: true, code: true, type: true } },
       },
     });
 

@@ -119,7 +119,11 @@ export const getAllSchools = async (req, res) => {
     });
 
     // 3️⃣ Cache result (TTL = 10 minutes)
-    await redisClient.setEx(cacheKey, 600, JSON.stringify(schools));
+    // await redisClient.setEx(cacheKey, 600, JSON.stringify(schools));
+
+    if (schools.length > 0) {
+  await redisClient.setEx(cacheKey, 600, JSON.stringify(schools));
+}
 
     return res.status(200).json({ source: "db", schools });
   } catch (error) {

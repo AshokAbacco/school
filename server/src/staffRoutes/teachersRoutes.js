@@ -1,6 +1,6 @@
 // server/src/staffRoutes/teachersRoutes.js
 import express from "express";
-import multer from "multer"; // ← add this
+import multer from "multer";
 import authMiddleware from "../middlewares/authMiddleware.js";
 import {
   getTeachers,
@@ -10,14 +10,15 @@ import {
   deleteTeacher,
   addAssignment,
   removeAssignment,
-  uploadProfileImage, // ← new
-  getProfileImage, // ← new
+  uploadProfileImage,
+  getProfileImage,
+  uploadTeacherDocument, // ← NEW
+  getTeacherDocumentUrl,
 } from "../staffControlls/teacherController.js";
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() }); // ← add this
+const upload = multer({ storage: multer.memoryStorage() });
 
-// ✅ authMiddleware on ALL routes so req.user.schoolId is always available
 router.get("/", authMiddleware, getTeachers);
 router.get("/:id", authMiddleware, getTeacherById);
 router.post("/", authMiddleware, createTeacher);
@@ -35,4 +36,12 @@ router.post(
 );
 router.get("/:id/profile-image", authMiddleware, getProfileImage);
 
+// ── Documents ─────────────────────────────────────────────────
+router.post(
+  "/:id/documents",
+  authMiddleware,
+  upload.single("file"),
+  uploadTeacherDocument,
+);
+router.get("/:id/documents/:docId/view", authMiddleware, getTeacherDocumentUrl);
 export default router;

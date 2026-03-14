@@ -1,5 +1,6 @@
 // client/src/admin/pages/teachers/components/TeachersFilters.jsx
 import React from "react";
+import { Search, X, ChevronDown, SlidersHorizontal } from "lucide-react";
 
 const STATUS_OPTS = [
   { value: "", label: "All Status" },
@@ -8,7 +9,6 @@ const STATUS_OPTS = [
   { value: "RESIGNED", label: "Resigned" },
   { value: "TERMINATED", label: "Terminated" },
 ];
-
 const EMP_OPTS = [
   { value: "", label: "All Types" },
   { value: "FULL_TIME", label: "Full Time" },
@@ -17,93 +17,85 @@ const EMP_OPTS = [
   { value: "TEMPORARY", label: "Temporary" },
 ];
 
-const selectStyle = {
-  border: "1.5px solid #BDDDFC",
-  color: "#384959",
-  fontFamily: "'DM Sans', sans-serif",
-  background: "#fff",
+const base = {
+  border: "1.5px solid #DDE9F5", color: "#243340",
+  fontFamily: "'Inter', sans-serif", background: "#fff",
+  borderRadius: 11, fontSize: 13, fontWeight: 500,
+  outline: "none", transition: "border-color 0.15s, box-shadow 0.15s",
 };
 
 export default function TeachersFilters({ filters, onChange }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 px-8 pb-5">
-      {/* Search */}
-      <div className="relative flex-1 min-w-[220px]">
-        <svg
-          className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-          width="15"
-          height="15"
-          viewBox="0 0 15 15"
-          fill="none"
-        >
-          <circle cx="6" cy="6" r="4.5" stroke="#6A89A7" strokeWidth="1.5" />
-          <path
-            d="M9.5 9.5l3 3"
-            stroke="#6A89A7"
-            strokeWidth="1.5"
-            strokeLinecap="round"
+    <>
+      <style>{`
+        .tf-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 32px 14px; }
+        .tf-input:focus { border-color: #88BDF2 !important; box-shadow: 0 0 0 3px rgba(136,189,242,0.12) !important; }
+        .tf-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); border: none; background: none; cursor: pointer; color: #6A89A7; padding: 2px; display: flex; border-radius: 50%; transition: background 0.12s; }
+        .tf-clear:hover { background: #EDF3FA; }
+        @media (max-width: 767px) {
+          .tf-wrap { padding: 0 16px 12px; flex-direction: column; align-items: stretch; }
+          .tf-search { width: 100% !important; min-width: unset !important; }
+          .tf-selects { display: flex; gap: 8px; }
+          .tf-selects > div { flex: 1; }
+          .tf-dept { width: 100% !important; min-width: unset !important; }
+        }
+      `}</style>
+
+      <div className="tf-wrap">
+        {/* Search */}
+        <div className="tf-search" style={{ position: "relative", flex: 1, minWidth: 220 }}>
+          <Search size={13} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#88BDF2", pointerEvents: "none" }} />
+          <input
+            type="text"
+            placeholder="Search name, code, department…"
+            value={filters.search}
+            onChange={(e) => onChange("search", e.target.value)}
+            className="tf-input"
+            style={{ ...base, width: "100%", padding: "9px 36px 9px 34px", boxSizing: "border-box" }}
+            onFocus={(e) => { e.target.style.borderColor = "#88BDF2"; e.target.style.boxShadow = "0 0 0 3px rgba(136,189,242,0.12)"; }}
+            onBlur={(e) => { e.target.style.borderColor = "#DDE9F5"; e.target.style.boxShadow = "none"; }}
           />
-        </svg>
-        <input
-          type="text"
-          placeholder="Search name, code, department…"
-          value={filters.search}
-          onChange={(e) => onChange("search", e.target.value)}
-          className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm outline-none transition-all"
-          style={{ ...selectStyle, fontSize: 13 }}
-          onFocus={(e) => (e.target.style.borderColor = "#88BDF2")}
-          onBlur={(e) => (e.target.style.borderColor = "#BDDDFC")}
-        />
-        {filters.search && (
-          <button
-            onClick={() => onChange("search", "")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-lg leading-none"
-            style={{ color: "#6A89A7" }}
-          >
-            ×
-          </button>
-        )}
+          {filters.search && (
+            <button className="tf-clear" onClick={() => onChange("search", "")}>
+              <X size={12} />
+            </button>
+          )}
+        </div>
+
+        {/* Status + Type */}
+        <div className="tf-selects" style={{ display: "flex", gap: 8 }}>
+          {[
+            { key: "status", opts: STATUS_OPTS, minW: 132 },
+            { key: "employmentType", opts: EMP_OPTS, minW: 120 },
+          ].map(({ key, opts, minW }) => (
+            <div key={key} style={{ position: "relative" }}>
+              <select
+                value={filters[key] || ""}
+                onChange={(e) => onChange(key, e.target.value)}
+                style={{ ...base, appearance: "none", WebkitAppearance: "none", padding: "9px 30px 9px 12px", minWidth: minW, cursor: "pointer", width: "100%" }}
+                onFocus={(e) => { e.target.style.borderColor = "#88BDF2"; e.target.style.boxShadow = "0 0 0 3px rgba(136,189,242,0.12)"; }}
+                onBlur={(e) => { e.target.style.borderColor = "#DDE9F5"; e.target.style.boxShadow = "none"; }}
+              >
+                {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <ChevronDown size={11} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#6A89A7", pointerEvents: "none" }} />
+            </div>
+          ))}
+        </div>
+
+        {/* Department */}
+        <div className="tf-dept" style={{ position: "relative", minWidth: 150 }}>
+          <input
+            type="text"
+            placeholder="Department…"
+            value={filters.department}
+            onChange={(e) => onChange("department", e.target.value)}
+            style={{ ...base, padding: "9px 12px", width: "100%", boxSizing: "border-box" }}
+            onFocus={(e) => { e.target.style.borderColor = "#88BDF2"; e.target.style.boxShadow = "0 0 0 3px rgba(136,189,242,0.12)"; }}
+            onBlur={(e) => { e.target.style.borderColor = "#DDE9F5"; e.target.style.boxShadow = "none"; }}
+          />
+        </div>
       </div>
-
-      {/* Status */}
-      <select
-        value={filters.status}
-        onChange={(e) => onChange("status", e.target.value)}
-        className="py-2.5 px-3 rounded-xl text-sm outline-none cursor-pointer"
-        style={{ ...selectStyle, minWidth: 130 }}
-      >
-        {STATUS_OPTS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-
-      {/* Employment type */}
-      <select
-        value={filters.employmentType || ""}
-        onChange={(e) => onChange("employmentType", e.target.value)}
-        className="py-2.5 px-3 rounded-xl text-sm outline-none cursor-pointer"
-        style={{ ...selectStyle, minWidth: 130 }}
-      >
-        {EMP_OPTS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-
-      {/* Department */}
-      <input
-        type="text"
-        placeholder="Department…"
-        value={filters.department}
-        onChange={(e) => onChange("department", e.target.value)}
-        className="py-2.5 px-3 rounded-xl text-sm outline-none transition-all"
-        style={{ ...selectStyle, minWidth: 150 }}
-        onFocus={(e) => (e.target.style.borderColor = "#88BDF2")}
-        onBlur={(e) => (e.target.style.borderColor = "#BDDDFC")}
-      />
-    </div>
+    </>
   );
 }

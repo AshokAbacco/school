@@ -17,6 +17,8 @@ import ExamsList from "./pages/Exams/ExamsList";
 import FinanceList from "./pages/finance/FinanceList";
 import MeetingsList from "./pages/meeting/MeetingsList";
 import CurriculumList from "./pages/curriculum/CurriculumList";
+import Gallery from "./pages/gallery/Gallery.jsx";
+import HolidayList from "./pages/holidays/HolidayList.jsx";
 import Settings from "./pages/settings/Settings";
 
 // ── NEW imports ───────────────────────────────────────────────────────────────
@@ -24,7 +26,9 @@ import StreamsPage from "./pages/classes/StreamsPage";
 import CoursesPage from "./pages/classes/CoursesPage";
 import PromotionPage from "./pages/classes/PromotionPage";
 import ReadmissionPage from "./pages/classes/ReadmissionPage";
-
+import AdminAwardsPage from "./pages/awardspage/Adminawardspage.jsx";
+import ExamsPage from "./pages/Exams/Examspage.jsx";
+import ActivitiesList from "./pages/activities/ActivitiesList";
 function AdminRoutes() {
   return (
     <Routes>
@@ -77,9 +81,15 @@ function AdminRoutes() {
       {/* Other */}
       <Route path="/attendance" element={<AttendanceList />} />
       <Route path="/exams" element={<ExamsList />} />
+      <Route path="/exams-page" element={<ExamsPage />} />
+      <Route path="/activities" element={<ActivitiesList />} />
       <Route path="/finance" element={<FinanceList />} />
       <Route path="/meetings" element={<MeetingsList />} />
       <Route path="/curriculum" element={<CurriculumList />} />
+      <Route path="/gallery" element={<Gallery />} />
+      <Route path="/holidays" element={<HolidayList />} />
+      <Route path="/awards" element={<AdminAwardsPage />} />
+
       <Route path="/settings/" element={<Settings />} />
 
       {/* Fallback */}

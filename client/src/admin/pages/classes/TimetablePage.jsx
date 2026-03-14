@@ -1,4 +1,5 @@
 // client/src/admin/pages/classes/TimetablePage.jsx
+// client/src/admin/pages/classes/TimetablePage.jsx
 // Standalone timetable builder — no step wizard.
 // Features:
 //  - All classes/sections available; pick one or get pre-selected via state.sectionId
@@ -182,7 +183,7 @@ function ExtraClassCard({ ec, onEdit, onDelete, subjectColor }) {
           borderRadius: 6,
           background: `${typeColor}18`,
           color: typeColor,
-          fontFamily: "Inter, sans-serif",
+           fontFamily: "'Inter', sans-serif",
         }}
       >
         {EXTRA_TYPE_LABELS[ec.type] || ec.type}
@@ -254,7 +255,7 @@ function ExtraClassCard({ ec, onEdit, onDelete, subjectColor }) {
           className="text-xs mt-1.5 italic"
           style={{
             color: C.mid,
-            fontFamily: "Inter, sans-serif",
+             fontFamily: "'Inter', sans-serif",
             lineHeight: 1.4,
           }}
         >
@@ -280,7 +281,7 @@ function ExtraClassCard({ ec, onEdit, onDelete, subjectColor }) {
             alignItems: "center",
             justifyContent: "center",
             gap: 4,
-            fontFamily: "Inter, sans-serif",
+             fontFamily: "'Inter', sans-serif",
           }}
         >
           <Pencil size={10} /> Edit
@@ -302,7 +303,7 @@ function ExtraClassCard({ ec, onEdit, onDelete, subjectColor }) {
             alignItems: "center",
             justifyContent: "center",
             gap: 4,
-            fontFamily: "Inter, sans-serif",
+             fontFamily: "'Inter', sans-serif",
           }}
         >
           {deleting ? (
@@ -398,9 +399,14 @@ export default function TimetablePage() {
       fetchClassSectionById(selectedClass.id, { academicYearId: yearId }),
     ])
       .then(([cfgData, entryData, sectionData]) => {
-        const allSlots = cfgData.config?.slots || [];
-        setSlots(allSlots.filter((s) => s.slotOrder < 1000));
-        setSatSlots(allSlots.filter((s) => s.slotOrder >= 1000));
+        // ✅ UPDATED: backend returns periodDefinitions (not slots)
+        const allSlots = cfgData.config?.periodDefinitions || [];
+        // Attach configId to each slot so handleSave can read it
+        const configId = cfgData.config?.id || null;
+        const taggedSlots = allSlots.map((s) => ({ ...s, configId }));
+
+        setSlots(taggedSlots.filter((s) => s.dayType === "WEEKDAY"));
+        setSatSlots(taggedSlots.filter((s) => s.dayType === "SATURDAY"));
 
         const classSubjects = (
           sectionData.classSection?.classSubjects || []
@@ -423,7 +429,8 @@ export default function TimetablePage() {
         DAYS.forEach((d) => (map[d] = {}));
         (entryData.entries || []).forEach((e) => {
           if (!map[e.day]) map[e.day] = {};
-          map[e.day][e.periodSlotId] = {
+          // ✅ UPDATED: use periodDefinitionId (not periodSlotId)
+          map[e.day][e.periodDefinitionId] = {
             teacherId: e.teacher?.id || e.teacherId,
             subjectId: e.subject?.id || e.subjectId,
             teacherName: e.teacher
@@ -442,11 +449,12 @@ export default function TimetablePage() {
             const tueEntries = weekdayEntries.filter(
               (e) => e.day === "TUESDAY",
             );
+            // ✅ UPDATED: use periodDefinitionId (not periodSlotId)
             const monSlots = new Set(
-              monEntries.map((e) => `${e.periodSlotId}:${e.subjectId}`),
+              monEntries.map((e) => `${e.periodDefinitionId}:${e.subjectId}`),
             );
             const tueSlots = new Set(
-              tueEntries.map((e) => `${e.periodSlotId}:${e.subjectId}`),
+              tueEntries.map((e) => `${e.periodDefinitionId}:${e.subjectId}`),
             );
             const isSame =
               monSlots.size === tueSlots.size &&
@@ -509,6 +517,39 @@ export default function TimetablePage() {
   // ── Timetable helpers ──────────────────────────────────────────────────────
   const getSlotsForDay = (day) =>
     day === "SATURDAY" && satSlots.length > 0 ? satSlots : slots;
+
+  // Build a merged row list for the grid:
+  // Start with Monday slots, then insert any Saturday break/non-PERIOD slots
+  // that fall at a different periodNumber position than Monday's breaks.
+  const mergedGridSlots = (() => {
+    if (satSlots.length === 0) return slots;
+    const result = [...slots];
+    // Find Saturday non-PERIOD slots (breaks) that have no matching periodNumber in Monday slots
+    const mondayBreakNumbers = new Set(
+      slots.filter((s) => s.slotType !== "PERIOD").map((s) => s.periodNumber),
+    );
+    const satOnlyBreaks = satSlots.filter(
+      (s) => s.slotType !== "PERIOD" && !mondayBreakNumbers.has(s.periodNumber),
+    );
+    // Insert each sat-only break after its corresponding period row
+    satOnlyBreaks.forEach((brk) => {
+      // Find the index of the last PERIOD slot with periodNumber <= brk.periodNumber
+      let insertAfter = -1;
+      result.forEach((s, i) => {
+        if (s.slotType === "PERIOD" && s.periodNumber <= brk.periodNumber)
+          insertAfter = i;
+      });
+      result.splice(insertAfter + 1, 0, { ...brk, _satOnly: true });
+    });
+    return result;
+  })();
+
+  // Saturday has different period count or start time → render as separate table
+  const isCustomSat =
+    satSlots.length > 0 &&
+    (satSlots.filter((s) => s.slotType === "PERIOD").length !==
+      slots.filter((s) => s.slotType === "PERIOD").length ||
+      satSlots[0]?.startTime !== slots[0]?.startTime);
 
   const subjectColor = (id) => {
     const idx = subjects.findIndex((s) => s.id === id);
@@ -575,6 +616,8 @@ export default function TimetablePage() {
     if (!selectedClass || !yearId) return;
     setSaving(true);
     try {
+      // ✅ Get configId from the loaded slots (all slots share same configId)
+      const configId = slots[0]?.configId || satSlots[0]?.configId || null;
       const entries = [];
       DAYS.forEach((day) => {
         const daySlots = getSlotsForDay(day);
@@ -585,7 +628,8 @@ export default function TimetablePage() {
             if (cell?.teacherId && cell?.subjectId) {
               entries.push({
                 day,
-                periodSlotId: slot.id,
+                periodDefinitionId: slot.id, // ✅ UPDATED: was periodSlotId
+                configId, // ✅ NEW: required by backend
                 subjectId: cell.subjectId,
                 teacherId: cell.teacherId,
               });
@@ -637,7 +681,7 @@ export default function TimetablePage() {
               color: C.mid,
               background: "transparent",
               cursor: "pointer",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             <ArrowLeft size={14} /> Back to Classes
@@ -664,7 +708,7 @@ export default function TimetablePage() {
               style={{
                 color: C.mid,
                 letterSpacing: "0.5px",
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
               }}
             >
               Academic Year
@@ -677,7 +721,7 @@ export default function TimetablePage() {
                 padding: "8px 12px",
                 border: `1.5px solid ${C.border}`,
                 color: C.primary,
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 background: "#fff",
               }}
             >
@@ -695,7 +739,7 @@ export default function TimetablePage() {
               style={{
                 color: C.mid,
                 letterSpacing: "0.5px",
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
               }}
             >
               Class Section
@@ -710,7 +754,7 @@ export default function TimetablePage() {
                 padding: "8px 12px",
                 border: `1.5px solid ${C.border}`,
                 color: C.primary,
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
                 background: "#fff",
                 minWidth: 160,
               }}
@@ -771,7 +815,7 @@ export default function TimetablePage() {
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {[
               { val: true, label: "Yes — same Mon–Fri" },
               { val: false, label: "No — set each day individually" },
@@ -785,7 +829,7 @@ export default function TimetablePage() {
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   border: `1.5px solid ${samePattern === val ? C.primary : C.border}`,
                   background: samePattern === val ? C.primary : "#fff",
                   color: samePattern === val ? "#fff" : C.mid,
@@ -857,195 +901,701 @@ export default function TimetablePage() {
                 cursor: "pointer",
                 fontSize: 13,
                 fontWeight: 600,
-                fontFamily: "Inter, sans-serif",
+                 fontFamily: "'Inter', sans-serif",
               }}
             >
               Set Up School Timings
             </button>
           </div>
         ) : (
+          /* ═══════════════════════════════════════════════════════
+             TRANSPOSED TIMETABLE:
+             ROWS    = Days (Mon, Tue, Wed, Thu, Fri | Sat)
+             COLUMNS = Periods (Period 1, Period 2 … scrolls →)
+          ═══════════════════════════════════════════════════════ */
           <div
             className="bg-white rounded-2xl shadow-sm overflow-hidden mb-4"
             style={{ border: `1px solid ${C.border}` }}
           >
+            {/* Scrollable table wrapper */}
             <div className="overflow-x-auto">
-              <table className="w-full" style={{ borderCollapse: "collapse" }}>
+              <table
+                style={{
+                  borderCollapse: "collapse",
+                  width: "100%",
+                  minWidth: `${130 + mergedGridSlots.length * 130}px`,
+                }}
+              >
                 <thead>
                   <tr
                     style={{
-                      background: "rgba(189,221,252,0.1)",
-                      borderBottom: `1px solid ${C.border}`,
+                      background: "rgba(189,221,252,0.08)",
+                      borderBottom: `1.5px solid ${C.border}`,
                     }}
                   >
+                    {/* Day label column header */}
                     <th
                       style={{
                         padding: "10px 16px",
                         textAlign: "left",
                         fontSize: 11,
-                        fontWeight: 600,
+                        fontWeight: 700,
                         color: C.mid,
-                        fontFamily: "Inter, sans-serif",
-                        minWidth: 100,
+                         fontFamily: "'Inter', sans-serif",
+                        letterSpacing: "0.4px",
+                        minWidth: 90,
+                        position: "sticky",
+                        left: 0,
+                        background: "rgba(244,248,252,0.98)",
+                        zIndex: 2,
+                        borderRight: `1.5px solid ${C.border}`,
                       }}
                     >
-                      Period
+                      DAY
                     </th>
-                    {activeDays.map((day) => (
+                    {/* One column per period/break slot */}
+                    {mergedGridSlots.map((slot) => (
                       <th
-                        key={day}
+                        key={slot.id}
                         style={{
-                          padding: "10px 16px",
+                          padding: "8px 12px",
                           textAlign: "left",
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: C.mid,
-                          fontFamily: "Inter, sans-serif",
-                          minWidth: 120,
+                          minWidth: slot.slotType === "PERIOD" ? 130 : 90,
+                          maxWidth: slot.slotType === "PERIOD" ? 160 : 100,
+                          background:
+                            slot.slotType !== "PERIOD"
+                              ? "rgba(189,221,252,0.08)"
+                              : "rgba(244,248,252,0.98)",
+                          borderRight: `1px solid ${C.border}`,
                         }}
                       >
-                        {DAY_SHORT[day]}
-                        {samePattern &&
-                          day !== "SATURDAY" &&
-                          day !== "MONDAY" && (
-                            <span
-                              style={{
-                                fontSize: 9,
-                                color: C.light,
-                                marginLeft: 4,
-                              }}
-                            >
-                              auto
-                            </span>
-                          )}
+                        <p
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color:
+                              slot.slotType === "PERIOD" ? C.primary : C.mid,
+                             fontFamily: "'Inter', sans-serif",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {slot.label}
+                        </p>
+                        <p
+                          style={{
+                            fontSize: 10,
+                            color: C.light,
+                             fontFamily: "'Inter', sans-serif",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {fmtTime(slot.startTime)}–{fmtTime(slot.endTime)}
+                        </p>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {getSlotsForDay("MONDAY").map((slot) => (
-                    <tr
-                      key={slot.id}
-                      style={{ borderBottom: `1px solid ${C.border}` }}
-                    >
-                      <td style={{ padding: "8px 16px" }}>
-                        <p
-                          className="text-xs font-semibold"
+                  {/* ── Mon – Fri rows ── */}
+                  {["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"].map(
+                    (day, dayIdx) => (
+                      <tr
+                        key={day}
+                        style={{ borderBottom: `1px solid ${C.border}` }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background =
+                            "rgba(189,221,252,0.04)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "transparent")
+                        }
+                      >
+                        {/* Sticky day label */}
+                        <td
                           style={{
-                            color:
-                              slot.slotType === "PERIOD" ? C.primary : C.mid,
+                            padding: "8px 16px",
+                            position: "sticky",
+                            left: 0,
+                            background: "rgba(244,248,252,0.98)",
+                            zIndex: 1,
+                            borderRight: `1.5px solid ${C.border}`,
+                            minWidth: 90,
                           }}
                         >
-                          {slot.label}
-                        </p>
-                        <p className="text-xs" style={{ color: C.light }}>
-                          {fmtTime(slot.startTime)}–{fmtTime(slot.endTime)}
-                        </p>
-                      </td>
-                      {activeDays.map((day) => {
-                        const daySlots = getSlotsForDay(day);
-                        const matchSlot =
-                          daySlots.find(
-                            (s) =>
-                              s.slotType === slot.slotType &&
-                              s.label.replace("[Sat] ", "") ===
-                                slot.label.replace("[Sat] ", ""),
-                          ) || slot;
-                        if (slot.slotType !== "PERIOD") {
+                          <p
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: C.primary,
+                               fontFamily: "'Inter', sans-serif",
+                            }}
+                          >
+                            {DAY_SHORT[day]}
+                          </p>
+                          {samePattern && day !== "MONDAY" && (
+                            <span
+                              style={{
+                                fontSize: 9,
+                                color: C.light,
+                                 fontFamily: "'Inter', sans-serif",
+                              }}
+                            >
+                              auto
+                            </span>
+                          )}
+                        </td>
+                        {/* One cell per period/break */}
+                        {mergedGridSlots.map((slot) => {
+                          // Sat-only slots: show dash for weekday rows
+                          if (slot._satOnly) {
+                            return (
+                              <td
+                                key={slot.id}
+                                style={{
+                                  padding: "6px 8px",
+                                  background: "rgba(189,221,252,0.03)",
+                                  borderRight: `1px solid ${C.border}`,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    minHeight: 48,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <span
+                                    style={{ fontSize: 10, color: C.border }}
+                                  >
+                                    —
+                                  </span>
+                                </div>
+                              </td>
+                            );
+                          }
+                          if (slot.slotType !== "PERIOD") {
+                            return (
+                              <td
+                                key={slot.id}
+                                style={{
+                                  padding: "6px 10px",
+                                  background: "rgba(189,221,252,0.05)",
+                                  borderRight: `1px solid ${C.border}`,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    minHeight: 48,
+                                    display: "flex",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      color: C.light,
+                                       fontFamily: "'Inter', sans-serif",
+                                    }}
+                                  >
+                                    {slot.label}
+                                  </span>
+                                </div>
+                              </td>
+                            );
+                          }
+                          const cell = timetable[day]?.[slot.id];
+                          const color = cell
+                            ? subjectColor(cell.subjectId)
+                            : null;
                           return (
                             <td
-                              key={day}
+                              key={slot.id}
                               style={{
-                                padding: "8px 16px",
-                                background: "rgba(189,221,252,0.05)",
+                                padding: "5px 6px",
+                                borderRight: `1px solid ${C.border}`,
                               }}
                             >
-                              <span style={{ fontSize: 11, color: C.light }}>
-                                {slot.label}
-                              </span>
-                            </td>
-                          );
-                        }
-                        const cell = timetable[day]?.[matchSlot.id];
-                        const color = cell
-                          ? subjectColor(cell.subjectId)
-                          : null;
-                        return (
-                          <td key={day} style={{ padding: "6px 10px" }}>
-                            <div
-                              onClick={() => openCell(day, matchSlot)}
-                              style={{
-                                minHeight: 52,
-                                padding: "6px 8px",
-                                borderRadius: 8,
-                                cursor: "pointer",
-                                background: cell
-                                  ? color + "14"
-                                  : "rgba(189,221,252,0.06)",
-                                border: `1.5px solid ${cell ? color + "44" : C.border}`,
-                                transition: "all 0.15s",
-                              }}
-                              onMouseEnter={(e) =>
-                                (e.currentTarget.style.background = cell
-                                  ? color + "22"
-                                  : C.pale)
-                              }
-                              onMouseLeave={(e) =>
-                                (e.currentTarget.style.background = cell
-                                  ? color + "14"
-                                  : "rgba(189,221,252,0.06)")
-                              }
-                            >
-                              {cell ? (
-                                <div>
-                                  <div className="flex items-center gap-1 mb-0.5">
-                                    <span
+                              <div
+                                onClick={() => openCell(day, slot)}
+                                style={{
+                                  minHeight: 52,
+                                  padding: "6px 8px",
+                                  borderRadius: 8,
+                                  cursor: "pointer",
+                                  background: cell
+                                    ? color + "14"
+                                    : "rgba(189,221,252,0.06)",
+                                  border: `1.5px solid ${cell ? color + "44" : C.border}`,
+                                  transition: "all 0.15s",
+                                }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.background = cell
+                                    ? color + "22"
+                                    : C.pale)
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.background = cell
+                                    ? color + "14"
+                                    : "rgba(189,221,252,0.06)")
+                                }
+                              >
+                                {cell ? (
+                                  <>
+                                    <div
                                       style={{
-                                        width: 6,
-                                        height: 6,
-                                        borderRadius: 2,
-                                        background: color,
-                                        flexShrink: 0,
-                                      }}
-                                    />
-                                    <p
-                                      style={{
-                                        fontSize: 11,
-                                        fontWeight: 600,
-                                        color: C.primary,
-                                        fontFamily: "Inter, sans-serif",
-                                        lineHeight: 1.2,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 4,
+                                        marginBottom: 2,
                                       }}
                                     >
-                                      {cell.subjectName}
+                                      <span
+                                        style={{
+                                          width: 6,
+                                          height: 6,
+                                          borderRadius: 2,
+                                          background: color,
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                      <p
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 600,
+                                          color: C.primary,
+                                           fontFamily: "'Inter', sans-serif",
+                                          lineHeight: 1.2,
+                                        }}
+                                      >
+                                        {cell.subjectName}
+                                      </p>
+                                    </div>
+                                    <p
+                                      style={{
+                                        fontSize: 10,
+                                        color: C.mid,
+                                         fontFamily: "'Inter', sans-serif",
+                                      }}
+                                    >
+                                      {cell.teacherName}
                                     </p>
-                                  </div>
+                                  </>
+                                ) : (
                                   <p
                                     style={{
                                       fontSize: 10,
-                                      color: C.mid,
-                                      fontFamily: "Inter, sans-serif",
+                                      color: C.light,
+                                       fontFamily: "'Inter', sans-serif",
                                     }}
                                   >
-                                    {cell.teacherName}
+                                    + Assign
                                   </p>
-                                </div>
-                              ) : (
-                                <p
+                                )}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ),
+                  )}
+
+                  {/* ── Divider row between Mon–Fri and Saturday (same pattern only) ── */}
+                  {satSlots.length > 0 && !isCustomSat && (
+                    <tr>
+                      <td
+                        colSpan={mergedGridSlots.length + 1}
+                        style={{
+                          padding: 0,
+                          height: 4,
+                          background: "rgba(136,189,242,0.12)",
+                          borderTop: `2px dashed ${C.border}`,
+                          borderBottom: `2px dashed ${C.border}`,
+                        }}
+                      />
+                    </tr>
+                  )}
+
+                  {/* ── Saturday row — same pattern as weekdays only ── */}
+                  {satSlots.length > 0 && !isCustomSat &&
+                    (() => {
+                      return (
+                        <tr
+                          key="SATURDAY"
+                          style={{
+                            borderBottom: `1px solid ${C.border}`,
+                            background: "rgba(136,189,242,0.03)",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background =
+                              "rgba(136,189,242,0.07)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background =
+                              "rgba(136,189,242,0.03)")
+                          }
+                        >
+                          {/* Sticky Saturday label */}
+                          <td
+                            style={{
+                              padding: "8px 16px",
+                              position: "sticky",
+                              left: 0,
+                              background: "rgba(236,244,252,0.98)",
+                              zIndex: 1,
+                              borderRight: `1.5px solid ${C.border}`,
+                              minWidth: 90,
+                            }}
+                          >
+                            <p
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: C.primary,
+                                 fontFamily: "'Inter', sans-serif",
+                              }}
+                            >
+                              Sat
+                            </p>
+
+                          </td>
+                          {/* Cells for Saturday — match against merged slot list */}
+                          {mergedGridSlots.map((slot) => {
+                            // Find corresponding Saturday slot by periodNumber or position
+                            const satSlot = slot._satOnly
+                              ? slot
+                              : satSlots.find(
+                                  (s) =>
+                                    s.periodNumber === slot.periodNumber &&
+                                    s.slotType === slot.slotType,
+                                );
+
+                            if (!satSlot) {
+                              // No Saturday equivalent — greyed out
+                              return (
+                                <td
+                                  key={slot.id}
                                   style={{
-                                    fontSize: 10,
-                                    color: C.light,
-                                    fontFamily: "Inter, sans-serif",
+                                    padding: "5px 6px",
+                                    background: "rgba(189,221,252,0.03)",
+                                    borderRight: `1px solid ${C.border}`,
                                   }}
                                 >
-                                  + Assign
-                                </p>
-                              )}
+                                  <div
+                                    style={{
+                                      minHeight: 52,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        color: "rgba(136,189,242,0.4)",
+                                      }}
+                                    >
+                                      —
+                                    </span>
+                                  </div>
+                                </td>
+                              );
+                            }
+
+                            if (satSlot.slotType !== "PERIOD") {
+                              return (
+                                <td
+                                  key={slot.id}
+                                  style={{
+                                    padding: "6px 10px",
+                                    background: "rgba(136,189,242,0.06)",
+                                    borderRight: `1px solid ${C.border}`,
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      minHeight: 48,
+                                      display: "flex",
+                                      alignItems: "center",
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        fontSize: 11,
+                                        color: C.light,
+                                         fontFamily: "'Inter', sans-serif",
+                                      }}
+                                    >
+                                      {satSlot.label.replace(/^(Sat\s)+/i, "")}
+                                    </span>
+                                  </div>
+                                </td>
+                              );
+                            }
+
+                            const cell = timetable["SATURDAY"]?.[satSlot.id];
+                            const color = cell
+                              ? subjectColor(cell.subjectId)
+                              : null;
+                            return (
+                              <td
+                                key={slot.id}
+                                style={{
+                                  padding: "5px 6px",
+                                  borderRight: `1px solid ${C.border}`,
+                                }}
+                              >
+                                <div
+                                  onClick={() => openCell("SATURDAY", satSlot)}
+                                  style={{
+                                    minHeight: 52,
+                                    padding: "6px 8px",
+                                    borderRadius: 8,
+                                    cursor: "pointer",
+                                    background: cell
+                                      ? color + "14"
+                                      : "rgba(136,189,242,0.06)",
+                                    border: `1.5px solid ${cell ? color + "44" : "rgba(136,189,242,0.3)"}`,
+                                    transition: "all 0.15s",
+                                  }}
+                                  onMouseEnter={(e) =>
+                                    (e.currentTarget.style.background = cell
+                                      ? color + "22"
+                                      : C.pale)
+                                  }
+                                  onMouseLeave={(e) =>
+                                    (e.currentTarget.style.background = cell
+                                      ? color + "14"
+                                      : "rgba(136,189,242,0.06)")
+                                  }
+                                >
+                                  {cell ? (
+                                    <>
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 4,
+                                          marginBottom: 2,
+                                        }}
+                                      >
+                                        <span
+                                          style={{
+                                            width: 6,
+                                            height: 6,
+                                            borderRadius: 2,
+                                            background: color,
+                                            flexShrink: 0,
+                                          }}
+                                        />
+                                        <p
+                                          style={{
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            color: C.primary,
+                                             fontFamily: "'Inter', sans-serif",
+                                            lineHeight: 1.2,
+                                          }}
+                                        >
+                                          {cell.subjectName}
+                                        </p>
+                                      </div>
+                                      <p
+                                        style={{
+                                          fontSize: 10,
+                                          color: C.mid,
+                                           fontFamily: "'Inter', sans-serif",
+                                        }}
+                                      >
+                                        {cell.teacherName}
+                                      </p>
+                                    </>
+                                  ) : (
+                                    <p
+                                      style={{
+                                        fontSize: 10,
+                                        color: C.light,
+                                         fontFamily: "'Inter', sans-serif",
+                                      }}
+                                    >
+                                      + Assign
+                                    </p>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── Saturday Schedule — separate table (custom Saturday only) ── */}
+        {!configLoading && satSlots.length > 0 && isCustomSat && (
+          <div
+            className="bg-white rounded-2xl shadow-sm overflow-hidden mb-4"
+            style={{ border: `1.5px solid rgba(136,189,242,0.35)` }}
+          >
+            {/* Header banner */}
+            <div
+              className="flex items-center gap-3 px-5 py-3"
+              style={{
+                background: "rgba(136,189,242,0.10)",
+                borderBottom: `1.5px solid rgba(136,189,242,0.25)`,
+              }}
+            >
+              <div
+                style={{
+                  width: 28, height: 28, borderRadius: 7,
+                  background: "rgba(245,158,11,0.12)",
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}
+              >
+                <Calendar size={14} style={{ color: "#b45309" }} />
+              </div>
+              <div>
+                <p className="text-sm font-bold" style={{ color: C.primary, fontFamily: "'Inter', sans-serif" }}>
+                  Saturday Schedule
+                </p>
+                <p className="text-xs" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>
+                  {satSlots.filter((s) => s.slotType === "PERIOD").length} periods
+                  {satSlots.filter((s) => s.slotType !== "PERIOD").length > 0 &&
+                    ` · ${satSlots.filter((s) => s.slotType !== "PERIOD").length} break${satSlots.filter((s) => s.slotType !== "PERIOD").length > 1 ? "s" : ""}`}
+                  {" · "}{fmtTime(satSlots[0]?.startTime)} – {fmtTime(satSlots[satSlots.length - 1]?.endTime)}
+                </p>
+              </div>
+              <span
+                style={{
+                  marginLeft: "auto", fontSize: 9, fontWeight: 700,
+                  padding: "2px 7px", borderRadius: 4,
+                  background: "rgba(245,158,11,0.15)", color: "#b45309",
+                  fontFamily: "'Inter', sans-serif", letterSpacing: "0.4px",
+                }}
+              >
+                CUSTOM
+              </span>
+            </div>
+
+            {/* Scrollable Saturday table */}
+            <div className="overflow-x-auto">
+              <table
+                style={{
+                  borderCollapse: "collapse",
+                  width: "100%",
+                  minWidth: `${130 + satSlots.length * 130}px`,
+                }}
+              >
+                <thead>
+                  <tr
+                    style={{
+                      background: "rgba(136,189,242,0.06)",
+                      borderBottom: `1.5px solid rgba(136,189,242,0.25)`,
+                    }}
+                  >
+                    <th
+                      style={{
+                        padding: "10px 16px", textAlign: "left", fontSize: 11,
+                        fontWeight: 700, color: C.mid, fontFamily: "'Inter', sans-serif",
+                        letterSpacing: "0.4px", minWidth: 90,
+                        position: "sticky", left: 0,
+                        background: "rgba(236,244,252,0.98)", zIndex: 2,
+                        borderRight: `1.5px solid rgba(136,189,242,0.25)`,
+                      }}
+                    >
+                      DAY
+                    </th>
+                    {satSlots.map((slot) => (
+                      <th
+                        key={slot.id}
+                        style={{
+                          padding: "8px 12px", textAlign: "left",
+                          minWidth: slot.slotType === "PERIOD" ? 130 : 90,
+                          maxWidth: slot.slotType === "PERIOD" ? 160 : 110,
+                          background: slot.slotType !== "PERIOD"
+                            ? "rgba(136,189,242,0.08)"
+                            : "rgba(236,244,252,0.95)",
+                          borderRight: `1px solid rgba(136,189,242,0.2)`,
+                        }}
+                      >
+                        <p style={{ fontSize: 11, fontWeight: 600, color: slot.slotType === "PERIOD" ? C.primary : C.mid, fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap" }}>
+                          {slot.label}
+                        </p>
+                        <p style={{ fontSize: 10, color: C.light, fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap" }}>
+                          {fmtTime(slot.startTime)}–{fmtTime(slot.endTime)}
+                        </p>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    style={{ borderBottom: `1px solid rgba(136,189,242,0.18)`, background: "rgba(136,189,242,0.025)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(136,189,242,0.07)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(136,189,242,0.025)")}
+                  >
+                    <td
+                      style={{
+                        padding: "8px 16px", position: "sticky", left: 0,
+                        background: "rgba(236,244,252,0.98)", zIndex: 1,
+                        borderRight: `1.5px solid rgba(136,189,242,0.25)`, minWidth: 90,
+                      }}
+                    >
+                      <p style={{ fontSize: 13, fontWeight: 700, color: C.primary, fontFamily: "'Inter', sans-serif" }}>
+                        Sat
+                      </p>
+                    </td>
+                    {satSlots.map((slot) => {
+                      if (slot.slotType !== "PERIOD") {
+                        return (
+                          <td
+                            key={slot.id}
+                            style={{ padding: "6px 10px", background: "rgba(136,189,242,0.06)", borderRight: `1px solid rgba(136,189,242,0.2)` }}
+                          >
+                            <div style={{ minHeight: 48, display: "flex", alignItems: "center" }}>
+                              <span style={{ fontSize: 11, color: C.light, fontFamily: "'Inter', sans-serif" }}>
+                                {slot.label}
+                              </span>
                             </div>
                           </td>
                         );
-                      })}
-                    </tr>
-                  ))}
+                      }
+                      const cell = timetable["SATURDAY"]?.[slot.id];
+                      const color = cell ? subjectColor(cell.subjectId) : null;
+                      return (
+                        <td key={slot.id} style={{ padding: "5px 6px", borderRight: `1px solid rgba(136,189,242,0.2)` }}>
+                          <div
+                            onClick={() => openCell("SATURDAY", slot)}
+                            style={{
+                              minHeight: 52, padding: "6px 8px", borderRadius: 8, cursor: "pointer",
+                              background: cell ? color + "14" : "rgba(136,189,242,0.06)",
+                              border: `1.5px solid ${cell ? color + "44" : "rgba(136,189,242,0.3)"}`,
+                              transition: "all 0.15s",
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = cell ? color + "22" : C.pale)}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = cell ? color + "14" : "rgba(136,189,242,0.06)")}
+                          >
+                            {cell ? (
+                              <>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: 2, background: color, flexShrink: 0 }} />
+                                  <p style={{ fontSize: 11, fontWeight: 600, color: C.primary, fontFamily: "'Inter', sans-serif", lineHeight: 1.2 }}>
+                                    {cell.subjectName}
+                                  </p>
+                                </div>
+                                <p style={{ fontSize: 10, color: C.mid, fontFamily: "'Inter', sans-serif" }}>{cell.teacherName}</p>
+                              </>
+                            ) : (
+                              <p style={{ fontSize: 10, color: C.light, fontFamily: "'Inter', sans-serif" }}>+ Assign</p>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -1053,7 +1603,7 @@ export default function TimetablePage() {
         )}
 
         {/* ── Save button ── */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-8">
           <div>
             {samePattern !== null && (
               <p className="text-xs" style={{ color: C.mid }}>
@@ -1066,7 +1616,7 @@ export default function TimetablePage() {
           <button
             onClick={handleSave}
             disabled={saving || samePattern === null}
-            className="flex items-center gap-2 rounded-xl text-sm font-semibold text-white"
+            className="flex items-center gap-2 rounded-xl text-sm font-semibold text-white w-full sm:w-auto justify-center"
             style={{
               padding: "10px 24px",
               background:
@@ -1078,7 +1628,7 @@ export default function TimetablePage() {
               border: "none",
               cursor:
                 saving || samePattern === null ? "not-allowed" : "pointer",
-              fontFamily: "Inter, sans-serif",
+               fontFamily: "'Inter', sans-serif",
             }}
           >
             {saving ? (
@@ -1119,7 +1669,7 @@ export default function TimetablePage() {
                     className="text-sm font-semibold"
                     style={{
                       color: C.primary,
-                      fontFamily: "Inter, sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                     }}
                   >
                     Extra Classes
@@ -1148,7 +1698,7 @@ export default function TimetablePage() {
                       : C.primary,
                   border: "none",
                   cursor: subjects.length === 0 ? "not-allowed" : "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
                 title={
                   subjects.length === 0
@@ -1241,7 +1791,7 @@ export default function TimetablePage() {
                             style={{
                               color: C.mid,
                               letterSpacing: "0.6px",
-                              fontFamily: "Inter, sans-serif",
+                               fontFamily: "'Inter', sans-serif",
                             }}
                           >
                             {label}
@@ -1256,7 +1806,7 @@ export default function TimetablePage() {
                               borderRadius: 6,
                               background: C.pale,
                               color: C.mid,
-                              fontFamily: "Inter, sans-serif",
+                               fontFamily: "'Inter', sans-serif",
                             }}
                           >
                             {items.length}{" "}
@@ -1427,7 +1977,7 @@ export default function TimetablePage() {
                       outline: "none",
                       fontSize: 12,
                       color: C.primary,
-                      fontFamily: "Inter, sans-serif",
+                       fontFamily: "'Inter', sans-serif",
                       flex: 1,
                       background: "transparent",
                     }}
@@ -1522,7 +2072,7 @@ export default function TimetablePage() {
                                   className="text-sm font-semibold"
                                   style={{
                                     color: C.primary,
-                                    fontFamily: "Inter, sans-serif",
+                                     fontFamily: "'Inter', sans-serif",
                                   }}
                                 >
                                   {t.firstName} {t.lastName}
@@ -1534,7 +2084,7 @@ export default function TimetablePage() {
                                       style={{
                                         background: "rgba(79,70,229,0.09)",
                                         color: "#4f46e5",
-                                        fontFamily: "Inter, sans-serif",
+                                         fontFamily: "'Inter', sans-serif",
                                       }}
                                     >
                                       {t.department}
@@ -1545,7 +2095,7 @@ export default function TimetablePage() {
                                       className="text-xs"
                                       style={{
                                         color: C.mid,
-                                        fontFamily: "Inter, sans-serif",
+                                         fontFamily: "'Inter', sans-serif",
                                       }}
                                     >
                                       {t.qualification}
@@ -1579,7 +2129,7 @@ export default function TimetablePage() {
                   color: C.mid,
                   background: "transparent",
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                   fontSize: 13,
                 }}
               >
@@ -1598,7 +2148,7 @@ export default function TimetablePage() {
                     color: "#ef4444",
                     background: "rgba(239,68,68,0.08)",
                     cursor: "pointer",
-                    fontFamily: "Inter, sans-serif",
+                     fontFamily: "'Inter', sans-serif",
                     fontSize: 13,
                     fontWeight: 500,
                     display: "flex",
@@ -1621,7 +2171,7 @@ export default function TimetablePage() {
                       : C.primary,
                   border: "none",
                   cursor: "pointer",
-                  fontFamily: "Inter, sans-serif",
+                   fontFamily: "'Inter', sans-serif",
                 }}
               >
                 <Check size={14} /> Assign

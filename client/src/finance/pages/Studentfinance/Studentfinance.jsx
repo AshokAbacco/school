@@ -585,7 +585,6 @@ export default function StudentFeesPage() {
     return (
         <PageLayout>
             <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
         .sf2-root {
           --brand:#27435B; --brand-dark:#1C3044; --brand-mid:#2E4F6B; --brand-light:#3A5E78;

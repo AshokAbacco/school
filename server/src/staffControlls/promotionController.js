@@ -43,6 +43,7 @@ async function findOrCreateTargetSection(
       grade: targetGrade,
       section: sourceSection.section,
       streamId: sourceSection.streamId,
+      combinationId: sourceSection.combinationId,
       courseId: sourceSection.courseId,
       branchId: sourceSection.branchId,
     },
@@ -66,6 +67,7 @@ async function findOrCreateTargetSection(
       name,
       schoolId,
       streamId: sourceSection.streamId,
+      combinationId: sourceSection.combinationId,
       courseId: sourceSection.courseId,
       branchId: sourceSection.branchId,
     },
@@ -249,26 +251,30 @@ export const getPromotionPreview = async (req, res) => {
 //       gradeFilter,
 //     } = req.body;
 
-//     if (!fromAcademicYearId || !toAcademicYearName)
+//     if (!fromAcademicYearId || !toAcademicYearName) {
 //       return res.status(400).json({
 //         message: "fromAcademicYearId and toAcademicYearName are required",
 //       });
+//     }
 
 //     const promotionConfig = await prisma.schoolPromotionConfig.findUnique({
 //       where: { schoolId },
 //     });
 
-//     // 1. Find or auto-create target academic year
+//     // ─────────────────────────────────────────────
+//     // 1️⃣ Find or Create Academic Year
+//     // ─────────────────────────────────────────────
 //     let toYear = await prisma.academicYear.findUnique({
 //       where: { name_schoolId: { name: toAcademicYearName, schoolId } },
 //     });
 
 //     if (!toYear) {
-//       if (!toAcademicYearStartDate || !toAcademicYearEndDate)
+//       if (!toAcademicYearStartDate || !toAcademicYearEndDate) {
 //         return res.status(400).json({
 //           message:
-//             "Target academic year does not exist. Provide toAcademicYearStartDate and toAcademicYearEndDate to auto-create it.",
+//             "Target academic year does not exist. Provide start and end dates.",
 //         });
+//       }
 
 //       toYear = await prisma.academicYear.create({
 //         data: {
@@ -283,7 +289,9 @@ export const getPromotionPreview = async (req, res) => {
 
 //     const toAcademicYearId = toYear.id;
 
-//     // 2. Get all active sections in the from-year
+//     // ─────────────────────────────────────────────
+//     // 2️⃣ Fetch Sections + Active Enrollments
+//     // ─────────────────────────────────────────────
 //     const activeSections = await prisma.classSection.findMany({
 //       where: {
 //         schoolId,
@@ -299,144 +307,172 @@ export const getPromotionPreview = async (req, res) => {
 //         studentEnrollments: {
 //           where: {
 //             academicYearId: fromAcademicYearId,
-//             status: "ACTIVE", // Only promote ACTIVE students
+//             status: "ACTIVE",
 //           },
-//           include: { student: true },
 //         },
 //       },
 //     });
 
-//     const results = {
-//       promoted: 0,
-//       graduated: 0,
-//       skipped: 0,
-//       autoCreatedSections: [],
-//       errors: [],
-//     };
+//     // ─────────────────────────────────────────────
+//     // 3️⃣ PRECOMPUTE EVERYTHING (NO TRANSACTION)
+//     // ─────────────────────────────────────────────
+//     const graduateEnrollmentIds = [];
+//     const skipEnrollmentIds = [];
+//     const promotedEnrollmentIds = [];
+//     const enrollmentCreates = [];
+//     const sectionActivationIds = new Set();
+//     const autoCreatedSections = [];
 
-//     // 3. Process each section
-//     await prisma.$transaction(async (tx) => {
-//       for (const section of activeSections) {
-//         const skipGrades = promotionConfig?.skipGrades || [];
-//         const lastGrade = await getLastGradeForSection(
+//     // cache course semesters
+//     const courseSemesterMap = new Map();
+
+//     for (const section of activeSections) {
+//       let lastGrade;
+
+//       if (section.courseId) {
+//         if (!courseSemesterMap.has(section.courseId)) {
+//           const course = await prisma.course.findUnique({
+//             where: { id: section.courseId },
+//             select: { totalSemesters: true },
+//           });
+//           courseSemesterMap.set(
+//             section.courseId,
+//             course?.totalSemesters || null,
+//           );
+//         }
+
+//         const totalSem = courseSemesterMap.get(section.courseId);
+//         const prefix = section.grade.replace(/\d+/, "").trim();
+//         lastGrade = totalSem ? `${prefix}${totalSem}` : null;
+//       } else {
+//         lastGrade = promotionConfig?.lastGrade || null;
+//       }
+
+//       const skipGrades = promotionConfig?.skipGrades || [];
+//       const isSkipGrade = skipGrades.includes(section.grade);
+//       const isLastGrade =
+//         lastGrade &&
+//         extractGradeNumber(section.grade) === extractGradeNumber(lastGrade);
+
+//       let targetSectionData = null;
+
+//       if (!isLastGrade && !isSkipGrade) {
+//         const targetGrade = nextGrade(section.grade);
+
+//         targetSectionData = {
 //           section,
-//           promotionConfig,
-//         );
+//           targetGrade,
+//         };
 
-//         const isSkipGrade = skipGrades.includes(section.grade);
-//         const isLastGrade =
-//           lastGrade &&
-//           extractGradeNumber(section.grade) === extractGradeNumber(lastGrade);
+//         sectionActivationIds.add(targetSection.id);
 
-//         for (const enrollment of section.studentEnrollments) {
-//           const studentId = enrollment.studentId;
-
-//           try {
-//             if (isLastGrade) {
-//               // GRADUATE — update status, no new enrollment
-//               await tx.studentPersonalInfo.updateMany({
-//                 where: { studentId },
-//                 data: { status: "GRADUATED" },
-//               });
-//               results.graduated++;
-//             } else if (isSkipGrade) {
-//               // SKIP — mark PENDING_READMISSION, no new enrollment
-//               await tx.studentPersonalInfo.updateMany({
-//                 where: { studentId },
-//                 data: { status: "PENDING_READMISSION" },
-//               });
-//               results.skipped++;
-//             } else {
-//               // PROMOTE — create new enrollment in next grade
-//               const targetGrade = nextGrade(section.grade);
-//               const targetSection = await findOrCreateTargetSection(
-//                 tx,
-//                 section,
-//                 targetGrade,
-//                 schoolId,
-//               );
-
-//               // Track auto-created sections
-//               const alreadyTracked = results.autoCreatedSections.find(
-//                 (s) => s.id === targetSection.id,
-//               );
-//               if (!alreadyTracked) {
-//                 results.autoCreatedSections.push({
-//                   id: targetSection.id,
-//                   name: targetSection.name,
-//                 });
-//               }
-
-//               // Activate target section for new year
-//               await tx.classSectionAcademicYear.upsert({
-//                 where: {
-//                   classSectionId_academicYearId: {
-//                     classSectionId: targetSection.id,
-//                     academicYearId: toAcademicYearId,
-//                   },
-//                 },
-//                 update: { isActive: true },
-//                 create: {
-//                   classSectionId: targetSection.id,
-//                   academicYearId: toAcademicYearId,
-//                   isActive: true,
-//                 },
-//               });
-
-//               // Check if student already enrolled in new year (prevent duplicates)
-//               const alreadyEnrolled = await tx.studentEnrollment.findUnique({
-//                 where: {
-//                   studentId_academicYearId: {
-//                     studentId,
-//                     academicYearId: toAcademicYearId,
-//                   },
-//                 },
-//               });
-
-//               if (!alreadyEnrolled) {
-//                 await tx.studentEnrollment.create({
-//                   data: {
-//                     studentId,
-//                     classSectionId: targetSection.id,
-//                     academicYearId: toAcademicYearId,
-//                     status: "ACTIVE",
-//                     rollNumber: null, // Admin assigns later
-//                   },
-//                 });
-//                 results.promoted++;
-//               }
-//             }
-//           } catch (err) {
-//             results.errors.push({
-//               studentId,
-//               error: err.message,
-//             });
-//           }
+//         if (!autoCreatedSections.find((s) => s.id === targetSection.id)) {
+//           autoCreatedSections.push({
+//             id: targetSection.id,
+//             name: targetSection.name,
+//           });
 //         }
 //       }
 
-//       // 4. Create promotion log
-//       await tx.promotionLog.create({
-//         data: {
-//           schoolId,
-//           fromAcademicYearId,
-//           toAcademicYearId,
-//           totalPromoted: results.promoted,
-//           totalGraduated: results.graduated,
-//           totalSkipped: results.skipped,
-//           totalFailed: 0,
-//           totalInactive: 0,
-//           triggeredById: userId,
-//         },
-//       });
-//     });
+//       for (const enrollment of section.studentEnrollments) {
+//         const studentId = enrollment.studentId;
+
+//         if (isLastGrade) {
+//           graduateEnrollmentIds.push(enrollment.id);
+//         } else if (isSkipGrade) {
+//           skipEnrollmentIds.push(enrollment.id);
+//         } else {
+//           promotedEnrollmentIds.push(enrollment.id);
+
+//           enrollmentCreates.push({
+//             studentId,
+//             classSectionId: targetSection.id,
+//             academicYearId: toAcademicYearId,
+//             status: "ACTIVE",
+//             rollNumber: null,
+//           });
+//         }
+//       }
+//     }
+
+//     // ─────────────────────────────────────────────
+//     // 4️⃣ SHORT TRANSACTION (WRITES ONLY)
+//     // ─────────────────────────────────────────────
+//     await prisma.$transaction(
+//       async (tx) => {
+//         // ✅ GRADUATE
+//         if (graduateIds.size) {
+//           await tx.studentEnrollment.updateMany({
+//             where: {
+//               studentId: { in: [...graduateIds] },
+//               academicYearId: fromAcademicYearId,
+//             },
+//             data: { status: "GRADUATED" },
+//           });
+//         }
+
+//         // ✅ SKIP → PENDING_READMISSION
+//         if (skipIds.size) {
+//           await tx.studentEnrollment.updateMany({
+//             where: {
+//               studentId: { in: [...skipIds] },
+//               academicYearId: fromAcademicYearId,
+//             },
+//             data: { status: "PENDING_READMISSION" },
+//           });
+//         }
+//         for (const sectionId of sectionActivationIds) {
+//           await tx.classSectionAcademicYear.upsert({
+//             where: {
+//               classSectionId_academicYearId: {
+//                 classSectionId: sectionId,
+//                 academicYearId: toAcademicYearId,
+//               },
+//             },
+//             update: { isActive: true },
+//             create: {
+//               classSectionId: sectionId,
+//               academicYearId: toAcademicYearId,
+//               isActive: true,
+//             },
+//           });
+//         }
+
+//         if (enrollmentCreates.length) {
+//           await tx.studentEnrollment.createMany({
+//             data: enrollmentCreates,
+//             skipDuplicates: true,
+//           });
+//         }
+
+//         await tx.promotionLog.create({
+//           data: {
+//             schoolId,
+//             fromAcademicYearId,
+//             toAcademicYearId,
+//             totalPromoted: enrollmentCreates.length,
+//             graduated: graduateEnrollmentIds.length,
+//             skipped: skipEnrollmentIds.length,
+//             totalFailed: 0,
+//             totalInactive: 0,
+//             triggeredById: userId,
+//           },
+//         });
+//       },
+//       { timeout: 20000 },
+//     );
 
 //     await invalidate(schoolId);
 
 //     return res.json({
 //       message: "Promotion completed successfully",
 //       toAcademicYear: toYear,
-//       results,
+//       results: {
+//         promoted: enrollmentCreates.length,
+//         graduated: graduateIds.size,
+//         skipped: skipIds.size,
+//         autoCreatedSections,
+//       },
 //     });
 //   } catch (err) {
 //     return res.status(500).json({ message: err.message });
@@ -446,6 +482,7 @@ export const runPromotion = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
     const userId = req.user.id;
+
     const {
       fromAcademicYearId,
       toAcademicYearName,
@@ -464,9 +501,6 @@ export const runPromotion = async (req, res) => {
       where: { schoolId },
     });
 
-    // ─────────────────────────────────────────────
-    // 1️⃣ Find or Create Academic Year
-    // ─────────────────────────────────────────────
     let toYear = await prisma.academicYear.findUnique({
       where: { name_schoolId: { name: toAcademicYearName, schoolId } },
     });
@@ -474,8 +508,7 @@ export const runPromotion = async (req, res) => {
     if (!toYear) {
       if (!toAcademicYearStartDate || !toAcademicYearEndDate) {
         return res.status(400).json({
-          message:
-            "Target academic year does not exist. Provide start and end dates.",
+          message: "Provide start and end dates for new academic year.",
         });
       }
 
@@ -492,9 +525,6 @@ export const runPromotion = async (req, res) => {
 
     const toAcademicYearId = toYear.id;
 
-    // ─────────────────────────────────────────────
-    // 2️⃣ Fetch Sections + Active Enrollments
-    // ─────────────────────────────────────────────
     const activeSections = await prisma.classSection.findMany({
       where: {
         schoolId,
@@ -507,155 +537,154 @@ export const runPromotion = async (req, res) => {
         stream: true,
         course: true,
         branch: true,
-        studentEnrollments: {
-          where: {
-            academicYearId: fromAcademicYearId,
-            status: "ACTIVE",
-          },
-        },
       },
     });
 
-    // ─────────────────────────────────────────────
-    // 3️⃣ PRECOMPUTE EVERYTHING (NO TRANSACTION)
-    // ─────────────────────────────────────────────
-    const graduateIds = [];
-    const skipIds = [];
+    let totalPromoted = 0;
+    let totalGraduated = 0;
+    let totalSkipped = 0;
     const enrollmentCreates = [];
-    const sectionActivationIds = new Set();
-    const autoCreatedSections = [];
 
-    // cache course semesters
-    const courseSemesterMap = new Map();
+    await prisma.$transaction(async (tx) => {
+      for (const section of activeSections) {
+        let lastGrade;
 
-    for (const section of activeSections) {
-      let lastGrade;
-
-      if (section.courseId) {
-        if (!courseSemesterMap.has(section.courseId)) {
-          const course = await prisma.course.findUnique({
+        if (section.courseId) {
+          const course = await tx.course.findUnique({
             where: { id: section.courseId },
             select: { totalSemesters: true },
           });
-          courseSemesterMap.set(
-            section.courseId,
-            course?.totalSemesters || null,
-          );
-        }
 
-        const totalSem = courseSemesterMap.get(section.courseId);
-        const prefix = section.grade.replace(/\d+/, "").trim();
-        lastGrade = totalSem ? `${prefix}${totalSem}` : null;
-      } else {
-        lastGrade = promotionConfig?.lastGrade || null;
-      }
-
-      const skipGrades = promotionConfig?.skipGrades || [];
-      const isSkipGrade = skipGrades.includes(section.grade);
-      const isLastGrade =
-        lastGrade &&
-        extractGradeNumber(section.grade) === extractGradeNumber(lastGrade);
-
-      let targetSection = null;
-
-      if (!isLastGrade && !isSkipGrade) {
-        const targetGrade = nextGrade(section.grade);
-
-        targetSection = await findOrCreateTargetSection(
-          prisma,
-          section,
-          targetGrade,
-          schoolId,
-        );
-
-        sectionActivationIds.add(targetSection.id);
-
-        if (!autoCreatedSections.find((s) => s.id === targetSection.id)) {
-          autoCreatedSections.push({
-            id: targetSection.id,
-            name: targetSection.name,
-          });
-        }
-      }
-
-      for (const enrollment of section.studentEnrollments) {
-        const studentId = enrollment.studentId;
-
-        if (isLastGrade) {
-          graduateIds.push(studentId);
-        } else if (isSkipGrade) {
-          skipIds.push(studentId);
+          const prefix = section.grade.replace(/\d+/, "").trim();
+          lastGrade = course ? `${prefix}${course.totalSemesters}` : null;
         } else {
-          enrollmentCreates.push({
-            studentId,
-            classSectionId: targetSection.id,
-            academicYearId: toAcademicYearId,
-            status: "ACTIVE",
-            rollNumber: null,
-          });
-        }
-      }
-    }
-
-    // ─────────────────────────────────────────────
-    // 4️⃣ SHORT TRANSACTION (WRITES ONLY)
-    // ─────────────────────────────────────────────
-    await prisma.$transaction(
-      async (tx) => {
-        if (graduateIds.length) {
-          await tx.studentPersonalInfo.updateMany({
-            where: { studentId: { in: graduateIds } },
-            data: { status: "GRADUATED" },
-          });
+          lastGrade = promotionConfig?.lastGrade || null;
         }
 
-        if (skipIds.length) {
-          await tx.studentPersonalInfo.updateMany({
-            where: { studentId: { in: skipIds } },
-            data: { status: "PENDING_READMISSION" },
-          });
-        }
+        const skipGrades = promotionConfig?.skipGrades || [];
+        const isSkipGrade = skipGrades.includes(section.grade);
+        const isLastGrade =
+          lastGrade &&
+          extractGradeNumber(section.grade) === extractGradeNumber(lastGrade);
 
-        for (const sectionId of sectionActivationIds) {
+        let targetSection = null;
+
+        if (!isLastGrade && !isSkipGrade) {
+          const targetGrade = nextGrade(section.grade);
+
+          targetSection = await findOrCreateTargetSection(
+            tx,
+            section,
+            targetGrade,
+            schoolId,
+          );
+
           await tx.classSectionAcademicYear.upsert({
             where: {
               classSectionId_academicYearId: {
-                classSectionId: sectionId,
+                classSectionId: targetSection.id,
                 academicYearId: toAcademicYearId,
               },
             },
             update: { isActive: true },
             create: {
-              classSectionId: sectionId,
+              classSectionId: targetSection.id,
               academicYearId: toAcademicYearId,
               isActive: true,
             },
           });
         }
 
-        if (enrollmentCreates.length) {
-          await tx.studentEnrollment.createMany({
-            data: enrollmentCreates,
-            skipDuplicates: true,
-          });
-        }
+        // SECTION-WISE UPDATE (No huge IN arrays)
 
-        await tx.promotionLog.create({
-          data: {
-            schoolId,
-            fromAcademicYearId,
-            toAcademicYearId,
-            totalPromoted: enrollmentCreates.length,
-            totalGraduated: graduateIds.length,
-            totalSkipped: skipIds.length,
-            totalFailed: 0,
-            totalInactive: 0,
-            triggeredById: userId,
-          },
+        if (isLastGrade) {
+          const result = await tx.studentEnrollment.updateMany({
+            where: {
+              classSectionId: section.id,
+              academicYearId: fromAcademicYearId,
+              status: "ACTIVE",
+            },
+            data: { status: "GRADUATED" },
+          });
+
+          totalGraduated += result.count;
+        } else if (isSkipGrade) {
+          const result = await tx.studentEnrollment.updateMany({
+            where: {
+              classSectionId: section.id,
+              academicYearId: fromAcademicYearId,
+              status: "ACTIVE",
+            },
+            data: { status: "PENDING_READMISSION" },
+          });
+
+          totalSkipped += result.count;
+        } else {
+          const activeEnrollments = await tx.studentEnrollment.findMany({
+            where: {
+              classSectionId: section.id,
+              academicYearId: fromAcademicYearId,
+              status: "ACTIVE",
+            },
+            select: {
+              studentId: true,
+              admissionNumber: true,
+              admissionDate: true,
+              rollNumber: true, // ← ADD THIS: carry forward for degree/diploma
+            },
+          });
+
+          // DEGREE / DIPLOMA / POSTGRADUATE → carry rollNumber forward
+          // SCHOOL / PUC → reset to null (will be regenerated via Generate Roll Numbers)
+          const isDegreeLevel = !!section.courseId;
+
+          for (const enrollment of activeEnrollments) {
+            enrollmentCreates.push({
+              studentId: enrollment.studentId,
+              admissionNumber: enrollment.admissionNumber,
+              admissionDate: enrollment.admissionDate,
+              classSectionId: targetSection.id,
+              academicYearId: toAcademicYearId,
+              status: "ACTIVE",
+              rollNumber: isDegreeLevel ? enrollment.rollNumber : null,
+              //           ↑ carry forward for degree, reset for school/PUC
+            });
+          }
+
+          const result = await tx.studentEnrollment.updateMany({
+            where: {
+              classSectionId: section.id,
+              academicYearId: fromAcademicYearId,
+              status: "ACTIVE",
+            },
+            data: { status: "COMPLETED" },
+          });
+
+          totalPromoted += result.count;
+        }
+      }
+
+      if (enrollmentCreates.length) {
+        await tx.studentEnrollment.createMany({
+          data: enrollmentCreates,
+          skipDuplicates: true,
         });
-      },
-      { timeout: 20000 },
-    );
+      }
+
+      await tx.promotionLog.create({
+        data: {
+          schoolId,
+          fromAcademicYearId,
+          toAcademicYearId,
+          totalPromoted,
+          totalGraduated,
+          totalSkipped,
+          totalFailed: 0,
+          totalInactive: 0,
+          triggeredById: userId,
+        },
+      });
+    });
 
     await invalidate(schoolId);
 
@@ -663,16 +692,17 @@ export const runPromotion = async (req, res) => {
       message: "Promotion completed successfully",
       toAcademicYear: toYear,
       results: {
-        promoted: enrollmentCreates.length,
-        graduated: graduateIds.length,
-        skipped: skipIds.length,
-        autoCreatedSections,
+        promoted: totalPromoted,
+        graduated: totalGraduated,
+        skipped: totalSkipped,
       },
     });
   } catch (err) {
+    console.error("PROMOTION ERROR:", err);
     return res.status(500).json({ message: err.message });
   }
 };
+
 // ═══════════════════════════════════════════════════════════════
 //  RE-ADMISSION (Grade 7 → Grade 8, School type only)
 //  GET  /api/promotion/pending-readmission
@@ -683,21 +713,38 @@ export const runPromotion = async (req, res) => {
 export const getPendingReadmission = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
-    const { academicYearId } = req.query;
 
     const students = await prisma.student.findMany({
       where: {
         schoolId,
-        personalInfo: { status: "PENDING_READMISSION" },
+        enrollments: {
+          some: { status: "PENDING_READMISSION" },
+        },
       },
       include: {
         personalInfo: true,
         enrollments: {
+          where: { status: "PENDING_READMISSION" },
           orderBy: { createdAt: "desc" },
           take: 1,
-          include: {
-            classSection: true,
-            academicYear: true,
+          select: {
+            id: true,
+            admissionNumber: true,
+            admissionDate: true,
+            status: true,
+            classSection: {
+              select: {
+                id: true,
+                name: true,
+                grade: true,
+              },
+            },
+            academicYear: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         readmissions: {
@@ -705,10 +752,12 @@ export const getPendingReadmission = async (req, res) => {
           take: 1,
         },
       },
+      orderBy: { createdAt: "desc" },
     });
 
     return res.json({ students });
   } catch (err) {
+    console.error("GET PENDING READMISSION ERROR:", err);
     return res.status(500).json({ message: err.message });
   }
 };
@@ -721,60 +770,64 @@ export const readmitStudent = async (req, res) => {
     const { newAdmissionNumber, newAcademicYearId, newClassSectionId, reason } =
       req.body;
 
-    if (!newAdmissionNumber || !newAcademicYearId || !newClassSectionId)
+    if (!newAdmissionNumber || !newAcademicYearId || !newClassSectionId) {
       return res.status(400).json({
         message:
           "newAdmissionNumber, newAcademicYearId, newClassSectionId are required",
       });
+    }
 
-    // Get student
-    const student = await prisma.student.findFirst({
-      where: { id: studentId, schoolId },
+    // ✅ Get the correct pending enrollment
+    const lastEnrollment = await prisma.studentEnrollment.findFirst({
+      where: {
+        studentId,
+        status: "PENDING_READMISSION",
+      },
       include: {
-        personalInfo: true,
-        enrollments: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          include: { classSection: true, academicYear: true },
-        },
+        classSection: true,
+        academicYear: true,
       },
     });
 
-    if (!student) return res.status(404).json({ message: "Student not found" });
-    if (student.personalInfo?.status !== "PENDING_READMISSION")
-      return res.status(400).json({
-        message: "Student is not in PENDING_READMISSION status",
+    if (!lastEnrollment) {
+      return res.status(404).json({
+        message: "Student not in PENDING_READMISSION status",
       });
+    }
 
-    // Check new admission number is unique
-    const dupAdmission = await prisma.student.findFirst({
-      where: { admissionNumber: newAdmissionNumber, schoolId },
+    // Check duplicate admission number
+    const dupAdmission = await prisma.studentEnrollment.findFirst({
+      where: {
+        admissionNumber: newAdmissionNumber,
+        academicYearId: newAcademicYearId,
+      },
     });
-    if (dupAdmission)
+
+    if (dupAdmission) {
       return res.status(409).json({
         message: `Admission number "${newAdmissionNumber}" is already in use`,
       });
+    }
 
-    // Check target section exists and belongs to school
     const targetSection = await prisma.classSection.findFirst({
       where: { id: newClassSectionId, schoolId },
     });
-    if (!targetSection)
+
+    if (!targetSection) {
       return res
         .status(404)
         .json({ message: "Target class section not found" });
-
-    const lastEnrollment = student.enrollments[0];
+    }
 
     await prisma.$transaction(async (tx) => {
-      // 1. Save readmission record (preserve history)
+      // Create readmission log
       await tx.studentReadmission.create({
         data: {
           studentId,
-          previousAdmissionNumber: student.admissionNumber,
-          previousGrade: lastEnrollment?.classSection?.grade || "",
-          previousAcademicYearId: lastEnrollment?.academicYearId || "",
-          previousClassSectionId: lastEnrollment?.classSectionId || "",
+          previousAdmissionNumber: lastEnrollment.admissionNumber || "",
+          previousGrade: lastEnrollment.classSection?.grade || "",
+          previousAcademicYearId: lastEnrollment.academicYearId,
+          previousClassSectionId: lastEnrollment.classSectionId,
           newAdmissionNumber,
           newGrade: targetSection.grade,
           newAcademicYearId,
@@ -784,30 +837,25 @@ export const readmitStudent = async (req, res) => {
         },
       });
 
-      // 2. Update student admission number
-      await tx.student.update({
-        where: { id: studentId },
-        data: { admissionNumber: newAdmissionNumber },
+      // ✅ Mark old enrollment completed
+      await tx.studentEnrollment.update({
+        where: { id: lastEnrollment.id },
+        data: { status: "COMPLETED" },
       });
 
-      // 3. Update student status back to ACTIVE
-      await tx.studentPersonalInfo.updateMany({
-        where: { studentId },
-        data: { status: "ACTIVE" },
-      });
-
-      // 4. Create new enrollment in Grade 8 / new year
+      // ✅ Create new enrollment (ACTIVE)
       await tx.studentEnrollment.create({
         data: {
           studentId,
           classSectionId: newClassSectionId,
           academicYearId: newAcademicYearId,
+          admissionNumber: newAdmissionNumber,
+          admissionDate: new Date(),
           status: "ACTIVE",
-          rollNumber: null, // Admin assigns later
+          rollNumber: null,
         },
       });
 
-      // 5. Activate target section for new year if not already
       await tx.classSectionAcademicYear.upsert({
         where: {
           classSectionId_academicYearId: {
@@ -832,10 +880,10 @@ export const readmitStudent = async (req, res) => {
       newGrade: targetSection.grade,
     });
   } catch (err) {
+    console.error("READMISSION ERROR:", err);
     return res.status(500).json({ message: err.message });
   }
 };
-
 // GET promotion logs
 export const getPromotionLogs = async (req, res) => {
   try {

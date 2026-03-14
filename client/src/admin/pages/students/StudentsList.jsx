@@ -1,8 +1,4 @@
 // admin/pages/students/StudentsList.jsx
-// Institution-aware 3-level drill-down:
-//   SCHOOL:  Grades → Sections → Students
-//   PUC:     Streams → Combinations/Sections → Students
-//   DEGREE:  Courses → Branches/Semesters → Students
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -40,66 +36,128 @@ const authHeaders = () => ({
 });
 const LIMIT = 10;
 
+/* ── Design tokens — matches Dashboard / Curriculum / Attendance ── */
 const C = {
-  primary: "#384959",
-  secondary: "#6A89A7",
-  accent: "#88BDF2",
-  light: "#BDDDFC",
-  border: "rgba(136,189,242,0.30)",
-  bg: "#F4F8FC",
-  cardBg: "white",
-  softBg: "rgba(189,221,252,0.08)",
+  slate: "#6A89A7",
+  mist: "#BDDDFC",
+  sky: "#88BDF2",
+  deep: "#384959",
+  deepDark: "#243340",
+  // bg: "#BDDDFC",
+  bg: "#EDF3FA",
+  white: "#FFFFFF",
+  border: "#C8DCF0",
+  borderLight: "#DDE9F5",
+  text: "#243340",
+  textLight: "#6A89A7",
 };
 
 const GRADE_COLORS = [
-  { bar: "#88BDF2", soft: "rgba(136,189,242,0.12)", text: "#384959" },
-  { bar: "#6A89A7", soft: "rgba(106,137,167,0.12)", text: "#384959" },
-  { bar: "#BDDDFC", soft: "rgba(189,221,252,0.20)", text: "#384959" },
-  { bar: "#384959", soft: "rgba(56,73,89,0.08)", text: "#384959" },
+  { bar: C.sky, soft: `${C.sky}18`, text: C.deep },
+  { bar: C.slate, soft: `${C.slate}18`, text: C.deep },
+  { bar: C.mist, soft: `${C.mist}44`, text: C.deep },
+  { bar: C.deep, soft: `${C.deep}12`, text: C.deep },
 ];
 
-// ── Stat cards ─────────────────────────────────────────────────────────────────
+/* ── Pulse skeleton ── */
+function Pulse({ w = "100%", h = 13, r = 8 }) {
+  return (
+    <div
+      className="animate-pulse"
+      style={{
+        width: w,
+        height: h,
+        borderRadius: r,
+        background: `${C.mist}55`,
+      }}
+    />
+  );
+}
+
+/* ── Stat cards ── */
 const STAT_CARDS = [
-  { key: "total", label: "Total Students", icon: Users, bar: "#6A89A7" },
-  { key: "active", label: "Active", icon: UserCheck, bar: "#88BDF2" },
-  { key: "inactive", label: "Inactive", icon: UserX, bar: "#384959" },
+  { key: "total", label: "Total Students", icon: Users, bar: C.slate },
+  { key: "active", label: "Active", icon: UserCheck, bar: C.sky },
+  { key: "inactive", label: "Inactive", icon: UserX, bar: C.deep },
   {
     key: "newThisMonth",
     label: "New This Month",
     icon: TrendingUp,
-    bar: "#BDDDFC",
+    bar: C.mist,
   },
 ];
 
 function StatCards({ stats }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      {STAT_CARDS.map(({ key, label, icon: Icon, bar }) => (
+      {STAT_CARDS.map(({ key, label, icon: Icon, bar }, idx) => (
         <div
           key={key}
-          className="relative overflow-hidden rounded-2xl bg-white shadow-sm"
-          style={{ border: `1px solid ${C.border}` }}
+          className="fade-up"
+          style={{
+            animationDelay: `${idx * 50}ms`,
+            background: C.white,
+            borderRadius: 18,
+            border: `1.5px solid ${C.borderLight}`,
+            boxShadow: "0 2px 16px rgba(56,73,89,0.06)",
+            overflow: "hidden",
+            position: "relative",
+          }}
         >
+          {/* Top accent stripe */}
           <div
-            className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl"
-            style={{ background: bar }}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              background: `linear-gradient(90deg, ${bar}, ${C.deep})`,
+              borderRadius: "18px 18px 0 0",
+            }}
           />
-          <div className="px-5 pt-5 pb-4">
+          <div style={{ padding: "18px 18px 14px" }}>
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center mb-3"
-              style={{ background: `${bar}22` }}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 11,
+                background: `${bar}22`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 10,
+                border: `1px solid ${bar}33`,
+              }}
             >
               <Icon
                 size={16}
-                style={{ color: bar === "#BDDDFC" ? "#6A89A7" : bar }}
+                style={{ color: bar === C.mist ? C.slate : bar }}
               />
             </div>
-            <p className="text-2xl font-bold" style={{ color: C.primary }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 28,
+                fontWeight: 800,
+                color: C.text,
+                lineHeight: 1,
+               fontFamily: "'Inter', sans-serif",
+                letterSpacing: "-1px",
+              }}
+            >
               {(stats[key] || 0).toLocaleString()}
             </p>
             <p
-              className="text-xs font-semibold mt-0.5"
-              style={{ color: C.secondary }}
+              style={{
+                margin: "5px 0 0",
+                fontSize: 11,
+                fontWeight: 600,
+                color: C.textLight,
+               fontFamily: "'Inter', sans-serif",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
             >
               {label}
             </p>
@@ -110,94 +168,227 @@ function StatCards({ stats }) {
   );
 }
 
-// ── Generic card grid (level 1 & 2) ───────────────────────────────────────────
+/* ── Section header (matches Curriculum/Attendance panels) ── */
+function PanelHead({ title, sub, IconComp, iconColor = C.slate, right }) {
+  return (
+    <div
+      style={{
+        padding: "14px 18px",
+        background: `linear-gradient(90deg, ${C.bg} 0%, ${C.white} 100%)`,
+        borderBottom: `1.5px solid ${C.borderLight}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {IconComp && (
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              background: `${C.sky}22`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: `1.5px solid ${C.sky}33`,
+              flexShrink: 0,
+            }}
+          >
+            <IconComp size={15} color={iconColor} strokeWidth={2} />
+          </div>
+        )}
+        <div>
+          <p
+            style={{
+              margin: 0,
+             fontFamily: "'Inter', sans-serif",
+              fontSize: 14,
+              fontWeight: 700,
+              color: C.text,
+            }}
+          >
+            {title}
+          </p>
+          {sub && (
+            <p
+              style={{
+                margin: 0,
+               fontFamily: "'Inter', sans-serif",
+                fontSize: 11,
+                color: C.textLight,
+                marginTop: 1,
+              }}
+            >
+              {sub}
+            </p>
+          )}
+        </div>
+      </div>
+      {right}
+    </div>
+  );
+}
+
+/* ── Generic card grid (level 1 & 2) — inner logic unchanged ── */
 function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
   if (!items.length)
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-3">
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
         <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center"
-          style={{ background: "rgba(189,221,252,0.25)" }}
+          style={{
+            width: 60,
+            height: 60,
+            borderRadius: 18,
+            background: `${C.sky}18`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: `1px solid ${C.sky}33`,
+          }}
         >
-          <GraduationCap size={28} style={{ color: C.secondary }} />
+          <GraduationCap size={26} color={C.sky} strokeWidth={1.5} />
         </div>
-        <p className="font-semibold" style={{ color: C.primary }}>
+        <p
+          style={{
+           fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 600,
+            color: C.text,
+            margin: 0,
+          }}
+        >
           {emptyMsg}
         </p>
-        <p className="text-sm" style={{ color: C.secondary }}>
+        <p
+          style={{
+           fontFamily: "'Inter', sans-serif",
+            fontSize: 12,
+            color: C.textLight,
+            margin: 0,
+          }}
+        >
           Create class sections first in Settings
         </p>
       </div>
     );
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
       {items.map((item, idx) => {
         const color = GRADE_COLORS[idx % GRADE_COLORS.length];
         return (
           <button
             key={item.id || item.label}
             onClick={() => onSelect(item)}
-            className="group relative overflow-hidden rounded-2xl bg-white text-left transition-all duration-200 shadow-sm"
-            style={{ border: `1px solid ${C.border}` }}
+            style={{
+              position: "relative",
+              overflow: "hidden",
+              borderRadius: 18,
+              background: C.white,
+              border: `1.5px solid ${C.borderLight}`,
+              textAlign: "left",
+              transition: "all 0.25s cubic-bezier(0.34,1.56,0.64,1)",
+              boxShadow: "0 2px 12px rgba(56,73,89,0.05)",
+              cursor: "pointer",
+              padding: 0,
+            }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow =
-                "0 8px 24px rgba(136,189,242,0.20)";
-              e.currentTarget.style.borderColor = C.accent;
+              e.currentTarget.style.transform = "translateY(-4px)";
+              e.currentTarget.style.boxShadow = `0 10px 28px ${C.sky}33`;
+              e.currentTarget.style.borderColor = C.sky;
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "";
-              e.currentTarget.style.borderColor = C.border;
+              e.currentTarget.style.boxShadow =
+                "0 2px 12px rgba(56,73,89,0.05)";
+              e.currentTarget.style.borderColor = C.borderLight;
             }}
           >
-            <div className="h-1.5 w-full" style={{ background: color.bar }} />
-            <div className="p-5">
+            {/* Top color stripe */}
+            <div
+              style={{
+                height: 4,
+                background: `linear-gradient(90deg, ${color.bar}, ${C.deep})`,
+                borderRadius: "18px 18px 0 0",
+              }}
+            />
+            <div style={{ padding: "16px 16px 18px" }}>
               <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-                style={{ background: color.soft }}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 13,
+                  background: color.soft,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 14,
+                  border: `1px solid ${color.bar}33`,
+                }}
               >
                 {item.icon ? (
                   <item.icon
-                    size={22}
+                    size={20}
                     style={{
-                      color: color.bar === "#BDDDFC" ? C.secondary : color.bar,
+                      color: color.bar === C.mist ? C.slate : color.bar,
                     }}
                   />
                 ) : (
                   <GraduationCap
-                    size={22}
+                    size={20}
                     style={{
-                      color: color.bar === "#BDDDFC" ? C.secondary : color.bar,
+                      color: color.bar === C.mist ? C.slate : color.bar,
                     }}
                   />
                 )}
               </div>
               <p
-                className="text-xl font-bold mb-0.5"
-                style={{ color: C.primary }}
+                style={{
+                  margin: 0,
+                 fontFamily: "'Inter', sans-serif",
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: C.text,
+                  letterSpacing: "-0.3px",
+                }}
               >
                 {item.label}
               </p>
               {item.sublabel && (
                 <p
-                  className="text-xs font-medium"
-                  style={{ color: C.secondary }}
+                  style={{
+                    margin: "3px 0 0",
+                   fontFamily: "'Inter', sans-serif",
+                    fontSize: 11,
+                    color: C.textLight,
+                  }}
                 >
                   {item.sublabel}
                 </p>
               )}
               {item.chips && (
-                <div className="flex flex-wrap gap-1 mt-3">
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 4,
+                    marginTop: 10,
+                  }}
+                >
                   {item.chips.map((chip) => (
                     <span
                       key={chip}
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                       style={{
+                       fontFamily: "'Inter', sans-serif",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: "2px 8px",
+                        borderRadius: 20,
                         background: color.soft,
-                        color: C.secondary,
-                        border: `1px solid ${C.border}`,
+                        color: C.textLight,
+                        border: `1px solid ${C.borderLight}`,
                       }}
                     >
                       {chip}
@@ -206,10 +397,21 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
                 </div>
               )}
               <div
-                className="absolute bottom-4 right-4 w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 group-hover:translate-x-0.5"
-                style={{ background: color.soft }}
+                style={{
+                  position: "absolute",
+                  bottom: 14,
+                  right: 14,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 9,
+                  background: color.soft,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: `1px solid ${C.borderLight}`,
+                }}
               >
-                <ChevronRight size={14} style={{ color: C.secondary }} />
+                <ChevronRight size={14} color={C.textLight} />
               </div>
             </div>
           </button>
@@ -219,34 +421,66 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
   );
 }
 
-// ── Breadcrumb ─────────────────────────────────────────────────────────────────
+/* ── Breadcrumb ── */
 function Breadcrumb({ crumbs, onNavigate }) {
   return (
-    <div className="flex items-center gap-1.5 text-sm mb-5 flex-wrap">
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        marginBottom: 16,
+        flexWrap: "wrap",
+      }}
+    >
       {crumbs.map((crumb, i) => {
         const isLast = i === crumbs.length - 1;
         return (
           <React.Fragment key={i}>
-            {i > 0 && <ChevronRight size={14} style={{ color: C.secondary }} />}
+            {i > 0 && <ChevronRight size={13} color={C.textLight} />}
             {isLast ? (
               <span
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold"
                 style={{
-                  color: C.primary,
-                  background: C.softBg,
-                  border: `1px solid ${C.border}`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "5px 12px",
+                  borderRadius: 10,
+                 fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: C.deep,
+                  background: `${C.sky}18`,
+                  border: `1.5px solid ${C.sky}33`,
                 }}
               >
-                {crumb.icon && <crumb.icon size={13} />}
+                {crumb.icon && <crumb.icon size={12} />}
                 {crumb.label}
               </span>
             ) : (
               <button
                 onClick={() => onNavigate(i)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all hover:opacity-80"
-                style={{ color: C.secondary }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "5px 12px",
+                  borderRadius: 10,
+                 fontFamily: "'Inter', sans-serif",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: C.textLight,
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "color 0.15s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = C.deep)}
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.color = C.textLight)
+                }
               >
-                {crumb.icon && <crumb.icon size={13} />}
+                {crumb.icon && <crumb.icon size={12} />}
                 {crumb.label}
               </button>
             )}
@@ -257,30 +491,45 @@ function Breadcrumb({ crumbs, onNavigate }) {
   );
 }
 
-// ── Status badge ───────────────────────────────────────────────────────────────
+/* ── Status badge ── */
 const STATUS_STYLE = {
-  ACTIVE: { bg: "rgba(136,189,242,0.18)", color: "#384959", dot: "#88BDF2" },
-  INACTIVE: { bg: "rgba(56,73,89,0.12)", color: "#384959", dot: "#384959" },
+  ACTIVE: { bg: `${C.sky}22`, color: C.deep, dot: C.sky },
+  INACTIVE: { bg: `${C.deep}12`, color: C.deep, dot: C.deep },
   SUSPENDED: { bg: "rgba(255,160,60,0.15)", color: "#7a4000", dot: "#f59e0b" },
-  GRADUATED: { bg: "rgba(106,137,167,0.18)", color: "#384959", dot: "#6A89A7" },
+  GRADUATED: { bg: `${C.slate}18`, color: C.deep, dot: C.slate },
 };
 function StatusBadge({ status = "" }) {
   const s = STATUS_STYLE[status.toUpperCase()] || STATUS_STYLE.INACTIVE;
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-      style={{ background: s.bg, color: s.color }}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "3px 10px",
+        borderRadius: 20,
+       fontFamily: "'Inter', sans-serif",
+        fontSize: 11,
+        fontWeight: 700,
+        background: s.bg,
+        color: s.color,
+      }}
     >
       <span
-        className="w-1.5 h-1.5 rounded-full shrink-0"
-        style={{ background: s.dot }}
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: s.dot,
+          flexShrink: 0,
+        }}
       />
       {status ? status.charAt(0) + status.slice(1).toLowerCase() : "—"}
     </span>
   );
 }
 
-// ── Avatar ─────────────────────────────────────────────────────────────────────
+/* ── Avatar ── */
 function Avatar({ student }) {
   const pi = student.personalInfo;
   const initials =
@@ -295,22 +544,30 @@ function Avatar({ student }) {
     );
   return (
     <div
-      className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0"
-      style={{ background: "linear-gradient(135deg, #6A89A7, #384959)" }}
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: 700,
+        flexShrink: 0,
+        boxShadow: `0 3px 10px ${C.sky}44`,
+       fontFamily: "'Inter', sans-serif",
+      }}
     >
       {initials}
     </div>
   );
 }
 
-// ── Students table ─────────────────────────────────────────────────────────────
+/* ── Students table — inner logic unchanged, outer styling updated ── */
 function StudentsTable({ students, loading, onDelete, sectionName }) {
   const navigate = useNavigate();
-  const btnHover = {
-    view: { bg: "rgba(136,189,242,0.20)", color: "#384959" },
-    edit: { bg: "rgba(136,189,242,0.20)", color: "#384959" },
-    delete: { bg: "rgba(255,80,80,0.10)", color: "#c0392b" },
-  };
   const displayName = (s) =>
     s.personalInfo
       ? `${s.personalInfo.firstName} ${s.personalInfo.lastName}`
@@ -318,13 +575,25 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
 
   if (loading)
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <Loader2
-          size={32}
-          className="animate-spin"
-          style={{ color: C.accent }}
-        />
-        <p className="text-sm font-medium" style={{ color: C.secondary }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "60px 20px",
+          gap: 12,
+        }}
+      >
+        <Loader2 size={30} className="animate-spin" style={{ color: C.sky }} />
+        <p
+          style={{
+           fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            color: C.textLight,
+            margin: 0,
+          }}
+        >
           Loading students…
         </p>
       </div>
@@ -332,197 +601,423 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
 
   if (!students.length)
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "60px 20px",
+          gap: 12,
+        }}
+      >
         <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center"
-          style={{ background: "rgba(189,221,252,0.25)" }}
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 18,
+            background: `${C.sky}18`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: `1px solid ${C.sky}33`,
+          }}
         >
-          <Search size={22} style={{ color: C.secondary }} />
+          <Search size={24} color={C.sky} strokeWidth={1.5} />
         </div>
-        <p className="font-semibold text-sm" style={{ color: C.primary }}>
+        <p
+          style={{
+           fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 600,
+            color: C.text,
+            margin: 0,
+          }}
+        >
           No students found
         </p>
-        <p className="text-xs" style={{ color: C.secondary }}>
+        <p
+          style={{
+           fontFamily: "'Inter', sans-serif",
+            fontSize: 12,
+            color: C.textLight,
+            margin: 0,
+          }}
+        >
           No students enrolled in {sectionName || "this section"} yet
         </p>
       </div>
     );
 
-  const TH = ({ children, hidden = "" }) => (
-    <th
-      className={`px-5 py-3.5 text-left ${hidden}`}
-      style={{
-        fontSize: "11px",
-        fontWeight: 700,
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-        color: C.secondary,
-        borderBottom: "1px solid rgba(136,189,242,0.20)",
-        background: "rgba(189,221,252,0.12)",
-      }}
-    >
-      {children}
-    </th>
-  );
-
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr>
-            <TH>Student</TH>
-            <TH hidden="hidden md:table-cell">Contact</TH>
-            <TH>Roll No.</TH>
-            <TH hidden="hidden lg:table-cell">Academic Year</TH>
-            <TH>Status</TH>
-            <TH>Actions</TH>
-          </tr>
-        </thead>
-        <tbody>
-          {students.map((student, idx) => {
-            const name = displayName(student);
-            const enroll = student.enrollments?.[0] || null;
-            const acYear = enroll?.academicYear;
-            const status = enroll?.status || student.personalInfo?.status || "";
-            const isEven = idx % 2 === 0;
-            const rowBg = isEven ? "white" : "rgba(189,221,252,0.05)";
-            const rowHover = "rgba(189,221,252,0.15)";
-            return (
-              <tr
-                key={student.id}
-                onClick={() => navigate(`/students/${student.id}`)}
-                className="cursor-pointer transition-all duration-100"
-                style={{
-                  borderBottom: "1px solid rgba(136,189,242,0.12)",
-                  background: rowBg,
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = rowHover)
-                }
-                onMouseLeave={(e) => (e.currentTarget.style.background = rowBg)}
-              >
-                <td className="px-5 py-3.5">
-                  <div className="flex items-center gap-3">
-                    <Avatar student={student} />
-                    <div>
-                      <p
-                        className="font-semibold text-sm"
-                        style={{ color: C.primary }}
-                      >
-                        {name}
-                      </p>
-                      <p
-                        className="text-xs md:hidden"
-                        style={{ color: C.secondary }}
-                      >
-                        {student.email}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-5 py-3.5 hidden md:table-cell">
-                  <div className="space-y-1">
-                    <div
-                      className="flex items-center gap-1.5 text-xs"
-                      style={{ color: C.secondary }}
-                    >
-                      <Mail size={11} /> {student.email}
-                    </div>
-                    {student.personalInfo?.phone && (
-                      <div
-                        className="flex items-center gap-1.5 text-xs"
-                        style={{ color: C.secondary }}
-                      >
-                        <Phone size={11} /> {student.personalInfo.phone}
-                      </div>
-                    )}
-                  </div>
-                </td>
-                <td className="px-5 py-3.5">
-                  {enroll?.rollNumber ? (
+    <>
+      {/* Mobile card list */}
+      <div
+        className="md:hidden"
+        style={{ borderTop: `1px solid ${C.borderLight}` }}
+      >
+        {students.map((student) => {
+          const name = displayName(student);
+          const enroll = student.enrollments?.[0] || null;
+          const status = enroll?.status || student.personalInfo?.status || "";
+          return (
+            <div
+              key={student.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "12px 16px",
+                borderBottom: `1px solid ${C.borderLight}`,
+                background: C.white,
+                cursor: "pointer",
+                transition: "background 0.12s",
+              }}
+              onClick={() => navigate(`/students/${student.id}`)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = C.white)}
+            >
+              <Avatar student={student} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p
+                  style={{
+                   fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: C.text,
+                    margin: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {name}
+                </p>
+                <p
+                  style={{
+                   fontFamily: "'Inter', sans-serif",
+                    fontSize: 11,
+                    color: C.textLight,
+                    margin: "2px 0 0",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {student.email}
+                </p>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    marginTop: 4,
+                  }}
+                >
+                  {enroll?.rollNumber && (
                     <span
-                      className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold"
                       style={{
-                        background: "rgba(136,189,242,0.15)",
-                        color: C.primary,
+                       fontFamily: "'Inter', sans-serif",
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: C.textLight,
                       }}
                     >
-                      {enroll.rollNumber}
+                      Roll: {enroll.rollNumber}
                     </span>
-                  ) : (
-                    <span style={{ color: C.secondary }}>—</span>
                   )}
-                </td>
-                <td className="px-5 py-3.5 hidden lg:table-cell">
-                  <span
-                    className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold"
-                    style={{
-                      background: "rgba(189,221,252,0.25)",
-                      color: C.primary,
-                    }}
-                  >
-                    {acYear?.name || "—"}
-                  </span>
-                </td>
-                <td className="px-5 py-3.5">
                   <StatusBadge status={status} />
-                </td>
-                <td className="px-5 py-3.5">
-                  <div
-                    className="flex items-center gap-1"
-                    onClick={(e) => e.stopPropagation()}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/students/${student.id}`);
+                  }}
+                  style={{
+                    padding: 8,
+                    borderRadius: 10,
+                    border: `1px solid ${C.borderLight}`,
+                    background: C.bg,
+                    color: C.textLight,
+                    cursor: "pointer",
+                  }}
+                >
+                  <Eye size={14} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(e, student.id, name);
+                  }}
+                  style={{
+                    padding: 8,
+                    borderRadius: 10,
+                    border: "1px solid #fca5a5",
+                    background: "#fef2f2",
+                    color: "#c0392b",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block" style={{ overflowX: "auto" }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+           fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+          }}
+        >
+          <thead>
+            <tr
+              style={{
+                background: `${C.bg}88`,
+                borderBottom: `1.5px solid ${C.borderLight}`,
+              }}
+            >
+              {[
+                "Student",
+                "Contact",
+                "Roll No.",
+                "Academic Year",
+                "Status",
+                "Actions",
+              ].map((h, i) => (
+                <th
+                  key={h}
+                  className={
+                    i === 1
+                      ? "hidden md:table-cell"
+                      : i === 3
+                        ? "hidden lg:table-cell"
+                        : ""
+                  }
+                  style={{
+                    padding: "11px 18px",
+                    textAlign: "left",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    color: C.textLight,
+                    borderBottom: `1.5px solid ${C.borderLight}`,
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {students.map((student, idx) => {
+              const name = displayName(student);
+              const enroll = student.enrollments?.[0] || null;
+              const acYear = enroll?.academicYear;
+              const status =
+                enroll?.status || student.personalInfo?.status || "";
+              const rowBg = idx % 2 === 0 ? C.white : `${C.mist}18`;
+              return (
+                <tr
+                  key={student.id}
+                  style={{
+                    borderBottom: `1px solid ${C.borderLight}`,
+                    background: rowBg,
+                    cursor: "pointer",
+                    transition: "background 0.1s",
+                  }}
+                  onClick={() => navigate(`/students/${student.id}`)}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = `${C.sky}12`)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = rowBg)
+                  }
+                >
+                  <td style={{ padding: "12px 18px" }}>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 10 }}
+                    >
+                      <Avatar student={student} />
+                      <div>
+                        <p
+                          style={{ margin: 0, fontWeight: 700, color: C.text }}
+                        >
+                          {name}
+                        </p>
+                        <p
+                          style={{
+                            margin: "2px 0 0",
+                            fontSize: 11,
+                            color: C.textLight,
+                          }}
+                        >
+                          {student.email}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td
+                    className="hidden md:table-cell"
+                    style={{ padding: "12px 18px" }}
                   >
-                    {[
-                      {
-                        action: "view",
-                        icon: Eye,
-                        onClick: () => navigate(`/students/${student.id}`),
-                        title: "View",
-                      },
-                      {
-                        action: "edit",
-                        icon: Edit,
-                        onClick: () => navigate(`/students/${student.id}/edit`),
-                        title: "Edit",
-                      },
-                      {
-                        action: "delete",
-                        icon: Trash2,
-                        onClick: (e) => onDelete(e, student.id, name),
-                        title: "Delete",
-                      },
-                    ].map(({ action, icon: Icon, onClick, title }) => (
-                      <button
-                        key={action}
-                        onClick={onClick}
-                        title={title}
-                        className="p-2 rounded-lg transition-all"
-                        style={{ color: C.secondary }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background =
-                            btnHover[action].bg;
-                          e.currentTarget.style.color = btnHover[action].color;
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "transparent";
-                          e.currentTarget.style.color = C.secondary;
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 3,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: 11,
+                          color: C.textLight,
                         }}
                       >
-                        <Icon size={15} />
-                      </button>
-                    ))}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+                        <Mail size={10} /> {student.email}
+                      </div>
+                      {student.personalInfo?.phone && (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            fontSize: 11,
+                            color: C.textLight,
+                          }}
+                        >
+                          <Phone size={10} /> {student.personalInfo.phone}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td style={{ padding: "12px 18px" }}>
+                    {enroll?.rollNumber ? (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          padding: "3px 10px",
+                          borderRadius: 8,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          background: `${C.sky}18`,
+                          color: C.deep,
+                          border: `1px solid ${C.sky}33`,
+                        }}
+                      >
+                        {enroll.rollNumber}
+                      </span>
+                    ) : (
+                      <span style={{ color: C.textLight }}>—</span>
+                    )}
+                  </td>
+                  <td
+                    className="hidden lg:table-cell"
+                    style={{ padding: "12px 18px" }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "3px 10px",
+                        borderRadius: 8,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: `${C.mist}55`,
+                        color: C.deep,
+                        border: `1px solid ${C.borderLight}`,
+                      }}
+                    >
+                      {acYear?.name || "—"}
+                    </span>
+                  </td>
+                  <td style={{ padding: "12px 18px" }}>
+                    <StatusBadge status={status} />
+                  </td>
+                  <td style={{ padding: "12px 18px" }}>
+                    <div
+                      style={{ display: "flex", gap: 4 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {[
+                        {
+                          action: "view",
+                          Icon: Eye,
+                          onClick: () => navigate(`/students/${student.id}`),
+                          hoverBg: `${C.sky}22`,
+                          hoverC: C.deep,
+                        },
+                        {
+                          action: "edit",
+                          Icon: Edit,
+                          onClick: () =>
+                            navigate(`/students/${student.id}/edit`),
+                          hoverBg: `${C.sky}22`,
+                          hoverC: C.deep,
+                        },
+                        {
+                          action: "delete",
+                          Icon: Trash2,
+                          onClick: (e) => onDelete(e, student.id, name),
+                          hoverBg: "rgba(255,80,80,0.10)",
+                          hoverC: "#c0392b",
+                        },
+                      ].map(({ action, Icon, onClick, hoverBg, hoverC }) => (
+                        <button
+                          key={action}
+                          onClick={onClick}
+                          style={{
+                            padding: 7,
+                            borderRadius: 9,
+                            border: `1px solid ${C.borderLight}`,
+                            background: "transparent",
+                            color: C.textLight,
+                            cursor: "pointer",
+                            transition: "all 0.12s",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = hoverBg;
+                            e.currentTarget.style.color = hoverC;
+                            e.currentTarget.style.borderColor = hoverBg;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.color = C.textLight;
+                            e.currentTarget.style.borderColor = C.borderLight;
+                          }}
+                        >
+                          <Icon size={14} />
+                        </button>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
-// ── Pagination ─────────────────────────────────────────────────────────────────
+/* ── Pagination ── */
 function Pagination({ page, totalPages, total, showing, onPageChange }) {
   const pages = Array.from(
     { length: Math.min(totalPages, 5) },
@@ -532,20 +1027,27 @@ function Pagination({ page, totalPages, total, showing, onPageChange }) {
     <button
       onClick={onClick}
       disabled={disabled}
-      className="px-3 py-2 rounded-xl text-sm font-semibold transition-all"
       style={{
-        background: active ? C.primary : "white",
-        color: active ? "white" : C.secondary,
-        border: `1px solid ${active ? C.primary : C.border}`,
+        padding: "7px 14px",
+        borderRadius: 11,
+       fontFamily: "'Inter', sans-serif",
+        fontSize: 12,
+        fontWeight: 700,
+        background: active
+          ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
+          : C.white,
+        color: active ? "#fff" : C.textLight,
+        border: `1.5px solid ${active ? C.deep : C.borderLight}`,
         opacity: disabled ? 0.4 : 1,
         cursor: disabled ? "not-allowed" : "pointer",
+        transition: "all 0.15s",
       }}
       onMouseEnter={(e) => {
         if (!disabled && !active)
-          e.currentTarget.style.background = "rgba(189,221,252,0.25)";
+          e.currentTarget.style.background = `${C.mist}55`;
       }}
       onMouseLeave={(e) => {
-        if (!disabled && !active) e.currentTarget.style.background = "white";
+        if (!disabled && !active) e.currentTarget.style.background = C.white;
       }}
     >
       {children}
@@ -553,21 +1055,30 @@ function Pagination({ page, totalPages, total, showing, onPageChange }) {
   );
   return (
     <div
-      className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-4"
-      style={{ borderTop: "1px solid rgba(136,189,242,0.20)" }}
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+        padding: "14px 18px",
+        borderTop: `1.5px solid ${C.borderLight}`,
+      }}
     >
-      <p className="text-sm" style={{ color: C.secondary }}>
+      <p
+        style={{
+         fontFamily: "'Inter', sans-serif",
+          fontSize: 12,
+          color: C.textLight,
+          margin: 0,
+        }}
+      >
         Showing{" "}
-        <span className="font-bold" style={{ color: C.primary }}>
-          {showing}
-        </span>{" "}
-        of{" "}
-        <span className="font-bold" style={{ color: C.primary }}>
-          {total}
-        </span>{" "}
-        students
+        <span style={{ fontWeight: 700, color: C.text }}>{showing}</span> of{" "}
+        <span style={{ fontWeight: 700, color: C.text }}>{total}</span> students
       </p>
-      <div className="flex items-center gap-1.5">
+      <div style={{ display: "flex", gap: 6 }}>
         <Btn onClick={() => onPageChange(page - 1)} disabled={page === 1}>
           ← Prev
         </Btn>
@@ -587,19 +1098,16 @@ function Pagination({ page, totalPages, total, showing, onPageChange }) {
   );
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────────
+/* ════════════════════════════════════════
+   MAIN
+════════════════════════════════════════ */
 function StudentsList() {
   const navigate = useNavigate();
   const { schoolType, showStream, showCourse } = useInstitutionConfig();
 
-  // Navigation stack — each entry is { label, sublabel, sectionId (if leaf) }
-  // level 0 = root (grades/streams/courses)
-  // level 1 = sub-items (sections/combinations/branches)
-  // level 2 = students table
-  const [navStack, setNavStack] = useState([]); // array of breadcrumb items
-  const [level1Items, setLevel1Items] = useState([]); // sub-items at level 1
-  const [selectedSection, setSelectedSection] = useState(null); // final leaf: ClassSection object
-
+  const [navStack, setNavStack] = useState([]);
+  const [level1Items, setLevel1Items] = useState([]);
+  const [selectedSection, setSelectedSection] = useState(null);
   const [openModal, setOpenModal] = useState(false);
   const [students, setStudents] = useState([]);
   const [stats, setStats] = useState({
@@ -614,19 +1122,14 @@ function StudentsList() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-
   const [classSections, setClassSections] = useState([]);
   const [academicYears, setAcademicYears] = useState([]);
   const activeYear =
     academicYears.find((y) => y.isActive) || academicYears[0] || null;
-
-  // Selected academic year for filtering students (defaults to active year)
   const [selectedYearId, setSelectedYearId] = useState("active");
-
   const [refreshKey, setRefreshKey] = useState(0);
   const invalidate = useCallback(() => setRefreshKey((k) => k + 1), []);
 
-  // ── Fetch dropdowns ────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
@@ -646,12 +1149,9 @@ function StudentsList() {
     })();
   }, []);
 
-  // ── Build level-0 items based on school type ───────────────────────────────
   const level0Items = useMemo(() => {
     if (!classSections.length) return [];
-
     if (schoolType === "SCHOOL") {
-      // Group by grade number
       const gradeMap = {};
       classSections.forEach((cs) => {
         const num = cs.grade?.match(/\d+/)?.[0];
@@ -667,13 +1167,11 @@ function StudentsList() {
           sublabel: `${gradeMap[num].length} section${gradeMap[num].length !== 1 ? "s" : ""}`,
           chips: gradeMap[num].map((s) => s.section).filter(Boolean),
           icon: GraduationCap,
-          children: gradeMap[num], // ClassSection objects for level 1
+          children: gradeMap[num],
           isLeafGroup: true,
         }));
     }
-
     if (schoolType === "PUC") {
-      // Group by stream
       const streamMap = {};
       classSections.forEach((cs) => {
         if (!cs.stream) return;
@@ -693,9 +1191,7 @@ function StudentsList() {
         isLeafGroup: true,
       }));
     }
-
     if (showCourse) {
-      // Group by course
       const courseMap = {};
       classSections.forEach((cs) => {
         if (!cs.course) return;
@@ -717,8 +1213,6 @@ function StudentsList() {
         isLeafGroup: true,
       }));
     }
-
-    // OTHER / fallback — flat sections as cards
     return classSections.map((cs) => ({
       id: cs.id,
       label: cs.name,
@@ -729,11 +1223,9 @@ function StudentsList() {
     }));
   }, [classSections, schoolType, showCourse]);
 
-  // ── Build level-1 items from a level-0 item's children ────────────────────
   const buildLevel1Items = useCallback(
     (children) => {
-      if (schoolType === "SCHOOL") {
-        // children = ClassSection[] for one grade → show sections directly as leaves
+      if (schoolType === "SCHOOL")
         return children.map((cs) => ({
           id: cs.id,
           label: `Section ${cs.section}`,
@@ -742,10 +1234,7 @@ function StudentsList() {
           sectionObj: cs,
           isLeaf: true,
         }));
-      }
-
       if (schoolType === "PUC") {
-        // children = ClassSection[] for one stream → group by combination or show directly
         const hasCombinations = children.some((cs) => cs.combination);
         if (hasCombinations) {
           const comboMap = {};
@@ -766,7 +1255,6 @@ function StudentsList() {
             isLeafGroup: true,
           }));
         }
-        // No combinations — show sections directly
         return children.map((cs) => ({
           id: cs.id,
           label: cs.name,
@@ -776,9 +1264,7 @@ function StudentsList() {
           isLeaf: true,
         }));
       }
-
       if (showCourse) {
-        // children = ClassSection[] for one course → group by branch, then semester, then section
         const hasBranches = children.some((cs) => cs.branch);
         if (hasBranches) {
           const branchMap = {};
@@ -800,7 +1286,6 @@ function StudentsList() {
             isLeafGroup: true,
           }));
         }
-        // No branches — show semesters
         const semMap = {};
         children.forEach((cs) => {
           if (!semMap[cs.grade]) semMap[cs.grade] = [];
@@ -822,7 +1307,6 @@ function StudentsList() {
             isLeafGroup: true,
           }));
       }
-
       return children.map((cs) => ({
         id: cs.id,
         label: cs.name,
@@ -835,20 +1319,19 @@ function StudentsList() {
     [schoolType, showCourse],
   );
 
-  // ── Build level-2 (sections) from level-1 leaf group ──────────────────────
-  const buildLevel2Items = useCallback((children) => {
-    // At this point children are ClassSection[] — show as leaf section cards
-    return children.map((cs) => ({
-      id: cs.id,
-      label: cs.name,
-      sublabel: cs.grade + (cs.section ? ` · Section ${cs.section}` : ""),
-      icon: Users,
-      sectionObj: cs,
-      isLeaf: true,
-    }));
-  }, []);
+  const buildLevel2Items = useCallback(
+    (children) =>
+      children.map((cs) => ({
+        id: cs.id,
+        label: cs.name,
+        sublabel: cs.grade + (cs.section ? ` · Section ${cs.section}` : ""),
+        icon: Users,
+        sectionObj: cs,
+        isLeaf: true,
+      })),
+    [],
+  );
 
-  // ── Fetch stats ────────────────────────────────────────────────────────────
   const fetchStats = useCallback(async () => {
     try {
       const [allRes, activeRes, inactiveRes] = await Promise.all([
@@ -882,7 +1365,6 @@ function StudentsList() {
     fetchStats();
   }, [fetchStats]);
 
-  // ── Fetch students when section selected ──────────────────────────────────
   const fetchStudents = useCallback(async () => {
     if (!selectedSection) return;
     setLoading(true);
@@ -927,7 +1409,6 @@ function StudentsList() {
     setPage(1);
   }, [searchTerm, selectedSection]);
 
-  // ── Delete ─────────────────────────────────────────────────────────────────
   const handleDelete = async (e, id, name) => {
     e.stopPropagation();
     if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
@@ -946,7 +1427,6 @@ function StudentsList() {
     }
   };
 
-  // ── Navigation handlers ────────────────────────────────────────────────────
   const viewLevel = !navStack.length
     ? 0
     : !selectedSection
@@ -960,47 +1440,50 @@ function StudentsList() {
       setStudents([]);
       setPage(1);
     } else {
-      // has children — go to level 1
       const l1 = buildLevel1Items(item.children);
       setLevel1Items(l1);
       setNavStack([{ label: item.label, icon: item.icon }]);
       setSelectedSection(null);
     }
   };
-
   const handleLevel1Select = (item) => {
     if (item.isLeaf) {
       setNavStack((p) => [
-        ...p.slice(0, 1),
+        ...p.slice(0, -0 || p.length),
         { label: item.label, icon: item.icon },
       ]);
       setSelectedSection(item.sectionObj);
       setStudents([]);
       setPage(1);
     } else {
-      // has children — go to level 2 (section leaves)
       const l2 = buildLevel2Items(item.children);
       setLevel1Items(l2);
+      // Push onto the navStack so viewLevel increases and back-nav works
       setNavStack((p) => [
-        ...p.slice(0, 1),
+        ...p,
         { label: item.label, icon: item.icon },
       ]);
       setSelectedSection(null);
     }
   };
-
   const handleNavCrumb = (idx) => {
     if (idx === 0) {
-      // Back to root
       setNavStack([]);
       setLevel1Items([]);
       setSelectedSection(null);
       setStudents([]);
-    } else if (idx === 1) {
-      // Back to level 1 (student view → section list)
+    } else {
+      // Navigate back to any intermediate level
       setSelectedSection(null);
       setStudents([]);
-      setNavStack((p) => p.slice(0, 1));
+      setNavStack((p) => p.slice(0, idx));
+      // Rebuild level1Items for the parent at idx-1
+      const parentItem = level0Items.find(
+        (item) => item.label === navStack[0]?.label,
+      );
+      if (idx === 1 && parentItem?.children) {
+        setLevel1Items(buildLevel1Items(parentItem.children));
+      }
     }
   };
 
@@ -1012,95 +1495,166 @@ function StudentsList() {
 
   return (
     <PageLayout>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet"
+      />
+      <style>{`
+        * { box-sizing: border-box; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+        .fade-up { animation: fadeUp 0.45s ease both; }
+      `}</style>
+
       <div
-        className="p-4 md:p-6"
-        style={{ background: C.bg, minHeight: "100%" }}
+        style={{
+          minHeight: "100vh",
+          background: C.bg,
+          padding: "28px 30px",
+         fontFamily: "'Inter', sans-serif",
+          backgroundImage: `radial-gradient(ellipse at 0% 0%, ${C.mist}40 0%, transparent 55%)`,
+        }}
       >
-        {/* Header */}
-        <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div
-                className="w-1 h-6 rounded-full"
-                style={{ background: C.primary }}
-              />
-              <h1 className="text-2xl font-bold" style={{ color: C.primary }}>
-                Students
-              </h1>
-            </div>
-            <p className="text-sm ml-3" style={{ color: C.secondary }}>
-              {viewLevel === 0 && "Select to browse students"}
-              {viewLevel === 1 && `${navStack[0]?.label} — Select section`}
-              {viewLevel >= 2 && selectedSection && `${selectedSection.name}`}
-            </p>
-          </div>
-          <button
-            onClick={() => setOpenModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all"
-            style={{ background: C.primary }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = C.secondary)
-            }
-            onMouseLeave={(e) => (e.currentTarget.style.background = C.primary)}
+        {/* ── Header ── */}
+        <div className="fade-up" style={{ marginBottom: 28 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
           >
-            <Plus size={14} /> Add Student
-          </button>
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 5,
+                }}
+              >
+                <div
+                  style={{
+                    width: 4,
+                    height: 28,
+                    borderRadius: 99,
+                    background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`,
+                    flexShrink: 0,
+                  }}
+                />
+                <h1
+                  style={{
+                    margin: 0,
+                    fontSize: "clamp(20px,4vw,28px)",
+                    fontWeight: 900,
+                    color: C.text,
+                    letterSpacing: "-0.6px",
+                  }}
+                >
+                  Students
+                </h1>
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  paddingLeft: 14,
+                  fontSize: 12,
+                  color: C.textLight,
+                  fontWeight: 500,
+                }}
+              >
+                {viewLevel === 0 && "Select to browse students"}
+                {viewLevel === 1 && `${navStack[0]?.label} — Select section`}
+                {viewLevel >= 2 && !selectedSection && `${navStack[navStack.length - 1]?.label} — Select section`}
+                {viewLevel >= 2 && selectedSection && selectedSection.name}
+              </p>
+            </div>
+            <button
+              onClick={() => setOpenModal(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "10px 20px",
+                borderRadius: 13,
+                border: "none",
+                background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+               fontFamily: "'Inter', sans-serif",
+                boxShadow: `0 4px 14px ${C.deep}44`,
+                transition: "all 0.2s",
+                flexShrink: 0,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              <Plus size={15} /> Add Student
+            </button>
+          </div>
         </div>
 
-        {/* Stats */}
+        {/* ── Stat Cards ── */}
         <StatCards stats={stats} />
 
-        {/* Breadcrumb */}
+        {/* ── Breadcrumb ── */}
         {navStack.length > 0 && (
           <Breadcrumb crumbs={crumbs} onNavigate={handleNavCrumb} />
         )}
 
-        {/* ── LEVEL 0: Root cards ─────────────────────────────────────────── */}
+        {/* ── LEVEL 0: Root cards ── */}
         {viewLevel === 0 && (
           <div
-            className="rounded-2xl overflow-hidden bg-white shadow-sm"
-            style={{ border: `1px solid ${C.border}` }}
+            className="fade-up"
+            style={{
+              background: C.white,
+              borderRadius: 20,
+              border: `1.5px solid ${C.borderLight}`,
+              boxShadow: "0 2px 20px rgba(56,73,89,0.07)",
+              overflow: "hidden",
+            }}
           >
-            <div
-              className="flex items-center justify-between px-5 py-4"
-              style={{
-                borderBottom: "1px solid rgba(136,189,242,0.20)",
-                background: "rgba(189,221,252,0.08)",
-              }}
-            >
-              <div>
-                <p className="font-bold text-sm" style={{ color: C.primary }}>
-                  {schoolType === "SCHOOL"
-                    ? "All Grades"
-                    : schoolType === "PUC"
-                      ? "All Streams"
-                      : "All Courses"}
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: C.secondary }}>
-                  {level0Items.length}{" "}
-                  {schoolType === "SCHOOL"
-                    ? "grades"
-                    : schoolType === "PUC"
-                      ? "streams"
-                      : "courses"}{" "}
-                  · {classSections.length} sections total
-                </p>
-              </div>
-              <button
-                onClick={invalidate}
-                className="p-2 rounded-lg transition-all"
-                style={{ border: `1px solid ${C.border}`, background: "white" }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(189,221,252,0.25)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "white")
-                }
-              >
-                <RefreshCw size={14} style={{ color: C.secondary }} />
-              </button>
-            </div>
-            <div className="p-5">
+            <PanelHead
+              title={
+                schoolType === "SCHOOL"
+                  ? "All Grades"
+                  : schoolType === "PUC"
+                    ? "All Streams"
+                    : "All Courses"
+              }
+              sub={`${level0Items.length} ${schoolType === "SCHOOL" ? "grades" : schoolType === "PUC" ? "streams" : "courses"} · ${classSections.length} sections total`}
+              IconComp={GraduationCap}
+              iconColor={C.sky}
+              right={
+                <button
+                  onClick={invalidate}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 10,
+                    border: `1.5px solid ${C.borderLight}`,
+                    background: C.bg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    color: C.textLight,
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = `${C.mist}55`)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = C.bg)
+                  }
+                >
+                  <RefreshCw size={13} />
+                </button>
+              }
+            />
+            <div style={{ padding: "18px 18px" }}>
               <CardGrid
                 items={level0Items}
                 onSelect={handleLevel0Select}
@@ -1110,42 +1664,52 @@ function StudentsList() {
           </div>
         )}
 
-        {/* ── LEVEL 1: Sub-items (sections / combinations / branches) ──────── */}
-        {viewLevel === 1 && !selectedSection && (
+        {/* ── LEVEL 1+: Sub-items (handles BE→course, PUC→stream→combo, etc.) ── */}
+        {viewLevel >= 1 && !selectedSection && (
           <div
-            className="rounded-2xl overflow-hidden bg-white shadow-sm"
-            style={{ border: `1px solid ${C.border}` }}
+            className="fade-up"
+            style={{
+              background: C.white,
+              borderRadius: 20,
+              border: `1.5px solid ${C.borderLight}`,
+              boxShadow: "0 2px 20px rgba(56,73,89,0.07)",
+              overflow: "hidden",
+            }}
           >
-            <div
-              className="flex items-center gap-3 px-5 py-4"
-              style={{
-                borderBottom: "1px solid rgba(136,189,242,0.20)",
-                background: "rgba(189,221,252,0.08)",
-              }}
-            >
-              <button
-                onClick={() => handleNavCrumb(0)}
-                className="p-2 rounded-lg transition-all"
-                style={{ border: `1px solid ${C.border}`, background: "white" }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(189,221,252,0.25)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "white")
-                }
-              >
-                <ArrowLeft size={14} style={{ color: C.secondary }} />
-              </button>
-              <div>
-                <p className="font-bold text-sm" style={{ color: C.primary }}>
-                  {navStack[0]?.label}
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: C.secondary }}>
-                  {level1Items.length} items
-                </p>
-              </div>
-            </div>
-            <div className="p-5">
+            <PanelHead
+              title={navStack[navStack.length - 1]?.label}
+              sub={`${level1Items.length} items`}
+              IconComp={navStack[navStack.length - 1]?.icon || GraduationCap}
+              iconColor={C.sky}
+              right={
+                <button
+                  onClick={() => handleNavCrumb(0)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "7px 12px",
+                    borderRadius: 10,
+                    border: `1.5px solid ${C.borderLight}`,
+                    background: C.bg,
+                    color: C.textLight,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                   fontFamily: "'Inter', sans-serif",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = `${C.mist}55`)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = C.bg)
+                  }
+                >
+                  <ArrowLeft size={12} /> Back
+                </button>
+              }
+            />
+            <div style={{ padding: "18px 18px" }}>
               <CardGrid
                 items={level1Items}
                 onSelect={handleLevel1Select}
@@ -1155,43 +1719,75 @@ function StudentsList() {
           </div>
         )}
 
-        {/* ── LEVEL 2: Students table ───────────────────────────────────────── */}
+        {/* ── LEVEL 2: Students table ── */}
         {selectedSection && (
           <>
-            {/* Search */}
+            {/* Search / filter bar */}
             <div
-              className="bg-white rounded-2xl shadow-sm p-4 mb-5 flex items-center gap-3"
-              style={{ border: `1px solid ${C.border}` }}
+              className="fade-up"
+              style={{
+                background: C.white,
+                borderRadius: 18,
+                border: `1.5px solid ${C.borderLight}`,
+                boxShadow: "0 2px 16px rgba(56,73,89,0.06)",
+                padding: "14px 16px",
+                marginBottom: 16,
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 10,
+                alignItems: "center",
+              }}
             >
-              <div className="flex-1 relative">
+              <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
                 <Search
-                  size={15}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2"
-                  style={{ color: C.secondary }}
+                  size={14}
+                  style={{
+                    position: "absolute",
+                    left: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: C.textLight,
+                    pointerEvents: "none",
+                  }}
                 />
                 <input
                   type="text"
                   placeholder={`Search students in ${selectedSection?.name}…`}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full text-sm pl-10 pr-4 py-2.5 rounded-xl bg-white focus:outline-none transition-all"
-                  style={{ border: `1px solid ${C.border}`, color: C.primary }}
-                  onFocus={(e) => (e.target.style.borderColor = C.accent)}
+                  style={{
+                    width: "100%",
+                    border: `1.5px solid ${C.border}`,
+                    borderRadius: 12,
+                    padding: "9px 14px 9px 34px",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: C.text,
+                    background: C.bg,
+                    outline: "none",
+                   fontFamily: "'Inter', sans-serif",
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = C.sky)}
                   onBlur={(e) => (e.target.style.borderColor = C.border)}
                 />
               </div>
-              {/* Academic Year Dropdown */}
               <select
                 value={selectedYearId}
                 onChange={(e) => {
                   setSelectedYearId(e.target.value);
                   setPage(1);
                 }}
-                className="text-sm px-3 py-2.5 rounded-xl bg-white focus:outline-none transition-all shrink-0"
                 style={{
-                  border: `1px solid ${C.border}`,
-                  color: C.primary,
-                  minWidth: "130px",
+                  border: `1.5px solid ${C.border}`,
+                  borderRadius: 12,
+                  padding: "9px 14px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: C.text,
+                  background: C.bg,
+                  outline: "none",
+                 fontFamily: "'Inter', sans-serif",
+                  minWidth: 140,
                 }}
               >
                 <option value="active">
@@ -1207,110 +1803,140 @@ function StudentsList() {
               </select>
               <button
                 onClick={invalidate}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
                 style={{
-                  border: `1px solid ${C.border}`,
-                  background: "white",
-                  color: C.secondary,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "9px 14px",
+                  borderRadius: 12,
+                  border: `1.5px solid ${C.borderLight}`,
+                  background: C.bg,
+                  color: C.textLight,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                 fontFamily: "'Inter', sans-serif",
                 }}
                 onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(189,221,252,0.25)")
+                  (e.currentTarget.style.background = `${C.mist}55`)
                 }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "white")
-                }
+                onMouseLeave={(e) => (e.currentTarget.style.background = C.bg)}
               >
                 <RefreshCw
-                  size={14}
+                  size={13}
                   className={loading ? "animate-spin" : ""}
-                />
-                <span className="hidden sm:inline">Refresh</span>
+                />{" "}
+                Refresh
               </button>
             </div>
 
             {error && (
               <div
-                className="flex items-center gap-2 p-4 mb-4 rounded-xl text-sm"
                 style={{
-                  background: "rgba(231,76,60,0.08)",
-                  border: "1px solid rgba(231,76,60,0.20)",
-                  color: "#c0392b",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "12px 16px",
+                  borderRadius: 13,
+                  background: "#fee8e8",
+                  border: "1px solid #f5b0b0",
+                  color: "#8b1c1c",
+                  fontSize: 13,
+                  marginBottom: 14,
+                 fontFamily: "'Inter', sans-serif",
                 }}
               >
-                <AlertCircle size={15} className="shrink-0" /> {error}
+                <AlertCircle size={14} style={{ flexShrink: 0 }} /> {error}
               </div>
             )}
 
+            {/* Students panel */}
             <div
-              className="rounded-2xl overflow-hidden bg-white shadow-sm"
-              style={{ border: `1px solid ${C.border}` }}
+              className="fade-up"
+              style={{
+                background: C.white,
+                borderRadius: 20,
+                border: `1.5px solid ${C.borderLight}`,
+                boxShadow: "0 2px 20px rgba(56,73,89,0.07)",
+                overflow: "hidden",
+              }}
             >
-              <div
-                className="flex items-center justify-between px-5 py-4"
-                style={{
-                  borderBottom: "1px solid rgba(136,189,242,0.20)",
-                  background: "rgba(189,221,252,0.08)",
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => {
-                      setSelectedSection(null);
-                      setStudents([]);
-                      setNavStack((p) => p.slice(0, -1));
-                    }}
-                    className="p-1.5 rounded-lg transition-all"
-                    style={{
-                      border: `1px solid ${C.border}`,
-                      background: "white",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background =
-                        "rgba(189,221,252,0.25)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "white")
-                    }
+              <PanelHead
+                title={selectedSection.name}
+                sub={`${total} student${total !== 1 ? "s" : ""} enrolled${selectedYearId === "all" ? " · All Years" : activeYear && selectedYearId === "active" ? ` · ${activeYear.name}` : ""}`}
+                IconComp={Users}
+                iconColor={C.sky}
+                right={
+                  <div
+                    style={{ display: "flex", gap: 8, alignItems: "center" }}
                   >
-                    <ArrowLeft size={13} style={{ color: C.secondary }} />
-                  </button>
-                  <div>
-                    <p
-                      className="font-bold text-sm"
-                      style={{ color: C.primary }}
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        padding: "5px 12px",
+                        borderRadius: 10,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: `${C.sky}18`,
+                        color: C.deep,
+                        border: `1px solid ${C.sky}33`,
+                       fontFamily: "'Inter', sans-serif",
+                      }}
                     >
-                      {selectedSection.name}
-                    </p>
-                    <p
-                      className="text-xs mt-0.5"
-                      style={{ color: C.secondary }}
+                      <BookOpen size={11} /> {selectedSection.name}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setSelectedSection(null);
+                        setStudents([]);
+                        setNavStack((p) => p.slice(0, -1));
+                        // If going back to level 1, restore the correct level1Items
+                        if (navStack.length >= 2) {
+                          const parentItem = level0Items.find(
+                            (item) => item.label === navStack[0]?.label,
+                          );
+                          if (parentItem?.children) {
+                            const l1 = buildLevel1Items(parentItem.children);
+                            // Find the level-1 item that matches navStack[1]
+                            const l1Item = l1.find(
+                              (i) => i.label === navStack[1]?.label,
+                            );
+                            if (l1Item?.children) {
+                              setLevel1Items(buildLevel2Items(l1Item.children));
+                            } else {
+                              setLevel1Items(l1);
+                            }
+                          }
+                        }
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                        padding: "6px 12px",
+                        borderRadius: 10,
+                        border: `1.5px solid ${C.borderLight}`,
+                        background: C.bg,
+                        color: C.textLight,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                       fontFamily: "'Inter', sans-serif",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = `${C.mist}55`)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = C.bg)
+                      }
                     >
-                      {total} student{total !== 1 ? "s" : ""} enrolled
-                      {selectedYearId === "all"
-                        ? " · All Years"
-                        : selectedYearId === "active"
-                          ? activeYear
-                            ? ` · ${activeYear.name}`
-                            : ""
-                          : (() => {
-                              const y = academicYears.find(
-                                (ay) => ay.id === selectedYearId,
-                              );
-                              return y ? ` · ${y.name}` : "";
-                            })()}
-                    </p>
+                      <ArrowLeft size={12} /> Back
+                    </button>
                   </div>
-                </div>
-                <span
-                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
-                  style={{
-                    background: "rgba(136,189,242,0.15)",
-                    color: C.primary,
-                  }}
-                >
-                  <BookOpen size={11} /> {selectedSection.name}
-                </span>
-              </div>
+                }
+              />
 
               <StudentsTable
                 students={students}

@@ -42,12 +42,32 @@ const frBlood = (v) =>
   v ? v.replace("_PLUS", "+").replace("_MINUS", "-") : "";
 
 const BLOODS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-const FDOCS = [
-  { id: "AADHAR_CARD", label: "Aadhar Card / ID Proof", req: true },
-  { id: "BIRTH_CERTIFICATE", label: "Birth Certificate", req: true },
-  { id: "MARKSHEET", label: "Previous Marksheet", req: true },
-  { id: "TRANSFER_CERTIFICATE", label: "Transfer Certificate", req: false },
+
+const MOTHER_TONGUES = [
+  "Kannada",
+  "Telugu",
+  "Tamil",
+  "Hindi",
+  "English",
+  "Urdu",
+  "Marathi",
+  "Malayalam",
+  "Tulu",
+  "Konkani",
+  "Other",
 ];
+
+const SCHOOL_BOARDS = [
+  { value: "KSEEB", label: "KSEEB (Karnataka State Board)" },
+  { value: "CBSE", label: "CBSE" },
+  { value: "ICSE", label: "ICSE" },
+  { value: "NIOS", label: "NIOS (National Open School)" },
+  { value: "IB", label: "IB (International Baccalaureate)" },
+  { value: "IGCSE", label: "IGCSE" },
+  { value: "STATE", label: "Other State Board" },
+  { value: "OTHER", label: "Other" },
+];
+
 const TABS = [
   { id: "personal", label: "Personal", icon: User },
   { id: "contact", label: "Contact", icon: MapPin },
@@ -59,6 +79,7 @@ const TABS = [
 ];
 
 const E0 = {
+  // Personal
   fn: "",
   ln: "",
   dob: "",
@@ -69,9 +90,25 @@ const E0 = {
   addr: "",
   city: "",
   state: "",
+  // Login
   uname: "",
   lemail: "",
   pw: "",
+  // Government / Identity
+  aadhaarNumber: "",
+  panNumber: "",
+  satsNumber: "",
+  nationality: "Indian",
+  religion: "",
+  casteCategory: "",
+  // NEW Karnataka personal
+  motherTongue: "",
+  subcaste: "",
+  domicileState: "Karnataka",
+  annualIncome: "",
+  physicallyChallenged: false,
+  disabilityType: "",
+  // Academic
   admissionNumber: "",
   classSectionId: "",
   academicYearId: "",
@@ -79,19 +116,33 @@ const E0 = {
   externalId: "",
   admDate: "",
   status: "ACTIVE",
+  // NEW Academic — previous institution
+  prevSchool: "",
+  prevBoard: "",
+  udiseCode: "",
+  lateralEntry: false,
+  // Parent (Father / Mother)
   pNm: "",
   pPh: "",
   pEm: "",
   pOc: "",
-  pRl: "",
+  pRl: "FATHER",
   pLoginEmail: null,
   pLoginPw: "",
+  mNm: "",
+  mPh: "",
+  mEm: "",
+  mOc: "",
+  mLoginEmail: null,
+  mLoginPw: "",
+  // Guardian
   gNm: "",
   gPh: "",
   gEm: "",
   gOc: "",
   gRl: "",
   emg: "",
+  // Health
   blood: "",
   ht: "",
   wt: "",
@@ -110,7 +161,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const isEdit = !!rid;
   const doClose = isModal ? onClose || closeModal : () => navigate("/students");
 
-  // Institution config — drives which cascade dropdowns to show
   const { schoolType, showStream, showCourse, showBranch } =
     useInstitutionConfig();
 
@@ -123,6 +173,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const [loading, setLoading] = useState(isEdit);
   const [showPw, setShowPw] = useState(false);
   const [showParentPw, setShowParentPw] = useState(false);
+  const [showMotherPw, setShowMotherPw] = useState(false);
   const [toast, setToast] = useState(null);
 
   const showToast = (type, msg) => {
@@ -130,24 +181,20 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const [ptab, setPtab] = useState("parent");
-  const [fdocs, setFdocs] = useState(
-    Object.fromEntries(FDOCS.map((d) => [d.id, null])),
-  );
-  const [xdocs, setXdocs] = useState([]);
-  const [pcerts, setPcerts] = useState([]);
+  const [ptab, setPtab] = useState("father");
+
+  // ── NEW: unified documents array ─────────────────────────────────────────
+  // Each entry: { id, documentName, customLabel, file }
+  const [docs, setDocs] = useState([]);
+
   const [docErr, setDocErr] = useState("");
   const [f, setF] = useState(E0);
 
-  // Dropdown data from API
   const [classSections, setClassSections] = useState([]);
   const [academicYears, setAcademicYears] = useState([]);
   const [loadingDropdowns, setLoadingDropdowns] = useState(false);
 
-  // ── Cascade selection state ───────────────────────────────────────────────
-  // SCHOOL: selectedGrade → selectedSection → classSectionId
-  // PUC:    selectedGrade → selectedStreamId → selectedCombinationId → classSectionId
-  // DEGREE: selectedCourseId → selectedBranchId → selectedSemester → selectedSection → classSectionId
+  // Cascade state
   const [selectedGrade, setSelectedGrade] = useState("");
   const [selectedStreamId, setSelectedStreamId] = useState("");
   const [selectedCombinationId, setSelectedCombinationId] = useState("");
@@ -157,14 +204,15 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const [selectedSectionLetter, setSelectedSectionLetter] = useState("");
 
   const photoRef = useRef();
-  const frefs = useRef({});
 
   const set = (k) => (e) => {
     setF((p) => ({ ...p, [k]: e.target.value }));
     setErr((p) => ({ ...p, [k]: "" }));
   };
 
-  // ── Fetch class sections and academic years ───────────────────────────────
+  const setToggle = (k) => (val) => setF((p) => ({ ...p, [k]: val }));
+
+  // ── Fetch dropdowns ───────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       setLoadingDropdowns(true);
@@ -187,7 +235,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     })();
   }, []);
 
-  // ── Fetch student data on edit ────────────────────────────────────────────
+  // ── Load existing student on edit ─────────────────────────────────────────
   useEffect(() => {
     if (!isEdit) return;
     (async () => {
@@ -201,6 +249,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           pi = s.personalInfo || {};
         const enroll = s.enrollments?.[0] || null;
         const cs = enroll?.classSection;
+
+        // Restore parent links
+        const fatherLink = s.parentLinks?.find((l) => l.relation === "FATHER");
+        const motherLink = s.parentLinks?.find((l) => l.relation === "MOTHER");
 
         setF({
           fn: pi.firstName || "",
@@ -216,50 +268,78 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           uname: "",
           lemail: s.email || "",
           pw: "",
-          admissionNumber: s.admissionNumber || "",
+          admissionNumber: enroll?.admissionNumber || "",
           classSectionId: cs?.id || "",
           academicYearId: enroll?.academicYear?.id || "",
           rollNumber: enroll?.rollNumber || "",
           externalId: enroll?.externalId || "",
-          admDate: pi.admissionDate ? pi.admissionDate.slice(0, 10) : "",
-          status: pi.status || "ACTIVE",
-          pNm: pi.parentName || "",
-          pPh: pi.parentPhone || "",
-          pEm: pi.parentEmail || "",
-          pOc: "",
-          pRl: "",
+          admDate: enroll?.admissionDate
+            ? enroll.admissionDate.slice(0, 10)
+            : "",
+          status: enroll?.status || "ACTIVE",
+          // Identity
+          aadhaarNumber: pi.aadhaarNumber || "",
+          panNumber: pi.panNumber || "",
+          satsNumber: pi.satsNumber || "",
+          nationality: pi.nationality || "Indian",
+          religion: pi.religion || "",
+          casteCategory: pi.casteCategory || "",
+          // Karnataka personal
+          motherTongue: pi.motherTongue || "",
+          subcaste: pi.subcaste || "",
+          domicileState: pi.domicileState || "Karnataka",
+          annualIncome: pi.annualIncome?.toString() || "",
+          physicallyChallenged: pi.physicallyChallenged || false,
+          disabilityType: pi.disabilityType || "",
+          // Previous institution
+          prevSchool: enroll?.previousSchoolName || "",
+          prevBoard: enroll?.previousSchoolBoard || "",
+          udiseCode: enroll?.udiseCode || "",
+          lateralEntry: enroll?.lateralEntry || false,
+          // Parent — Father
+          pNm: fatherLink?.parent?.name || pi.parentName || "",
+          pPh: fatherLink?.parent?.phone || pi.parentPhone || "",
+          pEm: fatherLink?.parent?.email || pi.parentEmail || "",
+          pOc: fatherLink?.parent?.occupation || "",
+          pRl: "FATHER",
           pLoginEmail: null,
           pLoginPw: "",
+          // Parent — Mother
+          mNm: motherLink?.parent?.name || "",
+          mPh: motherLink?.parent?.phone || "",
+          mEm: motherLink?.parent?.email || "",
+          mOc: motherLink?.parent?.occupation || "",
+          mLoginEmail: null,
+          mLoginPw: "",
+          // Guardian
           gNm: "",
           gPh: "",
           gEm: "",
           gOc: "",
           gRl: "",
           emg: pi.emergencyContact || "",
+          // Health
           blood: frBlood(pi.bloodGroup),
-          ht: "",
-          wt: "",
-          bmarks: "",
+          ht: pi.heightCm?.toString() || "",
+          wt: pi.weightKg?.toString() || "",
+          bmarks: pi.identifyingMarks || "",
           cond: pi.medicalConditions || "",
           allg: pi.allergies || "",
         });
 
-        // Restore cascade state from existing enrollment
+        // Restore cascade
         if (cs) {
           if (schoolType === "SCHOOL") {
-            // grade = "Grade 9", section = "A"
-            const gradeNum = cs.grade?.replace("Grade ", "") || "";
-            setSelectedGrade(gradeNum);
+            setSelectedGrade(cs.grade?.replace("Grade ", "") || "");
             setSelectedSectionLetter(cs.section || "");
           } else if (schoolType === "PUC") {
             setSelectedGrade(cs.grade || "");
             setSelectedStreamId(cs.streamId || "");
             setSelectedCombinationId(cs.combinationId || "");
           } else {
-            // DEGREE / DIPLOMA / PG
             setSelectedCourseId(cs.courseId || "");
             setSelectedBranchId(cs.branchId || "");
-            setSelectedSemester(cs.grade || ""); // grade holds "Semester 1"
+            setSelectedSemester(cs.grade || "");
             setSelectedSectionLetter(cs.section || "");
           }
         }
@@ -273,9 +353,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     })();
   }, [rid]);
 
-  // ── Cascade derived data (all computed from classSections array) ──────────
-
-  // SCHOOL: unique grade numbers sorted
+  // ── Cascade derived data ──────────────────────────────────────────────────
   const schoolGrades = useMemo(() => {
     if (schoolType !== "SCHOOL") return [];
     const nums = [
@@ -291,19 +369,21 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     return nums;
   }, [classSections, schoolType]);
 
-  // SCHOOL: sections available for selected grade
   const schoolSections = useMemo(() => {
     if (schoolType !== "SCHOOL" || !selectedGrade) return [];
-    return classSections.filter((cs) => cs.grade === `Grade ${selectedGrade}`);
+    return classSections.filter(
+      (cs) =>
+        cs.grade === `Grade ${selectedGrade}` || // stored as "Grade 1"
+        cs.grade === String(selectedGrade) || // stored as "1"
+        cs.grade === `${selectedGrade}`, // any other plain format
+    );
   }, [classSections, schoolType, selectedGrade]);
 
-  // PUC: unique grades
   const pucGrades = useMemo(() => {
     if (schoolType !== "PUC") return [];
     return [...new Set(classSections.map((cs) => cs.grade))].sort();
   }, [classSections, schoolType]);
 
-  // PUC: unique streams for selected grade
   const pucStreams = useMemo(() => {
     if (schoolType !== "PUC" || !selectedGrade) return [];
     const filtered = classSections.filter(
@@ -319,7 +399,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     }, []);
   }, [classSections, schoolType, selectedGrade]);
 
-  // PUC: combinations for selected stream
   const pucCombinations = useMemo(() => {
     if (schoolType !== "PUC" || !selectedStreamId) return [];
     const filtered = classSections.filter(
@@ -335,14 +414,13 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     }, []);
   }, [classSections, schoolType, selectedStreamId]);
 
-  // Does selected stream have combinations?
   const selectedStreamObj = useMemo(
     () => pucStreams.find((s) => s.id === selectedStreamId),
     [pucStreams, selectedStreamId],
   );
-  const streamHasCombinations = selectedStreamObj?.hasCombinations ?? false;
+  // Derived from actual data — true if this stream's sections actually have combinations
+  const streamHasCombinations = pucCombinations.length > 0;
 
-  // DEGREE: unique courses
   const degreeCourses = useMemo(() => {
     if (!showCourse) return [];
     const seen = new Set();
@@ -355,16 +433,14 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     }, []);
   }, [classSections, showCourse]);
 
-  // DEGREE: selected course object
   const selectedCourseObj = useMemo(
     () => degreeCourses.find((c) => c.id === selectedCourseId),
     [degreeCourses, selectedCourseId],
   );
-  const courseHasBranches = selectedCourseObj?.hasBranches ?? false;
-
-  // DEGREE: branches for selected course
+  // Use actual branch data presence, not just the hasBranches flag
+  // This handles cases where hasBranches flag may be false but sections have branches
   const degreeBranches = useMemo(() => {
-    if (!showCourse || !selectedCourseId || !courseHasBranches) return [];
+    if (!showCourse || !selectedCourseId) return [];
     const filtered = classSections.filter(
       (cs) => cs.courseId === selectedCourseId && cs.branch,
     );
@@ -376,9 +452,11 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       }
       return acc;
     }, []);
-  }, [classSections, showCourse, selectedCourseId, courseHasBranches]);
+  }, [classSections, showCourse, selectedCourseId]);
 
-  // DEGREE: semesters for selected course + branch
+  // Derived from actual data — true if this course's sections actually have branches
+  const courseHasBranches = degreeBranches.length > 0;
+
   const degreeSemesters = useMemo(() => {
     if (!showCourse || !selectedCourseId) return [];
     const filtered = classSections.filter((cs) => {
@@ -407,7 +485,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     selectedBranchId,
   ]);
 
-  // DEGREE: section letters for selected course + branch + semester
   const degreeSectionLetters = useMemo(() => {
     if (!showCourse || !selectedCourseId || !selectedSemester) return [];
     const filtered = classSections.filter((cs) => {
@@ -430,7 +507,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     selectedSemester,
   ]);
 
-  // ── Auto-resolve classSectionId when cascade selections change ───────────
+  // ── Auto-resolve classSectionId ───────────────────────────────────────────
   useEffect(() => {
     if (schoolType === "SCHOOL") {
       if (!selectedGrade || !selectedSectionLetter) {
@@ -439,8 +516,11 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       }
       const match = classSections.find(
         (cs) =>
-          cs.grade === `Grade ${selectedGrade}` &&
-          cs.section === selectedSectionLetter,
+          (cs.grade === `Grade ${selectedGrade}` ||
+            cs.grade === String(selectedGrade) ||
+            cs.grade === `${selectedGrade}`) &&
+          (cs.section === selectedSectionLetter ||
+            cs.id === selectedSectionLetter),
       );
       setF((p) => ({ ...p, classSectionId: match?.id || "" }));
     }
@@ -484,7 +564,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         setF((p) => ({ ...p, classSectionId: "" }));
         return;
       }
-      // If only one section exists for this combo, auto-select it
       if (degreeSectionLetters.length === 1) {
         setSelectedSectionLetter(degreeSectionLetters[0].section);
         setF((p) => ({ ...p, classSectionId: degreeSectionLetters[0].id }));
@@ -509,7 +588,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     showCourse,
   ]);
 
-  // Reset downstream cascade when upstream changes
   const resetStream = () => {
     setSelectedStreamId("");
     setSelectedCombinationId("");
@@ -573,7 +651,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const saveCore = async () => {
     let id = sid;
     if (!isEdit) {
-      // FIX: admissionNumber now sent at registration time
       const r = await fetch(`${API}/api/students/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth() },
@@ -581,7 +658,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           name: `${f.fn} ${f.ln}`.trim(),
           email: f.lemail || f.email,
           password: f.pw,
-          admissionNumber: f.admissionNumber, // FIX: included here
         }),
       });
       const d = await r.json();
@@ -593,6 +669,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
     const fd = new FormData();
     const flds = {
+      // Personal
       firstName: f.fn,
       lastName: f.ln,
       phone: f.phone,
@@ -602,6 +679,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       address: f.addr,
       city: f.city,
       state: f.state,
+      // Academic
       admissionNumber: f.admissionNumber,
       classSectionId: f.classSectionId,
       academicYearId: f.academicYearId,
@@ -609,16 +687,40 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       externalId: f.externalId,
       admissionDate: f.admDate,
       status: f.status,
+      // Previous institution
+      previousSchoolName: f.prevSchool,
+      previousSchoolBoard: f.prevBoard,
+      udiseCode: f.udiseCode,
+      lateralEntry: f.lateralEntry,
+      // Parent
       parentName: f.pNm,
       parentPhone: f.pPh,
       parentEmail: f.pEm,
       emergencyContact: f.emg,
+      // Identity
+      aadhaarNumber: f.aadhaarNumber,
+      panNumber: f.panNumber,
+      satsNumber: f.satsNumber,
+      nationality: f.nationality,
+      religion: f.religion,
+      casteCategory: f.casteCategory,
+      // Karnataka personal
+      motherTongue: f.motherTongue,
+      subcaste: f.subcaste,
+      domicileState: f.domicileState,
+      annualIncome: f.annualIncome,
+      physicallyChallenged: f.physicallyChallenged,
+      disabilityType: f.disabilityType,
+      // Health
       bloodGroup: toBlood(f.blood),
       medicalConditions: f.cond,
       allergies: f.allg,
+      heightCm: f.ht,
+      weightKg: f.wt,
+      identifyingMarks: f.bmarks,
     };
     Object.entries(flds).forEach(([k, v]) => {
-      if (v) fd.append(k, v);
+      if (v !== undefined && v !== "" && v !== null) fd.append(k, v);
     });
     if (photo) fd.append("profileImage", photo);
 
@@ -630,22 +732,42 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     const pd = await pr.json();
     if (!pr.ok) throw new Error(pd.message || "Save failed");
 
+    // Create Father login if provided
     if (f.pLoginEmail !== null && f.pLoginEmail?.trim() && f.pLoginPw?.trim()) {
       const plr = await fetch(`${API}/api/students/${id}/parent-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth() },
         body: JSON.stringify({
-          name: f.pNm?.trim() || `Parent of ${f.fn} ${f.ln}`.trim(),
+          name: f.pNm?.trim() || `Father of ${f.fn} ${f.ln}`.trim(),
           email: f.pLoginEmail.trim(),
           password: f.pLoginPw,
           phone: f.pPh?.trim() || undefined,
           occupation: f.pOc?.trim() || undefined,
-          relation: f.pRl || "GUARDIAN",
+          relation: "FATHER",
         }),
       });
       const pld = await plr.json();
       if (!plr.ok && plr.status !== 409)
-        throw new Error(pld.message || "Parent login creation failed");
+        throw new Error(pld.message || "Father login creation failed");
+    }
+
+    // Create Mother login if provided
+    if (f.mLoginEmail !== null && f.mLoginEmail?.trim() && f.mLoginPw?.trim()) {
+      const mlr = await fetch(`${API}/api/students/${id}/parent-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...auth() },
+        body: JSON.stringify({
+          name: f.mNm?.trim() || `Mother of ${f.fn} ${f.ln}`.trim(),
+          email: f.mLoginEmail.trim(),
+          password: f.mLoginPw,
+          phone: f.mPh?.trim() || undefined,
+          occupation: f.mOc?.trim() || undefined,
+          relation: "MOTHER",
+        }),
+      });
+      const mld = await mlr.json();
+      if (!mlr.ok && mlr.status !== 409)
+        throw new Error(mld.message || "Mother login creation failed");
     }
 
     return id;
@@ -690,37 +812,20 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         }
         id = await saveCore();
       }
-      const all = [];
-      FDOCS.forEach((d) => {
-        if (fdocs[d.id])
-          all.push({
-            file: fdocs[d.id],
-            documentName: d.id,
-            customLabel: null,
-          });
-      });
-      xdocs.forEach((d) => {
-        if (d.file)
-          all.push({
-            file: d.file,
-            documentName: "CUSTOM",
-            customLabel: d.label || "Custom",
-          });
-      });
-      pcerts.forEach((d) => {
-        if (d.file)
-          all.push({
-            file: d.file,
-            documentName: "CUSTOM",
-            customLabel: d.label || "Parent Cert",
-          });
-      });
-      if (all.length > 0) {
-        const fd = new FormData(),
-          meta = [];
-        all.forEach(({ file, documentName, customLabel }) => {
+
+      // ── NEW: unified docs array ───────────────────────────────────────────
+      const toUpload = docs.filter((d) => d.file && d.documentName);
+
+      if (toUpload.length > 0) {
+        const fd = new FormData();
+        const meta = [];
+        toUpload.forEach(({ file, documentName, customLabel }) => {
           fd.append("files", file);
-          meta.push({ documentName, customLabel });
+          meta.push({
+            documentName,
+            customLabel:
+              documentName === "CUSTOM" ? customLabel || "Custom" : null,
+          });
         });
         fd.append("metadata", JSON.stringify(meta));
         const r = await fetch(`${API}/api/students/${id}/documents/bulk`, {
@@ -731,6 +836,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         const d = await r.json();
         if (!r.ok) throw new Error(d.message || "Upload failed");
       }
+
       showToast(
         "success",
         isEdit
@@ -749,11 +855,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
   const tabIdx = TABS.findIndex((t) => t.id === tab);
   const isLast = tabIdx === TABS.length - 1;
-  const totalUploads =
-    Object.values(fdocs).filter(Boolean).length +
-    xdocs.filter((d) => d.file).length;
+  const totalUploads = docs.filter((d) => d.file).length;
 
-  // Sidebar preview data
   const resolvedSection = classSections.find((s) => s.id === f.classSectionId);
   const resolvedYear = academicYears.find((y) => y.id === f.academicYearId);
 
@@ -842,13 +945,45 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     </div>
   );
 
-  // ── Academic Tab — Cascading Section Picker ───────────────────────────────
+  // Toggle button for boolean fields
+  const ToggleField = ({ label, value, onChange }) => (
+    <div className="space-y-1.5">
+      {label && (
+        <label
+          className="text-xs font-bold ml-1"
+          style={{ color: COLORS.secondary }}
+        >
+          {label}
+        </label>
+      )}
+      <div className="flex gap-2">
+        {[
+          { v: false, l: "No" },
+          { v: true, l: "Yes" },
+        ].map(({ v, l }) => (
+          <button
+            key={l}
+            type="button"
+            onClick={() => onChange(v)}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all"
+            style={{
+              background: value === v ? COLORS.primary : "white",
+              color: value === v ? "white" : COLORS.secondary,
+              borderColor: value === v ? COLORS.primary : COLORS.border,
+            }}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── Academic cascade picker ───────────────────────────────────────────────
   const renderAcademicCascade = () => {
-    // ── SCHOOL: Grade (1-10) + Section (A, B, C…) ──────────────────────────
     if (schoolType === "SCHOOL") {
       return (
         <div className="space-y-4">
-          {/* Step label */}
           <div className="flex items-center gap-2 mb-1">
             <div
               className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
@@ -863,9 +998,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
               Select Grade & Section
             </p>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {/* Grade dropdown */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <StyledSelect
               label="Grade *"
               value={selectedGrade}
@@ -883,8 +1016,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 </option>
               ))}
             </StyledSelect>
-
-            {/* Section dropdown — only shows sections that exist for selected grade */}
             <StyledSelect
               label="Section *"
               value={selectedSectionLetter}
@@ -905,8 +1036,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
               ))}
             </StyledSelect>
           </div>
-
-          {/* Resolved class section display */}
           {f.classSectionId && resolvedSection && (
             <div
               className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
@@ -925,7 +1054,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       );
     }
 
-    // ── PUC: Grade + Stream + Combination ──────────────────────────────────
     if (schoolType === "PUC") {
       return (
         <div className="space-y-4">
@@ -943,9 +1071,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
               Select Grade → Stream → Combination
             </p>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {/* Grade */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <StyledSelect
               label="Grade *"
               value={selectedGrade}
@@ -963,8 +1089,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 </option>
               ))}
             </StyledSelect>
-
-            {/* Stream */}
             <StyledSelect
               label="Stream *"
               value={selectedStreamId}
@@ -984,8 +1108,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
               ))}
             </StyledSelect>
           </div>
-
-          {/* Combination — only shown if stream has combinations */}
           {selectedStreamId && streamHasCombinations && (
             <StyledSelect
               label="Combination *"
@@ -1000,8 +1122,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
               ))}
             </StyledSelect>
           )}
-
-          {/* No combination badge for Arts-like streams */}
           {selectedStreamId && !streamHasCombinations && (
             <div
               className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
@@ -1014,7 +1134,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
               This stream has no subject combinations
             </div>
           )}
-
           {f.classSectionId && resolvedSection && (
             <div
               className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
@@ -1033,7 +1152,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       );
     }
 
-    // ── DEGREE / DIPLOMA / PG: Course → Branch → Semester → Section ────────
     if (showCourse) {
       return (
         <div className="space-y-4">
@@ -1052,9 +1170,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
               Section
             </p>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {/* Course */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <StyledSelect
               label="Course *"
               value={selectedCourseId}
@@ -1072,8 +1188,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 </option>
               ))}
             </StyledSelect>
-
-            {/* Branch — only shown if course has branches */}
             {selectedCourseId && courseHasBranches && (
               <StyledSelect
                 label="Branch *"
@@ -1092,10 +1206,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
               </StyledSelect>
             )}
           </div>
-
-          {/* Semester */}
           {selectedCourseId && (!courseHasBranches || selectedBranchId) && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <StyledSelect
                 label="Semester *"
                 value={selectedSemester}
@@ -1111,8 +1223,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                   </option>
                 ))}
               </StyledSelect>
-
-              {/* Section letter — only shown if multiple sections per semester */}
               {selectedSemester && degreeSectionLetters.length > 1 && (
                 <StyledSelect
                   label="Section *"
@@ -1129,7 +1239,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
               )}
             </div>
           )}
-
           {f.classSectionId && resolvedSection && (
             <div
               className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
@@ -1148,7 +1257,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       );
     }
 
-    // Fallback: flat dropdown for OTHER / unknown types
     return (
       <StyledSelect
         label="Class / Section"
@@ -1167,12 +1275,116 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     );
   };
 
+  // ── Parent login card ─────────────────────────────────────────────────────
+  const ParentLoginCard = ({
+    emailKey,
+    pwKey,
+    nmKey,
+    phKey,
+    relation,
+    showPwState,
+    toggleShowPw,
+  }) => (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ border: `1px solid ${COLORS.border}` }}
+    >
+      <div
+        className="flex items-center justify-between px-4 py-3"
+        style={{
+          background: COLORS.bgSoft,
+          borderBottom:
+            f[emailKey] !== null ? `1px solid ${COLORS.border}` : "none",
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center"
+            style={{ background: `${COLORS.accent}22` }}
+          >
+            <Lock size={13} style={{ color: COLORS.accent }} />
+          </div>
+          <div>
+            <p className="text-xs font-bold" style={{ color: COLORS.primary }}>
+              {relation} Portal Login
+            </p>
+            <p className="text-[10px]" style={{ color: COLORS.secondary }}>
+              {f[emailKey] !== null
+                ? `Login set for ${relation}`
+                : "Optional · Skip now, add later"}
+            </p>
+          </div>
+        </div>
+        {f[emailKey] === null ? (
+          <button
+            type="button"
+            onClick={() =>
+              setF((p) => ({ ...p, [emailKey]: p[phKey] || "", [pwKey]: "" }))
+            }
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
+            style={{ background: COLORS.primary }}
+          >
+            + Set Login
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() =>
+              setF((p) => ({ ...p, [emailKey]: null, [pwKey]: "" }))
+            }
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
+            style={{
+              border: `1px solid ${COLORS.border}`,
+              color: COLORS.secondary,
+              background: "white",
+            }}
+          >
+            <X size={11} /> Remove
+          </button>
+        )}
+      </div>
+      {f[emailKey] !== null && (
+        <div className="p-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <InputField
+              label="Login Email"
+              icon={Mail}
+              type="email"
+              value={f[emailKey]}
+              onChange={set(emailKey)}
+              placeholder="parent@example.com"
+            />
+            <div className="relative">
+              <InputField
+                label="Login Password"
+                type={showPwState ? "text" : "password"}
+                icon={Lock}
+                value={f[pwKey]}
+                onChange={set(pwKey)}
+                placeholder="Min. 6 characters"
+              />
+              <button
+                type="button"
+                onClick={toggleShowPw}
+                className="absolute right-3.5 top-9"
+                style={{ color: COLORS.secondary }}
+              >
+                {showPwState ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   // ── Shell ─────────────────────────────────────────────────────────────────
   const shell = (
     <div
-      className="w-full bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden relative"
+      className="w-full bg-white md:rounded-2xl shadow-2xl flex flex-col overflow-hidden relative"
       style={{
         maxWidth: isModal ? "75rem" : "100%",
+        minHeight: isModal ? "auto" : undefined,
         border: `1px solid ${COLORS.border}`,
       }}
     >
@@ -1203,7 +1415,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
       {/* Header */}
       <div
-        className="flex items-center justify-between px-6 py-4"
+        className="flex items-center justify-between px-4 md:px-6 py-4"
         style={{
           background: COLORS.bgSoft,
           borderBottom: `1px solid ${COLORS.border}`,
@@ -1237,7 +1449,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       </div>
 
       {/* Body */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-col md:flex-row flex-1 min-h-0">
         <StudentFormSidebar
           tabs={TABS}
           activeTab={tab}
@@ -1270,8 +1482,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         />
 
         <div
-          className="flex-1 overflow-y-auto p-6 space-y-5 pb-28"
-          style={{ maxHeight: isModal ? "64vh" : "70vh" }}
+          className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 pb-24"
+          style={{ maxHeight: isModal ? "75vh" : "80vh" }}
         >
           {/* Global error */}
           {err._g && (
@@ -1289,41 +1501,168 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
           {/* ═══ PERSONAL ═══ */}
           {tab === "personal" && (
-            <div className="grid grid-cols-2 gap-5">
-              <InputField
-                label="First Name *"
-                value={f.fn}
-                onChange={set("fn")}
-                error={err.fn}
-              />
-              <InputField
-                label="Last Name *"
-                value={f.ln}
-                onChange={set("ln")}
-                error={err.ln}
-              />
-              <InputField
-                label="Date of Birth"
-                type="date"
-                value={f.dob}
-                onChange={set("dob")}
-              />
-              <StyledSelect
-                label="Gender"
-                value={f.gender}
-                onChange={set("gender")}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputField
+                  label="First Name *"
+                  value={f.fn}
+                  onChange={set("fn")}
+                  error={err.fn}
+                />
+                <InputField
+                  label="Last Name *"
+                  value={f.ln}
+                  onChange={set("ln")}
+                  error={err.ln}
+                />
+                <InputField
+                  label="Date of Birth"
+                  type="date"
+                  value={f.dob}
+                  onChange={set("dob")}
+                />
+                <StyledSelect
+                  label="Gender"
+                  value={f.gender}
+                  onChange={set("gender")}
+                >
+                  <option value="">Select gender</option>
+                  <option value="MALE">Male</option>
+                  <option value="FEMALE">Female</option>
+                  <option value="OTHER">Other</option>
+                </StyledSelect>
+              </div>
+
+              {/* Government ID section */}
+              <div
+                className="rounded-xl p-3 space-y-3"
+                style={{
+                  background: COLORS.bgSoft,
+                  border: `1px solid ${COLORS.border}`,
+                }}
               >
-                <option value="">Select gender</option>
-                <option value="MALE">Male</option>
-                <option value="FEMALE">Female</option>
-                <option value="OTHER">Other</option>
-              </StyledSelect>
+                <p
+                  className="text-xs font-bold uppercase tracking-wide"
+                  style={{ color: COLORS.primary }}
+                >
+                  Government & Identity
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <InputField
+                    label="Aadhaar Number"
+                    value={f.aadhaarNumber}
+                    onChange={set("aadhaarNumber")}
+                    placeholder="12-digit Aadhaar"
+                    maxLength={12}
+                  />
+                  <InputField
+                    label="PAN Number"
+                    value={f.panNumber}
+                    onChange={set("panNumber")}
+                    placeholder="ABCDE1234F"
+                    maxLength={10}
+                  />
+                  <InputField
+                    label="SATS Number"
+                    value={f.satsNumber}
+                    onChange={set("satsNumber")}
+                    placeholder="Karnataka Student ID"
+                  />
+                  <InputField
+                    label="Nationality"
+                    value={f.nationality}
+                    onChange={set("nationality")}
+                    placeholder="Indian"
+                  />
+                  <InputField
+                    label="Religion"
+                    value={f.religion}
+                    onChange={set("religion")}
+                    placeholder="Optional"
+                  />
+                  <StyledSelect
+                    label="Caste Category"
+                    value={f.casteCategory}
+                    onChange={set("casteCategory")}
+                  >
+                    <option value="">Select category</option>
+                    <option value="SC">SC</option>
+                    <option value="ST">ST</option>
+                    <option value="OBC">OBC</option>
+                    <option value="GM">GM (General)</option>
+                    <option value="OTHER">Other</option>
+                  </StyledSelect>
+                  <InputField
+                    label="Sub-Caste"
+                    value={f.subcaste}
+                    onChange={set("subcaste")}
+                    placeholder="e.g. Lingayat, Vokkaliga"
+                  />
+                  <InputField
+                    label="Domicile State"
+                    value={f.domicileState}
+                    onChange={set("domicileState")}
+                    placeholder="Karnataka"
+                  />
+                </div>
+              </div>
+
+              {/* Karnataka-specific section */}
+              <div
+                className="rounded-xl p-3 space-y-3"
+                style={{
+                  background: COLORS.bgSoft,
+                  border: `1px solid ${COLORS.border}`,
+                }}
+              >
+                <p
+                  className="text-xs font-bold uppercase tracking-wide"
+                  style={{ color: COLORS.primary }}
+                >
+                  Additional Details
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <StyledSelect
+                    label="Mother Tongue"
+                    value={f.motherTongue}
+                    onChange={set("motherTongue")}
+                  >
+                    <option value="">Select mother tongue</option>
+                    {MOTHER_TONGUES.map((l) => (
+                      <option key={l} value={l}>
+                        {l}
+                      </option>
+                    ))}
+                  </StyledSelect>
+                  <InputField
+                    label="Annual Family Income (₹)"
+                    type="number"
+                    value={f.annualIncome}
+                    onChange={set("annualIncome")}
+                    placeholder="e.g. 250000"
+                    hint="Required for fee waiver / scholarship"
+                  />
+                </div>
+                <ToggleField
+                  label="Physically Challenged"
+                  value={f.physicallyChallenged}
+                  onChange={setToggle("physicallyChallenged")}
+                />
+                {f.physicallyChallenged && (
+                  <InputField
+                    label="Disability Type"
+                    value={f.disabilityType}
+                    onChange={set("disabilityType")}
+                    placeholder="e.g. Visual, Hearing, Locomotor"
+                  />
+                )}
+              </div>
             </div>
           )}
 
           {/* ═══ CONTACT ═══ */}
           {tab === "contact" && (
-            <div className="space-y-5">
+            <div className="space-y-3">
               <InputField
                 label="Email Address *"
                 icon={Mail}
@@ -1333,7 +1672,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 error={err.email}
                 placeholder="student@school.com"
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InputField
                   label="Phone Number *"
                   icon={Phone}
@@ -1357,7 +1696,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 onChange={set("addr")}
                 placeholder="Street address"
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InputField
                   label="City"
                   value={f.city}
@@ -1376,7 +1715,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
           {/* ═══ LOGIN ═══ */}
           {tab === "login" && (
-            <div className="space-y-5">
+            <div className="space-y-3">
               <InputField
                 label={`Student Login Email${!isEdit ? " *" : ""}`}
                 icon={Mail}
@@ -1412,7 +1751,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
           {/* ═══ ACADEMIC ═══ */}
           {tab === "academic" && (
-            <div className="space-y-5">
+            <div className="space-y-3">
               <InputField
                 label="Admission Number *"
                 value={f.admissionNumber}
@@ -1422,9 +1761,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 hint="Unique school admission ID — required"
               />
 
-              {/* ── Cascading class picker — school-type aware ── */}
               <div
-                className="rounded-xl p-4 space-y-4"
+                className="rounded-xl p-3 space-y-3"
                 style={{
                   background: COLORS.bgSoft,
                   border: `1px solid ${COLORS.border}`,
@@ -1433,7 +1771,6 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 {renderAcademicCascade()}
               </div>
 
-              {/* Academic Year */}
               <StyledSelect
                 label="Academic Year"
                 value={f.academicYearId}
@@ -1449,13 +1786,13 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 ))}
               </StyledSelect>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InputField
                   label="Roll Number"
                   value={f.rollNumber}
                   onChange={set("rollNumber")}
                   error={err.rollNumber}
-                  placeholder="e.g. HS-2024-001"
+                  placeholder="e.g. 01"
                   hint="Optional — assign later if not yet allocated"
                 />
                 <InputField
@@ -1467,7 +1804,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InputField
                   label="Admission Date"
                   type="date"
@@ -1485,12 +1822,66 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                   <option value="GRADUATED">Graduated</option>
                 </StyledSelect>
               </div>
+
+              {/* Previous institution */}
+              <div
+                className="rounded-xl p-3 space-y-3"
+                style={{
+                  background: COLORS.bgSoft,
+                  border: `1px solid ${COLORS.border}`,
+                }}
+              >
+                <p
+                  className="text-xs font-bold uppercase tracking-wide"
+                  style={{ color: COLORS.primary }}
+                >
+                  Previous Institution
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <InputField
+                    label="Previous School / College Name"
+                    value={f.prevSchool}
+                    onChange={set("prevSchool")}
+                    placeholder="e.g. St. Joseph's High School"
+                  />
+                  <StyledSelect
+                    label="Previous Board / University"
+                    value={f.prevBoard}
+                    onChange={set("prevBoard")}
+                  >
+                    <option value="">Select board</option>
+                    {SCHOOL_BOARDS.map((b) => (
+                      <option key={b.value} value={b.value}>
+                        {b.label}
+                      </option>
+                    ))}
+                  </StyledSelect>
+                  {schoolType === "SCHOOL" && (
+                    <InputField
+                      label="UDISE Code (Previous School)"
+                      value={f.udiseCode}
+                      onChange={set("udiseCode")}
+                      placeholder="11-digit UDISE code"
+                      hint="Karnataka govt schools require this"
+                    />
+                  )}
+                  {(schoolType === "DIPLOMA" ||
+                    schoolType === "DEGREE" ||
+                    schoolType === "POSTGRADUATE") && (
+                    <ToggleField
+                      label="Lateral Entry Admission"
+                      value={f.lateralEntry}
+                      onChange={setToggle("lateralEntry")}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
           {/* ═══ PARENT ═══ */}
           {tab === "parent" && (
-            <div className="space-y-5">
+            <div className="space-y-3">
               <div
                 className="flex gap-1 p-1 rounded-xl"
                 style={{
@@ -1499,8 +1890,9 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 }}
               >
                 {[
-                  { id: "parent", l: "Parent Information" },
-                  { id: "guardian", l: "Guardian Information" },
+                  { id: "father", l: "Father" },
+                  { id: "mother", l: "Mother" },
+                  { id: "guardian", l: "Guardian" },
                 ].map(({ id, l }) => (
                   <button
                     key={id}
@@ -1516,28 +1908,19 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 ))}
               </div>
 
-              {ptab === "parent" && (
+              {/* Father */}
+              {ptab === "father" && (
                 <>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <InputField
-                      label="Parent Full Name"
+                      label="Father's Full Name"
                       icon={User}
                       value={f.pNm}
                       onChange={set("pNm")}
-                      placeholder="Parent name"
+                      placeholder="Father's name"
                     />
-                    <StyledSelect
-                      label="Relation"
-                      value={f.pRl}
-                      onChange={set("pRl")}
-                    >
-                      <option value="">Select</option>
-                      <option value="Father">Father</option>
-                      <option value="Mother">Mother</option>
-                      <option value="Other">Other</option>
-                    </StyledSelect>
                     <InputField
-                      label="Parent Phone"
+                      label="Father's Phone"
                       icon={Phone}
                       type="tel"
                       value={f.pPh}
@@ -1545,12 +1928,12 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                       placeholder="+91 98765-43210"
                     />
                     <InputField
-                      label="Parent Email"
+                      label="Father's Email"
                       icon={Mail}
                       type="email"
                       value={f.pEm}
                       onChange={set("pEm")}
-                      placeholder="parent@example.com"
+                      placeholder="father@example.com"
                     />
                     <InputField
                       label="Occupation"
@@ -1558,243 +1941,78 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                       onChange={set("pOc")}
                       placeholder="e.g. Engineer"
                     />
-                    <InputField
-                      label="Emergency Contact"
-                      icon={Phone}
-                      type="tel"
-                      value={f.emg}
-                      onChange={set("emg")}
-                      placeholder="Emergency number"
-                    />
-                  </div>
-
-                  {/* Parent Portal Login */}
-                  <div
-                    className="rounded-xl overflow-hidden"
-                    style={{ border: `1px solid ${COLORS.border}` }}
-                  >
-                    <div
-                      className="flex items-center justify-between px-4 py-3"
-                      style={{
-                        background: COLORS.bgSoft,
-                        borderBottom:
-                          f.pLoginEmail !== null
-                            ? `1px solid ${COLORS.border}`
-                            : "none",
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-7 h-7 rounded-lg flex items-center justify-center"
-                          style={{ background: `${COLORS.accent}22` }}
-                        >
-                          <Lock size={13} style={{ color: COLORS.accent }} />
-                        </div>
-                        <div>
-                          <p
-                            className="text-xs font-bold"
-                            style={{ color: COLORS.primary }}
-                          >
-                            Parent Portal Login
-                          </p>
-                          <p
-                            className="text-[10px]"
-                            style={{ color: COLORS.secondary }}
-                          >
-                            {f.pLoginEmail !== null
-                              ? `Login set for ${f.pRl || "Guardian"}`
-                              : "Optional · Skip now, add later"}
-                          </p>
-                        </div>
-                      </div>
-                      {f.pLoginEmail === null ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setF((p) => ({
-                              ...p,
-                              pLoginEmail: p.pEm || "",
-                              pLoginPw: "",
-                            }))
-                          }
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
-                          style={{ background: COLORS.primary }}
-                        >
-                          + Set Login
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setF((p) => ({
-                              ...p,
-                              pLoginEmail: null,
-                              pLoginPw: "",
-                            }))
-                          }
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
-                          style={{
-                            border: `1px solid ${COLORS.border}`,
-                            color: COLORS.secondary,
-                            background: "white",
-                          }}
-                        >
-                          <X size={11} /> Remove
-                        </button>
-                      )}
+                    <div className="col-span-1 sm:col-span-2">
+                      <InputField
+                        label="Emergency Contact"
+                        icon={Phone}
+                        type="tel"
+                        value={f.emg}
+                        onChange={set("emg")}
+                        placeholder="Emergency number"
+                      />
                     </div>
-                    {f.pLoginEmail !== null && (
-                      <div className="p-4 space-y-3">
-                        <div className="grid grid-cols-2 gap-4">
-                          <InputField
-                            label="Login Email"
-                            icon={Mail}
-                            type="email"
-                            value={f.pLoginEmail}
-                            onChange={set("pLoginEmail")}
-                            placeholder="parent@example.com"
-                          />
-                          <div className="relative">
-                            <InputField
-                              label="Login Password"
-                              type={showParentPw ? "text" : "password"}
-                              icon={Lock}
-                              value={f.pLoginPw}
-                              onChange={set("pLoginPw")}
-                              placeholder="Min. 6 characters"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowParentPw((v) => !v)}
-                              className="absolute right-3.5 top-9"
-                              style={{ color: COLORS.secondary }}
-                            >
-                              {showParentPw ? (
-                                <EyeOff size={16} />
-                              ) : (
-                                <Eye size={16} />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
-
-                  {/* Parent Certificates */}
-                  <div
-                    className="rounded-xl p-4"
-                    style={{
-                      border: `1px dashed ${COLORS.accent}`,
-                      background: `${COLORS.light}18`,
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <p
-                        className="text-xs font-bold uppercase tracking-wide"
-                        style={{ color: COLORS.primary }}
-                      >
-                        Parent Certificates{" "}
-                        <span
-                          className="font-normal"
-                          style={{ color: COLORS.secondary }}
-                        >
-                          (Optional)
-                        </span>
-                      </p>
-                      <button
-                        onClick={() =>
-                          setPcerts((p) => [
-                            ...p,
-                            { id: Date.now(), label: "", file: null },
-                          ])
-                        }
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
-                        style={{ background: COLORS.primary }}
-                      >
-                        + Add
-                      </button>
-                    </div>
-                    {pcerts.length === 0 ? (
-                      <p
-                        className="text-xs text-center py-2"
-                        style={{ color: COLORS.secondary }}
-                      >
-                        No certificates added.
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {pcerts.map((c, i) => (
-                          <div
-                            key={c.id}
-                            className="flex items-center gap-2 p-2.5 rounded-xl bg-white"
-                            style={{ border: `1px solid ${COLORS.border}` }}
-                          >
-                            <span
-                              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 text-white"
-                              style={{ background: COLORS.secondary }}
-                            >
-                              {i + 1}
-                            </span>
-                            <input
-                              value={c.label}
-                              onChange={(e) =>
-                                setPcerts((p) =>
-                                  p.map((d) =>
-                                    d.id === c.id
-                                      ? { ...d, label: e.target.value }
-                                      : d,
-                                  ),
-                                )
-                              }
-                              placeholder="Certificate name"
-                              className="flex-1 text-sm px-2 py-1.5 rounded-lg focus:outline-none bg-gray-50 border border-gray-100 min-w-0"
-                              style={{ color: COLORS.primary }}
-                            />
-                            <label
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer"
-                              style={{
-                                border: `1px solid ${c.file ? "#86efac" : COLORS.border}`,
-                                background: c.file ? "#f0fdf4" : "white",
-                                color: c.file ? "#16a34a" : COLORS.secondary,
-                              }}
-                            >
-                              {c.file
-                                ? `✓ ${c.file.name.slice(0, 10)}…`
-                                : "↑ Upload"}
-                              <input
-                                type="file"
-                                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                onChange={(e) =>
-                                  setPcerts((p) =>
-                                    p.map((d) =>
-                                      d.id === c.id
-                                        ? { ...d, file: e.target.files[0] }
-                                        : d,
-                                    ),
-                                  )
-                                }
-                                className="hidden"
-                              />
-                            </label>
-                            <button
-                              onClick={() =>
-                                setPcerts((p) => p.filter((d) => d.id !== c.id))
-                              }
-                              className="w-6 h-6 flex items-center justify-center rounded text-red-400 hover:text-red-600"
-                            >
-                              <X size={13} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <ParentLoginCard
+                    emailKey="pLoginEmail"
+                    pwKey="pLoginPw"
+                    nmKey="pNm"
+                    phKey="pEm"
+                    relation="Father"
+                    showPwState={showParentPw}
+                    toggleShowPw={() => setShowParentPw((v) => !v)}
+                  />
                 </>
               )}
 
+              {/* Mother */}
+              {ptab === "mother" && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <InputField
+                      label="Mother's Full Name"
+                      icon={User}
+                      value={f.mNm}
+                      onChange={set("mNm")}
+                      placeholder="Mother's name"
+                    />
+                    <InputField
+                      label="Mother's Phone"
+                      icon={Phone}
+                      type="tel"
+                      value={f.mPh}
+                      onChange={set("mPh")}
+                      placeholder="+91 98765-43210"
+                    />
+                    <InputField
+                      label="Mother's Email"
+                      icon={Mail}
+                      type="email"
+                      value={f.mEm}
+                      onChange={set("mEm")}
+                      placeholder="mother@example.com"
+                    />
+                    <InputField
+                      label="Occupation"
+                      value={f.mOc}
+                      onChange={set("mOc")}
+                      placeholder="e.g. Teacher"
+                    />
+                  </div>
+                  <ParentLoginCard
+                    emailKey="mLoginEmail"
+                    pwKey="mLoginPw"
+                    nmKey="mNm"
+                    phKey="mEm"
+                    relation="Mother"
+                    showPwState={showMotherPw}
+                    toggleShowPw={() => setShowMotherPw((v) => !v)}
+                  />
+                </>
+              )}
+
+              {/* Guardian */}
               {ptab === "guardian" && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <InputField
                     label="Guardian Full Name"
                     icon={Shield}
@@ -1830,7 +2048,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                     onChange={set("gEm")}
                     placeholder="guardian@example.com"
                   />
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <InputField
                       label="Occupation"
                       value={f.gOc}
@@ -1845,7 +2063,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
           {/* ═══ HEALTH ═══ */}
           {tab === "health" && (
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <StyledSelect
                 label="Blood Group"
                 value={f.blood}
@@ -1858,23 +2076,30 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                   </option>
                 ))}
               </StyledSelect>
-              <div className="grid grid-cols-2 gap-3">
+              <div /> {/* spacer */}
+              <InputField
+                label="Height (cm)"
+                type="number"
+                value={f.ht}
+                onChange={set("ht")}
+                placeholder="e.g. 145"
+              />
+              <InputField
+                label="Weight (kg)"
+                type="number"
+                value={f.wt}
+                onChange={set("wt")}
+                placeholder="e.g. 40"
+              />
+              <div className="col-span-1 sm:col-span-2">
                 <InputField
-                  label="Height (cm)"
-                  type="number"
-                  value={f.ht}
-                  onChange={set("ht")}
-                  placeholder="e.g. 145"
-                />
-                <InputField
-                  label="Weight (kg)"
-                  type="number"
-                  value={f.wt}
-                  onChange={set("wt")}
-                  placeholder="e.g. 40"
+                  label="Identifying Marks"
+                  value={f.bmarks}
+                  onChange={set("bmarks")}
+                  placeholder="e.g. Birthmark on left arm"
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <StyledTextarea
                   label="Medical Conditions"
                   value={f.cond}
@@ -1882,7 +2107,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                   placeholder="e.g. Asthma, Diabetes"
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <StyledTextarea
                   label="Allergies"
                   value={f.allg}
@@ -1968,14 +2193,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                   </div>
                 </div>
               )}
-              <DocumentUploadSection
-                fdocs={fdocs}
-                setFdocs={setFdocs}
-                xdocs={xdocs}
-                setXdocs={setXdocs}
-                frefs={frefs}
-                FDOCS={FDOCS}
-              />
+              <DocumentUploadSection docs={docs} setDocs={setDocs} />
               {docErr && (
                 <div
                   className="flex items-center gap-2 p-3 rounded-xl text-sm"
@@ -1995,7 +2213,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
       {/* Footer */}
       <div
-        className="flex items-center justify-between px-6 py-4 rounded-b-2xl"
+        className="flex items-center justify-between px-4 md:px-6 py-4 rounded-b-2xl"
         style={{
           background: COLORS.bgSoft,
           borderTop: `1px solid ${COLORS.border}`,
@@ -2064,7 +2282,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
   if (isModal)
     return (
-      <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-6 px-4">
+      <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm overflow-y-auto py-0 md:py-6 px-0 md:px-4">
         {shell}
       </div>
     );
