@@ -1,3 +1,5 @@
+
+
 const activities = [
     {
         id: 1,

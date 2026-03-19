@@ -14,38 +14,38 @@ import { Medal, X, Search, Loader2, AlertCircle, Download, FileText } from "luci
 
 // ─── Design tokens ──────────────────────────────────────────────
 const C = {
-  dark:  "#384959",
-  mid:   "#6A89A7",
+  dark: "#384959",
+  mid: "#6A89A7",
   light: "#88BDF2",
-  pale:  "#BDDDFC",
-  bg:    "#EDF3FA",
+  pale: "#BDDDFC",
+  bg: "#EDF3FA",
   white: "#ffffff",
-  border:"rgba(136,189,242,0.30)",
+  border: "rgba(136,189,242,0.30)",
 };
 
 const API_BASE = `${import.meta.env.VITE_API_URL ?? "http://localhost:5000"}/certificates`;
 
 // ─── Filter constants (UNCHANGED) ──────────────────────────────
-const SOURCES    = ["All", "Teacher Award", "Activity Award", "Achievement"];
+const SOURCES = ["All", "Teacher Award", "Activity Award", "Achievement"];
 const CATEGORIES = ["All", "Academic", "Attendance", "Sports", "Cultural", "Discipline", "Leadership", "Special"];
 const SOURCE_MAP = { "Teacher Award": "MANUAL", "Activity Award": "EVENT", "Achievement": "CALCULATED" };
-const CAT_MAP    = {
+const CAT_MAP = {
   Academic: "ACADEMIC", Attendance: "ATTENDANCE", Sports: "SPORTS",
   Cultural: "CULTURAL", Discipline: "DISCIPLINE", Leadership: "LEADERSHIP", Special: "SPECIAL",
 };
 const CAT_STYLE = {
-  ACADEMIC:   { bg: "#EFF6FF", color: "#1D4ED8", icon: "🎓" },
+  ACADEMIC: { bg: "#EFF6FF", color: "#1D4ED8", icon: "🎓" },
   ATTENDANCE: { bg: "#F0FDF4", color: "#16A34A", icon: "✅" },
-  SPORTS:     { bg: "#FFF7ED", color: "#EA580C", icon: "🏆" },
-  CULTURAL:   { bg: "#FDF4FF", color: "#9333EA", icon: "🎭" },
+  SPORTS: { bg: "#FFF7ED", color: "#EA580C", icon: "🏆" },
+  CULTURAL: { bg: "#FDF4FF", color: "#9333EA", icon: "🎭" },
   DISCIPLINE: { bg: "#F8FAFC", color: "#475569", icon: "🛡️" },
   LEADERSHIP: { bg: "#FFFBEB", color: "#B45309", icon: "👑" },
-  SPECIAL:    { bg: "#F5F3FF", color: "#7C3AED", icon: "⭐" },
+  SPECIAL: { bg: "#F5F3FF", color: "#7C3AED", icon: "⭐" },
 };
 const SRC_STYLE = {
-  MANUAL:     { bg: "#F0FDF4", color: "#15803D", label: "Teacher Award",  icon: "👨‍🏫" },
-  EVENT:      { bg: "#FFF7ED", color: "#C2410C", label: "Activity Award", icon: "🏅" },
-  CALCULATED: { bg: "#EFF6FF", color: "#1D4ED8", label: "Achievement",    icon: "⭐" },
+  MANUAL: { bg: "#F0FDF4", color: "#15803D", label: "Teacher Award", icon: "👨‍🏫" },
+  EVENT: { bg: "#FFF7ED", color: "#C2410C", label: "Activity Award", icon: "🏅" },
+  CALCULATED: { bg: "#EFF6FF", color: "#1D4ED8", label: "Achievement", icon: "⭐" },
 };
 const RESULT_LABEL = {
   WINNER: "🥇 1st Place", RUNNER_UP: "🥈 2nd Place", THIRD_PLACE: "🥉 3rd Place",
@@ -143,8 +143,8 @@ function Pill({ label, active, onClick }) {
       style={{
         padding: "5px 13px", borderRadius: 20, fontSize: 12, fontWeight: 600,
         background: active ? C.dark : C.white,
-        color:      active ? C.white : C.mid,
-        border:     `1.5px solid ${active ? C.dark : C.border}`,
+        color: active ? C.white : C.mid,
+        border: `1.5px solid ${active ? C.dark : C.border}`,
       }}
     >
       {label}
@@ -180,7 +180,7 @@ function StatCard({ icon, label, value, color, loading }) {
 // ─── Cert Card — redesigned to match app card style ────────────
 function CertCard({ cert, onView }) {
   const cat = CAT_STYLE[cert.category] ?? { bg: "#F3F4F6", color: "#6B7280", icon: "🏅" };
-  const src = SRC_STYLE[cert.source]   ?? { bg: "#F3F4F6", color: "#6B7280", label: cert.source, icon: "📄" };
+  const src = SRC_STYLE[cert.source] ?? { bg: "#F3F4F6", color: "#6B7280", label: cert.source, icon: "📄" };
 
   return (
     <div
@@ -392,13 +392,13 @@ function CertificateModal({ selected, student, school, onClose }) {
 //  MAIN PAGE
 // ═══════════════════════════════════════════════════════════════
 export default function CertificatesPage() {
-  const [pageData,   setPageData]  = useState(null);
-  const [loading,    setLoading]   = useState(true);
-  const [error,      setError]     = useState(null);
-  const [srcFilter,  setSrc]       = useState("All");
-  const [catFilter,  setCat]       = useState("All");
-  const [search,     setSearch]    = useState("");
-  const [selected,   setSelected]  = useState(null);
+  const [pageData, setPageData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [srcFilter, setSrc] = useState("All");
+  const [catFilter, setCat] = useState("All");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null);
 
   // ── Data fetching (UNCHANGED) ──────────────────────────────
   useEffect(() => {
@@ -419,10 +419,10 @@ export default function CertificatesPage() {
   }, []);
 
   // ── Derived (UNCHANGED) ───────────────────────────────────
-  const certs    = pageData?.certificates ?? [];
+  const certs = pageData?.certificates ?? [];
   const filtered = certs.filter(c => {
-    const srcOk  = srcFilter === "All" || c.source   === SOURCE_MAP[srcFilter];
-    const catOk  = catFilter === "All" || c.category === CAT_MAP[catFilter];
+    const srcOk = srcFilter === "All" || c.source === SOURCE_MAP[srcFilter];
+    const catOk = catFilter === "All" || c.category === CAT_MAP[catFilter];
     const srchOk = !search.trim()
       || c.title?.toLowerCase().includes(search.toLowerCase())
       || c.description?.toLowerCase().includes(search.toLowerCase())
@@ -430,9 +430,9 @@ export default function CertificatesPage() {
     return srcOk && catOk && srchOk;
   });
 
-  const stats   = pageData?.stats   ?? {};
+  const stats = pageData?.stats ?? {};
   const student = pageData?.student ?? {};
-  const school  = pageData?.school  ?? {};
+  const school = pageData?.school ?? {};
 
   return (
     <>
@@ -457,7 +457,7 @@ export default function CertificatesPage() {
                   <>
                     {student.firstName} {student.lastName}
                     {student.classSection ? ` · ${student.classSection}` : ""}
-                    {student.academicYear  ? ` · ${student.academicYear}`  : ""}
+                    {student.academicYear ? ` · ${student.academicYear}` : ""}
                   </>
                 )}
               </p>
@@ -483,10 +483,10 @@ export default function CertificatesPage() {
 
         {/* ── Stat cards ── */}
         <div className="cert-stat-grid">
-          <StatCard icon="🏅" label="Total"           value={stats.total      ?? 0} color={C.light}  loading={loading} />
-          <StatCard icon="👨‍🏫" label="Teacher Awards"  value={stats.manual     ?? 0} color="#0EA5E9" loading={loading} />
-          <StatCard icon="🏆" label="Activity Awards"  value={stats.event      ?? 0} color="#F59E0B" loading={loading} />
-          <StatCard icon="⭐" label="Achievements"     value={stats.calculated ?? 0} color="#a855f7" loading={loading} />
+          <StatCard icon="🏅" label="Total" value={stats.total ?? 0} color={C.light} loading={loading} />
+          <StatCard icon="👨‍🏫" label="Teacher Awards" value={stats.manual ?? 0} color="#0EA5E9" loading={loading} />
+          <StatCard icon="🏆" label="Activity Awards" value={stats.event ?? 0} color="#F59E0B" loading={loading} />
+          <StatCard icon="⭐" label="Achievements" value={stats.calculated ?? 0} color="#a855f7" loading={loading} />
         </div>
 
         {/* ── Filters panel — white card matching app style ── */}
