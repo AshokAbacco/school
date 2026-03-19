@@ -6,7 +6,7 @@ import PageLayout from "./components/PageLayout";
 import Dashboard from "./dashboard/Dashboard";
 import StudentsList from "./pages/students/StudentsList";
 import Schools from "./pages/schools/Schools";
-import SchoolAdmins from "./pages/SchoolAdmins/SchoolAdmins";
+import SchoolAdmins from "./pages/schoolAdmins/SchoolAdmins";
 import UsersManagement from "./pages/UsersManagement/UsersManagement";
 import RolesPermissions from "./pages/roles/RolesPermissions";
 import Plans from "./pages/Subscription/Plans";
