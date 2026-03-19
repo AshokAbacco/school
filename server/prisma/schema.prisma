@@ -766,10 +766,10 @@ model TeacherProfile {
   teacherAttendances   TeacherAttendance[]
   TeacherMonthlySalary TeacherMonthlySalary[]
   GroupBStaffSalary    GroupBStaffSalary[]
-  timetableEntries TimetableEntry[]
-  syllabusCreated  SubjectSyllabus[]        @relation("SyllabusCreatedBy")
-  syllabusUpdated  SubjectSyllabus[]        @relation("SyllabusUpdatedBy")
-  portionProgress  SectionPortionProgress[]
+  timetableEntries     TimetableEntry[]
+  syllabusCreated      SubjectSyllabus[]          @relation("SyllabusCreatedBy")
+  syllabusUpdated      SubjectSyllabus[]          @relation("SyllabusUpdatedBy")
+  portionProgress      SectionPortionProgress[]
   liveClasses          LiveClass[]
 
   @@index([schoolId])
