@@ -19,7 +19,7 @@ import {
     Swords, Medal, Calendar, Search,
     EyeOff, Activity,
 } from "lucide-react";
-
+import { getToken } from "../../../auth/storage";
 
 // ─── Design tokens (identical to student version) ──────────────
 const C = {
@@ -33,6 +33,7 @@ const C = {
 };
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
+
 
 
 const apiFetch = async (path) => {

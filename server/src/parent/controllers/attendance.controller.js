@@ -9,7 +9,13 @@ const mapStatus = (status) => {
 export const getStudentAttendance = async (req, res) => {
   try {
     const prisma = new PrismaClient();
-    const studentId = req.user.id; // assuming student login
+   const studentId = req.query.studentId;
+    if (!studentId) {
+  return res.status(400).json({
+    success: false,
+    message: "studentId is required",
+  });
+}
     const { year, month } = req.query;
 
     if (!year || !month) {
@@ -61,10 +67,37 @@ export const getStudentAttendance = async (req, res) => {
       : 0;
 
     // ✅ Calendar (IMPORTANT FORMAT FOR UI)
-    const calendarDays = records.map((r) => ({
-      date: new Date(r.date).getDate().toString(),
+   // Create a map for quick lookup
+const recordMap = new Map();
+records.forEach((r) => {
+  const day = new Date(r.date).getDate();
+  recordMap.set(day, r);
+});
+
+// Total days in the month
+const daysInMonth = new Date(year, month, 0).getDate();
+
+const calendarDays = [];
+
+for (let day = 1; day <= daysInMonth; day++) {
+  if (recordMap.has(day)) {
+    const r = recordMap.get(day);
+
+    calendarDays.push({
+      date: day.toString(),
       status: mapStatus(r.status),
-    }));
+    });
+  } else {
+    // Fill missing days
+    const currentDate = new Date(year, month - 1, day);
+    const today = new Date();
+
+    calendarDays.push({
+      date: day.toString(),
+      status: currentDate > today ? "upcoming" : "holiday",
+    });
+  }
+}
 
     // ✅ Recent records
     const recentRecords = records
