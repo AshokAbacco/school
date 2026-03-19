@@ -1,3 +1,7 @@
+// client/src/parent/components/PageLayout.jsx
+// UI: matches student PageLayout design
+// Logic: 100% unchanged — Outlet, Sidebar, Navbar all intact
+
 import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
@@ -7,7 +11,7 @@ function PageLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen overflow-hidden" style={{ background: "#EDF3FA" }}>
       {/* Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
@@ -21,7 +25,7 @@ function PageLayout() {
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto">
-          <Outlet />   {/* ✅ THIS IS IMPORTANT */}
+          <Outlet />
         </main>
       </div>
     </div>

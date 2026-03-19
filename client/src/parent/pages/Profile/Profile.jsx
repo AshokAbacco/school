@@ -1,358 +1,411 @@
-import { useState, useEffect } from "react";
-import { getMyProfile, getParentStudents } from "./components/api";
-import { getAuth } from "../../../auth/storage"; // adjust path as needed
+// client/src/parent/pages/Profile.jsx
+// ═══════════════════════════════════════════════════════════════
+//  Parent Portal — Child Profile
+//  Design: 1:1 copy of student profile.jsx
+//  Differences from student version:
+//    1. No <PageLayout> wrapper (Routes.jsx handles layout)
+//    2. Fetches children from /api/parent/students on mount
+//    3. ChildSelector shown when parent has > 1 child
+//    4. Profile fetched from /api/parent/profile?studentId=
+//    5. Documents fetched from /api/parent/profile/documents?studentId=
+//    6. Re-fetches everything when selected child changes
+//    7. All sub-components reused directly from student folder (zero duplication)
+// ═══════════════════════════════════════════════════════════════
 
-const tabs = [
-    { id: "personal", label: "Personal Info" },
-    { id: "academic", label: "Document Info" },
-    { id: "health", label: "Health" },
+import React, { useState, useEffect, useCallback } from "react";
+import { User, BookOpen, Heart, FileText, RefreshCw, WifiOff, Loader2 } from "lucide-react";
+import { getToken } from "../../../auth/storage.js";
+
+// ── Reuse ALL student sub-components without any modification ──
+import { C, PROFILE_CSS, initials } from "../../../student/pages/profile/components/shared.jsx";
+import ProfileSidebar from "../../../student/pages/profile/components/ProfileSidebar.jsx";
+import PersonalInfo from "../../../student/pages/profile/components/PersonalInfo.jsx";
+import AcademicInfo from "../../../student/pages/profile/components/AcademicInfo.jsx";
+import HealthInfo from "../../../student/pages/profile/components/HealthInfo.jsx";
+import DocumentsInfo from "../../../student/pages/profile/components/DocumentsInfo.jsx";
+
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
+
+// ── API helper with retry ─────────────────────────────────────
+async function apiFetch(path, retries = 3, delayMs = 600) {
+    let lastError;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 12000);
+            const res = await fetch(`${API}${path}`, {
+                credentials: "include",
+                headers: { Authorization: `Bearer ${getToken()}` },
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            const ct = res.headers.get("content-type") ?? "";
+            if (!ct.includes("application/json")) throw new Error(`Server error ${res.status}`);
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message ?? "Unknown error");
+            return json;
+        } catch (e) {
+            lastError = e;
+            if (e.name === "AbortError") { lastError = new Error("Request timed out"); break; }
+            if (attempt < retries) await new Promise(r => setTimeout(r, delayMs * attempt));
+        }
+    }
+    throw lastError;
+}
+
+// ── Tab config (identical to student) ────────────────────────
+const TABS = [
+    { key: "personal", label: "Personal", icon: User },
+    { key: "academic", label: "Academic", icon: BookOpen },
+    { key: "health", label: "Health", icon: Heart },
+    { key: "documents", label: "Documents", icon: FileText },
 ];
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
-const Icon = ({ type }) => {
-    const icons = {
-        id: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <rect x="2" y="4" width="20" height="16" rx="2" />
-                <circle cx="9" cy="10" r="2" />
-                <path d="M15 8h2M15 12h2M7 16h10" />
-            </svg>
-        ),
-        person: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-            </svg>
-        ),
-        calendar: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <path d="M16 2v4M8 2v4M3 10h18" />
-            </svg>
-        ),
-        parent: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <circle cx="9" cy="7" r="3" />
-                <circle cx="17" cy="7" r="3" />
-                <path d="M2 20c0-3 3-5 7-5s7 2 7 5M14 20c0-2 2-4 5-4" />
-            </svg>
-        ),
-        phone: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3.1 5.2 2 2 0 0 1 5.1 3h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L9.1 11a16 16 0 0 0 6.9 6.9l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7A2 2 0 0 1 24 18.9z" />
-            </svg>
-        ),
-        email: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <rect x="2" y="4" width="20" height="16" rx="2" />
-                <path d="m22 7-10 7L2 7" />
-            </svg>
-        ),
-        location: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z" />
-                <circle cx="12" cy="9" r="2.5" />
-            </svg>
-        ),
-        book: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-            </svg>
-        ),
-        trophy: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                <path d="M6 9H4a2 2 0 0 1-2-2V5h4" />
-                <path d="M18 9h2a2 2 0 0 0 2-2V5h-4" />
-                <path d="M12 17v4" />
-                <path d="M8 21h8" />
-                <path d="M6 5h12v6a6 6 0 0 1-12 0V5z" />
-            </svg>
-        ),
-    };
-    return icons[type] || icons.person;
-};
-
-// ── Info Card (field tile) ────────────────────────────────────────────────────
-const InfoCard = ({ label, value, iconType, fullWidth = false }) => (
-    <div className={`bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center gap-3 ${fullWidth ? "col-span-2" : ""}`}>
-        <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white flex-shrink-0">
-            <Icon type={iconType} />
-        </div>
-        <div className="min-w-0">
-            <p className="text-xs text-gray-500">{label}</p>
-            <p className="text-sm font-semibold text-gray-800 truncate">{value || "—"}</p>
-        </div>
-    </div>
-);
-
-// ── Single student profile card ───────────────────────────────────────────────
-const StudentCard = ({ student }) => {
-    const [activeTab, setActiveTab] = useState("personal");
-    const p = student.personalInfo || {};
-
+// ── Error banner (identical to student) ──────────────────────
+function ErrorBanner({ message, onRetry }) {
     return (
-        <div className="mb-8 rounded-2xl overflow-hidden shadow-lg bg-white">
-            {/* ── Top Banner ── */}
-            <div
-                className="flex items-center justify-between px-6 py-3"
-                style={{ background: "linear-gradient(135deg, #1d4ed8 0%, #4f46e5 100%)" }}
-            >
-                <div className="flex items-center gap-2 text-white font-bold text-lg">
-                    <Icon type="trophy" />
-                    <span>Class Rank {p.classRank || "—"}</span>
-                </div>
-                <div className="flex gap-2">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${activeTab === tab.id
-                                ? "bg-blue-800 text-white border border-white"
-                                : "bg-white text-blue-700 hover:bg-blue-50"
-                                }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
+        <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 12, flexWrap: "wrap",
+            background: "#fef2f2", border: "1.5px solid #fca5a5",
+            borderRadius: 14, padding: "13px 16px",
+            color: "#b91c1c", fontSize: 12, marginBottom: 14,
+            fontFamily: "'Inter', sans-serif",
+        }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <WifiOff size={15} /> {message}
             </div>
+            {onRetry && (
+                <button onClick={onRetry} style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "6px 14px", borderRadius: 20, border: "none",
+                    background: "#b91c1c", color: "#fff",
+                    fontWeight: 700, fontSize: 11, cursor: "pointer",
+                    fontFamily: "'Inter', sans-serif",
+                }}>
+                    <RefreshCw size={11} /> Retry
+                </button>
+            )}
+        </div>
+    );
+}
 
-            {/* ── Body ── */}
-            <div className="flex gap-0 bg-gray-50 min-h-96">
-                {/* ── Left Panel ── */}
-                <div className="w-72 flex-shrink-0 flex flex-col items-center pt-8 pb-6 px-6 border-r border-gray-200 bg-white">
-                    {/* Avatar */}
-                    <div className="relative mb-4">
-                        <div className="w-36 h-36 rounded-full border-4 border-blue-200 overflow-hidden bg-blue-50 flex items-center justify-center">
-                            {p.profileImage ? (
-                                <img src={p.profileImage} alt="profile" className="w-full h-full object-cover" />
-                            ) : (
-                                <>
-                                    <img
-                                        src="https://cdn-icons-png.flaticon.com/512/8030/8030035.png"
-                                        alt="Student"
-                                        className="w-full h-full object-cover"
-                                        onError={(e) => {
-                                            e.target.style.display = "none";
-                                            e.target.nextSibling.style.display = "flex";
-                                        }}
-                                    />
-                                    <span className="text-6xl" style={{ display: "none" }}>🧑‍🎒</span>
-                                </>
-                            )}
-                        </div>
-                        {/* Camera button */}
-                        <button className="absolute bottom-1 right-1 bg-white rounded-full p-1.5 shadow border border-gray-200 hover:bg-gray-50">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                                <circle cx="12" cy="13" r="4" />
-                            </svg>
+// ── Child Selector ────────────────────────────────────────────
+function ChildSelector({ children, selectedId, onChange }) {
+    if (!children || children.length <= 1) return null;
+    return (
+        <div style={{ marginBottom: 18 }}>
+            <p style={{
+                margin: "0 0 9px", fontSize: 11, fontWeight: 800, color: C.mid,
+                textTransform: "uppercase", letterSpacing: "0.10em", fontFamily: "'Inter',sans-serif",
+            }}>
+                Select Child
+            </p>
+            <div style={{
+                display: "flex", gap: 9, overflowX: "auto", paddingBottom: 3,
+                scrollbarWidth: "none",
+            }}>
+                {children.map((child) => {
+                    const active = child.studentId === selectedId;
+                    return (
+                        <button
+                            key={child.studentId}
+                            onClick={() => onChange(child.studentId)}
+                            style={{
+                                flexShrink: 0, display: "flex", alignItems: "center", gap: 9,
+                                padding: "8px 13px", borderRadius: 13, outline: "none", cursor: "pointer",
+                                border: active ? `1.5px solid ${C.light}` : `1.5px solid ${C.pale}`,
+                                background: active ? `rgba(136,189,242,0.14)` : C.white,
+                                transition: "all 0.15s",
+                                boxShadow: active ? "0 2px 10px rgba(136,189,242,0.22)" : "none",
+                                fontFamily: "'Inter',sans-serif",
+                            }}
+                        >
+                            <div style={{
+                                width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+                                background: active
+                                    ? `linear-gradient(135deg, ${C.light}, ${C.dark})`
+                                    : `linear-gradient(135deg, ${C.pale}, #c8ddf0)`,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: 11, fontWeight: 900,
+                                color: active ? C.white : C.mid,
+                                overflow: "hidden",
+                            }}>
+                                {child.profileImage
+                                    ? <img src={child.profileImage} alt={child.name}
+                                        style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    : initials(child.name)}
+                            </div>
+                            <div style={{ textAlign: "left" }}>
+                                <p style={{
+                                    margin: 0, fontSize: 13, fontWeight: active ? 700 : 500,
+                                    color: active ? C.dark : C.mid, whiteSpace: "nowrap",
+                                }}>
+                                    {child.name}
+                                </p>
+                                {child.className && (
+                                    <p style={{ margin: 0, fontSize: 10, color: C.mid, fontWeight: 500 }}>
+                                        {child.className}
+                                    </p>
+                                )}
+                            </div>
                         </button>
-                    </div>
-
-                    {/* Name & info */}
-                    <h2 className="text-lg font-bold text-gray-800 text-center">
-                        {`${p.firstName || ""} ${p.lastName || ""}`.trim() || student.name || "—"}
-                    </h2>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                        {p.grade && p.className ? `Grade ${p.grade} - Section ${p.className}` : p.grade || p.className || "—"}
-                    </p>
-                    <p className="text-sm text-blue-600 font-medium mt-0.5">
-                        {student.rollNumber || "—"}
-                    </p>
-
-                    {/* Badges */}
-                    <div className="flex gap-2 mt-3 flex-wrap justify-center">
-                        {p.status && (
-                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
-                                {p.status}
-                            </span>
-                        )}
-                        {p.honorRoll && (
-                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-200">
-                                Honor Roll
-                            </span>
-                        )}
-                    </div>
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-2 mt-5 w-full">
-                        <div className="bg-blue-50 rounded-xl p-3 text-center">
-                            <p>{student.attendance || "0"}</p>
-                            <p className="text-xs text-gray-500">Attendance</p>
-                        </div>
-                        <div className="bg-purple-50 rounded-xl p-3 text-center">
-                            <p className="text-lg font-bold text-purple-600">{p.gpa || "—"}</p>
-                            <p>{student.gpa || "0.0"}</p>
-                        </div>
-                        <div className="bg-pink-50 rounded-xl p-3 text-center">
-                            <p className="text-lg font-bold text-pink-600">{p.subjects || "—"}</p>
-                            <p>{student.subjects || "0"}</p>
-                        </div>
-                        <div className="bg-orange-50 rounded-xl p-3 text-center">
-                            <p className="text-lg font-bold text-orange-500">{p.activities || "—"}</p>
-                            <p>{student.activities || "0"}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ── Right Panel ── */}
-                <div className="flex-1 p-6">
-                    {/* ── Personal Info ── */}
-                    {activeTab === "personal" && (
-                        <>
-                            <h2 className="text-lg font-bold text-gray-800 mb-1 flex items-center gap-2">
-                                <Icon type="book" />
-                                Personal Information
-                            </h2>
-                            <hr className="border-blue-200 mb-4" />
-                            <div className="grid grid-cols-2 gap-3">
-                                <InfoCard label="Full Name" value={`${p.firstName || ""} ${p.lastName || ""}`.trim()} iconType="person" />
-                                <InfoCard
-                                    label="Admission & Roll Number"
-                                    value={`${student.admissionNumber || student.id} / ${student.rollNumber}`}
-                                    iconType="id"
-                                />
-                                <InfoCard label="Date of Birth" value={p.dateOfBirth?.slice(0, 10)} iconType="calendar" />
-                                <InfoCard label="Father's Name" value={p.parentName} iconType="parent" />
-                                {p.motherName && (
-                                    <InfoCard
-                                        label="Mother's Name"
-                                        value={p.motherName}
-                                        iconType="parent"
-                                    />
-                                )}
-                                <InfoCard label="Mobile Number" value={p.phone} iconType="phone" />
-                                <InfoCard label="Email Address" value={student.email} iconType="email" fullWidth />
-                                <InfoCard label="Current Address" value={p.address} iconType="location" fullWidth />
-                                {p.permanentAddress && (
-                                    <InfoCard
-                                        label="Permanent Address"
-                                        value={p.permanentAddress}
-                                        iconType="location"
-                                        fullWidth
-                                    />
-                                )}
-                            </div>
-                        </>
-                    )}
-
-                    {/* ── Document Info ── */}
-                    {activeTab === "academic" && (
-                        <>
-                            <h2 className="text-lg font-bold text-gray-800 mb-1 flex items-center gap-2">
-                                <Icon type="book" />
-                                Document Information
-                            </h2>
-                            <hr className="border-blue-200 mb-4" />
-                            <div className="grid grid-cols-2 gap-3">
-                                <InfoCard label="Class" value={p.grade} iconType="book" />
-                                <InfoCard label="Section" value={p.className} iconType="book" />
-                                <InfoCard label="Roll Number" value={p.rollNumber} iconType="id" />
-                                <InfoCard label="Admission Date" value={p.admissionDate?.slice(0, 10)} iconType="calendar" />
-                                <InfoCard label="Status" value={p.status} iconType="person" />
-                            </div>
-                        </>
-                    )}
-
-                    {/* ── Health ── */}
-                    {activeTab === "health" && (
-                        <>
-                            <h2 className="text-lg font-bold text-gray-800 mb-1 flex items-center gap-2">
-                                <Icon type="book" />
-                                Health Information
-                            </h2>
-                            <hr className="border-blue-200 mb-4" />
-                            <div className="grid grid-cols-2 gap-3">
-                                <InfoCard label="Blood Group" value={p.bloodGroup} iconType="person" />
-                                <InfoCard label="Allergies" value={p.allergies} iconType="person" />
-                                <InfoCard label="Medical Conditions" value={p.medicalConditions} iconType="person" fullWidth />
-                                <InfoCard label="Emergency Contact" value={p.emergencyContact} iconType="phone" fullWidth />
-                            </div>
-                        </>
-                    )}
-                </div>
+                    );
+                })}
             </div>
         </div>
     );
-};
+}
 
-// ── Main Profile Page ─────────────────────────────────────────────────────────
-const Profile = () => {
-    const [students, setStudents] = useState([]); // always an array
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+// ═══════════════════════════════════════════════════════════════
+//  MAIN — No <PageLayout> (Routes.jsx wraps all pages)
+// ═══════════════════════════════════════════════════════════════
+export default function ParentProfile() {
+    const [activeTab, setActiveTab] = useState("personal");
 
-    // Which child is selected (for parent with multiple students)
-    const [selectedIdx, setSelectedIdx] = useState(0);
+    // ── Children ─────────────────────────────────────────────────
+    const [children, setChildren] = useState([]);
+    const [selectedChild, setSelectedChild] = useState(null);
+    const [loadingChildren, setLoadingChildren] = useState(true);
+    const [errorChildren, setErrorChildren] = useState(null);
+
+    // ── Profile data ──────────────────────────────────────────────
+    const [profileData, setProfileData] = useState(null);
+    const [profileLoading, setProfileLoading] = useState(false);
+    const [profileError, setProfileError] = useState(null);
+    const [retryCount, setRetryCount] = useState(0);
+
+    // ── Documents ─────────────────────────────────────────────────
+    const [docs, setDocs] = useState([]);
+    const [docsLoading, setDocsLoading] = useState(false);
+    const [docsError, setDocsError] = useState(null);
+    const [docsFetched, setDocsFetched] = useState(false);
+
+    // 1. Load children on mount
+    useEffect(() => {
+        (async () => {
+            setLoadingChildren(true); setErrorChildren(null);
+            try {
+                const res = await apiFetch("/api/parent/students");
+                const raw = Array.isArray(res.data) ? res.data : (res.data?.students ?? []);
+                const list = raw.map((s) => ({
+                    studentId: s.id,
+                    name: s.personalInfo
+                        ? `${s.personalInfo.firstName} ${s.personalInfo.lastName}`.trim()
+                        : s.name,
+                    className: s.enrollments?.[0]?.classSection?.name
+                        ?? s.enrollment?.className ?? null,
+                    profileImage: s.personalInfo?.profileImage ?? null,
+                }));
+                setChildren(list);
+                if (list.length > 0) setSelectedChild(list[0].studentId);
+            } catch (e) {
+                setErrorChildren(e.message);
+            } finally {
+                setLoadingChildren(false);
+            }
+        })();
+    }, []);
+
+    // 2. Fetch profile whenever selected child or retryCount changes
+    const fetchProfile = useCallback(() => {
+        if (!selectedChild) return;
+        setProfileLoading(true); setProfileError(null);
+        setProfileData(null); setDocs([]); setDocsFetched(false);
+
+        apiFetch(`/api/parent/profile?studentId=${selectedChild}`)
+            .then(json => {
+                if (!json.student) throw new Error("No student data returned");
+                setProfileData(json.student);
+            })
+            .catch(e => setProfileError(e.message))
+            .finally(() => setProfileLoading(false));
+    }, [selectedChild, retryCount]);
+
+    useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
+    // 3. Fetch documents lazily when documents tab is opened
+    const fetchDocs = useCallback(() => {
+        if (activeTab !== "documents" || !selectedChild) return;
+        setDocsLoading(true); setDocsError(null);
+        apiFetch(`/api/parent/profile/documents?studentId=${selectedChild}`)
+            .then(json => { setDocs(json.documents ?? []); setDocsFetched(true); })
+            .catch(e => setDocsError(e.message))
+            .finally(() => setDocsLoading(false));
+    }, [activeTab, selectedChild]);
 
     useEffect(() => {
-        const fetchProfile = async () => {
-            try {
-                const auth = getAuth();
-                const userType = auth?.accountType;
+        if (activeTab === "documents" && !docsFetched) fetchDocs();
+    }, [activeTab, docsFetched, fetchDocs]);
 
-                if (userType === "parent") {
-                    const students = await getParentStudents();
-                    setStudents(students || []);
-                } else {
-                    const res = await getMyProfile(auth?.token);
-                    setStudents(res ? [res] : []);
-                }
+    // Reset docs when child changes
+    useEffect(() => {
+        setDocs([]); setDocsFetched(false); setDocsError(null);
+        setActiveTab("personal");
+    }, [selectedChild]);
 
-            } catch (err) {
-                console.error(err.message);
-                setError("Failed to load profile. Please try again.");
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchProfile();
-    }, []);
-    if (loading) return <div className="p-6 text-center text-gray-500">Loading...</div>;
-    if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
-    if (!students.length) return <div className="p-6 text-center text-gray-500">No student data found.</div>;
-
-    const isParentWithMultiple = students.length > 1;
+    // ── Derived ───────────────────────────────────────────────────
+    const enrollment = profileData?.enrollments?.find(e => e.academicYear?.isActive)
+        ?? profileData?.enrollments?.[0];
+    const parents = profileData?.parentLinks ?? [];
+    const pi = profileData?.personalInfo;
+    const fullName = pi
+        ? `${pi.firstName}${pi.lastName ? " " + pi.lastName : ""}`
+        : profileData?.name ?? "Student";
 
     return (
-        <div className="p-6 bg-gray-100 min-h-screen">
+        <>
+            <style>{PROFILE_CSS}</style>
 
-            {/* ── Child Switcher (only shown when parent has multiple children) ── */}
-            {isParentWithMultiple && (
-                <div className="mb-6 flex gap-3 flex-wrap">
-                    {students.map((s, idx) => {
-                        const p = s.personalInfo;
-                        const label = p
-                            ? `${p.firstName} ${p.lastName}`
-                            : s.name;
-                        return (
-                            <button
-                                key={s.id}
-                                onClick={() => setSelectedIdx(idx)}
-                                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all border-2 ${selectedIdx === idx
-                                    ? "bg-blue-600 text-white border-blue-600"
-                                    : "bg-white text-blue-600 border-blue-300 hover:border-blue-500"
-                                    }`}
-                            >
-                                {label}
-                                {p?.grade && (
-                                    <span className="ml-2 text-xs opacity-75">
-                                        Gr. {p.grade}
-                                    </span>
+            <div className="pf-page">
+
+                {/* ── Loading children ── */}
+                {loadingChildren && (
+                    <div style={{ display: "flex", justifyContent: "center", padding: "60px 0" }}>
+                        <Loader2 size={28} color={C.mid} style={{ animation: "spin 1s linear infinite" }} />
+                    </div>
+                )}
+
+                {/* ── Error loading children ── */}
+                {!loadingChildren && errorChildren && (
+                    <ErrorBanner message={errorChildren} />
+                )}
+
+                {!loadingChildren && !errorChildren && (
+                    <>
+                        {/* ── Child Selector ── */}
+                        <ChildSelector
+                            children={children}
+                            selectedId={selectedChild}
+                            onChange={(id) => setSelectedChild(id)}
+                        />
+
+                        {/* ── No child ── */}
+                        {!selectedChild && (
+                            <div style={{
+                                textAlign: "center", padding: "60px 20px",
+                                background: "rgba(255,255,255,0.82)",
+                                borderRadius: 20, border: `1.5px solid ${C.pale}`,
+                            }}>
+                                <User size={36} color={C.pale} style={{ display: "block", margin: "0 auto 12px" }} />
+                                <p style={{ fontWeight: 700, color: C.dark, margin: "0 0 6px", fontSize: 15 }}>No Child Selected</p>
+                                <p style={{ color: C.mid, fontSize: 13, margin: 0 }}>Select a child above to view their profile.</p>
+                            </div>
+                        )}
+
+                        {selectedChild && (
+                            <>
+                                {/* ── PAGE HEADER ── */}
+                                <div className="a1" style={{ marginBottom: 18 }}>
+                                    <div style={{
+                                        display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+                                        flexWrap: "wrap", gap: 12,
+                                    }}>
+                                        {/* Left: accent bar + name */}
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <div style={{
+                                                width: 4, height: 30, borderRadius: 99, flexShrink: 0,
+                                                background: `linear-gradient(180deg, ${C.light} 0%, ${C.dark} 100%)`,
+                                            }} />
+                                            <div>
+                                                <h1 style={{
+                                                    margin: 0,
+                                                    fontSize: "clamp(18px,4vw,25px)",
+                                                    fontWeight: 900, color: C.dark, letterSpacing: "-0.5px",
+                                                    fontFamily: "'Inter', sans-serif",
+                                                }}>
+                                                    {profileLoading ? "Loading…" : fullName}
+                                                </h1>
+                                                <p style={{ margin: "3px 0 0", fontSize: 11, color: C.mid, fontWeight: 500 }}>
+                                                    {enrollment?.classSection?.name ?? "Student Profile"}
+                                                    {enrollment?.admissionNumber ? ` · ${enrollment.admissionNumber}` : ""}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Tab bar */}
+                                        <div style={{
+                                            display: "flex", gap: 4,
+                                            background: "rgba(255,255,255,0.75)",
+                                            backdropFilter: "blur(12px)",
+                                            border: "1.5px solid rgba(136,189,242,0.22)",
+                                            borderRadius: 15, padding: "4px",
+                                            overflowX: "auto", scrollbarWidth: "none",
+                                            maxWidth: "100%",
+                                        }}>
+                                            {TABS.map(({ key, label, icon: Icon }) => (
+                                                <button
+                                                    key={key}
+                                                    className={`pf-tab${activeTab === key ? " active" : ""}`}
+                                                    onClick={() => setActiveTab(key)}
+                                                >
+                                                    <Icon size={12} /> {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ── Profile error banner ── */}
+                                {profileError && !profileLoading && (
+                                    <ErrorBanner
+                                        message={profileError}
+                                        onRetry={() => setRetryCount(c => c + 1)}
+                                    />
                                 )}
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
 
-            {/* ── Student Profile Card ── */}
-            <StudentCard student={students[selectedIdx]} />
-        </div>
+                                {/* ── Main card: sidebar + tab content ── */}
+                                <div className="a2 pf-card pf-layout">
+
+                                    {/* Sidebar */}
+                                    <ProfileSidebar
+                                        profileData={profileData}
+                                        enrollment={enrollment}
+                                        parents={parents}
+                                        loading={profileLoading}
+                                    />
+
+                                    {/* Tab content */}
+                                    <div className="pf-content">
+                                        {activeTab === "personal" && (
+                                            <PersonalInfo
+                                                profileData={profileData}
+                                                enrollment={enrollment}
+                                                loading={profileLoading}
+                                                error={profileError}
+                                            />
+                                        )}
+                                        {activeTab === "academic" && (
+                                            <AcademicInfo
+                                                profileData={profileData}
+                                                loading={profileLoading}
+                                                error={profileError}
+                                            />
+                                        )}
+                                        {activeTab === "health" && (
+                                            <HealthInfo
+                                                profileData={profileData}
+                                                loading={profileLoading}
+                                                error={profileError}
+                                            />
+                                        )}
+                                        {activeTab === "documents" && (
+                                            <DocumentsInfo
+                                                docs={docs}
+                                                loading={docsLoading}
+                                                error={docsError}
+                                                onRetry={() => setDocsFetched(false)}
+                                            />
+                                        )}
+                                    </div>
+
+                                </div>
+                            </>
+                        )}
+                    </>
+                )}
+
+            </div>
+        </>
     );
-};
-
-export default Profile;
+}

@@ -7,3 +7,5 @@ const router = express.Router();
 router.get("/", requireAuth, getStudentAttendance);
 
 export default router;
+
+

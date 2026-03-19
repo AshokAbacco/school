@@ -38,7 +38,7 @@ export default function Login({ onSwitchToRegister }) {
       } else {
         result = await loginRequest(type, { email, password });
       }
-      saveAuth(result);
+      saveAuth(result.data);
       window.location.href = REDIRECT[result?.user?.role] || "/dashboard";
     } catch (err) {
       setError(err.message || "Login failed");
@@ -65,10 +65,9 @@ export default function Login({ onSwitchToRegister }) {
                 setError("");
               }}
               className={`flex-1 py-2 rounded-md text-sm font-medium transition-all duration-200
-                ${
-                  type === tab.value
-                    ? "bg-[#6A89A7] text-white shadow-md"
-                    : "text-[#6A89A7] hover:bg-[#BDDDFC]/20"
+                ${type === tab.value
+                  ? "bg-[#6A89A7] text-white shadow-md"
+                  : "text-[#6A89A7] hover:bg-[#BDDDFC]/20"
                 }`}
             >
               {tab.label}
