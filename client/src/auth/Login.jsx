@@ -1,5 +1,6 @@
 // client/src/auth/Login.jsx
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { loginRequest, loginSuperAdmin } from "./api";
 import { saveAuth } from "./storage";
 
@@ -19,6 +20,7 @@ const REDIRECT = {
 };
 
 export default function Login({ onSwitchToRegister }) {
+  const navigate = useNavigate();
   const [type, setType] = useState("staff");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -155,7 +157,7 @@ const handleLogin = async () => {
           </div>
 
           <button
-            onClick={onSwitchToRegister}
+             onClick={() => navigate("/register")}
             className="w-full py-3 rounded-lg border-2 border-[#88BDF2] text-[#384959] hover:bg-[#BDDDFC]/30 font-bold transition-all text-sm flex items-center justify-center gap-2"
           >
             🏛️ Register New University

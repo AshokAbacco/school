@@ -16,6 +16,7 @@ function App() {
   return (
     <Routes>
       {/* PUBLIC */}
+      <Route path="/" element={<Navigate to="/login" />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
@@ -36,7 +37,7 @@ function App() {
         <Route path="/parent/*" element={<ParentRoutes />} />
       )}
       {auth?.accountType === "superAdmin" && (
-        <Route path="/superadmin/*" element={<SuperAdminRoutes />} />
+        <Route path="/superAdmin/*" element={<SuperAdminRoutes />} />
       )}
 
       {/* FALLBACK */}
@@ -51,7 +52,7 @@ function App() {
               : auth.accountType === "staff" && auth.role === "FINANCE" ? "/finance/dashboard"
               : auth.accountType === "student" ? "/student/dashboard"
               : auth.accountType === "parent" ? "/parent/dashboard"
-              : auth.accountType === "superAdmin" ? "/superadmin/dashboard"
+            : auth.accountType === "superAdmin" ? "/superAdmin/dashboard"
               : "/login"
             }
             replace
