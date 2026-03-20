@@ -1,5 +1,6 @@
 // client/src/auth/Register.jsx
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { registerSuperAdmin } from "./api";
 import { saveAuth } from "./storage";
 
@@ -25,6 +26,7 @@ const Input = ({ label, required, hint, ...props }) => (
 );
 
 export default function Register({ onSwitchToLogin }) {
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     universityName: "",
@@ -134,7 +136,7 @@ export default function Register({ onSwitchToLogin }) {
         {/* Header - Weights: Title 700, Sub 500 */}
         <div className="bg-[#384959] px-8 py-8">
           <button
-            onClick={onSwitchToLogin}
+              onClick={() => navigate("/login")}
             className="text-[#BDDDFC] hover:text-white text-sm font-bold mb-4 flex items-center gap-1 transition-colors"
           >
             ← Back to Login
