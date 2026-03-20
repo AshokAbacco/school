@@ -1,3 +1,4 @@
+// app.jsx
 import "./App.css";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { getAuth } from "./auth/storage";
@@ -36,7 +37,7 @@ function App() {
       {auth?.accountType === "parent" && (
         <Route path="/parent/*" element={<ParentRoutes />} />
       )}
-      {auth?.accountType === "superAdmin" && (
+      {(auth?.accountType === "superAdmin" || auth?.role === "SUPER_ADMIN") && (
         <Route path="/superAdmin/*" element={<SuperAdminRoutes />} />
       )}
 
@@ -52,7 +53,7 @@ function App() {
               : auth.accountType === "staff" && auth.role === "FINANCE" ? "/finance/dashboard"
               : auth.accountType === "student" ? "/student/dashboard"
               : auth.accountType === "parent" ? "/parent/dashboard"
-            : auth.accountType === "superAdmin" ? "/superAdmin/dashboard"
+              : (auth.accountType === "superAdmin" || auth.role === "SUPER_ADMIN") ? "/superAdmin/dashboard"
               : "/login"
             }
             replace

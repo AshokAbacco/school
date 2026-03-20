@@ -1,14 +1,35 @@
 // client/src/auth/storage.js
 
+// export const saveAuth = (data) => {
+//   // New API returns: { success: true, token, user: { role, userType, school, ... } }
+//   // We normalize it so App.jsx reads consistently
+//   const normalized = {
+//     token: data.token,
+//     accountType: data.user?.userType, // "staff" | "student" | "parent" | "superAdmin"
+//     role: data.user?.role, // "ADMIN" | "TEACHER" | "SUPER_ADMIN" | "STUDENT" | "PARENT"
+//     user: data.user,
+//   };
+//   localStorage.setItem("auth", JSON.stringify(normalized));
+// };
 export const saveAuth = (data) => {
-  // New API returns: { success: true, token, user: { role, userType, school, ... } }
-  // We normalize it so App.jsx reads consistently
+  const role = data.user?.role;
+
+  let accountType = data.user?.userType;
+
+  if (role === "SUPER_ADMIN") accountType = "superAdmin";
+  if (role === "ADMIN" || role === "TEACHER" || role === "FINANCE") {
+    accountType = "staff";
+  }
+  if (role === "STUDENT") accountType = "student";
+  if (role === "PARENT") accountType = "parent";
+
   const normalized = {
     token: data.token,
-    accountType: data.user?.userType, // "staff" | "student" | "parent" | "superAdmin"
-    role: data.user?.role, // "ADMIN" | "TEACHER" | "SUPER_ADMIN" | "STUDENT" | "PARENT"
+    accountType,
+    role,
     user: data.user,
   };
+
   localStorage.setItem("auth", JSON.stringify(normalized));
 };
 

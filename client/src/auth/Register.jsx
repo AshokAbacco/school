@@ -101,7 +101,7 @@ export default function Register({ onSwitchToLogin }) {
       saveAuth(result);
       setDone(true);
       setTimeout(() => {
-        window.location.href = "/superAdmin/dashboard";
+        window.location.href = "/login";
       }, 1500);
     } catch (err) {
       setError(err.message || "Registration failed");
