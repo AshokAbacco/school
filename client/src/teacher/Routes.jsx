@@ -10,6 +10,7 @@ import ActivitiesAndEvents from "./pages/Activities/index";
 import AwardsPage from "./pages/awardspage/Awardspage";
 import OnlineClassesPage from "./pages/onlineClasses/OnlineClassesPage";
 import TimetablePage from "./pages/timetable/TimetablePage";
+import Result from "./pages/result/Result"
 
 function TeacherRoutes() {
   return (
@@ -23,6 +24,7 @@ function TeacherRoutes() {
         <Route path="awards"         element={<AwardsPage />} />
         <Route path="online-classes" element={<OnlineClassesPage />} />
         <Route path="timetable"      element={<TimetablePage />} />
+        <Route path="result"      element={<Result />} />
         <Route path="*"              element={<Navigate to="dashboard" replace />} />
       </Routes>
     </PageLayout>
