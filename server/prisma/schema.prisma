@@ -2026,6 +2026,7 @@ model Certificate {
   @@index([uploadedById])
   @@map("certificates")
 }
+
 enum AwardCategory {
   ACADEMIC
   ATTENDANCE
