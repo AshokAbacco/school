@@ -58,6 +58,7 @@ function NotPublished({ isMobile }) {
             textAlign: "center",
             animation: "fadeUp 0.4s ease",
         }}>
+
             <div style={{
                 width: 68, height: 68, borderRadius: "50%",
                 background: `linear-gradient(135deg, rgba(189,221,252,0.45), rgba(136,189,242,0.22))`,

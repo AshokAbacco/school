@@ -12,6 +12,8 @@ import timetableRoutes   from "./student/routes/timetableRoutes.js";
 import activitiesRoute from "./student/routes/activities.routes.js";
 import certificateRoutes from "./student/routes/certificateRoutes.js";
 import onlineClassesRouter from "./student/routes/onlineClasses.routes.js";
+import studentCertificateRoutes from "./student/routes/studentCertificateRoutes.js";
+
 
 
 
@@ -38,6 +40,7 @@ student.use("/timetable",  timetableRoutes);
 student.use("/activities", activitiesRoute);
 student.use("/certificates", certificateRoutes);
 student.use("/online-classes", onlineClassesRouter);
+student.use("/api/student/certificates", studentCertificateRoutes);
 
 
 export default student;

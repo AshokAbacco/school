@@ -17,8 +17,9 @@ async function verifyParentOwnsStudent(parentId, studentId) {
 export const getCertificates = async (req, res) => {
   try {
     const parentId  = req.user?.id;
-    const studentId = req.query.studentId;
+    const studentId = req.query.studentId;     
 
+    
     if (!parentId)
       return res.status(401).json({ success: false, message: "Unauthorized" });
     if (!studentId)
@@ -113,7 +114,7 @@ export const getCertificates = async (req, res) => {
     const school = enrollment?.classSection?.school
       ? {
           name:    enrollment.classSection.school.name,
-          logoUrl: enrollment.classSection.school.logoUrl ?? null,
+       logoUrl: enrollment.classSection.school.logoUrl ?? null,
         }
       : {};
 

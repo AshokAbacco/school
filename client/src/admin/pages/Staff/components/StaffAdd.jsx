@@ -1,22 +1,93 @@
+// client/src/admin/pages/Staff/components/StaffAdd.jsx
+// Stormy Morning palette — matches Dashboard / ActivitiesPage design language
+
 import { useState, useEffect } from "react";
-import { X, UserPlus, FlaskConical, Home, KeyRound, Info } from "lucide-react";
+import { X, UserPlus, FlaskConical, Home, KeyRound, Info, Loader2 } from "lucide-react";
 import { createStaff, updateStaff } from "../api/api";
+
+/* ── Design tokens ── */
+const C = {
+  slate: "#6A89A7", mist: "#BDDDFC", sky: "#88BDF2", deep: "#384959",
+  deepDark: "#243340",
+  bg: "#EDF3FA", white: "#FFFFFF", border: "#C8DCF0", borderLight: "#DDE9F5",
+  text: "#243340", textMid: "#4A6880", textLight: "#6A89A7",
+  success: "#3DA882",
+};
 
 const GROUP_CONFIG = {
   "Group B": {
     note: "Skilled / semi-skilled staff assisting in academic or lab functions.",
     roles: ["Lab Assistant", "Librarian", "Computer Operator", "Office Clerk"],
-    noteColor: "bg-blue-50 border-blue-100 text-blue-600",
-    icon: <FlaskConical size={15} />,
+    icon: FlaskConical,
+    accentBg: `${C.sky}15`,
+    accentBorder: `${C.sky}44`,
+    accentText: C.slate,
   },
   "Group C": {
     note: "General support staff for maintenance, security and daily upkeep.",
     roles: ["Peon", "Watchman", "Sweeper", "Gardner"],
-    noteColor: "bg-violet-50 border-violet-100 text-violet-600",
-    icon: <Home size={15} />,
+    icon: Home,
+    accentBg: `${C.mist}55`,
+    accentBorder: C.border,
+    accentText: C.deep,
   },
 };
 
+/* ── Shared input style helpers ── */
+const inputStyle = {
+  width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 12,
+  padding: "9px 13px", fontSize: 13, fontWeight: 500, color: C.text,
+  background: C.bg, outline: "none", boxSizing: "border-box",
+  fontFamily: "'Inter', sans-serif", transition: "border-color 0.15s",
+};
+
+function Label({ children, required }) {
+  return (
+    <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.textLight, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: "'Inter', sans-serif" }}>
+      {children} {required && <span style={{ color: C.sky }}>*</span>}
+    </label>
+  );
+}
+
+function Field({ label, required, children }) {
+  return (
+    <div>
+      {label && <Label required={required}>{label}</Label>}
+      {children}
+    </div>
+  );
+}
+
+function StormInput({ name, value, onChange, placeholder, type = "text" }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      name={name} value={value} onChange={onChange}
+      placeholder={placeholder} type={type}
+      style={{ ...inputStyle, borderColor: focused ? C.sky : C.border, background: focused ? C.white : C.bg }}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+    />
+  );
+}
+
+/* ── Section divider ── */
+function SectionTitle({ children, sub }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+      <div style={{ flex: 1, height: 1, background: C.borderLight }} />
+      <span style={{ fontSize: 10, fontWeight: 700, color: C.textLight, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap" }}>
+        {children}
+        {sub && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, marginLeft: 4 }}>{sub}</span>}
+      </span>
+      <div style={{ flex: 1, height: 1, background: C.borderLight }} />
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   STAFFADD — modal
+══════════════════════════════════════════ */
 export default function StaffAdd({ onClose, onSuccess, editData = null }) {
   const isEdit = !!editData;
 
@@ -26,32 +97,32 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
     joiningDate: "", basicSalary: "",
     bankAccountNo: "", bankName: "", ifscCode: "",
   });
-  const [loading, setLoading]   = useState(false);
+  const [loading, setLoading]     = useState(false);
   const [giveLogin, setGiveLogin] = useState(false);
 
   useEffect(() => {
     if (editData) {
       setForm({
-        firstName:    editData.firstName    || "",
-        lastName:     editData.lastName     || "",
-        email:        editData.email        || "",
-        phone:        editData.phone        || "",
-        password:     "",
-        role:         editData.role         || "",
-        groupType:    editData.groupType    || "Group B",
-        joiningDate:  editData.joiningDate?.split("T")[0] || "",
-        basicSalary:  editData.basicSalary  ?? "",
+        firstName:     editData.firstName     || "",
+        lastName:      editData.lastName      || "",
+        email:         editData.email         || "",
+        phone:         editData.phone         || "",
+        password:      "",
+        role:          editData.role          || "",
+        groupType:     editData.groupType     || "Group B",
+        joiningDate:   editData.joiningDate?.split("T")[0] || "",
+        basicSalary:   editData.basicSalary   ?? "",
         bankAccountNo: editData.bankAccountNo || "",
-        bankName:     editData.bankName     || "",
-        ifscCode:     editData.ifscCode     || "",
+        bankName:      editData.bankName      || "",
+        ifscCode:      editData.ifscCode      || "",
       });
       if (editData.email) setGiveLogin(true);
     }
   }, [editData]);
 
-  const set  = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-  const setG = (g) => setForm({ ...form, groupType: g, role: "" });
-  const setR = (r) => setForm({ ...form, role: form.role === r ? "" : r });
+  const set  = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  const setG = (g) => setForm(f => ({ ...f, groupType: g, role: "" }));
+  const setR = (r) => setForm(f => ({ ...f, role: f.role === r ? "" : r }));
 
   const handleSubmit = async () => {
     if (!form.firstName || !form.role || !form.joiningDate)
@@ -93,140 +164,164 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
     }
   };
 
-  const inp = "w-full border border-gray-200 bg-[#f0f4f8] px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4a6fa5] focus:bg-white transition placeholder-gray-400";
-  const lbl = "block text-[11px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wide";
   const cfg = GROUP_CONFIG[form.groupType];
+  const GrpIcon = cfg.icon;
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-      <div className="bg-white w-full max-w-[520px] max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl">
+    <>
+      <style>{`
+        * { box-sizing: border-box; }
+        .staff-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 480px) { .staff-2col { grid-template-columns: 1fr; } }
+      `}</style>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#e8edf3] flex items-center justify-center text-[#384959]">
-              <UserPlus size={17} />
+      {/* Backdrop */}
+      <div style={{ position: "fixed", inset: 0, background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }} onClick={onClose}>
+
+        {/* Modal */}
+        <div style={{ background: C.white, borderRadius: 22, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 24px 64px rgba(56,73,89,0.22)", width: "100%", maxWidth: 520, maxHeight: "92vh", overflowY: "auto", fontFamily: "'Inter', sans-serif" }} onClick={e => e.stopPropagation()}>
+
+          {/* ── Header — sticky ── */}
+          <div style={{ padding: "18px 22px", borderBottom: `1.5px solid ${C.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: C.white, zIndex: 10, borderRadius: "22px 22px 0 0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 11, background: `${C.sky}22`, border: `1.5px solid ${C.sky}33`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <UserPlus size={16} color={C.sky} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontWeight: 800, fontSize: 14, color: C.text }}>{isEdit ? "Edit Staff" : "Add Staff"}</p>
+                <p style={{ margin: 0, fontSize: 11, color: C.textLight }}>{isEdit ? "Update staff member details" : "Create a new staff entry"}</p>
+              </div>
             </div>
+            <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 9, border: `1px solid ${C.border}`, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.textLight }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = C.sky}
+              onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+              <X size={14} />
+            </button>
+          </div>
+
+          {/* ── Body ── */}
+          <div style={{ padding: "22px 22px", display: "flex", flexDirection: "column", gap: 22 }}>
+
+            {/* ── Group Toggle ── */}
             <div>
-              <h2 className="text-sm font-semibold text-gray-800">{isEdit ? "Edit Staff" : "Add Staff"}</h2>
-              <p className="text-xs text-gray-400">{isEdit ? "Update staff member details" : "Create a new staff entry"}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 transition">
-            <X size={15} />
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-6">
-
-          {/* Group Toggle */}
-          <div>
-            <label className={lbl}>Staff Group *</label>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {Object.entries(GROUP_CONFIG).map(([g, gc]) => (
-                <button key={g} type="button" onClick={() => setG(g)}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border text-sm font-medium transition-all ${
-                    form.groupType === g
-                      ? "bg-[#384959] text-white border-[#384959] shadow-sm"
-                      : "bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300"
-                  }`}>
-                  {gc.icon} {g}
-                </button>
-              ))}
-            </div>
-            <div className={`flex items-start gap-2 rounded-xl border px-3.5 py-2.5 text-xs leading-relaxed ${cfg.noteColor}`}>
-              <Info size={13} className="mt-0.5 shrink-0" />
-              <span><span className="font-semibold">{form.groupType}:</span> {cfg.note}</span>
-            </div>
-          </div>
-
-          {/* Role Chips */}
-          <div>
-            <label className={lbl}>Role * <span className="normal-case font-normal tracking-normal text-gray-400 ml-1">— pick or type custom</span></label>
-            <div className="flex flex-wrap gap-2 mb-2.5">
-              {cfg.roles.map((r) => (
-                <button key={r} type="button" onClick={() => setR(r)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                    form.role === r
-                      ? "bg-[#384959] text-white border-[#384959]"
-                      : "bg-white text-gray-500 border-gray-200 hover:border-[#384959] hover:text-[#384959]"
-                  }`}>
-                  {r}
-                </button>
-              ))}
-            </div>
-            <input className={inp} name="role" placeholder="Or type a custom role..." onChange={set} value={form.role} />
-          </div>
-
-          {/* Personal Details */}
-          <div>
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Personal Details</p>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className={lbl}>First Name *</label><input className={inp} name="firstName" placeholder="First name" onChange={set} value={form.firstName} /></div>
-                <div><label className={lbl}>Last Name</label><input className={inp} name="lastName" placeholder="Last name" onChange={set} value={form.lastName} /></div>
+              <SectionTitle>Staff Group</SectionTitle>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                {Object.entries(GROUP_CONFIG).map(([g, gc]) => {
+                  const active = form.groupType === g;
+                  const GIcon = gc.icon;
+                  return (
+                    <button key={g} type="button" onClick={() => setG(g)}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "11px 14px", borderRadius: 13, border: `1.5px solid ${active ? C.deep : C.borderLight}`, cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: "'Inter', sans-serif", transition: "all 0.18s", background: active ? `linear-gradient(135deg, ${C.slate}, ${C.deep})` : C.bg, color: active ? "#fff" : C.textMid, boxShadow: active ? `0 4px 14px rgba(56,73,89,0.22)` : "none" }}
+                      onMouseEnter={e => { if (!active) e.currentTarget.style.borderColor = C.sky; }}
+                      onMouseLeave={e => { if (!active) e.currentTarget.style.borderColor = C.borderLight; }}>
+                      <GIcon size={14} color={active ? C.mist : C.textLight} />
+                      {g}
+                    </button>
+                  );
+                })}
               </div>
-              <div><label className={lbl}>Email</label><input className={inp} name="email" type="email" placeholder="staff@school.com" onChange={set} value={form.email} /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className={lbl}>Phone</label><input className={inp} name="phone" placeholder="+91 XXXXX XXXXX" onChange={set} value={form.phone} /></div>
-                <div><label className={lbl}>Joining Date *</label><input type="date" className={inp} name="joiningDate" onChange={set} value={form.joiningDate} /></div>
+              {/* Group note */}
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, borderRadius: 12, border: `1.5px solid ${cfg.accentBorder}`, padding: "10px 13px", background: cfg.accentBg }}>
+                <Info size={13} style={{ flexShrink: 0, marginTop: 1 }} color={cfg.accentText} />
+                <span style={{ fontSize: 12, color: cfg.accentText, lineHeight: 1.5, fontFamily: "'Inter', sans-serif" }}>
+                  <strong>{form.groupType}:</strong> {cfg.note}
+                </span>
               </div>
             </div>
-          </div>
 
-          {/* Salary & Bank */}
-          <div>
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">Salary & Bank <span className="normal-case font-normal tracking-normal">(optional)</span></p>
-            <div className="space-y-3">
-              <div><label className={lbl}>Basic Salary (₹)</label><input className={inp} name="basicSalary" type="number" placeholder="e.g. 18000" onChange={set} value={form.basicSalary} /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className={lbl}>Bank Name</label><input className={inp} name="bankName" placeholder="e.g. SBI" onChange={set} value={form.bankName} /></div>
-                <div><label className={lbl}>IFSC Code</label><input className={inp} name="ifscCode" placeholder="e.g. SBIN0001234" onChange={set} value={form.ifscCode} /></div>
+            {/* ── Role Chips ── */}
+            <div>
+              <SectionTitle>Role <span style={{ fontWeight: 400, textTransform: "none", fontSize: 10 }}>— pick or type custom</span></SectionTitle>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 10 }}>
+                {cfg.roles.map(r => {
+                  const active = form.role === r;
+                  return (
+                    <button key={r} type="button" onClick={() => setR(r)}
+                      style={{ padding: "6px 14px", borderRadius: 20, border: `1.5px solid ${active ? C.deep : C.border}`, cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.15s", background: active ? `linear-gradient(135deg, ${C.slate}, ${C.deep})` : C.white, color: active ? "#fff" : C.textMid }}
+                      onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = C.sky; e.currentTarget.style.color = C.sky; } }}
+                      onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textMid; } }}>
+                      {r}
+                    </button>
+                  );
+                })}
               </div>
-              <div><label className={lbl}>Bank Account No.</label><input className={inp} name="bankAccountNo" placeholder="Account number" onChange={set} value={form.bankAccountNo} /></div>
+              <StormInput name="role" value={form.role} onChange={set} placeholder="Or type a custom role…" />
             </div>
-          </div>
 
-          {/* Login Access */}
-          {!isEdit && (
-            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <KeyRound size={15} className="text-gray-400" />
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">Give Login Access?</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Staff can log in to the portal</p>
+            {/* ── Personal Details ── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <SectionTitle>Personal Details</SectionTitle>
+              <div className="staff-2col">
+                <Field label="First Name" required><StormInput name="firstName" value={form.firstName} onChange={set} placeholder="First name" /></Field>
+                <Field label="Last Name"><StormInput name="lastName" value={form.lastName} onChange={set} placeholder="Last name" /></Field>
+              </div>
+              <Field label="Email"><StormInput name="email" value={form.email} onChange={set} placeholder="staff@school.com" type="email" /></Field>
+              <div className="staff-2col">
+                <Field label="Phone"><StormInput name="phone" value={form.phone} onChange={set} placeholder="+91 XXXXX XXXXX" /></Field>
+                <Field label="Joining Date" required><StormInput name="joiningDate" value={form.joiningDate} onChange={set} type="date" /></Field>
+              </div>
+            </div>
+
+            {/* ── Salary & Bank ── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <SectionTitle>Salary &amp; Bank <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(optional)</span></SectionTitle>
+              <Field label="Basic Salary (₹)"><StormInput name="basicSalary" value={form.basicSalary} onChange={set} placeholder="e.g. 18000" type="number" /></Field>
+              <div className="staff-2col">
+                <Field label="Bank Name"><StormInput name="bankName" value={form.bankName} onChange={set} placeholder="e.g. SBI" /></Field>
+                <Field label="IFSC Code"><StormInput name="ifscCode" value={form.ifscCode} onChange={set} placeholder="e.g. SBIN0001234" /></Field>
+              </div>
+              <Field label="Bank Account No."><StormInput name="bankAccountNo" value={form.bankAccountNo} onChange={set} placeholder="Account number" /></Field>
+            </div>
+
+            {/* ── Login Access ── */}
+            {!isEdit && (
+              <div style={{ borderRadius: 14, border: `1.5px dashed ${C.border}`, background: C.bg, padding: "14px 16px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 10, background: `${C.sky}18`, border: `1.5px solid ${C.sky}33`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <KeyRound size={14} color={C.sky} />
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: C.text }}>Give Login Access?</p>
+                      <p style={{ margin: "2px 0 0", fontSize: 11, color: C.textLight }}>Staff can log in to the portal</p>
+                    </div>
                   </div>
+                  {/* Toggle */}
+                  <button type="button" onClick={() => setGiveLogin(v => !v)}
+                    style={{ position: "relative", width: 44, height: 24, borderRadius: 99, border: "none", cursor: "pointer", transition: "background 0.2s", background: giveLogin ? `linear-gradient(135deg, ${C.slate}, ${C.deep})` : C.border, flexShrink: 0 }}>
+                    <span style={{ position: "absolute", top: 2, left: giveLogin ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.18)", transition: "left 0.2s" }} />
+                  </button>
                 </div>
-                <button type="button" onClick={() => setGiveLogin((v) => !v)}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${giveLogin ? "bg-[#384959]" : "bg-gray-200"}`}>
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${giveLogin ? "translate-x-5" : ""}`} />
-                </button>
-              </div>
-              {giveLogin && (
-                <div className="mt-3 space-y-3">
-                  <div><label className={lbl}>Password *</label><input className={inp} name="password" type="password" placeholder="Set a password" onChange={set} value={form.password} /></div>
-                  <div className="flex items-center gap-1.5 text-xs text-blue-500">
-                    <Info size={12} /> A user account will be created and linked automatically.
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
-          <button onClick={onClose} disabled={loading}
-            className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-white disabled:opacity-50 transition">
-            Cancel
-          </button>
-          <button onClick={handleSubmit} disabled={loading}
-            className="px-6 py-2.5 rounded-xl bg-[#384959] text-white text-sm font-medium hover:bg-[#2c3a45] disabled:opacity-60 transition shadow-sm">
-            {loading ? "Saving..." : isEdit ? "Update Staff" : "Add Staff"}
-          </button>
+                {giveLogin && (
+                  <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10, paddingTop: 14, borderTop: `1px solid ${C.borderLight}` }}>
+                    <Field label="Password" required>
+                      <StormInput name="password" value={form.password} onChange={set} placeholder="Set a password" type="password" />
+                    </Field>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.slate, fontFamily: "'Inter', sans-serif" }}>
+                      <Info size={11} color={C.sky} />
+                      A user account will be created and linked automatically.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── Footer ── */}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "14px 22px", borderTop: `1.5px solid ${C.borderLight}`, background: C.bg, borderRadius: "0 0 22px 22px", position: "sticky", bottom: 0 }}>
+            <button onClick={onClose} disabled={loading}
+              style={{ padding: "9px 20px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.white, fontSize: 13, color: C.textMid, cursor: loading ? "not-allowed" : "pointer", fontFamily: "'Inter', sans-serif", fontWeight: 600, opacity: loading ? 0.6 : 1 }}>
+              Cancel
+            </button>
+            <button onClick={handleSubmit} disabled={loading}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 24px", borderRadius: 12, border: "none", background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`, color: "#fff", fontSize: 13, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: "'Inter', sans-serif", opacity: loading ? 0.7 : 1, boxShadow: "0 4px 14px rgba(56,73,89,0.22)" }}>
+              {loading ? <><Loader2 size={13} className="animate-spin" /> Saving…</> : isEdit ? "Update Staff" : "Add Staff"}
+            </button>
+          </div>
+
         </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 // client/src/teacher/pages/Activities/ActivitiesPage.jsx
 // Strict Stormy Morning palette — zero out-of-system colors
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback ,useRef } from "react";
 import {
   Trophy, Users, Star, Plus, Trash2, Edit2, X,
   Loader2, CheckCircle, AlertCircle, Search,
@@ -56,11 +56,14 @@ function Pulse({ w = "100%", h = 13, r = 8 }) {
 
 function useToast() {
   const [toasts, setToasts] = useState([]);
-  const push = (msg, type = "success") => {
-    const id = Date.now();
+  const counterRef = useRef(0);
+
+  const push = useCallback((msg, type = "success") => {
+    const id = ++counterRef.current;
     setToasts(p => [...p, { id, msg, type }]);
     setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 3200);
-  };
+  }, []);
+
   return { toasts, push };
 }
 function Toast({ toasts }) {

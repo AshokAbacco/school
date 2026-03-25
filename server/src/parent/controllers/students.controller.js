@@ -31,6 +31,7 @@
     },
   },
   });
+  
   const result = students.map((link) => {
     const s = link.student;
     const enrollment = s.enrollments?.[0];

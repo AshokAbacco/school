@@ -175,7 +175,7 @@ export default function ClassTimetableViewPage() {
         <div className="mb-6">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <button
-              onClick={() => navigate("/admin/classes")}
+              onClick={() => navigate(`/admin/classes`)}
               className="flex items-center gap-1.5 rounded-xl text-sm font-medium px-3 py-1.5 border"
               style={{ borderColor: C.border, color: C.mid }}
             >
@@ -191,7 +191,7 @@ export default function ClassTimetableViewPage() {
               </button>
               <button
                 onClick={() =>
-                  navigate("/classes/timetable", {
+                  navigate(`/admin/classes/timetable`, {
                     state: { sectionId: classSectionId },
                   })
                 }
@@ -302,7 +302,7 @@ export default function ClassTimetableViewPage() {
               Please configure school timings for this academic year first.
             </p>
             <button
-              onClick={() => navigate("/classes/timings")}
+              onClick={() => navigate(`/admin/classes/timings`)}
               className="px-6 py-2 rounded-xl text-sm font-bold text-white"
               style={{ background: C.primary }}
             >

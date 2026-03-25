@@ -9,8 +9,10 @@ import Attendance from "./pages/attendance/Attendance";
 import Marks from "./pages/marks/Marks";
 import TimeTable from "./pages/TimeTable/TimeTable";
 import ActivitiesPage from "./pages/Activities/ActivitiesPage";
-import CertificatesPage from "./pages/Certificates/CertificatesPage";
+// import CertificatesPage from "./pages/Certificates/CertificatesPage";
 import OnlineClassesPage from "./pages/onlineClasses/OnlineClassesPage";
+import StudentCertificatesPage from "./pages/Certificates/StudentCertificatesPage";
+
 
 function StudentRoutes() {        // ← fixed: was named "App"
   return (
@@ -23,7 +25,8 @@ function StudentRoutes() {        // ← fixed: was named "App"
         <Route path="marks"           element={<Marks />} />
         <Route path="time-table"      element={<TimeTable />} />
         <Route path="activites"       element={<ActivitiesPage />} />
-        <Route path="certicates"      element={<CertificatesPage />} />
+        {/* <Route path="certicates"      element={<CertificatesPage />} /> */}
+        <Route path="my-certificates" element={<StudentCertificatesPage />} />
         <Route path="online-classes"  element={<OnlineClassesPage />} />
         <Route path="*"               element={<Navigate to="dashboard" replace />} />
       </Routes>

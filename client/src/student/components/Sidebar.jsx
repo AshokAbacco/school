@@ -21,7 +21,8 @@ const NAV = [
   { icon: BarChart3,     label: "Marks & Results", to: "/student/marks" },
   { icon: Clock,         label: "Time Table",      to: "/student/time-table" },
   { icon: Activity,      label: "Activities",      to: "/student/activites" },
-  { icon: Award,         label: "Certificates",    to: "/student/certicates" },
+  // { icon: Award,         label: "Certificates",    to: "/student/certicates" },
+  { icon: Award,      label: "Certificates", to: "/student/my-certificates" },
   { icon: Video,         label: "Online Classes",  to: "/student/online-classes" },
 ];
 

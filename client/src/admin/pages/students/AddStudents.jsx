@@ -158,7 +158,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const navigate = useNavigate?.() ?? null;
   const isModal = !!(onClose || closeModal);
   const isEdit = !!rid;
-  const doClose = isModal ? onClose || closeModal : () => navigate("/students");
+  const doClose = isModal ? onClose || closeModal : () => navigate(`/admin/students`);
 
   const { schoolType, showStream, showCourse, showBranch } =
     useInstitutionConfig();
@@ -1481,7 +1481,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         />
 
         <div
-          className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 pb-24"
+          className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 pb-32 md:pb-24"
           style={{ maxHeight: isModal ? "75vh" : "80vh" }}
         >
           {/* Global error */}
@@ -2211,7 +2211,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       </div>
 
       {/* Footer */}
-      <div
+      {/* <div
         className="flex items-center justify-between px-4 md:px-6 py-4 rounded-b-2xl"
         style={{
           background: COLORS.bgSoft,
@@ -2275,7 +2275,78 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
             </button>
           )}
         </div>
-      </div>
+      </div> */}
+      {/* Footer */}
+<div
+  className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 px-4 md:px-6 py-3 md:py-4 rounded-b-2xl"
+  style={{
+    background: COLORS.bgSoft,
+    borderTop: `1px solid ${COLORS.border}`,
+  }}
+>
+  {/* Cancel */}
+  <button
+    onClick={doClose}
+    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-white/70 w-full sm:w-auto"
+    style={{
+      border: `1px solid ${COLORS.border}`,
+      color: COLORS.secondary,
+    }}
+  >
+    <X size={14} /> Cancel
+  </button>
+
+  {/* Next + Save */}
+  <div className="flex items-center gap-2 w-full sm:w-auto">
+    {!isLast && (
+      <button
+        onClick={() => setTab(TABS[tabIdx + 1].id)}
+        className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-white/70"
+        style={{
+          border: `1px solid ${COLORS.border}`,
+          color: COLORS.primary,
+        }}
+      >
+        Next <ChevronRight size={15} />
+      </button>
+    )}
+    {isLast ? (
+      <button
+        onClick={handleDocSave}
+        disabled={busy}
+        className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+        style={{ background: COLORS.primary }}
+      >
+        {busy ? (
+          <Loader2 size={15} className="animate-spin" />
+        ) : (
+          <Save size={15} />
+        )}
+        <span className="truncate">
+          {busy
+            ? "Saving…"
+            : totalUploads > 0
+              ? `Save & Docs (${totalUploads})`
+              : "Save Student"}
+        </span>
+      </button>
+    ) : (
+      <button
+        onClick={handleSave}
+        disabled={busy}
+        className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+        style={{ background: COLORS.primary }}
+      >
+        {busy ? (
+          <Loader2 size={15} className="animate-spin" />
+        ) : (
+          <Save size={15} />
+        )}
+        {busy ? "Saving…" : isEdit ? "Save Changes" : "Save Student"}
+      </button>
+    )}
+  </div>
+</div>
     </div>
   );
 

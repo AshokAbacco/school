@@ -518,6 +518,7 @@ model User {
   recordedResults          EventResult[]
   StudentAward             StudentAward[]
   StaffProfile             StaffProfile?
+  Certificate              Certificate[]
 
   @@unique([email, schoolId])
   @@index([role])
@@ -1974,9 +1975,6 @@ model EventResult {
 }
 
 // ─── Certificate ─────────────────────────────────────────────────────────────
-// Lightweight snapshot — content frozen at time of issuance.
-// PDF is generated dynamically from these fields, not stored.
-
 model Certificate {
   id String @id @default(uuid())
 
@@ -2003,18 +2001,31 @@ model Certificate {
   issuedDate DateTime          @default(now())
   status     CertificateStatus @default(PENDING)
 
+  // ── Teacher upload fields ──────────────────────────────────
+  source       String?
+  title        String?
+  category     AwardCategory?
+  fileUrl      String?
+  fileKey      String?
+  fileType     String?
+  uploadedById String?
+  uploadedBy   User?          @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  description  String?
+  // ──────────────────────────────────────────────────────────
+
   createdAt DateTime @default(now())
 
-  @@unique([studentId, resultId]) // ✅ ADD
-  @@unique([studentId, studentAwardId]) // ✅ ADD
+  @@unique([studentId, resultId])
+  @@unique([studentId, studentAwardId])
   @@index([studentId])
   @@index([eventId])
   @@index([resultId])
   @@index([studentAwardId])
   @@index([status])
+  @@index([source])
+  @@index([uploadedById])
   @@map("certificates")
 }
-
 enum AwardCategory {
   ACADEMIC
   ATTENDANCE

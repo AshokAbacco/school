@@ -78,13 +78,13 @@ const ATT_CSS = `
   }
   @media (min-width: 768px) { .att-stat-grid { grid-template-columns: repeat(3, 1fr); } }
 
-  /* Bottom grid: calendar + goal */
+  /* Bottom grid: break timings + calendar + goal */
   .att-bottom-grid {
     display: grid; gap: 14px;
     grid-template-columns: 1fr;
   }
-  @media (min-width: 900px) {
-    .att-bottom-grid { grid-template-columns: 1fr 300px; }
+  @media (min-width: 960px) {
+    .att-bottom-grid { grid-template-columns: 1fr 280px; }
   }
   @media (min-width: 1100px) {
     .att-bottom-grid { grid-template-columns: 1fr 320px; }
@@ -93,25 +93,53 @@ const ATT_CSS = `
   /* Calendar day cell */
   .att-day {
     aspect-ratio: 1;
-    border-radius: 12px;
+    border-radius: 8px;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     font-weight: 700; cursor: pointer;
     font-family: 'Inter', sans-serif;
     transition: transform 0.15s, box-shadow 0.15s;
     position: relative; overflow: visible;
-    font-size: clamp(11px, 2.2vw, 14px);
+    font-size: clamp(9px, 3vw, 14px);
+    min-width: 0;
   }
   .att-day:hover { transform: scale(1.07); box-shadow: 0 4px 12px rgba(56,73,89,0.13); }
   @media (max-width: 639px) { .att-day:hover { transform: none; } }
+  @media (min-width: 480px)  { .att-day { border-radius: 10px; font-size: clamp(11px, 2vw, 14px); } }
+  @media (min-width: 768px)  { .att-day { border-radius: 12px; font-size: 13px; } }
+  @media (min-width: 1024px) { .att-day { font-size: 14px; } }
 
   /* Calendar grid */
   .att-cal-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
+    gap: 3px;
   }
-  @media (min-width: 480px) { .att-cal-grid { gap: 7px; } }
+  @media (min-width: 360px)  { .att-cal-grid { gap: 4px; } }
+  @media (min-width: 480px)  { .att-cal-grid { gap: 5px; } }
+  @media (min-width: 640px)  { .att-cal-grid { gap: 6px; } }
+  @media (min-width: 768px)  { .att-cal-grid { gap: 7px; } }
+
+  /* Calendar day header labels */
+  .att-cal-header-label {
+    text-align: center;
+    font-weight: 800;
+    color: #6A89A7;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    padding-bottom: 4px;
+    font-size: clamp(7px, 2.2vw, 9px);
+  }
+  @media (min-width: 480px)  { .att-cal-header-label { font-size: clamp(8px, 1.5vw, 10px); } }
+  @media (min-width: 768px)  { .att-cal-header-label { font-size: 10px; } }
+
+  /* Calendar card inner padding responsive */
+  .att-cal-card {
+    padding: 14px 12px;
+  }
+  @media (min-width: 480px)  { .att-cal-card { padding: 16px 14px; } }
+  @media (min-width: 640px)  { .att-cal-card { padding: 18px 16px; } }
+  @media (min-width: 768px)  { .att-cal-card { padding: 20px 18px; } }
 
   /* Record table rows */
   .att-row { transition: background 0.14s; }
@@ -239,6 +267,7 @@ function Attendance() {
   const calendarDays    = data?.calendarDays    ?? [];
   const recentRecords   = data?.recentRecords   ?? [];
   const availableMonths = data?.availableMonths ?? [];
+  const breaks = data?.breaks ?? [];
   const enrollment      = data?.enrollment;
   const selectedMonthLabel = data?.selectedMonth ?? "—";
 
@@ -320,9 +349,48 @@ function Attendance() {
 
         {/* ── CALENDAR + GOAL ── */}
         <div className="att-bottom-grid a3">
+        {/* ── BREAK TIMINGS ── */}
+        {breaks.length > 0 && (
+          <div className="att-card" style={{ padding: "16px 18px", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <div style={{
+                width: 26, height: 26, borderRadius: 8,
+                background: `${C.light}1A`,
+                border: `1px solid ${C.light}30`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                ⏸️
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.dark }}>
+                Break Timings
+              </span>
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              {breaks.map((b, i) => (
+                <div key={i} style={{
+                  padding: "8px 12px",
+                  borderRadius: 12,
+                  background: C.bg,
+                  border: `1px solid ${C.pale}`,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: C.dark,
+                }}>
+                  <div style={{ fontWeight: 700 }}>
+                    {b.label}
+                  </div>
+                  <div style={{ fontSize: 10, color: C.mid }}>
+                    {b.startTime} – {b.endTime}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
           {/* Calendar card */}
-          <div className="att-card" style={{ padding: "20px 18px" }}>
+          <div className="att-card att-cal-card">
             {/* Card header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, flexWrap: "wrap", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -356,13 +424,9 @@ function Attendance() {
             ) : (
               <>
                 {/* Day headers */}
-                <div className="att-cal-grid" style={{ marginBottom: 5 }}>
+                <div className="att-cal-grid" style={{ marginBottom: 4 }}>
                   {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => (
-                    <div key={d} style={{
-                      textAlign: "center", fontSize: 9, fontWeight: 800,
-                      color: C.mid, textTransform: "uppercase", letterSpacing: ".06em",
-                      paddingBottom: 4,
-                    }}>
+                    <div key={d} className="att-cal-header-label">
                       {d}
                     </div>
                   ))}
@@ -401,7 +465,7 @@ function Attendance() {
                             <span style={{ lineHeight: 1 }}>{item.date}</span>
                             {cellLabel && (
                               <span style={{
-                                fontSize: "0.46rem", fontWeight: 700,
+                                fontSize: "clamp(0.38rem, 1.5vw, 0.46rem)", fontWeight: 700,
                                 maxWidth: "90%", overflow: "hidden",
                                 textOverflow: "ellipsis", whiteSpace: "nowrap",
                                 opacity: 0.72, marginTop: 2,

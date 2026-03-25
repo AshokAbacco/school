@@ -112,6 +112,7 @@ function LoadingSkeleton({ isMobile }) {
                         display: "flex", alignItems: "center", gap: 12,
                     }}
                 >
+
                     <Pulse w={32} h={32} r={99} />
                     {!isMobile && <Pulse w={90} h={32} r={10} />}
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
@@ -124,6 +125,7 @@ function LoadingSkeleton({ isMobile }) {
         </div>
     );
 }
+
 
 // ── Period Card (identical to student) ────────────────────────
 function PeriodCard({ slot, classIndex, isMobile, isTablet }) {

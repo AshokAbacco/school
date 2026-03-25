@@ -1,4 +1,3 @@
-// src/admin/components/Sidebar.jsx
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -16,17 +15,18 @@ import {
   Images,
   CalendarDays,
   Trophy,
+  Medal,
 } from "lucide-react";
 
 const NAV = [
   { icon: LayoutDashboard, label: "Dashboard",  to: "/admin/dashboard" },
-  { icon: BookOpen,        label: "Classes",     to: "/admin/classes" },
+  { icon: BookOpen,         label: "Classes",     to: "/admin/classes" },
   { icon: Users,           label: "Students",    to: "/admin/students" },
   { icon: GraduationCap,   label: "Teachers",    to: "/admin/teachers" },
   { icon: Users,           label: "Staff",       to: "/admin/staff" },
   { icon: CalendarDays,    label: "Holidays",    to: "/admin/holidays" },
   { icon: ClipboardCheck,  label: "Attendance",  to: "/admin/attendance" },
-  { icon: Trophy,          label: "Activities",  to: "/admin/activities" },
+  { icon: Medal,          label: "Activities",  to: "/admin/activities" },
   { icon: Trophy,          label: "Awards",      to: "/admin/awards" },
   { icon: FileText,        label: "Exams",       to: "/admin/exams" },
   { icon: DollarSign,      label: "Finance",     to: "/admin/finance" },
@@ -56,12 +56,32 @@ export default function Sidebar({ isOpen, onClose, user }) {
   const displayRole = user?.role || "Administrator";
   const panelLabel  = PANEL_LABEL[user?.role] ?? "Admin Panel";
 
-  // On desktop: expanded when hovered, collapsed otherwise
-  // On mobile: controlled by isOpen prop (existing behaviour)
   const expanded = hovered;
 
   return (
     <>
+      {/* Inline Style for Custom Scrollbar */}
+      <style>{`
+        .sidebar-nav::-webkit-scrollbar {
+          width: 5px;
+        }
+        .sidebar-nav::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .sidebar-nav::-webkit-scrollbar-thumb {
+          background: rgba(136, 189, 242, 0.2);
+          border-radius: 10px;
+        }
+        .sidebar-nav:hover::-webkit-scrollbar-thumb {
+          background: rgba(136, 189, 242, 0.4);
+        }
+        /* Hide scrollbar for Firefox */
+        .sidebar-nav {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(136, 189, 242, 0.2) transparent;
+        }
+      `}</style>
+
       {/* Mobile overlay */}
       {isOpen && (
         <div
@@ -82,7 +102,6 @@ export default function Sidebar({ isOpen, onClose, user }) {
         style={{
           background: "#3f556b",
           fontFamily: "'DM Sans', sans-serif",
-          /* Collapsed: 64px (icon + padding), Expanded: 256px */
           width: expanded ? "256px" : "64px",
           transition: "width 280ms cubic-bezier(0.4, 0, 0.2, 1)",
           overflow: "hidden",
@@ -101,7 +120,6 @@ export default function Sidebar({ isOpen, onClose, user }) {
               <GraduationCap size={18} color="#fff" />
             </div>
 
-            {/* Text fades in when expanded */}
             <div
               className="leading-tight min-w-0"
               style={{
@@ -124,7 +142,6 @@ export default function Sidebar({ isOpen, onClose, user }) {
             </div>
           </div>
 
-          {/* Mobile close button */}
           <button
             onClick={onClose}
             className="md:hidden rounded-lg p-1 transition-opacity hover:opacity-60"
@@ -134,8 +151,8 @@ export default function Sidebar({ isOpen, onClose, user }) {
           </button>
         </div>
 
-        {/* Nav items */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 space-y-0.5">
+        {/* Nav items with custom scrollbar class */}
+        <nav className="sidebar-nav flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 space-y-0.5">
           {NAV.map(({ icon: Icon, label, to }) => {
             const active = isActive(to);
             return (
@@ -143,11 +160,10 @@ export default function Sidebar({ isOpen, onClose, user }) {
                 <div
                   className="flex items-center rounded-xl transition-all duration-150 relative"
                   style={{
-                    background: active ? "rgba(136,189,242,0.15)" : "transparent",
+                    background: active ? "rgba(136,189,242,0.18)" : "transparent",
                     cursor: "pointer",
                     padding: "10px 10px",
                     gap: "12px",
-                    /* Keep row height consistent */
                     minHeight: "40px",
                   }}
                   onMouseEnter={(e) => {
@@ -159,12 +175,11 @@ export default function Sidebar({ isOpen, onClose, user }) {
                 >
                   {active && (
                     <span
-                      className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
-                      style={{ background: "#88BDF2" }}
+                      className="absolute top-1/2 -translate-y-1/2 rounded-full"
+                      style={{ background: "#88BDF2", width: "3px", height: "20px", left: 0 }}
                     />
                   )}
 
-                  {/* Icon always visible, centered when collapsed */}
                   <Icon
                     size={17}
                     style={{
@@ -173,10 +188,10 @@ export default function Sidebar({ isOpen, onClose, user }) {
                       marginLeft: expanded ? "2px" : "auto",
                       marginRight: expanded ? "0" : "auto",
                       transition: "margin 280ms cubic-bezier(0.4,0,0.2,1)",
+                      filter: active ? "drop-shadow(0 0 4px rgba(136,189,242,0.45))" : "none",
                     }}
                   />
 
-                  {/* Label fades in */}
                   <span
                     className="text-sm"
                     style={{
@@ -193,7 +208,6 @@ export default function Sidebar({ isOpen, onClose, user }) {
                     {label}
                   </span>
 
-                  {/* Active dot */}
                   {active && (
                     <span
                       className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0"

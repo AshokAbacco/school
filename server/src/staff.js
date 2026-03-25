@@ -10,6 +10,8 @@ import schoolAdminRoutes from "./superAdmin/routes/schoolAdmin.Routes.js";
 import userRoutes from "./superAdmin/routes/users.Routes.js"; // ← ADD
 import analyticsRouter from "./superAdmin/routes/analytics.Routes.js";
 import financeProfileRoutes from "./superAdmin/routes/financeProfile.routes.js";
+import teacherCertificateRoutes from "./staffRoutes/teacherCertificateRoutes.js";
+
 
 // import classSectionRoutes from "./staffRoutes/classSectionRoutes.js";
 import classSectionRoutes, {
@@ -90,5 +92,9 @@ staff.use("/api/teacher/live-classes",  teacherLiveClassRoute);
 staff.use("/api/teacher/timetable", teacherTimetableRoute);
 staff.use("/api/staff/profiles", staffRoutes);
 staff.use("/api/results", resultRoutes);
+staff.use("/api/teacher/certificates", teacherCertificateRoutes);
+
+
+
 
 export default staff;

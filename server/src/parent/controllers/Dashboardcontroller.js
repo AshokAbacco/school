@@ -15,6 +15,7 @@ async function verifyParentOwnsStudent(parentId, studentId) {
   const link = await prisma.studentParent.findFirst({
     where: { parentId, studentId },
   });
+  
   return !!link;
 }
 
