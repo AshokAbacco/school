@@ -1,13 +1,15 @@
 // client/src/admin/pages/exams/ExamsList.jsx
+// ── Updated: adds "Results" tab alongside the existing Exams tab ──────────
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ClipboardList, Plus, Search, Eye, Pencil, Trash2,
   Globe, Lock, Calculator, RefreshCw,
-  BookOpen, AlertTriangle, X, Loader2,
+  BookOpen, AlertTriangle, X, Loader2, BarChart2,
 } from "lucide-react";
 import { fetchGroups, deleteGroup, publishGroup, lockGroup } from "./components/examsApi.js";
 import AddExamsModal from "./components/AddExam.jsx";
 import ViewExamsModal from "./components/ViewExams.jsx";
+import ResultsTab from "./components/ResultsTab.jsx";   // ← NEW
 import { getToken } from "../../../auth/storage.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -98,13 +100,38 @@ function ActionBtn({ icon: Icon, title, color = C.mid, onClick, disabled }) {
   );
 }
 
+/* ── Tab Button ── */
+function TabBtn({ active, icon: Icon, label, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        ...font,
+        display: "flex", alignItems: "center", gap: 7,
+        padding: "8px 20px", borderRadius: 12,
+        fontSize: 13, fontWeight: 700, cursor: "pointer",
+        border: "none",
+        background: active ? C.dark : "transparent",
+        color: active ? "#fff" : C.mid,
+        transition: "all .15s",
+      }}
+    >
+      <Icon size={14} />
+      {label}
+    </button>
+  );
+}
+
 /* ── Main Component ── */
 export default function ExamsList() {
-  // ── Academic Year (fetched internally) ──
+  // ── Academic Year ──
   const [academicYearId, setAcademicYearId]       = useState(null);
   const [academicYearLabel, setAcademicYearLabel] = useState("");
   const [yearLoading, setYearLoading]             = useState(true);
   const [yearError, setYearError]                 = useState("");
+
+  // ── Active Tab ──
+  const [activeTab, setActiveTab] = useState("exams"); // "exams" | "results"
 
   useEffect(() => {
     fetch(`${API_URL}/api/academic-years`, {
@@ -112,7 +139,7 @@ export default function ExamsList() {
     })
       .then(r => r.json())
       .then(data => {
-        const years = Array.isArray(data) ? data : (data.academicYears || []);
+        const years  = Array.isArray(data) ? data : (data.academicYears || []);
         const active = years.find(y => y.isActive) || years[0];
         if (active) {
           setAcademicYearId(active.id);
@@ -167,32 +194,24 @@ export default function ExamsList() {
     finally { setActionMap(p => ({ ...p, [key]: false })); }
   };
 
-  const filtered = groups.filter(g =>
-    g.name?.toLowerCase().includes(search.toLowerCase())
-  );
-
+  const filtered  = groups.filter(g => g.name?.toLowerCase().includes(search.toLowerCase()));
   const pending   = groups.filter(g => g.isPublished && !g.isLocked).length;
   const completed = groups.filter(g => g.isLocked).length;
-  const drafts    = groups.filter(g => !g.isPublished && !g.isLocked).length;
 
   // ── Academic year loading/error states ──
   if (yearLoading) {
     return (
-      <>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", ...font, color: C.mid, gap: 10 }}>
-          <Loader2 size={18} className="animate-spin" /> Loading academic year…
-        </div>
-      </>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", ...font, color: C.mid, gap: 10 }}>
+        <Loader2 size={18} className="animate-spin" /> Loading academic year…
+      </div>
     );
   }
 
   if (yearError) {
     return (
-      <>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", ...font, color: C.danger, fontSize: 14 }}>
-          {yearError}
-        </div>
-      </>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", ...font, color: C.danger, fontSize: 14 }}>
+        {yearError}
+      </div>
     );
   }
 
@@ -201,7 +220,7 @@ export default function ExamsList() {
       <div className="min-h-screen p-7" style={{ background: C.bg, ...font }}>
 
         {/* Page header */}
-        <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
+        <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
               style={{ background: `linear-gradient(135deg, ${C.dark}, ${C.mid})` }}>
@@ -214,101 +233,138 @@ export default function ExamsList() {
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={load}
-              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
-              style={{ background: C.card, border: `1.5px solid ${C.border}`, color: C.mid, cursor: "pointer" }}>
-              <RefreshCw size={13} /> Refresh
-            </button>
-            <button onClick={() => { setEditGroup(null); setShowAdd(true); }}
-              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
-              style={{ background: C.dark, color: "#fff", border: "none", cursor: "pointer" }}>
-              <Plus size={14} /> Add Exam
-            </button>
-          </div>
-        </div>
 
-        {/* Stat Cards */}
-        <div className="grid grid-cols-3 gap-3 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))" }}>
-          <StatCard icon={BookOpen}      label="Total Exams" value={groups.length} accent={C.dark} />
-          <StatCard icon={ClipboardList} label="Pending"     value={pending}       accent="#3b82f6" />
-          <StatCard icon={Globe}         label="Completed"   value={completed}     accent={C.success} />
-        </div>
-
-        {/* Table card */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: C.card, border: `1.5px solid ${C.border}` }}>
-          {/* Toolbar */}
-          <div className="flex items-center justify-between px-5 py-3 gap-3 flex-wrap"
-            style={{ borderBottom: `1.5px solid ${C.border}` }}>
-            <div className="flex items-center gap-2 rounded-xl px-3 py-2 flex-1"
-              style={{ background: C.bg, border: `1.5px solid ${C.border}`, maxWidth: 320 }}>
-              <Search size={13} color={C.mid} />
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search exams…"
-                style={{ border: "none", outline: "none", background: "transparent", fontSize: 13, color: C.dark, flex: 1, ...font }} />
-              {search && (
-                <button onClick={() => setSearch("")}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: C.mid, display: "flex" }}>
-                  <X size={12} />
-                </button>
-              )}
+          {/* right-side actions (only for Exams tab) */}
+          {activeTab === "exams" && (
+            <div className="flex gap-2">
+              <button onClick={load}
+                className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
+                style={{ background: C.card, border: `1.5px solid ${C.border}`, color: C.mid, cursor: "pointer" }}>
+                <RefreshCw size={13} /> Refresh
+              </button>
+              <button onClick={() => { setEditGroup(null); setShowAdd(true); }}
+                className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
+                style={{ background: C.dark, color: "#fff", border: "none", cursor: "pointer" }}>
+                <Plus size={14} /> Add Exam
+              </button>
             </div>
-            <p className="text-xs font-semibold" style={{ color: C.mid }}>
-              {filtered.length} result{filtered.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-
-          {/* Table */}
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "#f8fbff" }}>
-                  {["#", "Exam Name", "Student Classes", "Status", "Actions"].map(h => (
-                    <th key={h} style={{
-                      padding: "11px 16px", textAlign: "left",
-                      fontSize: 11, fontWeight: 700, letterSpacing: ".06em",
-                      textTransform: "uppercase", color: C.mid,
-                      borderBottom: `1.5px solid ${C.border}`, ...font,
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={5} style={{ padding: "52px 16px", textAlign: "center", color: C.mid, ...font }}>
-                      <Loader2 size={20} className="animate-spin" style={{ display: "inline" }} />
-                      <span className="ml-2 text-sm">Loading exams…</span>
-                    </td>
-                  </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} style={{ padding: "52px 16px", textAlign: "center", ...font }}>
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: C.bg }}>
-                          <ClipboardList size={20} color={C.mid} />
-                        </div>
-                        <p className="text-sm font-semibold" style={{ color: C.dark }}>No exams found</p>
-                        <p className="text-xs" style={{ color: C.mid }}>
-                          {search ? "Try a different search term." : "Click Add Exam to create your first exam."}
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : filtered.map((g, i) => (
-                  <TableRow key={g.id} group={g} index={i}
-                    actionMap={actionMap}
-                    onView={() => setViewGroup(g)}
-                    onEdit={() => { setEditGroup(g); setShowAdd(true); }}
-                    onDelete={() => setConfirmDel(g)}
-                    onPublish={() => doAction(publishGroup, g.id, `pub_${g.id}`)}
-                    onLock={() => doAction(lockGroup, g.id, `lock_${g.id}`)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          )}
         </div>
+
+        {/* ── Tab Bar ── */}
+        <div style={{
+          display: "inline-flex", gap: 4, padding: "4px",
+          background: C.card, border: `1.5px solid ${C.border}`,
+          borderRadius: 14, marginBottom: 22,
+        }}>
+          <TabBtn
+            active={activeTab === "exams"}
+            icon={ClipboardList}
+            label="Exams"
+            onClick={() => setActiveTab("exams")}
+          />
+          <TabBtn
+            active={activeTab === "results"}
+            icon={BarChart2}
+            label="Results"
+            onClick={() => setActiveTab("results")}
+          />
+        </div>
+
+        {/* ── EXAMS TAB ── */}
+        {activeTab === "exams" && (
+          <>
+            {/* Stat Cards */}
+            <div className="grid grid-cols-3 gap-3 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))" }}>
+              <StatCard icon={BookOpen}      label="Total Exams" value={groups.length} accent={C.dark} />
+              <StatCard icon={ClipboardList} label="Pending"     value={pending}       accent="#3b82f6" />
+              <StatCard icon={Globe}         label="Completed"   value={completed}     accent={C.success} />
+            </div>
+
+            {/* Table card */}
+            <div className="rounded-2xl overflow-hidden" style={{ background: C.card, border: `1.5px solid ${C.border}` }}>
+              {/* Toolbar */}
+              <div className="flex items-center justify-between px-5 py-3 gap-3 flex-wrap"
+                style={{ borderBottom: `1.5px solid ${C.border}` }}>
+                <div className="flex items-center gap-2 rounded-xl px-3 py-2 flex-1"
+                  style={{ background: C.bg, border: `1.5px solid ${C.border}`, maxWidth: 320 }}>
+                  <Search size={13} color={C.mid} />
+                  <input value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="Search exams…"
+                    style={{ border: "none", outline: "none", background: "transparent", fontSize: 13, color: C.dark, flex: 1, ...font }} />
+                  {search && (
+                    <button onClick={() => setSearch("")}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: C.mid, display: "flex" }}>
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs font-semibold" style={{ color: C.mid }}>
+                  {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+                </p>
+              </div>
+
+              {/* Table */}
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fbff" }}>
+                      {["#", "Exam Name", "Student Classes", "Status", "Actions"].map(h => (
+                        <th key={h} style={{
+                          padding: "11px 16px", textAlign: "left",
+                          fontSize: 11, fontWeight: 700, letterSpacing: ".06em",
+                          textTransform: "uppercase", color: C.mid,
+                          borderBottom: `1.5px solid ${C.border}`, ...font,
+                        }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={5} style={{ padding: "52px 16px", textAlign: "center", color: C.mid, ...font }}>
+                          <Loader2 size={20} className="animate-spin" style={{ display: "inline" }} />
+                          <span className="ml-2 text-sm">Loading exams…</span>
+                        </td>
+                      </tr>
+                    ) : filtered.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ padding: "52px 16px", textAlign: "center", ...font }}>
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: C.bg }}>
+                              <ClipboardList size={20} color={C.mid} />
+                            </div>
+                            <p className="text-sm font-semibold" style={{ color: C.dark }}>No exams found</p>
+                            <p className="text-xs" style={{ color: C.mid }}>
+                              {search ? "Try a different search term." : "Click Add Exam to create your first exam."}
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : filtered.map((g, i) => (
+                      <TableRow key={g.id} group={g} index={i}
+                        actionMap={actionMap}
+                        onView={() => setViewGroup(g)}
+                        onEdit={() => { setEditGroup(g); setShowAdd(true); }}
+                        onDelete={() => setConfirmDel(g)}
+                        onPublish={() => doAction(publishGroup, g.id, `pub_${g.id}`)}
+                        onLock={() => doAction(lockGroup, g.id, `lock_${g.id}`)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── RESULTS TAB ── */}
+        {activeTab === "results" && (
+          <ResultsTab
+            academicYearId={academicYearId}
+            academicYearLabel={academicYearLabel}
+          />
+        )}
 
         {/* Modals */}
         {showAdd && (
@@ -343,7 +399,6 @@ export default function ExamsList() {
 function TableRow({ group, index, actionMap, onView, onEdit, onDelete, onPublish, onLock }) {
   const [hov, setHov] = useState(false);
 
-  // ✅ Read from assessmentSchedules (attached by getGroups backend)
   const gradeChips = useMemo(() => {
     const schedules = group.assessmentSchedules || [];
     const gradeSet = new Map();
@@ -363,10 +418,8 @@ function TableRow({ group, index, actionMap, onView, onEdit, onDelete, onPublish
     <tr onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{ borderBottom: `1px solid ${C.border}`, background: hov ? C.hover : "transparent", transition: "background .12s" }}>
 
-      {/* # */}
-      <td style={{ padding: "13px 16px", fontSize: 12, color: C.mid,  fontFamily: "'Inter', sans-serif", width: 40 }}>{index + 1}</td>
+      <td style={{ padding: "13px 16px", fontSize: 12, color: C.mid, fontFamily: "'Inter', sans-serif", width: 40 }}>{index + 1}</td>
 
-      {/* Exam Name */}
       <td style={{ padding: "13px 16px", fontFamily: "Inter, sans-serif" }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.dark }}>{group.name}</div>
         {group.term?.name && (
@@ -374,7 +427,6 @@ function TableRow({ group, index, actionMap, onView, onEdit, onDelete, onPublish
         )}
       </td>
 
-      {/* Student Classes */}
       <td style={{ padding: "13px 16px", fontFamily: "Inter, sans-serif" }}>
         {gradeChips.length > 0 ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -382,7 +434,7 @@ function TableRow({ group, index, actionMap, onView, onEdit, onDelete, onPublish
               <span key={i} style={{
                 fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 20,
                 background: "#EFF6FD", color: C.dark, border: `1px solid ${C.border}`,
-                 fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap",
+                fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap",
               }}>
                 Grade {g.grade}{g.section ? ` – ${g.section}` : ""}
               </span>
@@ -398,12 +450,10 @@ function TableRow({ group, index, actionMap, onView, onEdit, onDelete, onPublish
         )}
       </td>
 
-      {/* Status */}
       <td style={{ padding: "13px 16px" }}>
         <StatusBadge group={group} />
       </td>
 
-      {/* Actions */}
       <td style={{ padding: "13px 16px" }}>
         <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
           <ActionBtn icon={Eye}    title="View"   onClick={onView} />
