@@ -157,7 +157,7 @@ export default function StudentView() {
         const d = await res.json();
         throw new Error(d.message);
       }
-      navigate("/students");
+      navigate(`/admin/students`);
     } catch (err) {
       alert(`Delete failed: ${err.message}`);
     }
@@ -196,7 +196,7 @@ export default function StudentView() {
               {error || "Student not found"}
             </p>
             <button
-              onClick={() => navigate("/students")}
+              onClick={() => navigate(`/admin/students`)}
               className="text-sm font-semibold"
               style={{ color: "#6A89A7" }}
             >
@@ -494,7 +494,7 @@ export default function StudentView() {
         {/* ── Top nav ── */}
         <div className="flex items-center justify-between mb-6">
           <button
-            onClick={() => navigate("/students")}
+            onClick={() => navigate(`/admin/students`)}
             className="flex items-center gap-2 text-sm font-semibold transition-all"
             style={{ color: "#6A89A7" }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "#384959")}
@@ -504,7 +504,7 @@ export default function StudentView() {
           </button>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate(`/students/${id}/edit`)}
+              onClick={() => navigate(`/admin/students/${id}/edit`)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white shadow-sm transition-all"
               style={{ background: "#384959" }}
               onMouseEnter={(e) =>

@@ -109,12 +109,14 @@ function PanelHead({ title, sub, IconComp, iconColor = C.sky, right }) {
   return (
     <div
       style={{
-        padding: "14px 20px",
+        padding: "14px 16px",
         background: `linear-gradient(90deg, ${C.bg} 0%, ${C.white} 100%)`,
         borderBottom: `1.5px solid ${C.borderLight}`,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
+        gap: 10,           // ← ensures space between title and search
+        flexWrap: "wrap",  // ← search drops below on very small screens
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1533,59 +1535,59 @@ export default function ClassesList() {
             sub={`${filtered.length} section${filtered.length !== 1 ? "s" : ""} found`}
             IconComp={GraduationCap}
             iconColor={C.sky}
-            right={
-              <div style={{ position: "relative" }}>
-                <Search
-                  size={13}
+           right={
+            <div style={{ position: "relative", width: "min(240px, 38vw)" }}>
+              <Search
+                size={13}
+                style={{
+                  position: "absolute",
+                  left: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: C.textLight,
+                  pointerEvents: "none",
+                }}
+              />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                style={{
+                  border: `1.5px solid ${C.border}`,
+                  borderRadius: 12,
+                  padding: "8px 32px 8px 32px",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: C.text,
+                  background: C.bg,
+                  outline: "none",
+                  fontFamily: "'Inter', sans-serif",
+                  width: "100%",         // ← fills parent instead of fixed 240px
+                }}
+                onFocus={(e) => (e.target.style.borderColor = C.sky)}
+                onBlur={(e) => (e.target.style.borderColor = C.border)}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
                   style={{
                     position: "absolute",
-                    left: 12,
+                    right: 10,
                     top: "50%",
                     transform: "translateY(-50%)",
+                    border: "none",
+                    background: "none",
+                    cursor: "pointer",
                     color: C.textLight,
-                    pointerEvents: "none",
+                    padding: 0,
+                    display: "flex",
                   }}
-                />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search classes or teachers…"
-                  style={{
-                    border: `1.5px solid ${C.border}`,
-                    borderRadius: 12,
-                    padding: "8px 36px 8px 32px",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: C.text,
-                    background: C.bg,
-                    outline: "none",
-                     fontFamily: "'Inter', sans-serif",
-                    width: 240,
-                  }}
-                  onFocus={(e) => (e.target.style.borderColor = C.sky)}
-                  onBlur={(e) => (e.target.style.borderColor = C.border)}
-                />
-                {search && (
-                  <button
-                    onClick={() => setSearch("")}
-                    style={{
-                      position: "absolute",
-                      right: 10,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer",
-                      color: C.textLight,
-                      padding: 0,
-                      display: "flex",
-                    }}
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-            }
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          }
           />
 
           {loading ? (
@@ -1699,7 +1701,7 @@ export default function ClassesList() {
               </p>
               {!search && (
                 <button
-                  onClick={() => navigate("/classes/sections")}
+                  onClick={() => navigate(`/admin/classes/sections`)}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -2080,7 +2082,7 @@ export default function ClassesList() {
                                   icon: Edit,
                                   title: "Edit Timetable",
                                   onClick: () =>
-                                    navigate("/admin/classes/timetable", {
+                                    navigate(`/admin/classes/timetable`, {
                                       state: { sectionId: cls.id },
                                     }),
                                   color: C.textLight,
@@ -2478,13 +2480,13 @@ export default function ClassesList() {
                             label: "View",
                             icon: Eye,
                             onClick: () =>
-                              navigate(`/classes/${cls.id}/timetable`),
+                              navigate(`/admin/classes/${cls.id}/timetable`),
                           },
                           {
                             label: "Edit",
                             icon: Edit,
                             onClick: () =>
-                              navigate("/classes/timetable", {
+                              navigate(`/admin/classes/timetable`, {
                                 state: { sectionId: cls.id },
                               }),
                           },

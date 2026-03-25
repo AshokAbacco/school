@@ -955,7 +955,7 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
                         {
                           action: "view",
                           Icon: Eye,
-                          onClick: () => navigate(`/students/${student.id}`),
+                          onClick: () => navigate(`/admin/students/${student.id}`),
                           hoverBg: `${C.sky}22`,
                           hoverC: C.deep,
                         },
@@ -963,7 +963,7 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
                           action: "edit",
                           Icon: Edit,
                           onClick: () =>
-                            navigate(`/students/${student.id}/edit`),
+                            navigate(`/admin/students/${student.id}/edit`),
                           hoverBg: `${C.sky}22`,
                           hoverC: C.deep,
                         },

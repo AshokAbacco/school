@@ -440,9 +440,10 @@ function Panel({ children, style = {} }) {
 }
 
 /* ── Attendance row ── */
+// REPLACE WITH:
 function AttRow({ IconComp, label, value, max, color }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <IconComp
         size={12}
         color={color}
@@ -454,7 +455,7 @@ function AttRow({ IconComp, label, value, max, color }) {
           fontFamily: "'Inter', sans-serif",
           fontSize: 11,
           color: C.textLight,
-          width: 52,
+          width: 48,           // ← slightly tighter to give bar more room
           flexShrink: 0,
           fontWeight: 500,
         }}
@@ -468,7 +469,7 @@ function AttRow({ IconComp, label, value, max, color }) {
           fontSize: 12,
           fontWeight: 700,
           color: C.text,
-          width: 28,
+          minWidth: 20,        // ← minWidth instead of fixed width, never clips
           textAlign: "right",
           flexShrink: 0,
         }}
@@ -819,14 +820,16 @@ export default function Dashboard() {
                 borderRadius: 14,
                 background: C.white,
                 border: `1.5px solid ${C.borderLight}`,
-                width: "fit-content",
+                width: "100%",           // ← was "fit-content", caused overflow
+                maxWidth: "100%",
                 boxShadow: "0 2px 12px rgba(56,73,89,0.06)",
+                flexWrap: "wrap",        // ← wrap on small screens
+                rowGap: 6,
+                boxSizing: "border-box",
               }}
             >
               <Sparkles size={12} color={C.sky} />
-              <span
-                style={{ fontSize: 11, color: C.textLight, fontWeight: 500 }}
-              >
+              <span style={{ fontSize: 11, color: C.textLight, fontWeight: 500 }}>
                 Quick summary —
               </span>
               {[
@@ -838,9 +841,7 @@ export default function Dashboard() {
                   {i > 0 && (
                     <span style={{ color: C.border, fontSize: 12 }}>·</span>
                   )}
-                  <span
-                    style={{ fontSize: 11, fontWeight: 700, color: C.deep }}
-                  >
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.deep }}>
                     {item.val ?? "—"}
                   </span>
                   <span style={{ fontSize: 11, color: C.textLight }}>
@@ -963,70 +964,78 @@ export default function Dashboard() {
                 IconComp={panel.IconComp}
                 iconColor={panel.iconColor}
               />
-              <div style={{ padding: "20px 22px" }}>
-                {loading ? (
-                  <div
-                    style={{ display: "flex", gap: 22, alignItems: "center" }}
-                  >
-                    <div
-                      className="animate-pulse"
-                      style={{
-                        width: 110,
-                        height: 110,
-                        borderRadius: "50%",
-                        background: C.border,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <div
-                      style={{
-                        flex: 1,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 14,
-                      }}
-                    >
-                      {[80, 65, 72, 55].map((w, i) => (
-                        <Pulse key={i} w={`${w}%`} h={10} />
-                      ))}
-                    </div>
-                  </div>
-                ) : panel.total === 0 ? (
-                  <Empty
-                    IconComp={ClipboardList}
-                    text="No attendance marked yet today"
-                  />
-                ) : (
-                  <div
-                    style={{ display: "flex", gap: 24, alignItems: "center" }}
-                  >
-                    <Donut
-                      segments={panel.segs}
-                      centerLabel={panel.cl}
-                      centerSub={panel.cs}
-                    />
-                    <div
-                      style={{
-                        flex: 1,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 14,
-                      }}
-                    >
-                      {panel.rows.map((row) => (
-                        <AttRow
-                          key={row.label}
-                          IconComp={row.Icon}
-                          label={row.label}
-                          value={row.val}
-                          max={panel.total}
-                          color={row.color}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
+              <div style={{ padding: "16px" }}>
+            {loading ? (
+              <div style={{ display: "flex", gap: 22, alignItems: "center" }}>
+                <div
+                  className="animate-pulse"
+                  style={{
+                    width: 110,
+                    height: 110,
+                    borderRadius: "50%",
+                    background: C.border,
+                    flexShrink: 0,
+                  }}
+                />
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 14,
+                  }}
+                >
+                  {[80, 65, 72, 55].map((w, i) => (
+                    <Pulse key={i} w={`${w}%`} h={10} />
+                  ))}
+                </div>
               </div>
+            ) : panel.total === 0 ? (
+              <Empty
+                IconComp={ClipboardList}
+                text="No attendance marked yet today"
+              />
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                gap: 16,
+                alignItems: "center",
+                flexWrap: "wrap",        // ← stacks on very narrow screens
+              }}
+            >
+              {/* Donut shrinks on small screens */}
+              <Donut
+                segments={panel.segs}
+                size={window.innerWidth < 400 ? 80 : 110}
+                stroke={window.innerWidth < 400 ? 8 : 11}
+                centerLabel={panel.cl}
+                centerSub={panel.cs}
+              />
+              {/* Rows never overflow */}
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 130,          // ← prevents rows from being crushed
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                }}
+              >
+                {panel.rows.map((row) => (
+                  <AttRow
+                    key={row.label}
+                    IconComp={row.Icon}
+                    label={row.label}
+                    value={row.val}
+                    max={panel.total}
+                    color={row.color}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
             </Panel>
           ))}
         </div>

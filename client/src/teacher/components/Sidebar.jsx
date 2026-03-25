@@ -11,6 +11,7 @@ import {
   Zap,
   Video,
   CalendarDays,
+  Medal,
 } from "lucide-react";
 
 // ← all paths prefixed with /teacher/ to match App.jsx mount point
@@ -18,6 +19,7 @@ const NAV = [
   { icon: Home,        label: "Dashboard",     to: "/teacher/dashboard" },
   { icon: User,        label: "Attendance",     to: "/teacher/attendance" },
   { icon: BookOpen,    label: "Curriculum",     to: "/teacher/curriculum" },
+  { icon: Medal, label: "Certificates", to: "/teacher/certificates" },
   { icon: Zap,         label: "Activities",     to: "/teacher/activities" },
   { icon: Trophy,      label: "Awards",         to: "/teacher/awards" },
   { icon: Video,       label: "Online Classes", to: "/teacher/online-classes" },
