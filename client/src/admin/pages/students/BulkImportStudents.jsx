@@ -67,7 +67,8 @@ const COLUMN_MAP = {
   parentPassword:      ["parent password", "parent login password", "ppass"],
   parentOccupation:    ["parent occupation", "father occupation", "mother occupation"],
   parentRelation:      ["relation", "parent relation", "role"], // e.g., FATHER or MOTHER
-  emergencyContact:    ["emergency contact", "emergency"],
+  emergencyContact:   ["emergency contact", "emergencycontact", "emergency"],
+
 
   status:              ["status", "student status"],
   previousSchoolName:  ["previous school", "prev school", "previousschool"],
@@ -88,7 +89,7 @@ const COLUMN_MAP = {
   motherOccupation:    ["mother occupation", "motheroccupation"],
 
   // Guardian / Emergency
-  emergencyContact:    ["emergency contact", "emergencycontact", "emergency"],
+  // emergencyContact:    ["emergency contact", "emergencycontact", "emergency"],
 
   // Health
   bloodGroup:          ["blood group", "blood", "bloodgroup", "blood type"],

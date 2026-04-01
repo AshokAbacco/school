@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { fetchStaff, deleteStaff } from "./api/api";
 import StaffAdd from "./components/StaffAdd";
+import BulkImportStaff from "./components/BulkImportStaff";
 
 /* ── Design tokens — Stormy Morning (single source of truth) ── */
 const C = {
@@ -136,6 +137,7 @@ export default function StaffList() {
   const [deletingId, setDeletingId] = useState(null);
   const [activeTab, setActiveTab] = useState("All");
   const [search, setSearch]       = useState("");
+  const [openImport, setOpenImport] = useState(false);
 
   const load = async () => {
     try {
@@ -232,6 +234,13 @@ export default function StaffList() {
                     onMouseEnter={e => e.currentTarget.style.borderColor = C.sky}
                     onMouseLeave={e => e.currentTarget.style.borderColor = C.borderLight}>
                     <RefreshCw size={15} />
+                  </button>
+                  <button
+                    onClick={() => setOpenImport(true)}
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 12, border: `1.5px solid ${C.borderLight}`, background: C.white, color: C.textMid, fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(56,73,89,0.07)", fontFamily: "'Inter', sans-serif" }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = C.sky; e.currentTarget.style.color = C.sky; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = C.borderLight; e.currentTarget.style.color = C.textMid; }}>
+                    <Users size={15} /> Bulk Import
                   </button>
                   <button
                     onClick={() => { setEditData(null); setShowAdd(true); }}
@@ -371,6 +380,14 @@ export default function StaffList() {
 
       {/* ── Add / Edit Modal ── */}
       {showAdd && <StaffAdd onClose={handleClose} onSuccess={load} editData={editData} />}
+
+      {/* ── Bulk Import Modal ── */}
+      {openImport && (
+        <BulkImportStaff
+          onClose={() => setOpenImport(false)}
+          onSuccess={() => { setOpenImport(false); load(); }}
+        />
+      )}
 
       {/* ── View Detail Modal ── */}
       {viewData && <ViewModal staff={viewData} onClose={() => setViewData(null)} onEdit={s => { setViewData(null); handleEdit(s); }} />}
