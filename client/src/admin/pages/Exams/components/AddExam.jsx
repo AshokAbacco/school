@@ -15,17 +15,17 @@ import {
 /* ── Design tokens ── */
 const F = { fontFamily: "'Inter', sans-serif" };
 const C = {
-  dark: "#1e2d3d",
-  navy: "#0f172a",
-  mid: "#64748b",
-  light: "#94a3b8",
-  border: "#e2e8f0",
-  hover: "#f8fafc",
-  green: "#10b981",
-  red: "#ef4444",
-  accent: "#3b82f6",
-  accentDark: "#1d4ed8",
-  bg: "#f1f5f9",
+  dark: "#243340",
+  navy: "#384959",
+  mid: "#6A89A7",
+  light: "#BDDDFC",
+  border: "#C8DCF0",
+  hover: "#EDF3FA",
+  green: "#059669",
+  red: "#dc2626",
+  accent: "#384959",
+  accentDark: "#243340",
+  bg: "#EDF3FA",
   cardBg: "#ffffff",
 };
 
@@ -151,7 +151,7 @@ const FInput = ({ label, required, error, ...rest }) => (
 ══════════════════════════════════════════════ */
 function TopStepper({ currentStep, completedSteps }) {
   return (
-    <div style={{
+    <div className="ae-stepper-wrap" style={{
       display: "flex", alignItems: "center", justifyContent: "center",
       padding: "18px 32px", background: "#fff", borderBottom: `1px solid ${C.border}`,
       gap: 0, flexShrink: 0,
@@ -162,32 +162,33 @@ function TopStepper({ currentStep, completedSteps }) {
         const Ic = step.icon;
         return (
           <React.Fragment key={step.id}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 120 }}>
+            <div className="ae-step-item" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 120 }}>
               {/* Circle */}
               <div style={{
                 width: 38, height: 38, borderRadius: "50%",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                background: done ? C.green : active ? C.accent : "#f1f5f9",
-                border: `2px solid ${done ? C.green : active ? C.accent : C.border}`,
+                background: done ? C.green : active ? C.navy : `${C.light}44`,
+                border: `2px solid ${done ? C.green : active ? C.navy : C.border}`,
                 transition: "all .2s",
-                boxShadow: active ? "0 0 0 4px rgba(59,130,246,0.15)" : "none",
+                boxShadow: active ? "0 0 0 4px rgba(56,73,89,0.18)" : "none",
+                flexShrink: 0,
               }}>
                 {done
                   ? <Check size={16} color="#fff" strokeWidth={2.5} />
-                  : <Ic size={16} color={active ? "#fff" : C.light} />
+                  : <Ic size={16} color={active ? "#fff" : C.mid} />
                 }
               </div>
               {/* Labels */}
               <div style={{ textAlign: "center" }}>
-                <div style={{ ...F, fontSize: 12, fontWeight: 700, color: active ? C.dark : done ? C.green : C.light, whiteSpace: "nowrap" }}>
+                <div className="ae-step-label" style={{ ...F, fontSize: 12, fontWeight: 700, color: active ? C.dark : done ? C.green : C.mid, whiteSpace: "nowrap" }}>
                   {step.label}
                 </div>
-                <div style={{ ...F, fontSize: 10, color: C.light, marginTop: 1 }}>{step.sub}</div>
+                <div className="ae-step-sub" style={{ ...F, fontSize: 10, color: C.light, marginTop: 1 }}>{step.sub}</div>
               </div>
             </div>
             {/* Connector */}
             {i < STEPS.length - 1 && (
-              <div style={{
+              <div className="ae-step-connector" style={{
                 flex: 1, height: 2, maxWidth: 60,
                 background: completedSteps.includes(step.id) ? C.green : C.border,
                 margin: "0 4px", marginTop: -20, transition: "background .2s",
@@ -204,7 +205,6 @@ function TopStepper({ currentStep, completedSteps }) {
    STEP 1 — Configure Timings
 ══════════════════════════════════════════════ */
 function StepConfigureTimings({ data, onChange, errors }) {
-  // ✅ Fix: sync slots from parent data so edit-mode pre-filled slots show correctly
   const [slots, setSlots] = useState(data.timeSlots || []);
 
   useEffect(() => {
@@ -230,7 +230,7 @@ function StepConfigureTimings({ data, onChange, errors }) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: "28px 32px" }}>
+    <div className="ae-step-padding" style={{ display: "flex", flexDirection: "column", gap: 20, padding: "28px 32px" }}>
       <div>
         <h2 style={{ ...F, fontSize: 22, fontWeight: 700, color: C.dark, margin: 0 }}>Configure Exam Timings</h2>
         <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 0 }}>Set the exam name, date range, and time slots.</p>
@@ -239,7 +239,7 @@ function StepConfigureTimings({ data, onChange, errors }) {
       {/* Exam Name */}
       <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ width: 34, height: 34, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <ClipboardList size={16} color={C.accent} />
           </div>
           <div>
@@ -262,8 +262,8 @@ function StepConfigureTimings({ data, onChange, errors }) {
 
       {/* Date Range */}
       <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ width: 34, height: 34, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="ae-card-header-inner" style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Calendar size={16} color={C.accent} />
           </div>
           <div>
@@ -271,7 +271,7 @@ function StepConfigureTimings({ data, onChange, errors }) {
             <div style={{ ...F, fontSize: 12, color: C.mid }}>Start and end of the exam period</div>
           </div>
         </div>
-        <div style={{ padding: "16px 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div className="ae-grid-2" style={{ padding: "16px 20px", display: "grid", gap: 16 }}>
           <FieldWrap error={errors.fromDate}>
             <Label required>From Date</Label>
             <InputBase type="date" value={data.fromDate || ""} onChange={v => onChange("fromDate", v)} error={errors.fromDate} />
@@ -285,8 +285,8 @@ function StepConfigureTimings({ data, onChange, errors }) {
 
       {/* Time Slots */}
       <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ width: 34, height: 34, borderRadius: 10, background: "#fdf4ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="ae-card-header-inner" style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: "#fdf4ff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Clock size={16} color="#a855f7" />
           </div>
           <div>
@@ -296,11 +296,12 @@ function StepConfigureTimings({ data, onChange, errors }) {
         </div>
         <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
           {slots.map((slot, i) => (
-            <div key={slot._key} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 12, alignItems: "end", background: "#f8fafc", borderRadius: 12, padding: "12px 14px", border: `1px solid ${C.border}` }}>
+            <div key={slot._key} className="ae-slot-row" style={{ display: "grid", gap: 12, alignItems: "end", background: "#f8fafc", borderRadius: 12, padding: "12px 14px", border: `1px solid ${C.border}` }}>
               <FInput label="Slot Name" value={slot.name} onChange={v => updateSlot(slot._key, "name", v)} placeholder="e.g. Morning" />
               <FInput label="Start Time" type="time" value={slot.startTime} onChange={v => updateSlot(slot._key, "startTime", v)} />
               <FInput label="End Time" type="time" value={slot.endTime} onChange={v => updateSlot(slot._key, "endTime", v)} />
               <button onClick={() => removeSlot(slot._key)}
+                className="ae-slot-del"
                 style={{ width: 36, height: 36, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", background: "#fef2f2", border: "none", cursor: "pointer", color: "#ef4444", marginBottom: 2 }}
                 onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
                 onMouseLeave={e => e.currentTarget.style.background = "#fef2f2"}>
@@ -342,15 +343,15 @@ function StepSelectClasses({ classSections, classLoading, selectedSections, onTo
   const selectedCount = selectedSections.length;
 
   return (
-    <div style={{ display: "flex", gap: 24, padding: "28px 32px", alignItems: "flex-start" }}>
+    <div className="ae-flex-row ae-step-padding" style={{ display: "flex", gap: 24, padding: "28px 32px", alignItems: "flex-start" }}>
       {/* Left panel */}
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <h2 style={{ ...F, fontSize: 22, fontWeight: 700, color: C.dark, margin: 0 }}>Select Classes & Sections</h2>
         <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 20 }}>Choose grades and sections for this exam.</p>
 
         <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="ae-card-header-inner" style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <GraduationCap size={16} color={C.green} />
             </div>
             <div>
@@ -392,7 +393,7 @@ function StepSelectClasses({ classSections, classLoading, selectedSections, onTo
                       </div>
                       <span style={{ ...F, fontSize: 14, fontWeight: 700, color: C.dark, flex: 1 }}>Grade {grade}</span>
                       {selCount > 0 && <span style={{ ...F, fontSize: 11, fontWeight: 700, color: C.accent }}>{selCount} sel.</span>}
-                      <span style={{ ...F, fontSize: 11, color: C.light }}>{sections.length} sections</span>
+                      <span className="ae-hide-mobile" style={{ ...F, fontSize: 11, color: C.light }}>{sections.length} sections</span>
                       <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.light} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
                         style={{ transform: isExp ? "rotate(180deg)" : "rotate(0deg)", transition: "transform .2s" }}>
                         <path d="M6 9l6 6 6-6" />
@@ -431,7 +432,6 @@ function StepSelectClasses({ classSections, classLoading, selectedSections, onTo
                                 {cs.section ? `Section ${cs.section}` : "Main Section"}
                               </span>
                               <span style={{ ...F, fontSize: 11, color: C.light, marginLeft: "auto" }}>
-                                {/* subject count if available */}
                               </span>
                             </div>
                           );
@@ -447,11 +447,11 @@ function StepSelectClasses({ classSections, classLoading, selectedSections, onTo
       </div>
 
       {/* Right panel */}
-      <div style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="ae-side-panel" style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
         {/* Selected count */}
         <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, padding: "16px 18px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 9, background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Users size={15} color={C.green} />
             </div>
             <div>
@@ -477,7 +477,7 @@ function StepSelectClasses({ classSections, classLoading, selectedSections, onTo
 
         {/* CTA */}
         {selectedCount > 0 && (
-          <div style={{ background: "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)", borderRadius: 16, padding: "18px 18px" }}>
+          <div style={{ background: `linear-gradient(135deg, ${C.navy}, ${C.dark})`, borderRadius: 16, padding: "18px 18px" }}>
             <div style={{ ...F, fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Ready to Build Schedule</div>
             <div style={{ ...F, fontSize: 11, color: "rgba(255,255,255,0.75)", marginBottom: 14 }}>
               {selectedCount} section{selectedCount !== 1 ? "s" : ""} · assign subjects & times
@@ -507,16 +507,16 @@ function MarksPresetManager({ presets, onPresetsChange }) {
 
   return (
     <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden", marginBottom: 4 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: `1px solid ${C.border}`, background: "#fafafa" }}>
+      <div className="ae-card-header-inner" style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: `1px solid ${C.border}`, background: "#fafafa", flexWrap: "wrap" }}>
         <div style={{ width: 32, height: 32, borderRadius: 9, background: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Settings size={15} color="#f97316" />
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>Marks Presets</div>
           <div style={{ ...F, fontSize: 11, color: C.mid }}>Create mark templates — select one per exam to auto-fill marks</div>
         </div>
         <button type="button" onClick={addPreset}
-          style={{ ...F, border: `1.5px solid #fed7aa`, background: "#fff7ed", color: "#f97316", cursor: "pointer", borderRadius: 9, padding: "6px 14px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}
+          style={{ ...F, border: `1.5px solid #fed7aa`, background: "#fff7ed", color: "#f97316", cursor: "pointer", borderRadius: 9, padding: "6px 14px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}
           onMouseEnter={e => e.currentTarget.style.background = "#ffedd5"}
           onMouseLeave={e => e.currentTarget.style.background = "#fff7ed"}>
           <Plus size={12} /> Add Preset
@@ -530,8 +530,8 @@ function MarksPresetManager({ presets, onPresetsChange }) {
       ) : (
         <div style={{ padding: "12px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
           {presets.map((p, i) => (
-            <div key={p.id} style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr auto", gap: 10, alignItems: "end", background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
-              <div style={{ ...F, fontSize: 10, fontWeight: 700, color: C.light, textTransform: "uppercase", letterSpacing: "0.06em", paddingBottom: 12 }}>#{i + 1}</div>
+            <div key={p.id} className="ae-preset-row" style={{ display: "grid", gap: 10, alignItems: "end", background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+              <div className="ae-preset-num" style={{ ...F, fontSize: 10, fontWeight: 700, color: C.light, textTransform: "uppercase", letterSpacing: "0.06em", paddingBottom: 12 }}>#{i + 1}</div>
               <FieldWrap>
                 <Label>Max Marks</Label>
                 <InputBase type="number" value={p.maxMarks} onChange={v => updatePreset(p.id, "maxMarks", v)} placeholder="100" />
@@ -541,6 +541,7 @@ function MarksPresetManager({ presets, onPresetsChange }) {
                 <InputBase type="number" value={p.passingMarks} onChange={v => updatePreset(p.id, "passingMarks", v)} placeholder="35" />
               </FieldWrap>
               <button type="button" onClick={() => removePreset(p.id)}
+                className="ae-preset-del"
                 style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#fef2f2", border: "none", cursor: "pointer", color: "#ef4444", marginBottom: 2 }}
                 onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
                 onMouseLeave={e => e.currentTarget.style.background = "#fef2f2"}>
@@ -565,9 +566,7 @@ function StepBuildSchedule({
   const [marksPresets, setMarksPresets] = useState([]);
 
   /* ── Track which sections have been "copied from" a source section (same timetable) ── */
-  // copiedSections: Set of csId that were auto-populated from another section
   const [copiedSections, setCopiedSections] = useState({});
-  // dismissed banners: Set of csId where banner was dismissed
   const [dismissedBanners, setDismissedBanners] = useState({});
 
   /* ── Generate date options from Step 1 range ── */
@@ -577,7 +576,6 @@ function StepBuildSchedule({
     const cur = new Date(timingData.fromDate + "T00:00:00");
     const end = new Date(timingData.toDate + "T00:00:00");
     while (cur <= end) {
-      // Build ISO string from local date parts to avoid timezone shift
       const y = cur.getFullYear();
       const m = String(cur.getMonth() + 1).padStart(2, "0");
       const d = String(cur.getDate()).padStart(2, "0");
@@ -605,7 +603,6 @@ function StepBuildSchedule({
   const copyTimetableTo = (sourceCs, targetCs) => {
     const sourceSlots = schedules.filter(s => s.classSectionId === sourceCs.id && !s._saved);
     if (sourceSlots.length === 0) return;
-    // Remove existing unsaved slots for target
     setSched(p => {
       const filtered = p.filter(s => s.classSectionId !== targetCs.id || s._saved);
       const copies = sourceSlots.map(s => ({
@@ -624,7 +621,6 @@ function StepBuildSchedule({
 
   /* ── Render per-grade group with same-timetable prompt ── */
   const renderGradeGroup = (grade, sections) => {
-    // The "source" section for this grade = the first one with slots, or the first one overall
     const sourceCs = sections.find(cs => schedules.filter(s => s.classSectionId === cs.id).length > 0) || sections[0];
     const sourceHasSlots = schedules.filter(s => s.classSectionId === sourceCs.id).length > 0;
 
@@ -634,27 +630,25 @@ function StepBuildSchedule({
       const isCopied = !!copiedSections[cs.id];
       const isDismissed = !!dismissedBanners[cs.id];
 
-      // Show "same timetable?" banner for non-source sections of the same grade
-      // only when: source has slots, this section has 0 slots, not dismissed, grade has >1 section
       const showCopyBanner = !isSource && sections.length > 1 && sourceHasSlots
         && sectionSchedules.length === 0 && !isDismissed && !isCopied;
 
       return (
         <div key={cs.id} style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
           {/* Section header */}
-          <div style={{ background: "linear-gradient(135deg, #1e2d3d 0%, #2d4a6e 100%)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ background: "linear-gradient(135deg, #1e2d3d 0%, #2d4a6e 100%)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
             <div>
               <div style={{ ...F, fontSize: 15, fontWeight: 700, color: "#fff" }}>
                 Grade {cs.grade}{cs.section ? ` — Section ${cs.section}` : ""}
               </div>
               {timingData.fromDate && timingData.toDate && (
-                <div style={{ ...F, fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
+                <div className="ae-hide-mobile" style={{ ...F, fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3 }}>
                   {sectionSchedules.length} slot{sectionSchedules.length !== 1 ? "s" : ""} · {timingData.fromDate} → {timingData.toDate}
                 </div>
               )}
             </div>
             {isCopied && (
-              <span style={{ ...F, fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: "rgba(16,185,129,0.2)", color: "#6ee7b7" }}>
+              <span style={{ ...F, fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: "rgba(16,185,129,0.2)", color: "#6ee7b7", whiteSpace: "nowrap" }}>
                 ✓ Copied from {sourceCs.section ? `Section ${sourceCs.section}` : "Section A"}
               </span>
             )}
@@ -662,27 +656,27 @@ function StepBuildSchedule({
 
           {/* ── Same timetable banner ── */}
           {showCopyBanner && (
-            <div style={{ margin: "12px 16px 0", padding: "12px 16px", borderRadius: 12, background: "#eff6ff", border: `1.5px solid #bfdbfe`, display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="ae-copy-banner" style={{ margin: "12px 16px 0", padding: "12px 16px", borderRadius: 12, background: "#eff6ff", border: `1.5px solid #bfdbfe`, display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 32, height: 32, borderRadius: 9, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Layers size={15} color={C.accent} />
               </div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>Same timetable as Section {sourceCs.section || "A"}?</div>
                 <div style={{ ...F, fontSize: 11, color: C.mid, marginTop: 2 }}>
                   Copy the {schedules.filter(s => s.classSectionId === sourceCs.id).length} exam slot(s) from Section {sourceCs.section || "A"} to this section.
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <div className="ae-copy-banner-btns" style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                 <button type="button"
                   onClick={() => copyTimetableTo(sourceCs, cs)}
-                  style={{ ...F, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", cursor: "pointer" }}
+                  style={{ ...F, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}
                   onMouseEnter={e => e.currentTarget.style.background = C.accentDark}
                   onMouseLeave={e => e.currentTarget.style.background = C.accent}>
                   Yes, Copy
                 </button>
                 <button type="button"
                   onClick={() => setDismissedBanners(p => ({ ...p, [cs.id]: true }))}
-                  style={{ ...F, fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 9, border: `1.5px solid ${C.border}`, background: "#fff", color: C.mid, cursor: "pointer" }}>
+                  style={{ ...F, fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 9, border: `1.5px solid ${C.border}`, background: "#fff", color: C.mid, cursor: "pointer", whiteSpace: "nowrap" }}>
                   No, Individual
                 </button>
               </div>
@@ -698,7 +692,6 @@ function StepBuildSchedule({
             ) : (
               <>
                 {schedules.filter(s => s.classSectionId === cs.id).map((sc, idx) => {
-                  // Subjects already used in OTHER slots for this same section
                   const usedSubjectIds = new Set(
                     schedules
                       .filter(s => s.classSectionId === cs.id && s._key !== sc._key && s.subjectId)
@@ -740,7 +733,7 @@ function StepBuildSchedule({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: "28px 32px" }}>
+    <div className="ae-step-padding" style={{ display: "flex", flexDirection: "column", gap: 20, padding: "28px 32px" }}>
       <div>
         <h2 style={{ ...F, fontSize: 22, fontWeight: 700, color: C.dark, margin: 0 }}>Build Exam Schedule</h2>
         <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 0 }}>Assign subjects and time slots for each exam date.</p>
@@ -771,13 +764,11 @@ function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, prefil
   const subsLoading = allSubjects === null;
   const dateInfo = fmtDate(sc.examDate);
 
-  /* Filter out subjects already used in other slots of the same section */
   const availableSubjects = useMemo(() => {
     if (!Array.isArray(allSubjects)) return [];
     return allSubjects.filter(s => !usedSubjectIds.has(s.id) || s.id === sc.subjectId);
   }, [allSubjects, usedSubjectIds, sc.subjectId]);
 
-  /* When slot is selected, auto-fill start/end time */
   const handleSlotSelect = (slotKey) => {
     const slot = timeSlots.find(s => String(s._key) === String(slotKey));
     onChange("slotKey", slotKey);
@@ -787,7 +778,6 @@ function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, prefil
     }
   };
 
-  /* When marks preset is selected, auto-fill max/passing marks */
   const handlePresetSelect = (presetId) => {
     onChange("markPresetId", presetId);
     const preset = marksPresets.find(p => String(p.id) === String(presetId));
@@ -800,7 +790,7 @@ function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, prefil
   return (
     <div style={{ border: `1.5px solid ${sc._saved ? "#bbf7d0" : C.border}`, borderRadius: 14, overflow: "hidden", background: "#fafcff" }}>
       {/* Date header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: sc._saved ? "#f0fdf4" : "#f8fafc", borderBottom: `1px solid ${sc._saved ? "#bbf7d0" : C.border}` }}>
+      <div className="ae-card-date-header" style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: sc._saved ? "#f0fdf4" : "#f8fafc", borderBottom: `1px solid ${sc._saved ? "#bbf7d0" : C.border}` }}>
         <div style={{
           width: 46, height: 46, borderRadius: 12, background: sc._saved ? C.green : C.accent,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0,
@@ -808,7 +798,7 @@ function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, prefil
           <span style={{ ...F, fontSize: 18, fontWeight: 800, color: "#fff", lineHeight: 1 }}>{sc.examDate ? dateInfo.dateNum : idx + 1}</span>
           <span style={{ ...F, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.8)", textTransform: "uppercase" }}>{sc.examDate ? dateInfo.month : "NEW"}</span>
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>
             {sc.examDate ? dateInfo.full : `Exam Slot ${idx + 1}`}
           </div>
@@ -820,7 +810,7 @@ function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, prefil
         </div>
         {!sc._saved && (
           <button onClick={onRemove}
-            style={{ width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#fef2f2", border: "none", cursor: "pointer", color: "#ef4444" }}
+            style={{ width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#fef2f2", border: "none", cursor: "pointer", color: "#ef4444", flexShrink: 0 }}
             onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
             onMouseLeave={e => e.currentTarget.style.background = "#fef2f2"}>
             <Trash2 size={12} />
@@ -832,7 +822,7 @@ function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, prefil
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
 
         {/* Row 1: Exam Date + Time Slot */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="ae-grid-2" style={{ display: "grid", gap: 12 }}>
           <FieldWrap error={err("examDate")}>
             <Label required>Exam Date</Label>
             {examDateOptions.length > 0 ? (
@@ -857,7 +847,7 @@ function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, prefil
                 ))}
               </SelectBase>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div className="ae-grid-2" style={{ display: "grid", gap: 8 }}>
                 <InputBase type="time" value={sc.startTime} onChange={v => onChange("startTime", v)} disabled={sc._saved} />
                 <InputBase type="time" value={sc.endTime} onChange={v => onChange("endTime", v)} disabled={sc._saved} />
               </div>
@@ -867,7 +857,7 @@ function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, prefil
 
         {/* Row 2: Marks Preset + Max + Pass */}
         <div style={{ background: "#f0f9ff", borderRadius: 10, padding: "10px 14px", border: `1px solid #bae6fd` }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "end" }}>
+          <div className="ae-marks-row" style={{ display: "grid", gap: 10, alignItems: "end" }}>
             <FieldWrap>
               <Label>Marks Preset</Label>
               <SelectBase value={sc.markPresetId || ""} onChange={handlePresetSelect} disabled={sc._saved}>
@@ -888,9 +878,9 @@ function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, prefil
           </div>
         </div>
 
-        {/* Row 3: Subject — already-used subjects filtered out */}
-        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 12, alignItems: "end", background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
-          <div style={{ ...F, fontSize: 10, fontWeight: 700, color: C.light, textTransform: "uppercase", letterSpacing: "0.06em", paddingBottom: 2, whiteSpace: "nowrap" }}>EXAM {idx + 1}</div>
+        {/* Row 3: Subject */}
+        <div className="ae-subject-row" style={{ display: "grid", gap: 12, alignItems: "end", background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+          <div className="ae-subject-label" style={{ ...F, fontSize: 10, fontWeight: 700, color: C.light, textTransform: "uppercase", letterSpacing: "0.06em", paddingBottom: 2, whiteSpace: "nowrap" }}>EXAM {idx + 1}</div>
           <FieldWrap error={err("subjectId")}>
             <Label required>Subject</Label>
             <SelectBase value={sc.subjectId} onChange={v => onChange("subjectId", v)} disabled={sc._saved} loading={subsLoading} error={err("subjectId")}>
@@ -919,14 +909,14 @@ function StepReview({ timingData, selectedSections, classSections, schedules, ac
   const newSchedules = schedules.filter(s => !s._saved);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: "28px 32px" }}>
+    <div className="ae-step-padding" style={{ display: "flex", flexDirection: "column", gap: 20, padding: "28px 32px" }}>
       <div>
         <h2 style={{ ...F, fontSize: 22, fontWeight: 700, color: C.dark, margin: 0 }}>Review & Save</h2>
         <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 0 }}>Confirm everything before publishing the exam schedule.</p>
       </div>
 
       {/* Summary cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="ae-review-grid" style={{ display: "grid", gap: 16 }}>
         <div style={{ background: "#fff", borderRadius: 14, border: `1.5px solid ${C.border}`, padding: "16px 18px" }}>
           <div style={{ ...F, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.light, marginBottom: 6 }}>Assessment Name</div>
           <div style={{ ...F, fontSize: 15, fontWeight: 700, color: C.dark }}>{timingData.name || "—"}</div>
@@ -962,9 +952,9 @@ function StepReview({ timingData, selectedSections, classSections, schedules, ac
             {newSchedules.map((sc, i) => {
               const cs = classSections.find(c => c.id === sc.classSectionId);
               return (
-                <div key={sc._key} style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr 1fr", gap: 14, padding: "11px 20px", borderBottom: i < newSchedules.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "center" }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 8, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", ...F, fontSize: 11, fontWeight: 700, color: C.accent }}>{i + 1}</div>
-                  <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.dark }}>
+                <div key={sc._key} className="ae-sched-list-row" style={{ display: "grid", gap: 14, padding: "11px 20px", borderBottom: i < newSchedules.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "center" }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", ...F, fontSize: 11, fontWeight: 700, color: C.accent, flexShrink: 0 }}>{i + 1}</div>
+                  <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.dark, minWidth: 0 }}>
                     Grade {sc.grade || cs?.grade}{sc.classSectionId && cs?.section ? ` - ${cs.section}` : ""}
                   </div>
                   <div style={{ ...F, fontSize: 12, color: C.mid }}>{sc.examDate || "—"}</div>
@@ -1049,14 +1039,13 @@ export default function AddExamsModal({
     setLoadSched(true);
     fetchSchedules(group.id)
       .then(list => {
-        // ✅ Fix: parse plain "HH:MM:SS" time strings directly (no new Date())
         const toHHMM = (t) => t ? String(t).substring(0, 5) : "";
 
         const loaded = list.map(sc => ({
           _key: sc.id,
-          _saved: false,   // ✅ Fix: set false so all fields are editable
-          _savedId: sc.id, // keep id for delete/update operations
-          _isExisting: true, // track that this is an existing record
+          _saved: false,
+          _savedId: sc.id,
+          _isExisting: true,
           grade: sc.classSection?.grade || "",
           classSectionId: sc.classSectionId || "",
           subjectId: sc.subjectId || "",
@@ -1072,13 +1061,11 @@ export default function AddExamsModal({
         const csIds = [...new Set(loaded.map(s => s.classSectionId).filter(Boolean))];
         setSelectedSections(csIds);
 
-        // ✅ Fix: derive fromDate, toDate, timeSlots from loaded schedules
         if (loaded.length > 0) {
           const dates = loaded.map(s => s.examDate).filter(Boolean).sort();
           const fromDate = dates[0] || "";
           const toDate   = dates[dates.length - 1] || "";
 
-          // Build unique time slots from the loaded schedules
           const slotMap = new Map();
           loaded.forEach(s => {
             if (s.startTime && s.endTime) {
@@ -1158,7 +1145,6 @@ export default function AddExamsModal({
     fetchSubjectsFor(cid);
   };
   const removeSched = async sc => {
-    // ✅ Use _isExisting (not _saved) since we set _saved=false for editability
     if (sc._isExisting && sc._savedId) {
       if (!window.confirm("Remove this schedule from the server?")) return;
       try { await deleteSchedule(sc._savedId); } catch (e) { alert(e.message); return; }
@@ -1225,7 +1211,6 @@ export default function AddExamsModal({
       if (isEdit && gId) { await updateGroup(gId, payload); }
       else { const r = await createGroup(payload); gId = r.id; setGroupId(gId); }
 
-      // Normalize time to valid "HH:MM"
       const normalizeTime = (t) => {
         if (!t || typeof t !== "string") return "00:00";
         const clean = t.trim().substring(0, 5);
@@ -1246,11 +1231,9 @@ export default function AddExamsModal({
         };
 
         if (sc._isExisting && sc._savedId) {
-          // Existing schedule — delete old and recreate with updated data
           await deleteSchedule(sc._savedId);
           await createSchedule(scheduleData);
         } else {
-          // Brand new schedule
           await createSchedule(scheduleData);
         }
       }
@@ -1271,37 +1254,251 @@ export default function AddExamsModal({
         @keyframes ae-spin { to { transform:rotate(360deg) } }
         .ae-scroll::-webkit-scrollbar { width:4px }
         .ae-scroll::-webkit-scrollbar-thumb { background:#e2e8f0; border-radius:8px }
+
+        /* ══════════ MODAL ══════════ */
+        .ae-modal {
+          width: min(98vw, 920px);
+          max-width: 96vw;
+          max-height: 94vh;
+          border-radius: 24px;
+        }
+        @media (max-width: 640px) {
+          .ae-modal {
+            width: 100vw !important;
+            max-width: 100vw !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            border-radius: 0 !important;
+            top: 0 !important;
+            left: 0 !important;
+            transform: none !important;
+            animation: mobileIn .2s ease !important;
+          }
+          @keyframes mobileIn { from{opacity:0} to{opacity:1} }
+        }
+        @media (min-width: 641px) and (max-width: 1024px) {
+          .ae-modal {
+            width: 96vw !important;
+            max-width: 96vw !important;
+            max-height: 96vh !important;
+          }
+        }
+
+        /* ══════════ STEPPER ══════════ */
+        .ae-stepper-wrap {
+          padding: 18px 32px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .ae-stepper-wrap::-webkit-scrollbar { display: none; }
+        .ae-step-item { min-width: 120px; }
+        .ae-step-connector { max-width: 60px; }
+        @media (max-width: 640px) {
+          .ae-stepper-wrap {
+            padding: 14px 12px;
+            justify-content: flex-start !important;
+          }
+          .ae-step-item { min-width: 72px; }
+          .ae-step-label { font-size: 10px !important; letter-spacing: -0.01em; }
+          .ae-step-sub { display: none !important; }
+          .ae-step-connector { max-width: 24px; margin: 0 2px !important; }
+        }
+        @media (min-width: 641px) and (max-width: 860px) {
+          .ae-step-item { min-width: 100px; }
+          .ae-step-sub { font-size: 9px !important; }
+          .ae-step-connector { max-width: 36px; }
+        }
+
+        /* ══════════ STEP PADDING ══════════ */
+        .ae-step-padding { padding: 28px 32px; }
+        @media (max-width: 640px) {
+          .ae-step-padding { padding: 20px 14px; }
+        }
+        @media (min-width: 641px) and (max-width: 1024px) {
+          .ae-step-padding { padding: 24px 20px; }
+        }
+
+        /* ══════════ GRIDS ══════════ */
+        .ae-grid-2 { grid-template-columns: 1fr 1fr; }
+        @media (max-width: 640px) {
+          .ae-grid-2 { grid-template-columns: 1fr !important; }
+        }
+
+        .ae-slot-row { grid-template-columns: 1fr 1fr 1fr auto; }
+        @media (max-width: 640px) {
+          .ae-slot-row { grid-template-columns: 1fr 1fr !important; }
+          .ae-slot-del {
+            grid-column: 1 / -1 !important;
+            width: 100% !important;
+            justify-content: center;
+          }
+        }
+
+        .ae-marks-row { grid-template-columns: 1fr auto auto; }
+        @media (max-width: 640px) {
+          .ae-marks-row { grid-template-columns: 1fr !important; }
+        }
+
+        .ae-preset-row { grid-template-columns: auto 1fr 1fr auto; }
+        @media (max-width: 640px) {
+          .ae-preset-row { grid-template-columns: 1fr 1fr !important; }
+          .ae-preset-num { display: none !important; }
+          .ae-preset-del {
+            grid-column: 1 / -1 !important;
+            width: 100% !important;
+            justify-content: center;
+          }
+        }
+
+        .ae-subject-row { grid-template-columns: auto 1fr; }
+        @media (max-width: 640px) {
+          .ae-subject-row { grid-template-columns: 1fr !important; }
+          .ae-subject-label { display: none !important; }
+        }
+
+        .ae-review-grid { grid-template-columns: 1fr 1fr; }
+        @media (max-width: 640px) {
+          .ae-review-grid { grid-template-columns: 1fr !important; }
+        }
+
+        .ae-sched-list-row { grid-template-columns: auto 1fr 1fr 1fr; }
+        @media (max-width: 640px) {
+          .ae-sched-list-row { grid-template-columns: auto 1fr !important; gap: 6px !important; }
+        }
+
+        /* ══════════ FLEX LAYOUT ══════════ */
+        .ae-flex-row { display: flex; gap: 24px; align-items: flex-start; }
+        @media (max-width: 640px) {
+          .ae-flex-row { flex-direction: column !important; gap: 16px !important; }
+          .ae-side-panel { width: 100% !important; }
+        }
+
+        /* ══════════ COPY BANNER ══════════ */
+        .ae-copy-banner { flex-direction: row; }
+        @media (max-width: 580px) {
+          .ae-copy-banner { flex-direction: column !important; align-items: flex-start !important; }
+          .ae-copy-banner-btns { width: 100%; justify-content: flex-end; margin-top: 4px; }
+        }
+
+        /* ══════════ CARD HEADER ══════════ */
+        @media (max-width: 480px) {
+          .ae-card-header-inner { flex-wrap: wrap; gap: 8px !important; }
+        }
+
+        /* ══════════ DATE HEADER IN EXAM CARD ══════════ */
+        @media (max-width: 400px) {
+          .ae-card-date-header { gap: 10px !important; }
+          .ae-card-date-header > div:first-child { width: 38px !important; height: 38px !important; }
+          .ae-card-date-header > div:first-child span:first-child { font-size: 15px !important; }
+        }
+
+        /* ══════════ HIDE ON MOBILE ══════════ */
+        @media (max-width: 640px) {
+          .ae-hide-mobile { display: none !important; }
+        }
+
+        /* ══════════ FOOTER ══════════ */
+        .ae-footer { padding: 0 32px 20px; }
+        @media (max-width: 640px) {
+          .ae-footer { padding: 0 14px 14px; }
+        }
+        .ae-footer-inner { display: flex; align-items: center; justify-content: space-between; }
+        @media (max-width: 640px) {
+          .ae-footer-inner {
+            flex-direction: column !important;
+            gap: 10px !important;
+            align-items: stretch !important;
+          }
+          .ae-footer-step-label { text-align: center; }
+        }
+        .ae-footer-btns { display: flex; gap: 10px; }
+        @media (max-width: 640px) {
+          .ae-footer-btns {
+            flex-wrap: wrap;
+            gap: 8px !important;
+          }
+          .ae-footer-btns button {
+            flex: 1 1 0;
+            min-width: 0;
+            justify-content: center;
+            padding: 10px 12px !important;
+            font-size: 12px !important;
+          }
+        }
+
+        /* ══════════ HEADER ══════════ */
+        .ae-modal-header { padding: 14px 24px; }
+        @media (max-width: 640px) {
+          .ae-modal-header { padding: 12px 16px; }
+        }
+
+        /* ══════════ API ERROR ══════════ */
+        .ae-api-error { margin: 12px 24px 0; }
+        @media (max-width: 640px) {
+          .ae-api-error { margin: 10px 14px 0; }
+        }
+
+        /* ══════════ INNER CARD PADDING ══════════ */
+        @media (max-width: 640px) {
+          .ae-card-inner-pad { padding: 14px 14px !important; }
+        }
+
+        /* ══════════ SCHEDULE SECTION PAD ══════════ */
+        @media (max-width: 640px) {
+          .ae-sched-section-pad { padding: 14px 14px !important; }
+        }
+
+        /* ══════════ SECTION HEADER MOBILE ══════════ */
+        @media (max-width: 640px) {
+          .ae-section-header { padding: 12px 14px !important; }
+        }
+
+        /* ══════════ PRESET HEADER MOBILE ══════════ */
+        @media (max-width: 640px) {
+          .ae-preset-header { padding: 12px 14px !important; }
+          .ae-preset-body { padding: 10px 14px !important; }
+        }
+
+        /* ══════════ REVIEW LIST HEADER ══════════ */
+        @media (max-width: 640px) {
+          .ae-review-list-header { padding: 12px 14px !important; }
+          .ae-review-list-row { padding: 10px 14px !important; }
+        }
+
+        /* ══════════ STEP HEADING ══════════ */
+        @media (max-width: 640px) {
+          .ae-step-heading { font-size: 18px !important; }
+        }
       `}</style>
 
       {/* Backdrop */}
       <div style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(6px)" }} />
 
       {/* Modal */}
-      <div style={{
+      <div className="ae-modal" style={{
         position: "fixed", zIndex: 50, top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-        width: "min(98vw, 920px)", maxWidth: "96vw", maxHeight: "94vh",
-        background: C.bg, borderRadius: 24, display: "flex", flexDirection: "column", overflow: "hidden",
+        background: C.bg, display: "flex", flexDirection: "column", overflow: "hidden",
         boxShadow: "0 32px 80px rgba(15,23,42,0.25), 0 4px 16px rgba(15,23,42,0.1)",
         animation: "modalIn 0.22s ease", ...F,
       }}>
 
         {/* ── Header bar ── */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", background: C.navy, flexShrink: 0 }}>
+        <div className="ae-modal-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: `linear-gradient(135deg, ${C.navy}, ${C.dark})`, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 12, background: "rgba(59,130,246,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: "rgba(59,130,246,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <ClipboardList size={18} color="#93c5fd" />
             </div>
             <div>
               <div style={{ ...F, fontSize: 15, fontWeight: 700, color: "#fff" }}>
                 {isEdit ? "Edit Assessment" : "Exam Setup"}
               </div>
-              <div style={{ ...F, fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
+              <div className="ae-hide-mobile" style={{ ...F, fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
                 {academicYearLabel || "New Exam Configuration"}
               </div>
             </div>
           </div>
           <button onClick={onClose}
-            style={{ background: "rgba(255,255,255,0.08)", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.6)", padding: 8, borderRadius: 9, display: "flex" }}
+            style={{ background: "rgba(255,255,255,0.08)", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.6)", padding: 8, borderRadius: 9, display: "flex", flexShrink: 0 }}
             onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
             onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}>
             <X size={16} />
@@ -1313,13 +1510,13 @@ export default function AddExamsModal({
 
         {/* ── API Error ── */}
         {apiError && (
-          <div style={{ margin: "12px 24px 0", padding: "11px 14px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", color: C.red, fontSize: 13, ...F, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <div className="ae-api-error" style={{ padding: "11px 14px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", color: C.red, fontSize: 13, ...F, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             <AlertCircle size={14} style={{ flexShrink: 0 }} />{apiError}
           </div>
         )}
 
         {/* ── Body ── */}
-        <div className="ae-scroll" style={{ flex: 1, overflowY: "auto" }}>
+        <div className="ae-scroll" style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           {currentStep === 1 && (
             <StepConfigureTimings
               data={timingData}
@@ -1369,14 +1566,14 @@ export default function AddExamsModal({
         </div>
 
         {/* ── Footer ── */}
-        <div style={{ padding: "0 32px 20px", flexShrink: 0, background: C.bg }}>
+        <div className="ae-footer" style={{ flexShrink: 0, background: C.bg }}>
           {/* Progress bar */}
           <div style={{ height: 3, background: C.border, borderRadius: 99, marginBottom: 16, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${progressPct}%`, background: "linear-gradient(90deg, #3b82f6, #1d4ed8)", borderRadius: 99, transition: "width .3s ease" }} />
+            <div style={{ height: "100%", width: `${progressPct}%`, background: `linear-gradient(90deg, ${C.navy}, ${C.dark})`, borderRadius: 99, transition: "width .3s ease" }} />
           </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ ...F, fontSize: 12, color: C.light }}>Step {currentStep} of 4</div>
-            <div style={{ display: "flex", gap: 10 }}>
+          <div className="ae-footer-inner">
+            <div className="ae-footer-step-label" style={{ ...F, fontSize: 12, color: C.light }}>Step {currentStep} of 4</div>
+            <div className="ae-footer-btns" style={{ display: "flex", gap: 10 }}>
               {currentStep > 1 && (
                 <button onClick={goBack}
                   style={{ ...F, border: `1.5px solid ${C.border}`, borderRadius: 11, padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: "#fff", color: C.mid, display: "flex", alignItems: "center", gap: 6 }}>
@@ -1389,7 +1586,7 @@ export default function AddExamsModal({
               </button>
               {currentStep < 4 ? (
                 <button onClick={goNext}
-                  style={{ ...F, border: "none", borderRadius: 11, padding: "9px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)", color: "#fff", display: "flex", alignItems: "center", gap: 6, boxShadow: "0 4px 14px rgba(59,130,246,0.3)" }}>
+                  style={{ ...F, border: "none", borderRadius: 11, padding: "9px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: `linear-gradient(135deg, ${C.navy}, ${C.dark})`, color: "#fff", display: "flex", alignItems: "center", gap: 6, boxShadow: "0 4px 14px rgba(56,73,89,0.3)" }}>
                   {currentStep === 2 ? "Build Schedule" : "Next"}
                   <ChevronRight size={15} />
                 </button>

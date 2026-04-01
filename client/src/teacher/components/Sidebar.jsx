@@ -13,18 +13,20 @@ import {
   CalendarDays,
   Medal,
   BookOpenCheck,
+  Award
 } from "lucide-react";
 
 const NAV = [
   { icon: Home,        label: "Dashboard",     to: "/teacher/dashboard" },
+  { icon: CalendarDays,label: "Time Table",     to: "/teacher/timetable" },
   { icon: User,        label: "Attendance",     to: "/teacher/attendance" },
+  { icon: Video,       label: "Online Classes", to: "/teacher/online-classes" },
   { icon: BookOpen,    label: "Curriculum",     to: "/teacher/curriculum" },
   { icon: BookOpenCheck, label: "Assignments", to: "/teacher/assignments" },
+   { icon: Award,        label: "Results",        to: "/teacher/results" },
   { icon: Medal,       label: "Certificates", to: "/teacher/certificates" },
   { icon: Zap,         label: "Activities",     to: "/teacher/activities" },
   { icon: Trophy,      label: "Awards",         to: "/teacher/awards" },
-  { icon: Video,       label: "Online Classes", to: "/teacher/online-classes" },
-  { icon: CalendarDays,label: "Time Table",     to: "/teacher/timetable" },
 ];
 
 const initials = (name = "AU") =>

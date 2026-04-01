@@ -27,7 +27,7 @@ function TeacherRoutes() {
         <Route path="awards"         element={<AwardsPage />} />
         <Route path="online-classes" element={<OnlineClassesPage />} />
         <Route path="timetable"      element={<TimetablePage />} />
-        <Route path="result"      element={<Result />} />
+        <Route path="results"        element={<Result />} />
         <Route path="certificates" element={<CertificatesUploadPage />} />
         <Route path="assignments" element={<AssignmentsPage />} />
         <Route path="*"              element={<Navigate to="dashboard" replace />} />

@@ -548,3 +548,189 @@ export async function getTeacherDocumentUrl(req, res) {
     res.status(500).json({ error: "Failed to generate document URL" });
   }
 }
+// ── POST /api/teachers/bulk-import ────────────────────────────
+// Add this function to teacherController.js
+// IMPORTANT: In teachersRoutes.js, register this route BEFORE /:id routes:
+//   router.post("/bulk-import", authMiddleware, bulkImportTeachers);
+
+export async function bulkImportTeachers(req, res) {
+  try {
+    const { teachers } = req.body;
+    const schoolId = req.user?.schoolId;
+
+    console.log("[bulkImportTeachers] schoolId:", schoolId);
+    console.log("[bulkImportTeachers] teachers count:", teachers?.length);
+
+    if (!schoolId)
+      return res.status(400).json({ error: "schoolId missing from token" });
+
+    if (!Array.isArray(teachers) || teachers.length === 0)
+      return res.status(400).json({ error: "No teachers provided" });
+
+    const results = [];
+
+    for (let i = 0; i < teachers.length; i++) {
+      const t = teachers[i];
+      console.log(`[bulkImportTeachers] Processing row ${i + 1}:`, {
+        email: t.email,
+        firstName: t.firstName,
+        lastName: t.lastName,
+        department: t.department,
+        joiningDate: t.joiningDate,
+        employmentType: t.employmentType,
+      });
+
+      try {
+        // ── Defensive parsing ──────────────────────────────────────────────
+
+        // Parse joining date — fallback to today if missing/invalid
+        let joiningDate = new Date();
+        if (t.joiningDate) {
+          // Handle DD-MM-YYYY format from Excel template
+          const ddmmyyyy = t.joiningDate.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+          if (ddmmyyyy) {
+            joiningDate = new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(2,"0")}-${ddmmyyyy[1].padStart(2,"0")}`);
+          } else {
+            const parsed = new Date(t.joiningDate);
+            if (!isNaN(parsed.getTime())) joiningDate = parsed;
+          }
+        }
+
+        // Parse date of birth
+        let dateOfBirth = null;
+        if (t.dateOfBirth) {
+          const ddmmyyyy = t.dateOfBirth.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+          if (ddmmyyyy) {
+            dateOfBirth = new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(2,"0")}-${ddmmyyyy[1].padStart(2,"0")}`);
+          } else {
+            const parsed = new Date(t.dateOfBirth);
+            if (!isNaN(parsed.getTime())) dateOfBirth = parsed;
+          }
+        }
+
+        // Normalize employment type to DB enum
+        const normalizeEmploymentType = (v) => {
+          if (!v) return "FULL_TIME";
+          const map = {
+            "full time": "FULL_TIME",
+            "fulltime": "FULL_TIME",
+            "full_time": "FULL_TIME",
+            "part time": "PART_TIME",
+            "parttime": "PART_TIME",
+            "part_time": "PART_TIME",
+            "contract": "CONTRACT",
+            "temporary": "TEMPORARY",
+            "temp": "TEMPORARY",
+          };
+          const lower = v.toString().toLowerCase().trim();
+          return map[lower] || "FULL_TIME";
+        };
+
+        // Normalize status to DB enum
+        const normalizeStatus = (v) => {
+          if (!v) return "ACTIVE";
+          const map = {
+            "active": "ACTIVE",
+            "on leave": "ON_LEAVE",
+            "on_leave": "ON_LEAVE",
+            "resigned": "RESIGNED",
+            "terminated": "TERMINATED",
+          };
+          return map[v.toString().toLowerCase().trim()] || "ACTIVE";
+        };
+
+        // Normalize gender
+        const normalizeGender = (v) => {
+          if (!v) return null;
+          const u = v.toString().toUpperCase().trim();
+          if (u === "M" || u === "MALE") return "MALE";
+          if (u === "F" || u === "FEMALE") return "FEMALE";
+          if (u === "OTHER") return "OTHER";
+          return null;
+        };
+
+        // Normalize blood group
+        const normalizeBlood = (v) => {
+          if (!v) return null;
+          const cleaned = v.toString().toUpperCase().trim()
+            .replace(/\+/, "_POS")
+            .replace(/-/, "_NEG")
+            .replace(/\s/g, "");
+          const valid = ["A_POS","A_NEG","B_POS","B_NEG","O_POS","O_NEG","AB_POS","AB_NEG"];
+          return valid.includes(cleaned) ? cleaned : null;
+        };
+
+        const hashedPassword = await bcrypt.hash(t.password, SALT_ROUNDS);
+
+        await prisma.$transaction(async (tx) => {
+          const user = await tx.user.create({
+            data: {
+              name: `${t.firstName} ${t.lastName}`,
+              email: t.email.trim().toLowerCase(),
+              password: hashedPassword,
+              role: "TEACHER",
+              schoolId,
+            },
+          });
+
+          await tx.teacherProfile.create({
+            data: {
+              userId:           user.id,
+              schoolId,
+              employeeCode:     t.employeeCode?.trim() || null,
+              firstName:        t.firstName.trim(),
+              lastName:         t.lastName.trim(),
+              dateOfBirth,
+              gender:           normalizeGender(t.gender),
+              phone:            t.phone?.trim() || null,
+              address:          t.address?.trim() || null,
+              city:             t.city?.trim() || null,
+              state:            t.state?.trim() || null,
+              zipCode:          t.zipCode?.trim() || null,
+              aadhaarNumber:    t.aadhaarNumber?.trim() || null,
+              panNumber:        t.panNumber?.trim() || null,
+              bloodGroup:       normalizeBlood(t.bloodGroup),
+              emergencyContact: t.emergencyContact?.trim() || null,
+              medicalConditions:t.medicalConditions?.trim() || null,
+              allergies:        t.allergies?.trim() || null,
+              department:       t.department?.trim() || null,
+              designation:      t.designation?.trim() || null,
+              qualification:    t.qualification?.trim() || null,
+              experienceYears:  t.experienceYears ? Number(t.experienceYears) || null : null,
+              joiningDate,
+              employmentType:   normalizeEmploymentType(t.employmentType),
+              status:           normalizeStatus(t.status),
+              salary:           t.salary ? Number(t.salary) || null : null,
+              bankAccountNo:    t.bankAccountNo?.trim() || null,
+              bankName:         t.bankName?.trim() || null,
+              ifscCode:         t.ifscCode?.trim() || null,
+            },
+          });
+        });
+
+        console.log(`[bulkImportTeachers] Row ${i + 1} SUCCESS`);
+        results.push({ row: i + 1, success: true });
+
+      } catch (err) {
+        console.error(`[bulkImportTeachers] Row ${i + 1} FAILED:`, err.message, err.code);
+        const msg =
+          err.code === "P2002"
+            ? "Email or employee code already exists"
+            : err.code === "P2003"
+            ? "Invalid reference (check schoolId or userId)"
+            : err.message || "Failed to create teacher";
+        results.push({ row: i + 1, success: false, error: msg });
+      }
+    }
+
+    await cacheService.invalidateSchool(schoolId);
+
+    const successCount = results.filter((r) => r.success).length;
+    console.log(`[bulkImportTeachers] Done — ${successCount}/${teachers.length} succeeded`);
+
+    res.status(207).json({ results });
+  } catch (err) {
+    console.error("[bulkImportTeachers] Fatal error:", err);
+    res.status(500).json({ error: "Bulk import failed: " + err.message });
+  }
+}

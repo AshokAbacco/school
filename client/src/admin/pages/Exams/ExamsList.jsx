@@ -1,34 +1,54 @@
 // client/src/admin/pages/exams/ExamsList.jsx
-// ── Updated: adds "Results" tab alongside the existing Exams tab ──────────
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ClipboardList, Plus, Search, Eye, Pencil, Trash2,
   Globe, Lock, Calculator, RefreshCw,
   BookOpen, AlertTriangle, X, Loader2, BarChart2,
+  AlertCircle,
 } from "lucide-react";
 import { fetchGroups, deleteGroup, publishGroup, lockGroup } from "./components/examsApi.js";
 import AddExamsModal from "./components/AddExam.jsx";
 import ViewExamsModal from "./components/ViewExams.jsx";
-import ResultsTab from "./components/ResultsTab.jsx";   // ← NEW
+import ResultsTab from "./components/ResultsTab.jsx";
 import { getToken } from "../../../auth/storage.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
-const font = { fontFamily: "Inter, sans-serif" };
+
+/* ── Design tokens (matches OnlineClassesPage) ── */
 const C = {
-  dark: "#384959", mid: "#6A89A7", border: "#BDDDFC",
-  bg: "#F4F9FF", card: "#ffffff", hover: "#EFF6FD",
-  success: "#059669", warn: "#d97706", danger: "#dc2626",
+  slate: "#6A89A7",
+  mist: "#BDDDFC",
+  sky: "#88BDF2",
+  deep: "#384959",
+  deepDark: "#243340",
+  bg: "#EDF3FA",
+  white: "#FFFFFF",
+  border: "#C8DCF0",
+  borderLight: "#DDE9F5",
+  text: "#243340",
+  textLight: "#6A89A7",
+  success: "#059669",
+  danger: "#dc2626",
+  warn: "#d97706",
 };
+const F = { fontFamily: "'Inter', sans-serif" };
+
+/* ── Skeleton pulse ── */
+function Pulse({ w = "100%", h = 13, r = 8 }) {
+  return (
+    <div style={{ width: w, height: h, borderRadius: r, background: `${C.mist}55`, animation: "pulse 1.5s ease-in-out infinite" }} />
+  );
+}
 
 /* ── Status badge ── */
 function StatusBadge({ group }) {
-  if (group.isLocked)    return <Pill label="Completed" color="#059669" bg="#f0fdf4" />;
-  if (group.isPublished) return <Pill label="Pending"   color="#3b82f6" bg="#eff6ff" />;
-  return                        <Pill label="Draft"     color="#d97706" bg="#fffbeb" />;
+  if (group.isLocked)    return <Pill label="Completed" color={C.success} bg="#f0fdf4" />;
+  if (group.isPublished) return <Pill label="Pending"   color="#3b82f6"   bg="#eff6ff" />;
+  return                        <Pill label="Draft"     color={C.warn}    bg="#fffbeb" />;
 }
 function Pill({ label, color, bg }) {
   return (
-    <span style={{ ...font, fontSize: 11, fontWeight: 700, letterSpacing: ".04em", padding: "3px 10px", borderRadius: 20, background: bg, color, border: `1px solid ${color}33` }}>
+    <span style={{ ...F, fontSize: 10, fontWeight: 700, letterSpacing: ".04em", padding: "3px 10px", borderRadius: 99, background: bg, color, border: `1px solid ${color}33` }}>
       {label}
     </span>
   );
@@ -37,24 +57,19 @@ function Pill({ label, color, bg }) {
 /* ── Confirm Delete Dialog ── */
 function ConfirmDialog({ name, onConfirm, onCancel, loading }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(56,73,89,0.35)", backdropFilter: "blur(3px)" }}>
-      <div className="flex flex-col items-center text-center rounded-2xl p-8"
-        style={{ background: "#fff", width: 380, boxShadow: "0 20px 60px rgba(56,73,89,0.18)", ...font }}>
-        <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: "#fef2f2" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)" }}>
+      <div style={{ background: C.white, borderRadius: 20, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 24px 64px rgba(56,73,89,0.22)", width: 380, padding: "28px 28px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", ...F }}>
+        <div style={{ width: 48, height: 48, borderRadius: 14, background: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
           <AlertTriangle size={22} color={C.danger} />
         </div>
-        <h3 className="font-bold text-base mb-1" style={{ color: C.dark }}>Delete Exam?</h3>
-        <p className="text-sm mb-6" style={{ color: C.mid }}>
-          <strong style={{ color: C.dark }}>{name}</strong> and all its schedules &amp; marks will be permanently removed.
+        <h3 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: C.text }}>Delete Exam?</h3>
+        <p style={{ margin: "0 0 22px", fontSize: 13, color: C.textLight, lineHeight: 1.6 }}>
+          <strong style={{ color: C.text }}>{name}</strong> and all its schedules &amp; marks will be permanently removed.
         </p>
-        <div className="flex gap-3 w-full">
-          <button onClick={onCancel} className="flex-1 py-2 rounded-xl text-sm font-semibold"
-            style={{ background: "#f3f8fd", color: C.mid, border: "none", cursor: "pointer" }}>Cancel</button>
-          <button onClick={onConfirm} disabled={loading}
-            className="flex-1 py-2 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
-            style={{ background: C.danger, color: "#fff", border: "none", cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}>
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+        <div style={{ display: "flex", gap: 10, width: "100%" }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: "10px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.white, color: C.textLight, fontSize: 13, fontWeight: 600, cursor: "pointer", ...F }}>Cancel</button>
+          <button onClick={onConfirm} disabled={loading} style={{ flex: 1, padding: "10px", borderRadius: 12, border: "none", background: C.danger, color: "#fff", fontSize: 13, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, opacity: loading ? 0.7 : 1, ...F }}>
+            {loading ? <Loader2 size={14} style={{ animation: "spin .8s linear infinite" }} /> : <Trash2 size={14} />}
             {loading ? "Deleting…" : "Delete"}
           </button>
         </div>
@@ -66,22 +81,20 @@ function ConfirmDialog({ name, onConfirm, onCancel, loading }) {
 /* ── Stat Card ── */
 function StatCard({ icon: Icon, label, value, accent }) {
   return (
-    <div className="rounded-2xl px-5 py-4 flex items-center gap-4"
-      style={{ background: C.card, border: `1.5px solid ${C.border}` }}>
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{ background: accent + "18" }}>
+    <div style={{ background: C.white, borderRadius: 16, border: `1.5px solid ${C.borderLight}`, padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 2px 8px rgba(56,73,89,0.06)" }}>
+      <div style={{ width: 42, height: 42, borderRadius: 12, background: accent + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Icon size={18} color={accent} />
       </div>
       <div>
-        <p className="text-xs font-semibold mb-0.5" style={{ ...font, color: C.mid }}>{label}</p>
-        <p className="text-xl font-bold" style={{ ...font, color: C.dark }}>{value}</p>
+        <p style={{ ...F, fontSize: 11, fontWeight: 600, color: C.textLight, margin: 0 }}>{label}</p>
+        <p style={{ ...F, fontSize: 22, fontWeight: 800, color: C.text, margin: "2px 0 0" }}>{value}</p>
       </div>
     </div>
   );
 }
 
 /* ── Action Icon Button ── */
-function ActionBtn({ icon: Icon, title, color = C.mid, onClick, disabled }) {
+function ActionBtn({ icon: Icon, title, color = C.textLight, onClick, disabled }) {
   const [hov, setHov] = useState(false);
   return (
     <button title={title} onClick={onClick} disabled={disabled}
@@ -90,7 +103,7 @@ function ActionBtn({ icon: Icon, title, color = C.mid, onClick, disabled }) {
         width: 30, height: 30, borderRadius: 8,
         border: `1.5px solid ${hov ? color : C.border}`,
         background: hov ? color + "12" : "transparent",
-        color: hov ? color : C.mid,
+        color: hov ? color : C.textLight,
         display: "inline-flex", alignItems: "center", justifyContent: "center",
         cursor: disabled ? "not-allowed" : "pointer",
         transition: "all .15s", opacity: disabled ? 0.5 : 1,
@@ -103,19 +116,15 @@ function ActionBtn({ icon: Icon, title, color = C.mid, onClick, disabled }) {
 /* ── Tab Button ── */
 function TabBtn({ active, icon: Icon, label, onClick }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        ...font,
-        display: "flex", alignItems: "center", gap: 7,
-        padding: "8px 20px", borderRadius: 12,
-        fontSize: 13, fontWeight: 700, cursor: "pointer",
-        border: "none",
-        background: active ? C.dark : "transparent",
-        color: active ? "#fff" : C.mid,
-        transition: "all .15s",
-      }}
-    >
+    <button onClick={onClick} style={{
+      ...F, display: "flex", alignItems: "center", gap: 7,
+      padding: "7px 18px", borderRadius: 99,
+      fontSize: 12, fontWeight: 700, cursor: "pointer",
+      border: `1.5px solid ${active ? C.deep : C.border}`,
+      background: active ? C.deep : C.white,
+      color: active ? "#fff" : C.textLight,
+      transition: "all .15s",
+    }}>
       <Icon size={14} />
       {label}
     </button>
@@ -124,14 +133,11 @@ function TabBtn({ active, icon: Icon, label, onClick }) {
 
 /* ── Main Component ── */
 export default function ExamsList() {
-  // ── Academic Year ──
   const [academicYearId, setAcademicYearId]       = useState(null);
   const [academicYearLabel, setAcademicYearLabel] = useState("");
   const [yearLoading, setYearLoading]             = useState(true);
   const [yearError, setYearError]                 = useState("");
-
-  // ── Active Tab ──
-  const [activeTab, setActiveTab] = useState("exams"); // "exams" | "results"
+  const [activeTab, setActiveTab]                 = useState("exams");
 
   useEffect(() => {
     fetch(`${API_URL}/api/academic-years`, {
@@ -152,7 +158,6 @@ export default function ExamsList() {
       .finally(() => setYearLoading(false));
   }, []);
 
-  // ── Exam Groups ──
   const [groups, setGroups]         = useState([]);
   const [loading, setLoading]       = useState(false);
   const [search, setSearch]         = useState("");
@@ -198,18 +203,17 @@ export default function ExamsList() {
   const pending   = groups.filter(g => g.isPublished && !g.isLocked).length;
   const completed = groups.filter(g => g.isLocked).length;
 
-  // ── Academic year loading/error states ──
   if (yearLoading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", ...font, color: C.mid, gap: 10 }}>
-        <Loader2 size={18} className="animate-spin" /> Loading academic year…
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", ...F, color: C.textLight, gap: 10 }}>
+        <Loader2 size={18} style={{ animation: "spin .8s linear infinite" }} /> Loading academic year…
       </div>
     );
   }
 
   if (yearError) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", ...font, color: C.danger, fontSize: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", ...F, color: C.danger, fontSize: 14 }}>
         {yearError}
       </div>
     );
@@ -217,89 +221,77 @@ export default function ExamsList() {
 
   return (
     <>
-      <div className="min-h-screen p-7" style={{ background: C.bg, ...font }}>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+      <style>{`
+        * { box-sizing: border-box; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+        @keyframes spin { to { transform:rotate(360deg) } }
+        .fade-up { animation: fadeUp 0.45s ease forwards; }
+        .ex-row:hover { background: #EDF3FA !important; }
+        .ex-row { transition: background .12s; }
+      `}</style>
 
-        {/* Page header */}
-        <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
-              style={{ background: `linear-gradient(135deg, ${C.dark}, ${C.mid})` }}>
-              <ClipboardList size={18} color="#fff" />
+      <div style={{ padding: "clamp(16px,3vw,28px) clamp(16px,3vw,32px)", minHeight: "100vh", background: C.bg, ...F }}>
+
+        {/* ── Header ── */}
+        <div style={{ marginBottom: 24 }} className="fade-up">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 4, height: 28, borderRadius: 99, background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`, flexShrink: 0 }} />
+              <div>
+                <h1 style={{ margin: 0, fontSize: "clamp(18px,5vw,26px)", fontWeight: 800, color: C.text, letterSpacing: "-0.5px" }}>
+                  Exams
+                </h1>
+                <p style={{ margin: 0, fontSize: 12, color: C.textLight, fontWeight: 500 }}>
+                  {academicYearLabel ? `Academic Year: ${academicYearLabel}` : "Manage assessment groups & schedules"}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold m-0" style={{ color: C.dark }}>Exams</h1>
-              <p className="text-xs mt-0.5 m-0" style={{ color: C.mid }}>
-                {academicYearLabel ? `Academic Year: ${academicYearLabel}` : "Manage assessment groups & schedules"}
-              </p>
-            </div>
+            {activeTab === "exams" && (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={load} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.white, color: C.textLight, fontSize: 13, fontWeight: 600, cursor: "pointer", ...F }}>
+                  <RefreshCw size={13} /> Refresh
+                </button>
+                <button onClick={() => { setEditGroup(null); setShowAdd(true); }} style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 18px", borderRadius: 12, border: "none", background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", ...F }}>
+                  <Plus size={15} /> Add Exam
+                </button>
+              </div>
+            )}
           </div>
-
-          {/* right-side actions (only for Exams tab) */}
-          {activeTab === "exams" && (
-            <div className="flex gap-2">
-              <button onClick={load}
-                className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
-                style={{ background: C.card, border: `1.5px solid ${C.border}`, color: C.mid, cursor: "pointer" }}>
-                <RefreshCw size={13} /> Refresh
-              </button>
-              <button onClick={() => { setEditGroup(null); setShowAdd(true); }}
-                className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
-                style={{ background: C.dark, color: "#fff", border: "none", cursor: "pointer" }}>
-                <Plus size={14} /> Add Exam
-              </button>
-            </div>
-          )}
         </div>
 
         {/* ── Tab Bar ── */}
-        <div style={{
-          display: "inline-flex", gap: 4, padding: "4px",
-          background: C.card, border: `1.5px solid ${C.border}`,
-          borderRadius: 14, marginBottom: 22,
-        }}>
-          <TabBtn
-            active={activeTab === "exams"}
-            icon={ClipboardList}
-            label="Exams"
-            onClick={() => setActiveTab("exams")}
-          />
-          <TabBtn
-            active={activeTab === "results"}
-            icon={BarChart2}
-            label="Results"
-            onClick={() => setActiveTab("results")}
-          />
+        <div style={{ display: "flex", gap: 8, marginBottom: 22, flexWrap: "wrap" }} className="fade-up">
+          <TabBtn active={activeTab === "exams"}   icon={ClipboardList} label="Exams"   onClick={() => setActiveTab("exams")} />
+          <TabBtn active={activeTab === "results"} icon={BarChart2}     label="Results" onClick={() => setActiveTab("results")} />
         </div>
 
         {/* ── EXAMS TAB ── */}
         {activeTab === "exams" && (
           <>
             {/* Stat Cards */}
-            <div className="grid grid-cols-3 gap-3 mb-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))" }}>
-              <StatCard icon={BookOpen}      label="Total Exams" value={groups.length} accent={C.dark} />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 12, marginBottom: 22 }} className="fade-up">
+              <StatCard icon={BookOpen}      label="Total Exams" value={groups.length} accent={C.deep} />
               <StatCard icon={ClipboardList} label="Pending"     value={pending}       accent="#3b82f6" />
               <StatCard icon={Globe}         label="Completed"   value={completed}     accent={C.success} />
             </div>
 
             {/* Table card */}
-            <div className="rounded-2xl overflow-hidden" style={{ background: C.card, border: `1.5px solid ${C.border}` }}>
+            <div style={{ background: C.white, borderRadius: 18, border: `1.5px solid ${C.borderLight}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(56,73,89,0.06)" }} className="fade-up">
               {/* Toolbar */}
-              <div className="flex items-center justify-between px-5 py-3 gap-3 flex-wrap"
-                style={{ borderBottom: `1.5px solid ${C.border}` }}>
-                <div className="flex items-center gap-2 rounded-xl px-3 py-2 flex-1"
-                  style={{ background: C.bg, border: `1.5px solid ${C.border}`, maxWidth: 320 }}>
-                  <Search size={13} color={C.mid} />
-                  <input value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Search exams…"
-                    style={{ border: "none", outline: "none", background: "transparent", fontSize: 13, color: C.dark, flex: 1, ...font }} />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", gap: 12, flexWrap: "wrap", borderBottom: `1.5px solid ${C.borderLight}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg, border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "8px 14px", flex: 1, maxWidth: 320 }}>
+                  <Search size={13} color={C.textLight} />
+                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search exams…"
+                    style={{ border: "none", outline: "none", background: "transparent", fontSize: 13, color: C.text, flex: 1, ...F }} />
                   {search && (
-                    <button onClick={() => setSearch("")}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: C.mid, display: "flex" }}>
+                    <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: C.textLight, display: "flex" }}>
                       <X size={12} />
                     </button>
                   )}
                 </div>
-                <p className="text-xs font-semibold" style={{ color: C.mid }}>
+                <p style={{ ...F, fontSize: 12, fontWeight: 600, color: C.textLight, margin: 0 }}>
                   {filtered.length} result{filtered.length !== 1 ? "s" : ""}
                 </p>
               </div>
@@ -310,32 +302,29 @@ export default function ExamsList() {
                   <thead>
                     <tr style={{ background: "#f8fbff" }}>
                       {["#", "Exam Name", "Student Classes", "Status", "Actions"].map(h => (
-                        <th key={h} style={{
-                          padding: "11px 16px", textAlign: "left",
-                          fontSize: 11, fontWeight: 700, letterSpacing: ".06em",
-                          textTransform: "uppercase", color: C.mid,
-                          borderBottom: `1.5px solid ${C.border}`, ...font,
-                        }}>{h}</th>
+                        <th key={h} style={{ padding: "11px 18px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: C.textLight, borderBottom: `1.5px solid ${C.borderLight}`, ...F }}>
+                          {h}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={5} style={{ padding: "52px 16px", textAlign: "center", color: C.mid, ...font }}>
-                          <Loader2 size={20} className="animate-spin" style={{ display: "inline" }} />
-                          <span className="ml-2 text-sm">Loading exams…</span>
+                        <td colSpan={5} style={{ padding: "52px 18px", textAlign: "center", color: C.textLight, ...F }}>
+                          <Loader2 size={20} style={{ display: "inline", animation: "spin .8s linear infinite" }} />
+                          <span style={{ marginLeft: 8, fontSize: 13 }}>Loading exams…</span>
                         </td>
                       </tr>
                     ) : filtered.length === 0 ? (
                       <tr>
-                        <td colSpan={5} style={{ padding: "52px 16px", textAlign: "center", ...font }}>
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: C.bg }}>
-                              <ClipboardList size={20} color={C.mid} />
+                        <td colSpan={5} style={{ padding: "52px 18px", textAlign: "center" }}>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                            <div style={{ width: 48, height: 48, borderRadius: 14, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <ClipboardList size={20} color={C.textLight} />
                             </div>
-                            <p className="text-sm font-semibold" style={{ color: C.dark }}>No exams found</p>
-                            <p className="text-xs" style={{ color: C.mid }}>
+                            <p style={{ ...F, fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>No exams found</p>
+                            <p style={{ ...F, fontSize: 12, color: C.textLight, margin: 0 }}>
                               {search ? "Try a different search term." : "Click Add Exam to create your first exam."}
                             </p>
                           </div>
@@ -415,49 +404,45 @@ function TableRow({ group, index, actionMap, onView, onEdit, onDelete, onPublish
   const extra   = gradeChips.length - visible.length;
 
   return (
-    <tr onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ borderBottom: `1px solid ${C.border}`, background: hov ? C.hover : "transparent", transition: "background .12s" }}>
+    <tr className="ex-row" onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ borderBottom: `1px solid ${C.borderLight}` }}>
 
-      <td style={{ padding: "13px 16px", fontSize: 12, color: C.mid, fontFamily: "'Inter', sans-serif", width: 40 }}>{index + 1}</td>
+      <td style={{ padding: "14px 18px", fontSize: 12, color: C.textLight, ...F, width: 40 }}>{index + 1}</td>
 
-      <td style={{ padding: "13px 16px", fontFamily: "Inter, sans-serif" }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: C.dark }}>{group.name}</div>
+      <td style={{ padding: "14px 18px", ...F }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{group.name}</div>
         {group.term?.name && (
-          <div style={{ fontSize: 11, color: C.mid, marginTop: 2 }}>{group.term.name}</div>
+          <div style={{ fontSize: 11, color: C.textLight, marginTop: 2 }}>{group.term.name}</div>
         )}
       </td>
 
-      <td style={{ padding: "13px 16px", fontFamily: "Inter, sans-serif" }}>
+      <td style={{ padding: "14px 18px", ...F }}>
         {gradeChips.length > 0 ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {visible.map((g, i) => (
-              <span key={i} style={{
-                fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 20,
-                background: "#EFF6FD", color: C.dark, border: `1px solid ${C.border}`,
-                fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap",
-              }}>
+              <span key={i} style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: `${C.mist}55`, color: C.deep, border: `1px solid ${C.border}`, ...F, whiteSpace: "nowrap" }}>
                 Grade {g.grade}{g.section ? ` – ${g.section}` : ""}
               </span>
             ))}
             {extra > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 20, background: "#f1f5f9", color: C.mid, fontFamily: "Inter, sans-serif" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: C.bg, color: C.textLight, ...F }}>
                 +{extra} more
               </span>
             )}
           </div>
         ) : (
-          <span style={{ fontSize: 12, color: C.mid, fontStyle: "italic" }}>—</span>
+          <span style={{ fontSize: 12, color: C.textLight, fontStyle: "italic" }}>—</span>
         )}
       </td>
 
-      <td style={{ padding: "13px 16px" }}>
+      <td style={{ padding: "14px 18px" }}>
         <StatusBadge group={group} />
       </td>
 
-      <td style={{ padding: "13px 16px" }}>
+      <td style={{ padding: "14px 18px" }}>
         <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
           <ActionBtn icon={Eye}    title="View"   onClick={onView} />
-          <ActionBtn icon={Pencil} title="Edit"   onClick={onEdit}   color={C.dark} />
+          <ActionBtn icon={Pencil} title="Edit"   onClick={onEdit}   color={C.deep} />
           <ActionBtn icon={Trash2} title="Delete" onClick={onDelete} color={C.danger} />
         </div>
       </td>

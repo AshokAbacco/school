@@ -8,18 +8,18 @@ import { fetchSchedules, calculateResults, publishGroup, lockGroup } from "./exa
 
 const F = { fontFamily: "'Inter', sans-serif" };
 const C = {
-  dark:    "#384959",
+  dark:    "#243340",
   mid:     "#6A89A7",
-  light:   "#A8C4DC",
-  border:  "#BDDDFC",
-  bg:      "#F4F9FF",
+  light:   "#BDDDFC",
+  border:  "#C8DCF0",
+  bg:      "#EDF3FA",
   card:    "#ffffff",
-  hover:   "#EFF6FD",
+  hover:   "#EDF3FA",
   success: "#059669",
   warn:    "#d97706",
   danger:  "#dc2626",
 };
-const grad = "linear-gradient(135deg, #384959 0%, #4A6FA5 100%)";
+const grad = "linear-gradient(135deg, #384959 0%, #6A89A7 100%)";
 
 /* ── Helpers ── */
 // Use local date parts to avoid UTC timezone shift
@@ -215,7 +215,7 @@ export default function ViewExamsModal({ group, onClose, onEdit }) {
       }}>
 
         {/* ── Header ── */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: `1.5px solid ${C.border}`, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: `1.5px solid #DDE9F5`, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 13, background: grad, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <ClipboardList size={18} color="#fff" />

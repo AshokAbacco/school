@@ -1,11 +1,12 @@
 // client/src/admin/pages/teachers/TeachersPage.jsx
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback } from "react";
 import TeachersHeader from "./components/TeachersHeader";
 import TeachersFilters from "./components/TeachersFilters";
 import TeachersGrid from "./components/TeachersGrid";
 import TeachersTable from "./components/TeachersTable";
 import TeacherDetailDrawer from "./components/TeacherDetailDrawer";
 import AddTeacherModal from "./components/AddTeacherModal";
+import BulkImportTeachers from "./components/BulkImportTeachers"; // ← NEW
 import { useTeachers } from "./hooks/useTeachers";
 
 export default function TeachersPage() {
@@ -14,7 +15,8 @@ export default function TeachersPage() {
   });
   const [selectedId, setSelectedId]   = useState(null);
   const [showAdd, setShowAdd]         = useState(false);
-  const [viewMode, setViewMode]       = useState("grid"); // "grid" | "table"
+  const [showBulk, setShowBulk]       = useState(false); // ← NEW
+  const [viewMode, setViewMode]       = useState("grid");
 
   const { teachers, meta, loading, error, refetch } = useTeachers(filters);
 
@@ -30,7 +32,6 @@ export default function TeachersPage() {
 
   return (
     <>
-      {/* Inter font */}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -48,10 +49,14 @@ export default function TeachersPage() {
 
       <div style={{ minHeight: "100vh", background: "#f4f8fc", fontFamily: "'Inter', sans-serif" }}>
 
-        <TeachersHeader total={meta?.total ?? 0} onAdd={() => setShowAdd(true)} />
+        {/* Pass onBulk down to header */}
+        <TeachersHeader
+          total={meta?.total ?? 0}
+          onAdd={() => setShowAdd(true)}
+          onBulk={() => setShowBulk(true)}
+        />
         <TeachersFilters filters={filters} onChange={onChange} />
 
-        {/* Result count + view toggle */}
         {!loading && (
           <div className="tpage-result" style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <p style={{ fontSize:11, color:"#9BBACF", margin:0, fontFamily:"'Inter',sans-serif" }}>
@@ -60,7 +65,6 @@ export default function TeachersPage() {
                 : `${teachers.length} teacher${teachers.length !== 1 ? "s" : ""}`}
             </p>
             <div className="tpage-view-toggle" style={{ display:"flex", gap:5 }}>
-              {/* Refresh */}
               <button className="tpage-mode-btn" onClick={handleRefresh} title="Refresh" disabled={loading}>
                 <svg className={spinning ? "tpage-spin" : ""} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
@@ -69,9 +73,7 @@ export default function TeachersPage() {
                   <path d="M3 21v-5h5"/>
                 </svg>
               </button>
-              {/* Grid icon */}
-              <button className={`tpage-mode-btn${viewMode === "grid" ? " active" : ""}`}
-                onClick={() => setViewMode("grid")} title="Grid view">
+              <button className={`tpage-mode-btn${viewMode === "grid" ? " active" : ""}`} onClick={() => setViewMode("grid")} title="Grid view">
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor">
                   <rect x="0" y="0" width="5.5" height="5.5" rx="1.5"/>
                   <rect x="7.5" y="0" width="5.5" height="5.5" rx="1.5"/>
@@ -79,9 +81,7 @@ export default function TeachersPage() {
                   <rect x="7.5" y="7.5" width="5.5" height="5.5" rx="1.5"/>
                 </svg>
               </button>
-              {/* Table icon */}
-              <button className={`tpage-mode-btn${viewMode === "table" ? " active" : ""}`}
-                onClick={() => setViewMode("table")} title="Table view">
+              <button className={`tpage-mode-btn${viewMode === "table" ? " active" : ""}`} onClick={() => setViewMode("table")} title="Table view">
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor">
                   <rect x="0" y="0" width="13" height="3" rx="1.5"/>
                   <rect x="0" y="5" width="13" height="2" rx="1"/>
@@ -107,6 +107,14 @@ export default function TeachersPage() {
 
         {showAdd && (
           <AddTeacherModal onClose={() => setShowAdd(false)} onSuccess={() => { setShowAdd(false); refetch(); }} />
+        )}
+
+        {/* ── Bulk Import Modal ── */}
+        {showBulk && (
+          <BulkImportTeachers
+            onClose={() => setShowBulk(false)}
+            onSuccess={() => { setShowBulk(false); refetch(); }}
+          />
         )}
       </div>
     </>

@@ -1,8 +1,8 @@
 // client/src/admin/pages/teachers/components/TeachersHeader.jsx
 import React from "react";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Upload } from "lucide-react";
 
-export default function TeachersHeader({ total, onAdd }) {
+export default function TeachersHeader({ total, onAdd, onBulk }) {
   return (
     <>
       <style>{`
@@ -22,11 +22,22 @@ export default function TeachersHeader({ total, onAdd }) {
         }
         .th-add-btn:hover { background: #384959; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(36,51,64,0.30); }
         .th-add-btn:active { transform: translateY(0); }
+        .th-bulk-btn {
+          display: flex; align-items: center; gap: 8px;
+          padding: 10px 18px; border-radius: 12px;
+          background: #fff; color: #384959;
+          font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+          border: 1.5px solid #DDE9F5; cursor: pointer; flex-shrink: 0;
+          transition: all 0.15s; letter-spacing: -0.01em;
+        }
+        .th-bulk-btn:hover { background: #EDF3FA; border-color: #88BDF2; color: #243340; transform: translateY(-1px); }
+        .th-bulk-btn:active { transform: translateY(0); }
         @media (max-width: 767px) {
           .th-wrap { padding: 18px 16px 12px; }
           .th-title { font-size: 22px !important; }
           .th-subtitle { display: none !important; }
           .th-add-label { display: none; }
+          .th-bulk-label { display: none; }
         }
       `}</style>
       <div className="th-wrap">
@@ -46,10 +57,20 @@ export default function TeachersHeader({ total, onAdd }) {
             </p>
           </div>
         </div>
-        <button className="th-add-btn" onClick={onAdd}>
-          <UserPlus size={14} strokeWidth={2.2} />
-          <span className="th-add-label">Add Teacher</span>
-        </button>
+
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* Bulk Import */}
+          <button className="th-bulk-btn" onClick={onBulk}>
+            <Upload size={14} strokeWidth={2.2} />
+            <span className="th-bulk-label">Bulk Import</span>
+          </button>
+          {/* Add single */}
+          <button className="th-add-btn" onClick={onAdd}>
+            <UserPlus size={14} strokeWidth={2.2} />
+            <span className="th-add-label">Add Teacher</span>
+          </button>
+        </div>
       </div>
     </>
   );

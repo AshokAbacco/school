@@ -12,17 +12,17 @@ import { getToken } from "../../../../auth/storage.js";
 const API_URL = import.meta.env.VITE_API_URL;
 const font    = { fontFamily: "'Inter', sans-serif" };
 const C = {
-  dark:    "#384959",
+  dark:    "#243340",
   mid:     "#6A89A7",
-  border:  "#BDDDFC",
-  bg:      "#F4F9FF",
+  border:  "#C8DCF0",
+  bg:      "#EDF3FA",
   card:    "#ffffff",
-  hover:   "#EFF6FD",
+  hover:   "#EDF3FA",
   success: "#059669",
   warn:    "#d97706",
   danger:  "#dc2626",
-  blue:    "#3b82f6",
-  purple:  "#7c3aed",
+  blue:    "#384959",
+  purple:  "#6A89A7",
 };
 
 /* ─── helpers ───────────────────────────────────────────────────────────── */
@@ -116,7 +116,7 @@ function ClassCard({ cs, onClick }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
               width: 36, height: 36, borderRadius: 10,
-              background: `linear-gradient(135deg, ${C.dark}, ${C.mid})`,
+              background: `linear-gradient(135deg, #384959, #6A89A7)`,
               display: "flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
             }}>
