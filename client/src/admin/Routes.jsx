@@ -29,6 +29,7 @@ import AdminAwardsPage from "./pages/awardspage/Adminawardspage.jsx";
 import ExamsPage from "./pages/Exams/Examspage.jsx";
 import ActivitiesList from "./pages/activities/ActivitiesList";
 import StaffList from "./pages/Staff/StaffList.jsx";
+import TransportPage from "./pages/transport/TransportPage";
 function AdminRoutes() {
   return (
     <PageLayout>
@@ -72,6 +73,7 @@ function AdminRoutes() {
         <Route path="gallery"               element={<Gallery />} />
         <Route path="holidays"              element={<HolidayList />} />
         <Route path="awards"                element={<AdminAwardsPage />} />
+        <Route path="transport"             element={<TransportPage />} />
         <Route path="settings"              element={<Settings />} />
 
         {/* Fallback */}

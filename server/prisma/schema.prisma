@@ -315,6 +315,9 @@ model School {
   liveClasses           LiveClass[]
   StaffProfile          StaffProfile[]
   assignments           Assignment[]
+  transportRoutes       TransportRoute[]
+  transportStops        TransportStop[]
+  StudentTransport      StudentTransport[]
 
   @@index([universityId])
   @@index([type])
@@ -540,22 +543,23 @@ model Student {
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  personalInfo        StudentPersonalInfo?
-  documents           StudentDocumentInfo[]
-  enrollments         StudentEnrollment[]
-  marks               Marks[]
-  resultSummaries     ResultSummary[]
-  parentLinks         StudentParent[]
-  meetings            MeetingStudent[]
-  attendanceRecords   AttendanceRecord[]
-  readmissions        StudentReadmission[]
-  activityEnrollments StudentActivityEnrollment[]
-  eventParticipants   EventParticipant[]
-  teamMemberships     EventTeamMember[]
-  eventResults        EventResult[]
-  certificates        Certificate[]
-  StudentAward        StudentAward[]
-  liveClassAttendance LiveClassAttendance[]
+  personalInfo         StudentPersonalInfo?
+  documents            StudentDocumentInfo[]
+  enrollments          StudentEnrollment[]
+  marks                Marks[]
+  resultSummaries      ResultSummary[]
+  parentLinks          StudentParent[]
+  meetings             MeetingStudent[]
+  attendanceRecords    AttendanceRecord[]
+  readmissions         StudentReadmission[]
+  activityEnrollments  StudentActivityEnrollment[]
+  eventParticipants    EventParticipant[]
+  teamMemberships      EventTeamMember[]
+  eventResults         EventResult[]
+  certificates         Certificate[]
+  StudentAward         StudentAward[]
+  liveClassAttendance  LiveClassAttendance[]
+  transportAssignments StudentTransport[]
 
   @@unique([email, schoolId])
   @@index([schoolId])
@@ -861,6 +865,8 @@ model AcademicYear {
   StudentAward        StudentAward[]
   liveClasses         LiveClass[]
   assignments         Assignment[]
+  transportFeePlans   TransportFeePlan[]
+  studentTransports   StudentTransport[]
 
   @@unique([name, schoolId])
   @@index([schoolId])
@@ -2304,4 +2310,253 @@ model AssignmentSection {
   @@index([classSectionId])
   @@index([assignmentId])
   @@map("assignment_sections")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TRANSPORT MANAGEMENT MODULE — UPDATED
+//  Changes marked with: // ✅ ADDED / // ✅ FIXED / // ✅ IMPROVED
+// ═══════════════════════════════════════════════════════════════
+
+enum PickupType {
+  PICKUP
+  DROP
+  BOTH
+}
+
+enum TransportFeeFrequency {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum TransportFeeStatus {
+  PENDING
+  PAID
+  WAIVED
+  OVERDUE
+}
+
+// ── 1. TransportRoute ─────────────────────────────────────────
+// No changes required — already correct.
+// ──────────────────────────────────────────────────────────────
+
+model TransportRoute {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  name           String
+  code           String
+  description    String?
+  vehicleNumber  String?
+  driverName     String?
+  driverPhone    String?
+  conductorName  String?
+  conductorPhone String?
+  capacity       Int?
+  isActive       Boolean @default(true)
+
+  routeStops       TransportRouteStop[]
+  studentTransport StudentTransport[]
+  feePlans         TransportFeePlan[]
+
+  @@unique([code, schoolId])
+  @@index([schoolId])
+  @@index([schoolId, isActive])
+  @@map("transport_routes")
+}
+
+// ── 2. TransportStop ──────────────────────────────────────────
+// ✅ IMPROVED: Added @@index([schoolId, area]) for area-based filtering
+// ──────────────────────────────────────────────────────────────
+
+model TransportStop {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  name      String
+  landmark  String?
+  area      String?
+  latitude  Float?
+  longitude Float?
+  isActive  Boolean @default(true)
+
+  routeStops       TransportRouteStop[]
+  studentTransport StudentTransport[]
+  feePlans         TransportFeePlan[]
+
+  @@index([schoolId])
+  @@index([schoolId, isActive])
+  @@index([schoolId, area]) // ✅ IMPROVED: area-based search index
+  @@map("transport_stops")
+}
+
+// ── 3. TransportRouteStop ─────────────────────────────────────
+// ✅ IMPROVED: Added isActive for soft delete consistency
+// ──────────────────────────────────────────────────────────────
+
+model TransportRouteStop {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  routeId String
+  route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  stopId String
+  stop   TransportStop @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  // ── Order & timing ────────────────────────────────────────
+  stopOrder  Int // 0-based; first stop = 0, last = N-1
+  pickupTime String? // HH:MM (morning pickup)
+  dropTime   String? // HH:MM (evening drop)
+  distanceKm Float? // cumulative km from first stop (future fee calc)
+  isActive   Boolean @default(true)
+  // ─────────────────────────────────────────────────────────
+
+  @@unique([routeId, stopId]) // same stop cannot appear twice on one route
+  @@unique([routeId, stopOrder]) // no two stops can share an order on one route
+  @@index([routeId])
+  @@index([stopId])
+  @@map("transport_route_stops")
+}
+
+// ── 4. TransportFeePlan ───────────────────────────────────────
+// ✅ FIXED #1:  @@unique([routeId, stopId, academicYearId]) — was already
+//              present; confirmed correct.
+// ✅ FIXED #5:  frequency TransportFeeFrequency field — was already present;
+//              confirmed correct.
+// ✅ FIXED #6:  isActive Boolean @default(true) — was already present;
+//              confirmed correct.
+// ✅ IMPROVED #7: Added effectiveFrom DateTime? for mid-year fee changes
+// ──────────────────────────────────────────────────────────────
+
+model TransportFeePlan {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  routeId String
+  route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  stopId String
+  stop   TransportStop @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  amount        Decimal               @db.Decimal(10, 2)
+  frequency     TransportFeeFrequency @default(MONTHLY)
+  effectiveFrom DateTime? // ✅ IMPROVED: mid-year fee change support
+  isActive      Boolean               @default(true)
+
+  studentTransports StudentTransport[]
+
+  @@unique([routeId, stopId, academicYearId]) // ✅ FIXED: confirmed unique constraint
+  @@index([routeId])
+  @@index([academicYearId])
+  @@map("transport_fee_plans")
+}
+
+// ── 5. StudentTransport ───────────────────────────────────────
+// ✅ FIXED #2:  Added schoolId + School relation + @@index([schoolId])
+// ✅ FIXED #3:  Renamed feeAmountSnapshot → feeAmount (Float, non-nullable)
+//              for clarity; stores fee locked at assignment time
+// ✅ FIXED #4:  @@index([studentId, academicYearId, isActive]) confirmed
+// ✅ IMPROVED #8: Added @@index([routeId, stopId])
+// ──────────────────────────────────────────────────────────────
+
+model StudentTransport {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  // ✅ FIXED: schoolId was missing — added for multi-school queries
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  routeId String
+  route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Restrict)
+
+  stopId String
+  stop   TransportStop @relation(fields: [stopId], references: [id], onDelete: Restrict)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+
+  feePlanId String?
+  feePlan   TransportFeePlan? @relation(fields: [feePlanId], references: [id], onDelete: SetNull)
+
+  pickupType PickupType @default(BOTH)
+
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+  isActive  Boolean   @default(true)
+
+  // ✅ FIXED: fee snapshot — locked at assignment time, unaffected by future plan edits
+  feeAmount Decimal @db.Decimal(10, 2) // ✅ FIXED #3 (was feeAmountSnapshot Float?)
+
+  remarks String?
+
+  feeEntries TransportFeeEntry[]
+
+  @@index([studentId])
+  @@index([schoolId]) // ✅ FIXED #2
+  @@index([academicYearId])
+  @@index([routeId])
+  @@index([stopId])
+  @@index([routeId, stopId]) // ✅ IMPROVED #8
+  @@index([studentId, academicYearId, isActive]) // ✅ FIXED #4
+  @@map("student_transports")
+}
+
+// ── 6. TransportFeeEntry ──────────────────────────────────────
+// No structural changes — already correct.
+// ──────────────────────────────────────────────────────────────
+
+model TransportFeeEntry {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentTransportId String
+  studentTransport   StudentTransport @relation(fields: [studentTransportId], references: [id], onDelete: Cascade)
+
+  studentId      String
+  academicYearId String
+  routeId        String
+  stopId         String
+
+  billingMonth Int?
+  billingYear  Int
+  dueDate      DateTime
+
+  amount       Decimal @db.Decimal(10, 2)
+  paidAmount   Decimal @default(0) @db.Decimal(10, 2)
+  waivedAmount Decimal @default(0) @db.Decimal(10, 2)
+
+  status TransportFeeStatus @default(PENDING)
+
+  paymentMode String?
+  paymentDate DateTime?
+  receiptNo   String?
+  remarks     String?
+
+  @@unique([studentTransportId, billingYear, billingMonth])
+  @@index([studentId])
+  @@index([academicYearId])
+  @@index([routeId])
+  @@index([status])
+  @@index([dueDate, status])
+  @@map("transport_fee_entries")
 }

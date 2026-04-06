@@ -22,6 +22,7 @@ import {
   Trash2,
   LayoutGrid,
   Layers,
+  Download,
 } from "lucide-react";
 import { getToken } from "../../../auth/storage";
 import AddStudent from "./AddStudents";
@@ -565,8 +566,52 @@ function Avatar({ student }) {
   );
 }
 
+/* ── Download sample Excel template ── */
+function downloadTemplate() {
+  const headers = [
+    "First Name", "Last Name", "DOB", "Gender", "Email", "Password", "Phone",
+    "Address", "City", "State", "ZIP", "Aadhaar", "PAN Number", "SATS Number",
+    "Nationality", "Religion", "Caste Category", "Mother Tongue", "Subcaste",
+    "Domicile State", "Annual Income", "Physically Challenged", "Disability Type",
+    "Admission No", "Class Section", "Academic Year", "Roll No", "External ID",
+    "Admission Date", "Status", "Previous School", "Previous Board", "UDISE Code", "Lateral Entry",
+    "Parent Name", "Parent Phone", "Parent Email", "Parent Password", "Parent Occupation",
+    "Parent Relation", "Emergency Contact", "Blood Group", "Height CM", "Weight KG",
+    "Identifying Marks", "Medical Conditions", "Allergies",
+  ];
+  const sample = [
+    "Rahul", "Kumar", "15-06-2008", "Male", "rahul@school.com", "Pass@123", "9876543210",
+    "123 MG Road", "Bengaluru", "Karnataka", "560001",
+    "123456789012", "ABCDE1234F", "123456789",
+    "Indian", "Hindu", "OBC", "Kannada", "Vokkaliga",
+    "Karnataka", "300000", "No", "",
+    "ADM2024001", "10-A", "2024-25", "1", "REG-998877",
+    "01-06-2024", "ACTIVE", "St. Mary's School", "KSEEB",
+    "29140100102", "No",
+    "Suresh Kumar", "9876543211", "suresh@gmail.com", "Parent@123", "Engineer",
+    "FATHER", "9876543211", "O+", "165", "55", "Mole on right hand",
+    "None", "None",
+  ];
+  import("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm").then((XLSX) => {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
+    ws["!cols"] = headers.map(() => ({ wch: 22 }));
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C2 = range.s.c; C2 <= range.e.c; ++C2) {
+        const ref = XLSX.utils.encode_cell({ c: C2, r: R });
+        if (!ws[ref]) continue;
+        ws[ref].t = "s";
+        ws[ref].z = "@";
+      }
+    }
+    XLSX.utils.book_append_sheet(wb, ws, "Students");
+    XLSX.writeFile(wb, "student_bulk_import_template.xlsx");
+  });
+}
+
 /* ── Students table — inner logic unchanged, outer styling updated ── */
-function StudentsTable({ students, loading, onDelete, sectionName }) {
+function StudentsTable({ students, loading, onDelete, sectionName, total, isFiltered }) {
   const navigate = useNavigate();
   const displayName = (s) =>
     s.personalInfo
@@ -600,7 +645,82 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
     );
 
   if (!students.length)
-    return (
+    return total === 0 && !isFiltered ? (
+      /* ── Truly empty: no students enrolled in this section at all ── */
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "72px 20px",
+          gap: 16,
+        }}
+      >
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 20,
+            background: `linear-gradient(135deg, ${C.sky}18, ${C.mist}44)`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: `1.5px solid ${C.sky}33`,
+          }}
+        >
+          <Users size={28} color={C.sky} strokeWidth={1.5} />
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 14,
+              fontWeight: 700,
+              color: C.text,
+              margin: "0 0 6px",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            No students yet
+          </p>
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              color: C.textLight,
+              margin: 0,
+            }}
+          >
+            Get started by adding a student or bulk importing via Excel.
+          </p>
+        </div>
+        <button
+          onClick={downloadTemplate}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 20px",
+            borderRadius: 11,
+            fontSize: 12,
+            fontWeight: 700,
+            background: "#f0fdf4",
+            border: "1.5px solid #bbf7d0",
+            color: "#15803d",
+            cursor: "pointer",
+            fontFamily: "'Inter', sans-serif",
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "#dcfce7"; e.currentTarget.style.borderColor = "#86efac"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "#f0fdf4"; e.currentTarget.style.borderColor = "#bbf7d0"; }}
+        >
+          <Download size={14} />
+          Download Sample Excel Template
+        </button>
+      </div>
+    ) : (
+      /* ── Filtered empty: students exist but search returned nothing ── */
       <div
         style={{
           display: "flex",
@@ -627,7 +747,7 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
         </div>
         <p
           style={{
-           fontFamily: "'Inter', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             fontWeight: 600,
             color: C.text,
@@ -638,13 +758,13 @@ function StudentsTable({ students, loading, onDelete, sectionName }) {
         </p>
         <p
           style={{
-           fontFamily: "'Inter', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 12,
             color: C.textLight,
             margin: 0,
           }}
         >
-          No students enrolled in {sectionName || "this section"} yet
+          Try adjusting your search or filter criteria
         </p>
       </div>
     );
@@ -1980,6 +2100,8 @@ function StudentsList() {
                 loading={loading}
                 onDelete={handleDelete}
                 sectionName={selectedSection?.name}
+                total={total}
+                isFiltered={!!searchTerm || selectedYearId !== "active"}
               />
 
               {!loading && students.length > 0 && (
