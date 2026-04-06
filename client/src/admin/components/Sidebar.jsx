@@ -16,6 +16,7 @@ import {
   CalendarDays,
   Trophy,
   Medal,
+  Bus
 } from "lucide-react";
 
 const NAV = [
@@ -32,6 +33,7 @@ const NAV = [
   { icon: CalendarCheck,   label: "Meetings",    to: "/admin/meetings" },
   { icon: Library,         label: "Curriculum",  to: "/admin/curriculum" },
   { icon: Images,          label: "Gallery",     to: "/admin/gallery" },
+  { icon: Bus,             label: "Transport", to: "/admin/transport" },
   { icon: Settings,        label: "Settings",    to: "/admin/settings" },
 ];
 
