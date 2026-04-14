@@ -1,11 +1,11 @@
 // client/src/admin/pages/meeting/MeetingsList.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import { Plus, Search, RefreshCw, CalendarDays, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
-import MeetingStatsCards from "./components/MeetingStatsCards";
-import MeetingTableRow from "./components/MeetingTableRow";
-import MeetingFormModal from "./components/MeetingFormModal";
-import MeetingViewModal from "./components/MeetingViewModal";
-import { fetchMeetings, fetchMeetingStats, fetchAcademicYears, deleteMeeting } from "./api/meetingsApi";
+import MeetingStatsCards from "../../../admin/pages/meeting/components/MeetingStatsCards";
+import MeetingTableRow from "../../../admin/pages/meeting/components/MeetingTableRow";
+import MeetingFormModal from "../../../admin/pages/meeting/components/MeetingFormModal"; // ✅ FIX 4: uncommented import
+import MeetingViewModal from "../../../admin/pages/meeting/components/MeetingViewModal";
+import { fetchMeetings, fetchMeetingStats, fetchAcademicYears, deleteMeeting } from "../../../admin/pages/meeting/api/meetingsApi";
 
 const C = {
   slate: "#6A89A7", mist: "#BDDDFC", sky: "#88BDF2",
@@ -27,14 +27,14 @@ const safeArray = (r, ...keys) => {
 const inputStyle = {
   border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "7px 11px",
   fontSize: 12, color: C.text, background: C.white, outline: "none",
-   fontFamily: "'Inter', sans-serif", fontWeight: 400,
+  fontFamily: "'Inter', sans-serif", fontWeight: 400,
 };
 
 /* ── Delete Confirm ─────────────────────────────────────────── */
 function DeleteConfirm({ meeting, onConfirm, onCancel, loading }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(56,73,89,0.4)", backdropFilter: "blur(6px)", padding: 16 }}>
-      <div style={{ background: C.white, borderRadius: 20, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 20px 60px rgba(56,73,89,0.18)", width: "100%", maxWidth: 400, padding: 24, display: "flex", flexDirection: "column", gap: 16,  fontFamily: "'Inter', sans-serif", }}>
+      <div style={{ background: C.white, borderRadius: 20, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 20px 60px rgba(56,73,89,0.18)", width: "100%", maxWidth: 400, padding: 24, display: "flex", flexDirection: "column", gap: 16, fontFamily: "'Inter', sans-serif" }}>
         <div>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: C.text }}>Delete Meeting</p>
           <p style={{ margin: "6px 0 0", fontSize: 13, color: C.textLight, lineHeight: 1.5 }}>
@@ -58,7 +58,7 @@ function DeleteConfirm({ meeting, onConfirm, onCancel, loading }) {
 function EmptyState({ onSchedule }) {
   return (
     <tr><td colSpan={8}>
-      <div style={{ padding: "60px 20px", textAlign: "center",  fontFamily: "'Inter', sans-serif", }}>
+      <div style={{ padding: "60px 20px", textAlign: "center", fontFamily: "'Inter', sans-serif" }}>
         <div style={{ width: 56, height: 56, borderRadius: 18, background: `${C.sky}18`, border: `1px solid ${C.sky}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
           <CalendarDays size={24} color={C.sky} strokeWidth={1.5} />
         </div>
@@ -92,16 +92,22 @@ export default function MeetingsList() {
   const [viewMeeting,   setViewMeeting]   = useState(null);
   const [deleteTarget,  setDeleteTarget]  = useState(null);
   const [deleting,      setDeleting]      = useState(false);
+  // ✅ FIX 3: track when academic years have loaded before firing first fetch
+  const [yearsReady,    setYearsReady]    = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  // ✅ FIX 3: set yearsReady=true in finally so loadMeetings only runs after active year is known
   useEffect(() => {
-    fetchAcademicYears().then((res) => {
-      const years = safeArray(res, "academicYears");
-      setAcademicYears(years);
-      const active = years.find((y) => y.isActive);
-      if (active) setFilterYear(active.id);
-    }).catch(() => {});
+    fetchAcademicYears()
+      .then((res) => {
+        const years = safeArray(res, "academicYears");
+        setAcademicYears(years);
+        const active = years.find((y) => y.isActive);
+        if (active) setFilterYear(active.id);
+      })
+      .catch(() => {})
+      .finally(() => setYearsReady(true));
   }, []);
 
   const loadMeetings = useCallback(async () => {
@@ -124,13 +130,15 @@ export default function MeetingsList() {
     setStatsLoading(true);
     try {
       const res = await fetchMeetingStats({ ...(filterYear ? { academicYearId: filterYear } : {}) });
-      setStats(res?.stats ?? res ?? {});
+      // ✅ FIX 2: backend returns { data: { total, scheduled, ... } } — read res.data not res.stats
+      setStats(res?.data ?? res?.stats ?? {});
     } catch {}
     finally { setStatsLoading(false); }
   }, [filterYear]);
 
-  useEffect(() => { loadMeetings(); }, [loadMeetings]);
-  useEffect(() => { loadStats();    }, [loadStats]);
+  // ✅ FIX 3: guard both effects — don't fetch until academic years request has resolved
+  useEffect(() => { if (yearsReady) loadMeetings(); }, [loadMeetings, yearsReady]);
+  useEffect(() => { if (yearsReady) loadStats();    }, [loadStats, yearsReady]);
 
   const openEdit    = (m) => { setEditMeeting(m); setShowForm(true); };
   const handleSaved = () => { setShowForm(false); setEditMeeting(null); loadMeetings(); loadStats(); };
@@ -142,7 +150,7 @@ export default function MeetingsList() {
 
   return (
     <>
-      <div style={{ minHeight: "100vh", background: C.bg, padding: "28px 30px",  fontFamily: "'Inter', sans-serif", backgroundImage: `radial-gradient(ellipse at 0% 0%, ${C.mist}40 0%, transparent 55%)` }}>
+      <div style={{ minHeight: "100vh", background: C.bg, padding: "28px 30px", fontFamily: "'Inter', sans-serif", backgroundImage: `radial-gradient(ellipse at 0% 0%, ${C.mist}40 0%, transparent 55%)` }}>
 
         {/* ── Header ── */}
         <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -227,7 +235,7 @@ export default function MeetingsList() {
 
           {/* Table */}
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse",  fontFamily: "'Inter', sans-serif", }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "'Inter', sans-serif" }}>
               <thead>
                 <tr style={{ borderBottom: `1.5px solid ${C.borderLight}`, background: `linear-gradient(90deg, ${C.bg} 0%, ${C.white} 100%)` }}>
                   {["Title", "Type", "Date & Time", "Participants", "Classes", "Status", "Organizer", "Actions"].map((h) => (
@@ -281,6 +289,7 @@ export default function MeetingsList() {
         </div>
       </div>
 
+      {/* ✅ FIX 4: MeetingFormModal now imported — renders safely */}
       {showForm    && <MeetingFormModal meeting={editMeeting} onClose={() => { setShowForm(false); setEditMeeting(null); }} onSaved={handleSaved} />}
       {viewMeeting && <MeetingViewModal meeting={viewMeeting} onClose={() => setViewMeeting(null)} onStatusChange={() => { loadMeetings(); loadStats(); }} />}
       {deleteTarget && <DeleteConfirm meeting={deleteTarget} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} loading={deleting} />}

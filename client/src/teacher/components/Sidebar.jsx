@@ -13,7 +13,8 @@ import {
   CalendarDays,
   Medal,
   BookOpenCheck,
-  Award
+  Award,
+  MessageCircle
 } from "lucide-react";
 
 const NAV = [
@@ -27,6 +28,7 @@ const NAV = [
   { icon: Medal,       label: "Certificates", to: "/teacher/certificates" },
   { icon: Zap,         label: "Activities",     to: "/teacher/activities" },
   { icon: Trophy,      label: "Awards",         to: "/teacher/awards" },
+  { icon: MessageCircle,      label: "Chat",           to: "/teacher/chat" },
 ];
 
 const initials = (name = "AU") =>

@@ -1,5 +1,6 @@
 // server/src/staffControlls/attendance.controller.js
 import { prisma } from "../config/db.js";
+import XLSX from "xlsx";
 
 export const getTeacherClasses = async (req, res) => {
   try {
@@ -270,5 +271,295 @@ export const markAttendance = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: "Failed to mark attendance" });
+  }
+};
+
+
+export const exportAttendanceExcel = async (req, res) => {
+  try {
+    const { classSectionId, date } = req.query;
+
+    if (!classSectionId || !date) {
+      return res.status(400).json({ message: "Missing params: classSectionId and date are required" });
+    }
+
+    // ── 1. Fetch attendance records ────────────────────────────────────────────
+    const records = await prisma.attendanceRecord.findMany({
+      where: {
+        classSectionId,
+        date: new Date(date),
+      },
+      include: {
+        student: {
+          include: {
+            enrollments: {
+              where: { classSectionId },
+              select: { rollNumber: true, admissionNumber: true },
+              take: 1,
+            },
+          },
+        },
+      },
+      orderBy: { student: { name: "asc" } },
+    });
+
+    if (!records.length) {
+      return res.status(404).json({ message: "No attendance records found for this date" });
+    }
+
+    // ── 2. Fetch class section name ────────────────────────────────────────────
+    const classSection = await prisma.classSection.findUnique({
+      where: { id: classSectionId },
+      select: { name: true },
+    });
+    const className = classSection?.name || "Unknown Class";
+
+    // ── 3. Meta ────────────────────────────────────────────────────────────────
+    const displayDate = new Date(date).toLocaleDateString("en-IN", {
+      weekday: "long", day: "2-digit", month: "long", year: "numeric",
+    });
+    const exportDate = new Date().toLocaleDateString("en-IN", {
+      day: "2-digit", month: "long", year: "numeric",
+    });
+
+    // ── 4. Sort by roll number (numeric), nulls last, then by name ─────────────
+    records.sort((a, b) => {
+      const ra = parseInt(a.student.enrollments?.[0]?.rollNumber, 10);
+      const rb = parseInt(b.student.enrollments?.[0]?.rollNumber, 10);
+      if (!isNaN(ra) && !isNaN(rb)) return ra - rb;
+      if (!isNaN(ra)) return -1;
+      if (!isNaN(rb)) return  1;
+      return (a.student.name || "").localeCompare(b.student.name || "");
+    });
+
+    // ── 5. Build workbook ──────────────────────────────────────────────────────
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    wb.creator  = "School Management System";
+    wb.created  = new Date();
+    wb.modified = new Date();
+
+    const ws = wb.addWorksheet("Attendance", {
+      pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true },
+      views: [{ state: "frozen", ySplit: 6 }],
+    });
+
+    // ── 6. Colour palette ──────────────────────────────────────────────────────
+    const C = {
+      headerBg:    "FF1E3A5F",   // deep navy
+      headerFg:    "FFFFFFFF",
+      subHeaderBg: "FF2E86AB",   // ocean blue
+      subHeaderFg: "FFFFFFFF",
+      metaBg:      "FFE8F4FD",   // very light blue
+      metaFg:      "FF1E3A5F",
+      colHeaderBg: "FF34495E",   // dark slate
+      colHeaderFg: "FFFFFFFF",
+      rowEven:     "FFF8FBFF",
+      rowOdd:      "FFFFFFFF",
+      borderCol:   "FFB0C4DE",
+      // Status badge colours
+      present:     { bg: "FF1A7A4A", fg: "FFFFFFFF" },  // dark green
+      absent:      { bg: "FFC62828", fg: "FFFFFFFF" },  // red
+      late:        { bg: "FFF57F17", fg: "FFFFFFFF" },  // amber
+      halfDay:     { bg: "FF1565C0", fg: "FFFFFFFF" },  // blue
+      other:       { bg: "FF6D4C41", fg: "FFFFFFFF" },  // brown
+      // Row background
+      presentRow:  "FFE8F5E9",   // light green
+      absentRow:   "FFFCE4E4",   // light red
+      lateRow:     "FFFFF8E1",   // light amber
+      halfDayRow:  "FFE3F2FD",   // light blue
+    };
+
+    // ── 7. Column definitions ──────────────────────────────────────────────────
+    ws.columns = [
+      { key: "sno",     width: 8   },  // A – S.No
+      { key: "rollNo",  width: 10  },  // B – Roll No
+      { key: "name",    width: 30  },  // C – Student Name
+      { key: "admNo",   width: 16  },  // D – Admission No
+      { key: "status",  width: 14  },  // E – Status
+      { key: "remarks", width: 35  },  // F – Remarks
+    ];
+
+    const LAST_COL  = "F";
+    const TOTAL_COLS = 6;
+
+    // ── 8. Helpers ────────────────────────────────────────────────────────────
+    const thinBorder = (color = C.borderCol) => ({
+      top:    { style: "thin", color: { argb: color } },
+      left:   { style: "thin", color: { argb: color } },
+      bottom: { style: "thin", color: { argb: color } },
+      right:  { style: "thin", color: { argb: color } },
+    });
+    const fillSolid = (argb) => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+
+    const addBanner = (text, bgArgb, fgArgb, fontSize, rowHeight) => {
+      const row  = ws.addRow([text]);
+      const cell = row.getCell(1);
+      ws.mergeCells(`A${row.number}:${LAST_COL}${row.number}`);
+      cell.value     = text;
+      cell.font      = { bold: true, size: fontSize, color: { argb: fgArgb }, name: "Calibri" };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.fill      = fillSolid(bgArgb);
+      cell.border    = thinBorder("FFFFFFFF");
+      row.height     = rowHeight;
+      return row;
+    };
+
+    // ── 9. Header block (Rows 1-4) ─────────────────────────────────────────────
+    addBanner("📅  ATTENDANCE REPORT", C.headerBg, C.headerFg, 18, 36);
+    addBanner(`Class: ${className}   |   Date: ${displayDate}`, C.subHeaderBg, C.subHeaderFg, 13, 26);
+
+    const presentCount = records.filter((r) => r.status === "PRESENT").length;
+    const absentCount  = records.filter((r) => r.status === "ABSENT").length;
+    const lateCount    = records.filter((r) => r.status === "LATE").length;
+    const totalCount   = records.length;
+
+    addBanner(
+      `Exported on: ${exportDate}     |     Total: ${totalCount}     |     Present: ${presentCount}     |     Absent: ${absentCount}     |     Late: ${lateCount}`,
+      C.metaBg, C.metaFg, 10, 20,
+    );
+
+    // Spacer
+    const spacer = ws.addRow([]);
+    spacer.height = 6;
+
+    // ── 10. Column header row (Row 5) ──────────────────────────────────────────
+    const hdrRow  = ws.addRow(["S.No", "Roll No", "Student Name", "Admission No", "Status", "Remarks"]);
+    hdrRow.height = 28;
+    hdrRow.eachCell((cell) => {
+      cell.font      = { bold: true, size: 11, color: { argb: C.colHeaderFg }, name: "Calibri" };
+      cell.fill      = fillSolid(C.colHeaderBg);
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.border    = thinBorder("FF1A252F");
+    });
+
+    // ── 11. Data rows ──────────────────────────────────────────────────────────
+    records.forEach((r, idx) => {
+      const status    = (r.status || "UNKNOWN").toUpperCase();
+      const enroll    = r.student.enrollments?.[0];
+
+      // Row background based on status
+      const rowBgMap = {
+        PRESENT:  C.presentRow,
+        ABSENT:   C.absentRow,
+        LATE:     C.lateRow,
+        HALF_DAY: C.halfDayRow,
+      };
+      const rowBg = rowBgMap[status] || (idx % 2 === 0 ? C.rowEven : C.rowOdd);
+
+      // Status badge colour
+      const badgeMap = {
+        PRESENT:  C.present,
+        ABSENT:   C.absent,
+        LATE:     C.late,
+        HALF_DAY: C.halfDay,
+      };
+      const badge = badgeMap[status] || C.other;
+
+      // Display label (e.g. "HALF_DAY" → "Half Day")
+      const statusLabel = status
+        .split("_")
+        .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+        .join(" ");
+
+      const dataRow = ws.addRow({
+        sno:     idx + 1,
+        rollNo:  enroll?.rollNumber      || "",
+        name:    r.student.name          || "",
+        admNo:   enroll?.admissionNumber || "",
+        status:  statusLabel,
+        remarks: r.remarks               || "",
+      });
+      dataRow.height = 22;
+
+      dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        const isStatusCol  = colNum === 5;
+        const isCenterCol  = colNum === 1 || colNum === 2;
+
+        cell.font      = { size: 10, name: "Calibri", color: { argb: "FF1A1A2E" } };
+        cell.alignment = {
+          horizontal: isCenterCol || isStatusCol ? "center" : "left",
+          vertical:   "middle",
+        };
+        cell.border = thinBorder(C.borderCol);
+
+        // Row background for non-status columns
+        if (!isStatusCol) {
+          cell.fill = fillSolid(rowBg);
+        }
+
+        // Status badge
+        if (isStatusCol) {
+          cell.fill      = fillSolid(badge.bg);
+          cell.font      = { bold: true, size: 10, name: "Calibri", color: { argb: badge.fg } };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        }
+      });
+    });
+
+    // ── 12. Summary footer ─────────────────────────────────────────────────────
+    ws.addRow([]).height = 8;
+    addBanner("SUMMARY", C.headerBg, C.headerFg, 11, 22);
+
+    const halfDayCount = records.filter((r) => r.status === "HALF_DAY").length;
+    const attendancePct = totalCount > 0
+      ? ((presentCount / totalCount) * 100).toFixed(1)
+      : "0.0";
+
+    const statsLabels = [
+      ["Total Students", totalCount],
+      ["Present",        presentCount],
+      ["Absent",         absentCount],
+      ["Late",           lateCount],
+      ["Half Day",       halfDayCount],
+      ["Attendance %",   `${attendancePct}%`],
+    ];
+
+    const labels = [];
+    const values = [];
+    statsLabels.forEach(([l, v]) => { labels.push(l, ""); values.push(v, ""); });
+    while (labels.length < TOTAL_COLS) labels.push("");
+    while (values.length < TOTAL_COLS) values.push("");
+
+    const lRow = ws.addRow(labels);
+    lRow.height = 18;
+    lRow.eachCell({ includeEmpty: true }, (cell, cn) => {
+      if (labels[cn - 1] !== "") {
+        cell.font      = { bold: true, size: 9, color: { argb: C.metaFg }, name: "Calibri" };
+        cell.fill      = fillSolid(C.metaBg);
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border    = thinBorder(C.borderCol);
+      }
+    });
+
+    const vRow = ws.addRow(values);
+    vRow.height = 22;
+    vRow.eachCell({ includeEmpty: true }, (cell, cn) => {
+      if (values[cn - 1] !== "") {
+        cell.font      = { bold: true, size: 12, color: { argb: C.headerBg }, name: "Calibri" };
+        cell.fill      = fillSolid("FFFFFFFF");
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border    = thinBorder(C.borderCol);
+      }
+    });
+
+    // ── 13. Footer ─────────────────────────────────────────────────────────────
+    ws.addRow([]).height = 6;
+    addBanner(
+      `This report was generated automatically on ${exportDate}. For official use only.`,
+      "FFECF0F1", C.metaFg, 8, 18,
+    );
+
+    // ── 14. Send response ──────────────────────────────────────────────────────
+    const safeName = `Attendance_${className}_${date}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}.xlsx"`);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+
+    await wb.xlsx.write(res);
+    res.end();
+
+  } catch (err) {
+    console.error("[exportAttendanceExcel]", err);
+    res.status(500).json({ message: "Export failed", error: err.message });
   }
 };

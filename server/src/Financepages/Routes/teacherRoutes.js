@@ -1,9 +1,12 @@
 import { Router } from "express"
 import salaryController from "../Controls/teacherController.js"
-
+import authMiddleware from "../../middlewares/authMiddleware.js"
 const router = Router()
+
 router.get(
   "/salary/schools",
+  authMiddleware,
+
   salaryController.getSchools
 )
 // ==============================
@@ -11,6 +14,7 @@ router.get(
 // ==============================
 router.get(
   "/salary/teachers-by-school/:schoolId",
+  authMiddleware,
   salaryController.getTeachersBySchool
 )
 
@@ -20,6 +24,7 @@ router.get(
 // ==============================
 router.post(
   "/salary/create",
+  authMiddleware,
   salaryController.createTeacherSalary
 )
 
@@ -29,6 +34,8 @@ router.post(
 // ==============================
 router.get(
   "/salary/history/:teacherId",
+  authMiddleware,
+
   salaryController.getSalaryHistory
 )
 
@@ -38,10 +45,12 @@ router.get(
 // ==============================
 router.patch(
   "/salary/hold/:salaryId",
+  authMiddleware,
   salaryController.holdSalary
 )
 router.patch(
   "/salary/pay/:salaryId",
+  authMiddleware,
   salaryController.paySalary
 )
 router.get(
@@ -50,6 +59,7 @@ router.get(
 )
 router.get(
   "/salary/history-by-school/:schoolId",
+  authMiddleware,
   salaryController.getAllSalaryHistoryBySchool
 );
 
@@ -58,6 +68,7 @@ router.get(
 // ==============================
 router.put(
   "/salary/update/:salaryId",
+  authMiddleware,
   salaryController.updateTeacherSalary
 );
 
@@ -66,6 +77,7 @@ router.put(
 // ==============================
 router.delete(
   "/salary/delete/:salaryId",
+  authMiddleware,
   salaryController.deleteTeacherSalary
 );
 

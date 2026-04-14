@@ -11,6 +11,7 @@ import {
   GraduationCap,
   X,
   CreditCard,
+  MessageCircle
 } from "lucide-react";
 import { getAuth } from "../../auth/storage";
 
@@ -32,8 +33,9 @@ function Sidebar({ isOpen, onClose }) {
     { icon: ClipboardCheck,  label: "Attendance",      href: `${base}/attendance` },
     { icon: BarChart2,       label: "Results",         href: `${base}/marks` },
     { icon: Calendar,        label: "Time Table",      href: `${base}/timetable` },
-    { icon: CreditCard,      label: "Activities",      href: `${base}/fees-payments` },
     { icon: Award,           label: "Certificates",    href: `${base}/certificates` },
+    { icon: CreditCard,      label: "Fees & Payments",    href: `${base}/fees-payments` },
+    { icon: MessageCircle,   label: "Chat",    href: `${base}/chat` },
   ];
 
   const isActive = (href) =>

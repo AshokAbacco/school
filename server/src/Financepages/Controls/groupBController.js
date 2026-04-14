@@ -15,7 +15,9 @@ const calcLeaveDeduction = (monthlySalary, leaveDays) => {
 export const getGroupBStaff = async (req, res) => {
   try {
     const { schoolId } = req.params;
-
+    if (req.user.schoolId !== schoolId && req.user.role !== "SUPER_ADMIN") {
+      return res.status(403).json({ message: "Access denied" });
+    }
     const staff = await prisma.staffProfile.findMany({
       where: {
         schoolId,
@@ -114,6 +116,9 @@ export const createGroupBSalary = async (req, res) => {
 export const getGroupBSalaryList = async (req, res) => {
   try {
     const { schoolId } = req.params;
+     if (req.user.schoolId !== schoolId && req.user.role !== "SUPER_ADMIN") {
+      return res.status(403).json({ message: "Access denied" });
+    }
     const month = new Date().getMonth() + 1;
     const year  = new Date().getFullYear();
 
@@ -169,7 +174,9 @@ export const getGroupBSalaryList = async (req, res) => {
 export const getGroupBSalaryHistoryBySchool = async (req, res) => {
   try {
     const { schoolId } = req.params;
-
+    if (req.user.schoolId !== schoolId && req.user.role !== "SUPER_ADMIN") {
+      return res.status(403).json({ message: "Access denied" });
+    }
     const history = await prisma.groupBStaffSalary.findMany({
       where: { schoolId },
       include: {

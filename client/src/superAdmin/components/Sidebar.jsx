@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Building2, UserCog, Users, ShieldCheck,
   CreditCard, BarChart3, Settings, X, GraduationCap, Wallet,
-  CalendarCheck,
+  MessageCircle,
 } from "lucide-react";
 
 const NAV = [
@@ -15,10 +15,11 @@ const NAV = [
   { icon: Users,           label: "Users Management",    to: "/superadmin/users-management" },
   { icon: ShieldCheck,     label: "Roles & Permissions", to: "/superadmin/roles-permissions" },
   { icon: Building2,       label: "Fees",                to: "/superadmin/fees" },
-  { icon: CalendarCheck,   label: "Meetings",            to: "/superadmin/mettings" },
+  // { icon: CalendarCheck,   label: "Meetings",            to: "/superadmin/mettings" },
   { icon: BarChart3,       label: "Analytics",           to: "/superadmin/analytics" },
   { icon: CreditCard,      label: "Subscription Plans",  to: "/superadmin/subscription-Plans" },
-  { icon: Settings,        label: "Global Settings",     to: "/superadmin/settings" },
+  // { icon: Settings,        label: "Global Settings",     to: "/superadmin/settings" },
+  { icon: MessageCircle,   label: "Chat",                to: "/superadmin/chat" },
 ];
 
 const initials = (name = "SA") =>

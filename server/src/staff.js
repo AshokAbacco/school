@@ -12,7 +12,7 @@ import analyticsRouter from "./superAdmin/routes/analytics.Routes.js";
 import financeProfileRoutes from "./superAdmin/routes/financeProfile.routes.js";
 import teacherCertificateRoutes from "./staffRoutes/teacherCertificateRoutes.js";
 import adminTransportRoute from "./staffRoutes/adminTransportRoute.js";
-
+import feeRoutes from "./superAdmin/routes/Feeroutes.js";
 
 // import classSectionRoutes from "./staffRoutes/classSectionRoutes.js";
 import classSectionRoutes, {
@@ -41,6 +41,7 @@ import staffRoutes from "./staffRoutes/staffRoutes.js";
 import resultRoutes from "./staffRoutes/resultRoutes.js";
 import teacherAssignmentRoute from "./staffRoutes/teacherAssignmentRoute.js";
 
+import chatRoutes from "../src/chatbox/chat.routes.js";
 
 
 
@@ -60,10 +61,10 @@ staff.use(express.json());
 //super admin
 staff.use("/api/schools", schoolRoutes);
 staff.use("/api/school-admins", schoolAdminRoutes);
-staff.use("/api/users", userRoutes); // ← ADD
+staff.use("/api/users", userRoutes); 
 staff.use("/api/superadmin/analytics", analyticsRouter);
 staff.use("/api/finance-profiles", financeProfileRoutes);
-
+staff.use("/api/fees", feeRoutes);
 
 // Routes
 // NOTE: All /api/class-sections/* routes (including timetable config + entries)
@@ -100,6 +101,7 @@ staff.use("/api/teacher/assignments", teacherAssignmentRoute);
 staff.use("/api/admin/transport", adminTransportRoute);
 
 
+staff.use("/api/chat", chatRoutes);
 
 
 

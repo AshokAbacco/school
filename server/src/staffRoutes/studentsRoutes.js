@@ -15,7 +15,8 @@ import {
   createParentLogin,
   getProfileImage,
   bulkImportRow,
-   bulkImportStudents, 
+  bulkImportStudents, 
+  exportStudentsExcel 
 } from "../staffControlls/StudentsControlls.js";
 
 const router = express.Router();
@@ -89,4 +90,5 @@ router.get("/:id/profile-image", authMiddleware, getProfileImage);
 // Delete student
 router.delete("/:id", authMiddleware, deleteStudent);
 
+router.get("/export/excel", authMiddleware, exportStudentsExcel);
 export default router;

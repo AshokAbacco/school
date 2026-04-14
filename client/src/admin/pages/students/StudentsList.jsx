@@ -499,6 +499,7 @@ const STATUS_STYLE = {
   SUSPENDED: { bg: "rgba(255,160,60,0.15)", color: "#7a4000", dot: "#f59e0b" },
   GRADUATED: { bg: `${C.slate}18`, color: C.deep, dot: C.slate },
 };
+
 function StatusBadge({ status = "" }) {
   const s = STATUS_STYLE[status.toUpperCase()] || STATUS_STYLE.INACTIVE;
   return (
@@ -955,7 +956,7 @@ function StudentsTable({ students, loading, onDelete, sectionName, total, isFilt
                     cursor: "pointer",
                     transition: "background 0.1s",
                   }}
-                  onClick={() => navigate(`/students/${student.id}`)}
+                  onClick={() => navigate(`/admin/students/${student.id}`)}
                   onMouseEnter={(e) =>
                     (e.currentTarget.style.background = `${C.sky}12`)
                   }
@@ -1250,6 +1251,37 @@ function StudentsList() {
   const [selectedYearId, setSelectedYearId] = useState("active");
   const [refreshKey, setRefreshKey] = useState(0);
   const invalidate = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+
+const handleExportExcel = async () => {
+  try {
+    let url = `${API_URL}/api/students/export/excel`;
+
+    // ✅ Add class filter
+    if (selectedSection?.id) {
+      url += `?classSectionId=${selectedSection.id}`;
+    }
+
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
+      },
+    });
+
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = "students.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (err) {
+    console.error("Export failed", err);
+  }
+};
+
 
   useEffect(() => {
     (async () => {
@@ -1740,16 +1772,39 @@ function StudentsList() {
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: "pointer",
-               fontFamily: "'Inter', sans-serif",
-                boxShadow: `0 4px 14px ${C.deep}44`,
-                transition: "all 0.2s",
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-            >
-              <Plus size={15} /> Add Student
-            </button>
+                fontFamily: "'Inter', sans-serif",
+                  boxShadow: `0 4px 14px ${C.deep}44`,
+                  transition: "all 0.2s",
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+              >
+                <Plus size={15} /> Add Student
+              </button>
+            
+              <button
+                onClick={handleExportExcel}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  padding: "10px 18px",
+                  borderRadius: 13,
+                  border: "1.5px solid #7dd3fc",
+                  background: "#e0f2fe",
+                  color: "#0369a1",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                <Download size={14} />
+                {selectedSection
+                  ? `Export ${selectedSection.name}`
+                  : "Export All Students"}
+              </button>
             </div>
           </div>
         </div>

@@ -183,7 +183,8 @@ export default function FinanceDashboard() {
   const isDesktop = bp === "lg" || bp === "xl";
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const auth = JSON.parse(localStorage.getItem("auth"));
+    const token = auth?.token;
     let school = "";
     try {
       const raw = localStorage.getItem("auth");
@@ -202,6 +203,18 @@ export default function FinanceDashboard() {
       catch (e) { setFetchErrors(prev => ({ ...prev, [key]: e.message })); return null; }
     };
 
+    const fetchWithAuth = async (url) => {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}` // ✅ FIX
+        }
+      });
+
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json();
+    };
+
     const doFetch = async (url, opts = {}) => {
       const res = await fetch(url, opts);
       // Treat 404 as "not implemented yet" — return null silently instead of throwing
@@ -212,14 +225,14 @@ export default function FinanceDashboard() {
 
     Promise.all([
       safe("students", () =>
-        doFetch(`${API_URL}/api/finance/getStudentFinance?schoolId=${school}`, { credentials: "include" })
+        fetchWithAuth(`${API_URL}/api/finance/getStudentFinance`)
       ),
       safe("expenses", () =>
-        doFetch(`${API_URL}/api/finance/list`)
+        fetchWithAuth(`${API_URL}/api/finance/list`)
       ),
       // /api/finance/revenue is optional — falls back to totalFees if 404
       safe("revenue", () =>
-        doFetch(`${API_URL}/api/finance/revenue`, { credentials: "include" })
+        fetchWithAuth(`${API_URL}/api/finance/revenue`)
       ),
       (school && token)
         ? safe("teachers", () =>
@@ -228,20 +241,39 @@ export default function FinanceDashboard() {
           })
         )
         : Promise.resolve(null),
+
+
       school
         ? safe("groupB", () =>
-          doFetch(`${API_URL}/api/groupb/salary/list/${school}`, { credentials: "include" })
-        )
+            fetch(`${API_URL}/api/groupb/salary/list/${school}`, {
+              headers: {
+                Authorization: `Bearer ${token}` // ✅ FIX
+              }
+            }).then(res => res.json())
+          )
         : safe("groupBAll", () =>
-          doFetch(`${API_URL}/api/groupb/salary/list/all`, { credentials: "include" })
-        ),
+            fetch(`${API_URL}/api/groupb/salary/list/all`, {
+              headers: {
+                Authorization: `Bearer ${token}` // ✅ FIX
+              }
+            }).then(res => res.json())
+          ),
+
       school
         ? safe("groupC", () =>
-          doFetch(`${API_URL}/api/groupc/salary/list/${school}`, { credentials: "include" })
-        )
+            fetch(`${API_URL}/api/groupc/salary/list/${school}`, {
+              headers: {
+                Authorization: `Bearer ${token}` // ✅ FIX
+              }
+            }).then(res => res.json())
+          )
         : safe("groupCAll", () =>
-          doFetch(`${API_URL}/api/groupc/salary/list/all`, { credentials: "include" })
-        ),
+            fetch(`${API_URL}/api/groupc/salary/list/all`, {
+              headers: {
+                Authorization: `Bearer ${token}` // ✅ FIX
+              }
+            }).then(res => res.json())
+          ),
     ]).then(([stu, exp, rev, teach, gb, gc]) => {
       if (Array.isArray(stu)) setStudentData(stu);
       if (Array.isArray(exp)) setExpenseSections(exp);
@@ -460,50 +492,7 @@ export default function FinanceDashboard() {
                 <StatusChip label="Partial" count={partialCount} color="#f59e0b" IconComp={Clock} />
                 <StatusChip label="Pending" count={pendingCount} color="#e05c3a" IconComp={AlertCircle} />
               </div>
-
-              {studentData.slice(0, 6).map((s, i) => {
-                const isPaid = ["PAID"].includes((s.paymentStatus || s.status || "").toUpperCase()) || s.paid;
-                return (
-                  <div key={i} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "6px 0",
-                    borderTop: i === 0 ? "1px solid #f0f5f8" : "none",
-                    borderBottom: "1px dashed #edf2f5",
-                    gap: 8,
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
-                      <div style={{
-                        width: 26, height: 26, borderRadius: "50%",
-                        background: `hsl(${(i * 53) % 360},45%,88%)`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 10.5, fontWeight: 800,
-                        color: `hsl(${(i * 53) % 360},45%,38%)`,
-                        flexShrink: 0,
-                      }}>
-                        {(s.name || "S")[0].toUpperCase()}
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 11.5, fontWeight: 600, color: "#1c3040", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name || "Student"}</div>
-                        <div style={{ fontSize: 9.5, color: "#9ab5c5", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.course || s.email || "—"}</div>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "#1c3040", fontFamily: "'DM Mono',monospace" }}>{fmt(s.fees || 0)}</div>
-                      <div style={{
-                        fontSize: 8.5, fontWeight: 800, borderRadius: 99, padding: "1px 5px",
-                        background: isPaid ? "#e8f8f1" : "#fff3ee",
-                        color: isPaid ? "#2ecc71" : "#e05c3a",
-                        display: "inline-block", marginTop: 1,
-                      }}>{isPaid ? "PAID" : "PENDING"}</div>
-                    </div>
-                  </div>
-                );
-              })}
-              {studentData.length > 6 && (
-                <div style={{ fontSize: 10.5, color: "#9ab5c5", marginTop: 7, textAlign: "center" }}>
-                  +{studentData.length - 6} more students
-                </div>
-              )}
+ 
             </div>
           </div>
 
@@ -539,25 +528,7 @@ export default function FinanceDashboard() {
               ))}
             </div>
 
-            <SectionCard
-              title="Teaching Staff Salaries" total={teachTotal} items={teachItems}
-              color="#172a38" iconName="GraduationCap"
-              badge={
-                teacherSalaries.filter(t => t.status === "PAID").length > 0
-                  ? { text: `${teacherSalaries.filter(t => t.status === "PAID").length} PAID`, bg: "#e8f8f1", color: "#2ecc71" }
-                  : null
-              }
-            />
-            <SectionCard
-              title="Group B Staff Salaries" total={gbTotal} items={gbItems}
-              color="#c8960c" iconName="Users"
-              badge={
-                groupBSalaries.filter(t => t.status === "PAID").length > 0
-                  ? { text: `${groupBSalaries.filter(t => t.status === "PAID").length} PAID`, bg: "#e8f5f8", color: "#2ecc71" }
-                  : null
-              }
-            />
-            <SectionCard title="Group C Staff Salaries" total={gcTotal} items={gcItems} color="#2e7d5a" iconName="Wrench" />
+            
           </div>
 
           {/* ══ COL 3 – Expenses ══ */}

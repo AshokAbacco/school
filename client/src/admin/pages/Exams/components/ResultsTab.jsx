@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   BarChart2, Users, TrendingUp, Award, ChevronRight,
   ArrowLeft, BookOpen, Search, X, Loader2, AlertCircle,
-  CheckCircle2, XCircle, Minus,
+  CheckCircle2, XCircle, Minus,Download
 } from "lucide-react";
 import { getToken } from "../../../../auth/storage.js";
 
@@ -371,6 +371,39 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
       Math.max(results.filter(r => !r.isAbsent).length, 1)
     : 0;
 
+
+
+    const handleExportResults = async () => {
+  try {
+    if (!cs || !selExam) {
+      alert("Select class & exam");
+      return;
+    }
+
+    let url = `${API_URL}/api/results/export/excel?classSectionId=${cs.id}&assessmentGroupId=${selExam.id}`;
+
+    if (selSubjectId !== "all") {
+      url += `&subjectId=${selSubjectId}`;
+    }
+
+    const res = await fetch(url, {
+      headers: authHdr(),
+    });
+
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `results-${cs.name}-${selExam.name}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (err) {
+    console.error("Export failed", err);
+  }
+};
+
   return (
     <div>
       {/* back + title */}
@@ -528,6 +561,26 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
                 <Loader2 size={15} color={C.mid}
                   style={{ animation: "spin 1s linear infinite" }} />
               )}
+              <button
+                onClick={handleExportResults}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 14px",
+                  borderRadius: 10,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  background: "#e0f2fe",
+                  color: "#0369a1",
+                  border: "1px solid #7dd3fc",
+                  cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                <Download size={14} />
+                Export {selExam?.name}
+              </button>
             </div>
 
             {resLoading ? (
@@ -712,6 +765,7 @@ export default function ResultsTab({ academicYearId, academicYearLabel }) {
     );
   }
 
+ 
   /* ── class grid ── */
   return (
     <div>

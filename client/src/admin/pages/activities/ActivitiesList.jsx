@@ -128,7 +128,7 @@ const Sel = ({ children, style: s, ...p }) => (
 function PrimaryBtn({ children, onClick, loading, disabled, compact }) {
   return (
     <button onClick={onClick} disabled={loading || disabled}
-      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: compact ? "8px 14px" : "9px 18px", borderRadius: 9, border: "none", background: C.deep, color: "#fff", fontSize: compact ? 12 : 13, fontWeight: 700, cursor: (loading || disabled) ? "not-allowed" : "pointer", opacity: (loading || disabled) ? 0.6 : 1, whiteSpace: "nowrap", transition: "all 0.14s", width: "100%" }}
+      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: compact ? "8px 14px" : "9px 18px", borderRadius: 9, border: "none", background: C.deep, color: "#fff", fontSize: compact ? 12 : 13, fontWeight: 700, cursor: (loading || disabled) ? "not-allowed" : "pointer", opacity: (loading || disabled) ? 0.6 : 1, whiteSpace: "nowrap", transition: "all 0.14s", width: "auto" }}
       onMouseEnter={e => { if (!loading && !disabled) e.currentTarget.style.background = C.deepDark; }}
       onMouseLeave={e => { if (!loading && !disabled) e.currentTarget.style.background = C.deep; }}>
       {loading ? <Loader2 size={12} className="spin" /> : children}
@@ -139,7 +139,7 @@ function PrimaryBtn({ children, onClick, loading, disabled, compact }) {
 function OutlineBtn({ children, onClick, danger, compact }) {
   return (
     <button onClick={onClick}
-      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: compact ? "8px 14px" : "9px 16px", borderRadius: 9, border: danger ? `1.5px solid ${C.danger}44` : `1.5px solid ${C.borderLight}`, background: danger ? `${C.danger}08` : C.white, color: danger ? C.danger : C.text, fontSize: compact ? 12 : 13, fontWeight: 600, cursor: "pointer", transition: "background 0.14s", whiteSpace: "nowrap", width: "100%" }}
+      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: compact ? "8px 14px" : "9px 16px", borderRadius: 9, border: danger ? `1.5px solid ${C.danger}44` : `1.5px solid ${C.borderLight}`, background: danger ? `${C.danger}08` : C.white, color: danger ? C.danger : C.text, fontSize: compact ? 12 : 13, fontWeight: 600, cursor: "pointer", transition: "background 0.14s", whiteSpace: "nowrap", width: "auto" }}
       onMouseEnter={e => (e.currentTarget.style.background = danger ? `${C.danger}12` : C.bg)}
       onMouseLeave={e => (e.currentTarget.style.background = danger ? `${C.danger}08` : C.white)}>
       {children}
@@ -365,19 +365,21 @@ export default function ActivitiesList() {
       {/* ── HEADER ── */}
       <div className="fade-up" style={{ marginBottom: isMobile ? 20 : 28 }}>
 
-        {/* Title row */}
-        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 12 : 16, marginBottom: isMobile ? 16 : 20 }}>
-          <div style={{ width: 4, height: isMobile ? 30 : 40, flexShrink: 0, borderRadius: 99, background: `linear-gradient(180deg, ${C.sky}, ${C.deep})` }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textLight, letterSpacing: "0.12em", textTransform: "uppercase" }}>Management</p>
-            <h1 style={{ margin: 0, fontSize: isXs ? 20 : isMobile ? 24 : 32, fontWeight: 900, color: C.text, letterSpacing: "-0.5px", whiteSpace: isMobile ? "normal" : "nowrap" }}>Activities & Events</h1>
+        {/* Title row + Action buttons */}
+        <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 14 : 16, marginBottom: isMobile ? 16 : 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 12 : 16 }}>
+            <div style={{ width: 4, height: isMobile ? 30 : 40, flexShrink: 0, borderRadius: 99, background: `linear-gradient(180deg, ${C.sky}, ${C.deep})` }} />
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: C.textLight, letterSpacing: "0.12em", textTransform: "uppercase" }}>Management</p>
+              <h1 style={{ margin: 0, fontSize: isXs ? 20 : isMobile ? 24 : 32, fontWeight: 900, color: C.text, letterSpacing: "-0.5px", whiteSpace: isMobile ? "normal" : "nowrap" }}>Activities & Events</h1>
+            </div>
           </div>
-        </div>
 
-        {/* Action buttons — full width on mobile */}
-        <div style={{ display: "grid", gridTemplateColumns: isXs ? "1fr" : isMobile ? "1fr 1fr" : "auto auto 1fr", gap: 10, marginBottom: isMobile ? 16 : 20 }}>
-          <OutlineBtn onClick={() => setModal({ type: "activity", data: null })} compact={isMobile}><Plus size={14} /> New Activity</OutlineBtn>
-          <PrimaryBtn onClick={() => setModal({ type: "event", data: null })} compact={isMobile}><Trophy size={14} /> New Event</PrimaryBtn>
+          {/* Action buttons — aligned right on desktop, full width on mobile */}
+          <div style={{ display: "flex", flexDirection: isXs ? "column" : "row", gap: 10, width: isMobile ? "100%" : "auto", flexShrink: 0 }}>
+            <OutlineBtn onClick={() => setModal({ type: "activity", data: null })} compact={isMobile}><Plus size={14} /> New Activity</OutlineBtn>
+            <PrimaryBtn onClick={() => setModal({ type: "event", data: null })} compact={isMobile}><Trophy size={14} /> New Event</PrimaryBtn>
+          </div>
         </div>
 
         {/* Stat cards */}

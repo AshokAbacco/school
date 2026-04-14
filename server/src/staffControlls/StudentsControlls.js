@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { uploadToR2, generateSignedUrl } from "../lib/r2.js";
 import cacheService from "../utils/cacheService.js";
 import { getExpiryByRole } from "../utils/fileAccessPolicy.js";
+import XLSX from "xlsx";
 
 const prisma = new PrismaClient();
 
@@ -961,7 +962,6 @@ const parseIndianDate = (dateStr) => {
 };
 
 
-// server/src/staffControlls/StudentsControlls.js
 
 async function createStudentFull(row, schoolId) {
   const {
@@ -1129,3 +1129,276 @@ async function createStudentFull(row, schoolId) {
     return student;
   });
 }
+
+export const exportStudentsExcel = async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    const { classSectionId } = req.query;
+
+    // ── 1. Fetch students ──────────────────────────────────────────────────────
+    const students = await prisma.student.findMany({
+      where: {
+        schoolId,
+        ...(classSectionId && {
+          enrollments: { some: { classSectionId } },
+        }),
+      },
+      include: {
+        personalInfo: true,
+        enrollments: {
+          include: { classSection: true, academicYear: true },
+          take: 1,
+          orderBy: { createdAt: "desc" },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    if (!students.length) {
+      return res.status(404).json({ message: "No students found" });
+    }
+
+    // ── 2. Meta ────────────────────────────────────────────────────────────────
+    const exportDate = new Date().toLocaleDateString("en-IN", {
+      day: "2-digit", month: "long", year: "numeric",
+    });
+
+    // Derive a display label for the filter (class name or "All Classes")
+    const filterLabel = classSectionId
+      ? (students[0]?.enrollments?.[0]?.classSection?.name || "Filtered Class")
+      : "All Classes";
+
+    // ── 3. Build workbook ──────────────────────────────────────────────────────
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    wb.creator  = "School Management System";
+    wb.created  = new Date();
+    wb.modified = new Date();
+
+    const ws = wb.addWorksheet("Students", {
+      pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true },
+      views: [{ state: "frozen", ySplit: 6 }],
+    });
+
+    // ── 4. Colour palette (same design language as Results export) ─────────────
+    const C = {
+      headerBg:    "FF1E3A5F",   // deep navy
+      headerFg:    "FFFFFFFF",
+      subHeaderBg: "FF2E86AB",   // ocean blue
+      subHeaderFg: "FFFFFFFF",
+      metaBg:      "FFE8F4FD",   // very light blue
+      metaFg:      "FF1E3A5F",
+      colHeaderBg: "FF34495E",   // dark slate
+      colHeaderFg: "FFFFFFFF",
+      rowEven:     "FFF8FBFF",
+      rowOdd:      "FFFFFFFF",
+      borderCol:   "FFB0C4DE",
+      activeCell:  "FFE8F5E9",   // light green  – ACTIVE
+      inactiveCell:"FFFCE4E4",   // light red    – INACTIVE / other
+      statusActive:   { bg: "FF1A7A4A", fg: "FFFFFFFF" },
+      statusInactive: { bg: "FFC62828", fg: "FFFFFFFF" },
+      statusOther:    { bg: "FFF57F17", fg: "FFFFFFFF" },
+    };
+
+    // ── 5. Column definitions ─────────────────────────────────────────────────
+    //  A  B            C        D       E            F           G       H
+    ws.columns = [
+      { key: "rollNo",      width: 10  },  // A – Roll No
+      { key: "admNo",       width: 16  },  // B – Admission No
+      { key: "name",        width: 28  },  // C – Student Name
+      { key: "gender",      width: 10  },  // D – Gender
+      { key: "phone",       width: 16  },  // E – Phone
+      { key: "email",       width: 30  },  // F – Email
+      { key: "class",       width: 14  },  // G – Class
+      { key: "academicYear",width: 18  },  // H – Academic Year
+      { key: "dob",         width: 16  },  // I – Date of Birth
+      { key: "bloodGroup",  width: 12  },  // J – Blood Group
+      { key: "status",      width: 12  },  // K – Status
+    ];
+
+    const LAST_COL  = "K";
+    const TOTAL_COLS = 11;
+
+    // ── 6. Helpers ────────────────────────────────────────────────────────────
+    const thinBorder = (color = C.borderCol) => ({
+      top:    { style: "thin", color: { argb: color } },
+      left:   { style: "thin", color: { argb: color } },
+      bottom: { style: "thin", color: { argb: color } },
+      right:  { style: "thin", color: { argb: color } },
+    });
+
+    const fillSolid = (argb) => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+
+    const addBanner = (text, bgArgb, fgArgb, fontSize, rowHeight) => {
+      const row  = ws.addRow([text]);
+      const cell = row.getCell(1);
+      ws.mergeCells(`A${row.number}:${LAST_COL}${row.number}`);
+      cell.value     = text;
+      cell.font      = { bold: true, size: fontSize, color: { argb: fgArgb }, name: "Calibri" };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.fill      = fillSolid(bgArgb);
+      cell.border    = thinBorder("FFFFFFFF");
+      row.height     = rowHeight;
+      return row;
+    };
+
+    // ── 7. Rows 1-4: Header block ──────────────────────────────────────────────
+    // Row 1 – Title banner
+    addBanner("🎓  STUDENT LIST REPORT", C.headerBg, C.headerFg, 18, 36);
+
+    // Row 2 – Class filter
+    addBanner(`Class: ${filterLabel}`, C.subHeaderBg, C.subHeaderFg, 13, 26);
+
+    // Row 3 – Meta info
+    addBanner(
+      `Exported on: ${exportDate}     |     Total Students: ${students.length}`,
+      C.metaBg, C.metaFg, 10, 20,
+    );
+
+    // Row 4 – spacer
+    const spacer = ws.addRow([]);
+    spacer.height = 6;
+
+    // ── 8. Row 5: Column headers ───────────────────────────────────────────────
+    const headerLabels = [
+      "Roll No", "Admission No", "Student Name", "Gender",
+      "Phone", "Email", "Class", "Academic Year",
+      "Date of Birth", "Blood Group", "Status",
+    ];
+    const hdrRow  = ws.addRow(headerLabels);
+    hdrRow.height = 28;
+    hdrRow.eachCell((cell) => {
+      cell.font      = { bold: true, size: 11, color: { argb: C.colHeaderFg }, name: "Calibri" };
+      cell.fill      = fillSolid(C.colHeaderBg);
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.border    = thinBorder("FF1A252F");
+    });
+
+    // ── 9. Data rows ───────────────────────────────────────────────────────────
+    students.forEach((s, idx) => {
+      const enroll  = s.enrollments?.[0];
+      const info    = s.personalInfo;
+      const status  = (enroll?.status || "UNKNOWN").toUpperCase();
+      const isActive = status === "ACTIVE";
+
+      const dobRaw = info?.dateOfBirth;
+      const dobStr = dobRaw
+        ? new Date(dobRaw).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+        : "";
+
+      const fullName = [info?.firstName, info?.lastName].filter(Boolean).join(" ") || s.name || "";
+
+      const bloodRaw = info?.bloodGroup || "";
+      // Convert enum like "A_POS" → "A+" and "AB_NEG" → "AB-" for display
+      const bloodDisplay = bloodRaw
+        .replace(/_POS$/, "+")
+        .replace(/_NEG$/, "-")
+        .replace(/_/g, "");
+
+      const dataRow = ws.addRow({
+        rollNo:      enroll?.rollNumber      || "",
+        admNo:       enroll?.admissionNumber || "",
+        name:        fullName,
+        gender:      info?.gender ? info.gender.charAt(0) + info.gender.slice(1).toLowerCase() : "",
+        phone:       info?.phone  || "",
+        email:       s.email      || "",
+        class:       enroll?.classSection?.name  || "",
+        academicYear:enroll?.academicYear?.name  || "",
+        dob:         dobStr,
+        bloodGroup:  bloodDisplay,
+        status:      status,
+      });
+      dataRow.height = 22;
+
+      const rowBg = idx % 2 === 0 ? C.rowEven : C.rowOdd;
+
+      dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        const isStatusCol = colNum === TOTAL_COLS;
+        const isCenterCol = colNum === 1 || colNum === 4 || colNum === 9 || colNum === 10;
+
+        cell.font      = { size: 10, name: "Calibri", color: { argb: "FF1A1A2E" } };
+        cell.alignment = {
+          horizontal: isCenterCol || isStatusCol ? "center" : "left",
+          vertical:   "middle",
+        };
+        cell.border = thinBorder(C.borderCol);
+
+        // Row background – green for active, red for inactive
+        if (!isStatusCol) {
+          cell.fill = fillSolid(isActive ? C.activeCell : C.inactiveCell);
+        }
+
+        // Status cell – bold coloured badge
+        if (isStatusCol) {
+          let sc = C.statusOther;
+          if (status === "ACTIVE")   sc = C.statusActive;
+          if (status === "INACTIVE") sc = C.statusInactive;
+          cell.fill      = fillSolid(sc.bg);
+          cell.font      = { bold: true, size: 10, name: "Calibri", color: { argb: sc.fg } };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        }
+      });
+    });
+
+    // ── 10. Summary footer ─────────────────────────────────────────────────────
+    ws.addRow([]).height = 8;
+    addBanner("SUMMARY", C.headerBg, C.headerFg, 11, 22);
+
+    const activeCount   = students.filter((s) => (s.enrollments?.[0]?.status || "").toUpperCase() === "ACTIVE").length;
+    const inactiveCount = students.length - activeCount;
+
+    const statsLabels = [
+      ["Total Students", students.length],
+      ["Active",         activeCount],
+      ["Inactive",       inactiveCount],
+      ["Classes",        [...new Set(students.map((s) => s.enrollments?.[0]?.classSection?.name).filter(Boolean))].length],
+    ];
+
+    const labels = [];
+    const values = [];
+    statsLabels.forEach(([l, v]) => { labels.push(l, ""); values.push(v, ""); });
+    while (labels.length < TOTAL_COLS) labels.push("");
+    while (values.length < TOTAL_COLS) values.push("");
+
+    const lRow = ws.addRow(labels);
+    lRow.height = 18;
+    lRow.eachCell({ includeEmpty: true }, (cell, cn) => {
+      if (labels[cn - 1] !== "") {
+        cell.font      = { bold: true, size: 9, color: { argb: C.metaFg }, name: "Calibri" };
+        cell.fill      = fillSolid(C.metaBg);
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border    = thinBorder(C.borderCol);
+      }
+    });
+
+    const vRow = ws.addRow(values);
+    vRow.height = 22;
+    vRow.eachCell({ includeEmpty: true }, (cell, cn) => {
+      if (values[cn - 1] !== "") {
+        cell.font      = { bold: true, size: 12, color: { argb: C.headerBg }, name: "Calibri" };
+        cell.fill      = fillSolid("FFFFFFFF");
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border    = thinBorder(C.borderCol);
+      }
+    });
+
+    // ── 11. Footer row ─────────────────────────────────────────────────────────
+    ws.addRow([]).height = 6;
+    addBanner(
+      `This report was generated automatically on ${exportDate}. For official use only.`,
+      "FFECF0F1", C.metaFg, 8, 18,
+    );
+
+    // ── 12. Send response ──────────────────────────────────────────────────────
+    const safeName = `Students_${filterLabel}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}.xlsx"`);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+
+    await wb.xlsx.write(res);
+    res.end();
+
+  } catch (err) {
+    console.error("[exportStudentsExcel]", err);
+    res.status(500).json({ message: "Export failed", error: err.message });
+  }
+};

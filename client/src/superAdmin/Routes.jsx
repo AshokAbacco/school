@@ -11,12 +11,12 @@ import UsersManagement from "./pages/UsersManagement/UsersManagement";
 import RolesPermissions from "./pages/roles/RolesPermissions";
 import Plans from "./pages/Subscription/Plans";
 import Analytics from "./pages/Analytics/Analytics";
-import Mettings from "./pages/mettings/Mettings";
+import Mettings from "./pages/mettings/MeetingsList";
 import Fees from "./pages/Fees/Fees";
 import AddFee from "./pages/Fees/AddFee";
 import Finance from "./pages/Finance/Finance";
 import AddFinance from "./pages/Finance/AddFinancers";
-
+import ChatPage from "./pages/chat/ChatPage.jsx";
 function SuperAdminRoutes() {
   return (
     <PageLayout>
@@ -36,6 +36,7 @@ function SuperAdminRoutes() {
         <Route path="finance"            element={<Finance />} />
         <Route path="finance-add"        element={<AddFinance />} />
         <Route path="settings"           element={<div>Global Settings</div>} />
+        <Route path="chat"               element={<ChatPage />} />
         <Route path="*"                  element={<Navigate to="dashboard" replace />} />
       </Routes>
     </PageLayout>

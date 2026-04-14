@@ -250,6 +250,7 @@ model SuperAdmin {
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
 
   schoolAccess SuperAdminSchoolAccess[]
+  schoolId     String?
 
   @@index([universityId])
   @@map("super_admins")
@@ -318,6 +319,7 @@ model School {
   transportRoutes       TransportRoute[]
   transportStops        TransportStop[]
   StudentTransport      StudentTransport[]
+  ClassFee              ClassFee[]
 
   @@index([universityId])
   @@index([type])
@@ -523,6 +525,8 @@ model User {
   StudentAward             StudentAward[]
   StaffProfile             StaffProfile?
   Certificate              Certificate[]
+  classFeeCreated          ClassFee[]           @relation("ClassFeeCreatedBy")
+  classFeeUpdated          ClassFee[]           @relation("ClassFeeUpdatedBy")
 
   @@unique([email, schoolId])
   @@index([role])
@@ -868,6 +872,7 @@ model AcademicYear {
   assignments         Assignment[]
   transportFeePlans   TransportFeePlan[]
   studentTransports   StudentTransport[]
+  classFees           ClassFee[]
 
   @@unique([name, schoolId])
   @@index([schoolId])
@@ -912,6 +917,7 @@ model ClassSection {
   liveClasses         LiveClass[]
   liveClassSections   LiveClassSection[]
   assignmentSections  AssignmentSection[]
+  classFees           ClassFee[]
 
   @@index([schoolId])
   @@index([grade, schoolId])
@@ -1463,12 +1469,12 @@ model StudentList {
   email String
   phone String
 
-  course       String?
-  fees         Decimal?
-  address      String?
-  feeBreakdown String?
-  createdAt    DateTime @default(now())
-
+  course        String?
+  fees          Decimal?
+  address       String?
+  feeBreakdown  String?
+  createdAt     DateTime  @default(now())
+  schoolId      String
   // Payment tracking
   paidAmount    Decimal? // How much has been paid so far
   paymentStatus String? // "UNPAID" | "PARTIAL" | "PAID"
@@ -2106,14 +2112,14 @@ model StudentAward {
 // ═══════════════════════════════════════════════════════════════
 
 model ExpenseCategory {
-  id        String   @id @default(uuid())
+  id        String               @id @default(uuid())
   name      String
   icon      String?
   color     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  expenses ExpenseCategoryMap[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  schoolId  String
+  expenses  ExpenseCategoryMap[]
 
   @@map("expense_categories")
 }
@@ -2636,4 +2642,118 @@ model DeviceLocation {
   @@index([timestamp])
   @@index([deviceId])
   @@map("device_locations")
+model ClassFee {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  feeAmount Decimal   @db.Decimal(10, 2)
+  status    FeeStatus @default(ACTIVE)
+
+  // ✅ FIX HERE
+  createdById String? // 👈 make optional
+  createdBy   User?   @relation("ClassFeeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  updatedById String?
+  updatedBy   User?   @relation("ClassFeeUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([classSectionId, academicYearId])
+  @@index([schoolId])
+  @@index([academicYearId])
+  @@index([classSectionId])
+  @@index([schoolId, academicYearId, status])
+  @@map("class_fees")
+}
+
+enum FeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// ChatBoxs
+// ═══════════════════════════════════════════════════════════════
+// 💬 CHAT MODULE (FULLY OPTIMIZED + CASCADE SAFE)
+// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// 💬 CHAT MODULE (FINAL CLEAN VERSION)
+// ═══════════════════════════════════════════════
+
+enum ChatType {
+  PRIVATE
+  NOTIFICATION
+}
+
+enum MessageType {
+  TEXT
+  NOTIFICATION
+}
+
+// ─────────────────────────────
+// CHAT ROOM
+// ─────────────────────────────
+model ChatRoom {
+  id        String   @id @default(uuid())
+  type      ChatType @default(PRIVATE)
+  createdAt DateTime @default(now())
+
+  participants ChatParticipant[]
+  messages     Message[]
+
+  @@index([createdAt])
+  // ⚠️ IMPORTANT: match your existing DB table name
+  @@map("ChatRoom")
+}
+
+// ─────────────────────────────
+// PARTICIPANTS
+// ─────────────────────────────
+model ChatParticipant {
+  id String @id @default(uuid())
+
+  chatRoomId String
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+
+  userId String
+  role   String
+
+  joinedAt DateTime @default(now())
+
+  @@unique([chatRoomId, userId])
+  @@index([chatRoomId])
+  @@index([userId])
+  // ⚠️ match DB table
+  @@map("ChatParticipant")
+}
+
+// ─────────────────────────────
+// MESSAGES
+// ─────────────────────────────
+model Message {
+  id String @id @default(uuid())
+
+  chatRoomId String
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+
+  senderId   String
+  senderRole String
+
+  content String
+  type    MessageType @default(TEXT) // ✅ IMPORTANT (your code uses this)
+
+  createdAt DateTime @default(now())
+
+  @@index([chatRoomId])
+  @@index([senderId])
+  @@index([createdAt])
+  // ⚠️ match DB table
+  @@map("Message")
 }

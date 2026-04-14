@@ -54,20 +54,29 @@ export async function createFinanceProfile(req, res) {
  */
 export const getFinanceProfiles = async (req, res) => {
   try {
-    // 1. Try cache first
-    const cached = await redisClient.get(CACHE_ALL);
+    const universityId = req.user.universityId;
+
+    const CACHE_KEY = `finance_profiles:uni:${universityId}`;
+
+    // 1. Try cache
+    const cached = await redisClient.get(CACHE_KEY);
     if (cached) {
       return res.json({ success: true, fromCache: true, data: JSON.parse(cached) });
     }
 
-    // 2. Cache miss — fetch from DB
+    // 2. Fetch ONLY related finance users
     const profiles = await prisma.financeProfile.findMany({
+      where: {
+        school: {
+          universityId: universityId,   // ✅ FILTER HERE
+        },
+      },
       include: { user: true, school: true },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
     });
 
-    // 3. Store in cache
-    await redisClient.set(CACHE_ALL, JSON.stringify(profiles), { EX: TTL });
+    // 3. Cache per university
+    await redisClient.set(CACHE_KEY, JSON.stringify(profiles), { EX: 60 });
 
     res.json({ success: true, fromCache: false, data: profiles });
 

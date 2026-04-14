@@ -21,6 +21,7 @@ import {
   X,
   Building2,
   AlertCircle,
+  Download 
 } from "lucide-react";
 import AttendanceStatsCards from "./components/AttendanceStatsCards";
 import AttendanceTableRow from "./components/AttendanceTableRow";
@@ -286,6 +287,34 @@ export default function AttendanceList() {
     return attendance.filter((a) => a.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [attendance, searchTerm]);
 
+  const handleExportAttendance = async () => {
+  try {
+    if (!selectedSection) {
+      alert("Please select a section first");
+      return;
+    }
+
+    const url = `${API_URL}/api/attendance/export/excel?classSectionId=${selectedSection.id}&date=${selectedDate}`;
+
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
+      },
+    });
+
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `attendance-${selectedSection.section}-${selectedDate}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (err) {
+    console.error("Export failed", err);
+  }
+};
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -327,46 +356,68 @@ export default function AttendanceList() {
           </div>
 
           {/* Date picker */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ position: "relative" }}>
-              <CalendarIcon
-                size={14}
-                style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: holidayInfo ? "#b45309" : C.textLight, pointerEvents: "none" }}
-              />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                style={{
-                  fontSize: 13, paddingLeft: 36, paddingRight: 16, paddingTop: 8, paddingBottom: 8,
-                  borderRadius: 12, background: C.white, outline: "none",
-                  border: `1.5px solid ${holidayInfo ? "rgba(245,158,11,0.60)" : C.border}`,
-                  color: C.text, fontFamily: "'Inter', sans-serif",
-                }}
-              />
-              {holidayInfo && (
-                <span style={{
-                  position: "absolute", top: -4, right: -4,
-                  width: 10, height: 10, borderRadius: "50%",
-                  background: "#f59e0b", border: "2px solid white",
-                }} />
-              )}
-            </div>
-            {holidayInfo && (
-              <button
-                onClick={() => setHolidayPanelOpen(true)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "8px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
-                  background: "rgba(245,158,11,0.12)", color: "#b45309",
-                  border: "1px solid rgba(245,158,11,0.30)", cursor: "pointer",
-                  fontFamily: "'Inter', sans-serif",
-                }}
-              >
-                <Palmtree size={13} /> Holiday
-              </button>
-            )}
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+
+  {/* ✅ Export Button */}
+  <button
+    onClick={handleExportAttendance}
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "8px 14px",
+      borderRadius: 10,
+      fontSize: 12,
+      fontWeight: 600,
+      background: "#e0f2fe",
+      color: "#0369a1",
+      border: "1px solid #7dd3fc",
+      cursor: "pointer",
+      fontFamily: "'Inter', sans-serif",
+    }}
+  >
+    <Download size={14} />
+    {selectedSection
+      ? `Export ${selectedSection.section}`
+      : "Export"}
+  </button>
+
+  {/* Existing Date Picker */}
+  <div style={{ position: "relative" }}>
+    <CalendarIcon
+      size={14}
+      style={{
+        position: "absolute",
+        left: 12,
+        top: "50%",
+        transform: "translateY(-50%)",
+        color: holidayInfo ? "#b45309" : C.textLight,
+        pointerEvents: "none",
+      }}
+    />
+    <input
+      type="date"
+      value={selectedDate}
+      onChange={(e) => setSelectedDate(e.target.value)}
+      style={{
+        fontSize: 13,
+        paddingLeft: 36,
+        paddingRight: 16,
+        paddingTop: 8,
+        paddingBottom: 8,
+        borderRadius: 12,
+        background: C.white,
+        outline: "none",
+        border: `1.5px solid ${
+          holidayInfo ? "rgba(245,158,11,0.60)" : C.border
+        }`,
+        color: C.text,
+        fontFamily: "'Inter', sans-serif",
+      }}
+    />
+  </div>
+
+</div>
         </div>
 
         {/* Breadcrumb */}

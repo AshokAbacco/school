@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import {
   TrendingDown, PlusCircle, Receipt,
-  Package, ChevronDown, ChevronUp,
+  Package, ChevronDown, ChevronUp, Pencil, Trash2,
 } from "lucide-react";
 import AddExpense, { iconMap, fmt } from "./components/AddExpense";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 // ── Single accordion row ──────────────────────────────────────────────────────
-function ExpenseSection({ sec, totalExpenses }) {
+function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCategory }) {
   const [open, setOpen] = useState(false);
   const pct = totalExpenses > 0 ? Math.round((sec.total / totalExpenses) * 100) : 0;
   const SIcon = iconMap[sec.icon] || Package;
@@ -31,7 +31,26 @@ function ExpenseSection({ sec, totalExpenses }) {
             <SIcon size={14} />
           </div>
           <div className="text-left min-w-0">
-            <p className="text-xs sm:text-sm font-bold text-[#1c3040] m-0 mb-1 truncate">{sec.label}</p>
+            <div className="flex items-center gap-2">
+                <p className="text-xs sm:text-sm font-bold text-[#1c3040] m-0 truncate">
+                  {sec.label}
+                </p>
+
+                {/* EDIT CATEGORY */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+
+                    const newName = prompt("Edit category name", sec.label);
+                    if (!newName) return;
+
+                    onEditCategory(sec.key, newName);
+                  }}
+                  className="text-blue-500 text-xs"
+                >
+                  Edit
+                </button>
+              </div>
             <div className="w-24 sm:w-36 h-1.5 bg-[#eaf1f6] rounded-full overflow-hidden">
               <div className="h-full rounded-full" style={{ width: `${pct}%`, background: sec.color }} />
             </div>
@@ -55,7 +74,7 @@ function ExpenseSection({ sec, totalExpenses }) {
             return (
               <div
                 key={i}
-                className="flex items-center justify-between py-2 sm:py-2.5 border-b border-[#eaf1f6] last:border-none"
+                className="flex items-center justify-between py-2 sm:py-2.5 border-b border-[#eaf1f6] last:border-none group"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: sec.color }} />
@@ -67,11 +86,38 @@ function ExpenseSection({ sec, totalExpenses }) {
                   </div>
                   <span className="text-[12px] sm:text-[13px] font-medium text-[#2E3F50] truncate">{item.label}</span>
                 </div>
+
                 <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                   <div className="hidden sm:block w-20 h-1 bg-[#eaf1f6] rounded-full overflow-hidden">
                     <div className="h-full rounded-full opacity-60" style={{ width: `${itemPct}%`, background: sec.color }} />
                   </div>
                   <span className="text-[12px] sm:text-[13px] font-bold text-[#1c3040] text-right">{fmt(item.amount)}</span>
+
+                  {/* ── Edit & Delete buttons ── */}
+                  {item.id && (
+                    <div className="flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        title="Edit expense"
+                        className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-[#3c5d74]/10 text-[#3c5d74] transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditItem({ id: item.id, label: item.label, amount: item.amount, icon: item.icon });
+                        }}
+                      >
+                        <Pencil size={11} />
+                      </button>
+                      <button
+                        title="Delete expense"
+                        className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-red-50 text-red-400 hover:text-red-500 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteItem(item.id);
+                        }}
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -94,14 +140,33 @@ export default function Expense() {
   const [expenseSections, setExpenseSections] = useState([]);
   const [salarySections, setSalarySections] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState(null); // { id, label, amount, icon }
   const [loading, setLoading] = useState(true);
 
+  // ── helpers ──────────────────────────────────────────────────────────────────
+  const getToken = () => {
+    try {
+      return JSON.parse(localStorage.getItem("auth"))?.token;
+    } catch {
+      return null;
+    }
+  };
+
+  const reloadExpenses = async (token) => {
+    const t = token || getToken();
+    const res = await fetch(`${API_URL}/api/finance/list`, {
+      headers: { Authorization: `Bearer ${t}` },
+    });
+    const data = await res.json();
+    if (Array.isArray(data)) setExpenseSections(data);
+  };
+
+  // ── initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/finance/list`);
-        const data = await res.json();
-        if (Array.isArray(data)) setExpenseSections(data);
+        const token = getToken();
+        await reloadExpenses(token);
       } catch (e) {
         console.log("Expense fetch error:", e);
       } finally {
@@ -111,6 +176,7 @@ export default function Expense() {
     load();
   }, []);
 
+  // ── salary load ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const fetchAllSalaries = async () => {
       const token = localStorage.getItem("token");
@@ -168,6 +234,37 @@ export default function Expense() {
     fetchAllSalaries();
   }, []);
 
+  const handleEditCategory = async (id, name) => {
+  try {
+    const token = getToken();
+
+    if (!token) {
+      alert("Please login again");
+      return;
+    }
+
+    const res = await fetch(`${API_URL}/api/finance/category/update/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ name })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      await reloadExpenses(token); // ✅ refresh UI
+    } else {
+      alert(data.message || "Update failed");
+    }
+
+  } catch (e) {
+    console.log("Category edit error:", e);
+  }
+};
+  // ── derived ──────────────────────────────────────────────────────────────────
   const mergedSections =
     salarySections.length > 0
       ? [...expenseSections.filter((s) => s.key !== "salaries"), ...salarySections]
@@ -175,24 +272,79 @@ export default function Expense() {
 
   const totalExpenses = mergedSections.reduce((s, e) => s + e.total, 0);
 
+  // ── handlers ─────────────────────────────────────────────────────────────────
   const handleAddExpense = async ({ isNewSection, sectionKey, newSectionLabel, label, amount, icon }) => {
     try {
+      const token = getToken();
+      if (!token) { alert("Please login again"); return; }
+
       const res = await fetch(`${API_URL}/api/finance/add`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ isNewSection, sectionKey, newSectionLabel, label, amount, icon }),
       });
+
       const data = await res.json();
-      if (data.success) {
-        const reload = await fetch(`${API_URL}/api/finance/list`);
-        const updated = await reload.json();
-        setExpenseSections(updated);
-      }
+      if (data.success) await reloadExpenses(token);
     } catch (e) {
       console.log("Add expense error:", e);
     }
   };
 
+  const handleEditExpense = async ({ id, label, amount, icon }) => {
+    try {
+      const token = getToken();
+      if (!token) { alert("Please login again"); return; }
+
+      const res = await fetch(`${API_URL}/api/finance/update/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ label, amount, icon }),
+      });
+
+      if (res.ok) await reloadExpenses(token);
+    } catch (e) {
+      console.log("Edit expense error:", e);
+    }
+  };
+
+const handleDeleteExpense = async (id) => {
+  if (!window.confirm("Delete this expense?")) return;
+
+  try {
+    const token = getToken();
+
+    const res = await fetch(`${API_URL}/api/finance/delete/${id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      await reloadExpenses(token);
+    } else {
+      alert(data.message || "Delete failed"); // ✅ show error
+    }
+
+  } catch (e) {
+    console.log("Delete expense error:", e);
+  }
+};
+
+  const openEditModal = (item) => {
+    setEditItem(item);
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditItem(null);
+  };
+
+  // ── render ────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#d8e8f0] via-[#c8dce9] to-[#b8cfe0]">
 
@@ -216,7 +368,7 @@ export default function Expense() {
           )}
           <button
             className="flex items-center gap-1.5 sm:gap-2 bg-white/[0.14] border border-white/[0.22] text-white rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-[12px] sm:text-[13.5px] font-bold hover:bg-white/[0.22] transition-all whitespace-nowrap"
-            onClick={() => setShowModal(true)}
+            onClick={() => { setEditItem(null); setShowModal(true); }}
           >
             <PlusCircle size={14} /> Add Expense
           </button>
@@ -240,7 +392,7 @@ export default function Expense() {
             <p className="text-sm opacity-70 mb-5 text-center px-4">Start by adding your first expense category.</p>
             <button
               className="flex items-center gap-2 bg-gradient-to-br from-[#2b4557] to-[#1c3040] text-white rounded-xl px-5 py-2.5 text-sm font-bold shadow-md hover:-translate-y-0.5 transition-all"
-              onClick={() => setShowModal(true)}
+              onClick={() => { setEditItem(null); setShowModal(true); }}
             >
               <PlusCircle size={15} /> Add First Expense
             </button>
@@ -250,7 +402,14 @@ export default function Expense() {
         {!loading && mergedSections.length > 0 && (
           <>
             {mergedSections.map((sec) => (
-              <ExpenseSection key={sec.key} sec={sec} totalExpenses={totalExpenses} />
+              <ExpenseSection
+                key={sec.key}
+                sec={sec}
+                totalExpenses={totalExpenses}
+                onEditItem={openEditModal}
+                onDeleteItem={handleDeleteExpense}
+                onEditCategory={handleEditCategory}
+              />
             ))}
 
             {/* Summary footer card */}
@@ -296,8 +455,10 @@ export default function Expense() {
       {showModal && (
         <AddExpense
           expenseSections={mergedSections}
-          onClose={() => setShowModal(false)}
+          onClose={closeModal}
           onAdd={handleAddExpense}
+          onEdit={handleEditExpense}
+          editItem={editItem}
         />
       )}
     </div>

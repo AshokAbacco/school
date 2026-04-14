@@ -1,13 +1,14 @@
 // client/src/finance/components/Sidebar.jsx
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, GraduationCap, Wallet, X } from "lucide-react";
+import { LayoutDashboard, GraduationCap, Wallet, X,MessageCircle } from "lucide-react";
 
 const NAV = [
   { icon: LayoutDashboard, label: "Dashboard", to: "/finance/dashboard" },
   { icon: GraduationCap, label: "Student", to: "/finance/studentfinance" },
   { icon: Wallet, label: "Staff", to: "/finance/teachersfinance" },
   { icon: Wallet, label: "Expenses", to: "/finance/expenses" },
+  { icon: MessageCircle, label: "Chat", to: "/finance/chat" },
 ];
 
 const initials = (name = "AU") =>

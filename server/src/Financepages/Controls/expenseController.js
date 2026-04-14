@@ -4,23 +4,25 @@ const prisma = new PrismaClient();
 
 export const getExpenses = async (req, res) => {
   try {
+    const schoolId = req.user?.schoolId; // ✅ FIX
+
+    if (!schoolId) {
+      return res.status(400).json({ message: "SchoolId missing" });
+    }
 
     const categories = await prisma.expenseCategory.findMany({
+      where: { schoolId }, // ✅ NOW WORKS
       include: {
         expenses: {
-          include: {
-            expense: true
-          }
+          include: { expense: true }
         }
       },
-      orderBy: {
-        createdAt: "asc"
-      }
+      orderBy: { createdAt: "asc" }
     });
 
     const formatted = categories.map(cat => {
-
       const items = cat.expenses.map(m => ({
+        id: m.expense.id, 
         label: m.expense.label,
         amount: m.expense.amount,
         icon: m.expense.icon || "Package"
@@ -48,24 +50,29 @@ export const getExpenses = async (req, res) => {
 
 export const addExpense = async (req, res) => {
   try {
+    const schoolId = req.user?.schoolId; // ✅ FIX
+
+    if (!schoolId) {
+      return res.status(400).json({ message: "SchoolId missing" });
+    }
+
     const { label, amount, icon, sectionKey, isNewSection, newSectionLabel } = req.body;
 
     let categoryId = sectionKey;
 
-    // Create category if new
     if (isNewSection) {
       const newCategory = await prisma.expenseCategory.create({
         data: {
           name: newSectionLabel,
-          icon: icon,
+          icon,
           color: "#3c5d74",
+          schoolId, // ✅ FIX
         },
       });
 
       categoryId = newCategory.id;
     }
 
-    // Create expense
     const expense = await prisma.expense.create({
       data: {
         label,
@@ -74,11 +81,10 @@ export const addExpense = async (req, res) => {
       },
     });
 
-    // Create mapping
     await prisma.expenseCategoryMap.create({
       data: {
         expenseId: expense.id,
-        categoryId: categoryId,
+        categoryId,
       },
     });
 
@@ -87,5 +93,68 @@ export const addExpense = async (req, res) => {
   } catch (error) {
     console.error("Add expense error:", error);
     res.status(500).json({ message: "Error adding expense" });
+  }
+};
+
+// ✅ DELETE EXPENSE
+export const deleteExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // delete mapping first
+    await prisma.expenseCategoryMap.deleteMany({
+      where: { expenseId: id }
+    });
+
+    // delete expense
+    await prisma.expense.delete({
+      where: { id }
+    });
+
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error("Delete error:", error);
+    res.status(500).json({ message: "Delete failed" });
+  }
+};
+
+// ✅ UPDATE EXPENSE
+export const updateExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { label, amount, icon } = req.body;
+
+    const updated = await prisma.expense.update({
+      where: { id },
+      data: {
+        label,
+        amount: Number(amount),
+        icon
+      }
+    });
+
+    res.json(updated);
+
+  } catch (error) {
+    console.error("Update error:", error);
+    res.status(500).json({ message: "Update failed" });
+  }
+};
+
+export const updateCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    const updated = await prisma.expenseCategory.update({
+      where: { id },
+      data: { name }
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Update category error:", error);
+    res.status(500).json({ message: "Category update failed" });
   }
 };

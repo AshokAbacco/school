@@ -28,7 +28,9 @@ class TeacherSalaryController {
   async getTeachersBySchool(req, res) {
     try {
       const { schoolId } = req.params;
-
+      if (req.user.schoolId !== schoolId && req.user.role !== "SUPER_ADMIN") {
+        return res.status(403).json({ message: "Access denied" });
+      }
       const teachers = await prisma.teacherProfile.findMany({
         where: { schoolId },
         select: {

@@ -5,6 +5,7 @@ import {
   getTeacherClasses,
   getClassStudentsForAttendance,
   markAttendance,
+  exportAttendanceExcel,
 } from "../staffControlls/attendance.controller.js";
 
 const router = express.Router();
@@ -25,5 +26,5 @@ router.get(
 
 // Mark attendance (bulk)
 router.post("/teacher/mark", authMiddleware, markAttendance);
-
+router.get("/export/excel", authMiddleware, exportAttendanceExcel);
 export default router;

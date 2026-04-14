@@ -199,17 +199,22 @@ function PayModal({ student, onClose, onPaymentDone }) {
     const handleFullPay = async () => {
         setLoading(true); setError("");
         try {
+           const auth = JSON.parse(localStorage.getItem("auth"));
+            const token = auth?.token;
+
             const res = await fetch(`${API_URL}/api/finance/updateStudentFinance/${student.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({
-                    ...student,
-                    paidAmount: totalFees,
-                    paymentStatus: "PAID",
-                    paymentMode: fullMode,
-                    paymentDate: new Date().toISOString(),
-                }),
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}` // ✅ FIX
+            },
+            body: JSON.stringify({
+                ...student,
+                paidAmount: totalFees,
+                paymentStatus: "PAID",
+                paymentMode: fullMode,
+                paymentDate: new Date().toISOString(),
+            }),
             });
             if (!res.ok) throw new Error(await res.text());
             setFullDone(true);
@@ -483,11 +488,21 @@ export default function StudentFeesPage() {
 
     // ── Fetch students ────────────────────────────────────────────────────────
     const fetchStudents = async () => {
-        try {
-            const res = await fetch(`${API_URL}/api/finance/getStudentFinance`, { credentials: "include" });
-            const data = await res.json();
-            setStudents(Array.isArray(data) ? data : []);
-        } catch (err) { console.error("Fetch error:", err); }
+    try {
+        const auth = JSON.parse(localStorage.getItem("auth"));
+        const token = auth?.token;
+
+        const res = await fetch(`${API_URL}/api/finance/getStudentFinance`, {
+        headers: {
+            Authorization: `Bearer ${token}` // ✅ FIX
+        }
+        });
+
+        const data = await res.json();
+        setStudents(Array.isArray(data) ? data : []);
+    } catch (err) {
+        console.error("Fetch error:", err);
+    }
     };
     useEffect(() => { fetchStudents(); }, []);
 
@@ -513,7 +528,15 @@ export default function StudentFeesPage() {
 
     const handleDelete = async (id) => {
         if (!window.confirm("Delete this student record?")) return;
-        await fetch(`${API_URL}/api/finance/deleteStudentFinance/${id}`, { method: "DELETE", credentials: "include" });
+            const auth = JSON.parse(localStorage.getItem("auth"));
+            const token = auth?.token;
+
+            await fetch(`${API_URL}/api/finance/deleteStudentFinance/${id}`, {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+            });
         fetchStudents();
     };
 

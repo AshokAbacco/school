@@ -1,31 +1,30 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft, Save, X, CheckCircle, GraduationCap,
-  IndianRupee, Calendar, ToggleLeft, ToggleRight, AlertCircle
+  IndianRupee, Calendar, ToggleLeft, ToggleRight, AlertCircle, Loader2
 } from "lucide-react";
+import { getToken } from "../../../auth/storage";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const CLASS_OPTIONS = [
-  "1st Class", "2nd Class", "3rd Class", "4th Class", "5th Class",
-  "6th Class", "7th Class", "8th Class", "9th Class", "10th Class", "Custom"
-];
+const API = import.meta.env.VITE_API_URL;
 
-const CURRENT_YEAR = new Date().getFullYear();
-const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => {
-  const y = CURRENT_YEAR - 1 + i;
-  return `${y}-${String(y + 1).slice(-2)}`;
-});
+// ── helpers ─────────────────────────────────────
+function authHeaders() {
+  const token = getToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
-const EMPTY_FORM = {
-  className: "",
-  customClass: "",
-  feeAmount: "",
-  academicYear: YEAR_OPTIONS[1],
-  status: "Active",
-};
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(`${API}${path}`, { ...opts, headers: authHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `Request failed (${res.status})`);
+  return data;
+}
 
-// ─── Input Field ──────────────────────────────────────────────────────────────
+// ─── Field wrapper ──────────────────────────────
 function Field({ label, error, children, required }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -43,90 +42,127 @@ function Field({ label, error, children, required }) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main Component ─────────────────────────────
 export default function AddFee() {
   const navigate = useNavigate();
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [errors, setErrors] = useState({});
-  const [toast, setToast] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
+  const location = useLocation();
+  const editFee = location.state?.editFee ?? null;
+  const isEditing = Boolean(editFee);
 
-  // Load edit data if coming from list page
+  // ✅ NEW STATES
+  const [schools, setSchools] = useState([]);
+  const [selectedSchool, setSelectedSchool] = useState("");
+
+  const [classSections, setClassSections] = useState([]);
+  const [academicYears, setAcademicYears] = useState([]);
+
+  const [loadingData, setLoadingData] = useState(true);
+  const [dataError, setDataError] = useState(null);
+
+  const [form, setForm] = useState({
+    classSectionId: "",
+    academicYearId: "",
+    feeAmount: "",
+    status: "ACTIVE",
+  });
+
+  const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  // ── Load Schools + Years ──────────────────────
   useEffect(() => {
-    try {
-      const editData = localStorage.getItem("editFeeData");
-      if (editData) {
-        const fee = JSON.parse(editData);
-        setIsEditing(true);
-        setEditId(fee.id);
-        const isCustom = !CLASS_OPTIONS.slice(0, -1).includes(fee.className);
-        setForm({
-          className: isCustom ? "Custom" : fee.className,
-          customClass: isCustom ? fee.className : "",
-          feeAmount: String(fee.feeAmount),
-          academicYear: fee.academicYear,
-          status: fee.status,
-        });
-        localStorage.removeItem("editFeeData");
+    (async () => {
+      try {
+        setLoadingData(true);
+
+        const [schoolData, yearData] = await Promise.all([
+          apiFetch("/api/schools"),
+          apiFetch("/api/fees/academic-years"),
+        ]);
+
+        setSchools(schoolData.schools ?? []);
+        setAcademicYears(yearData.academicYears ?? []);
+
+        const activeYear = (yearData.academicYears ?? []).find(y => y.isActive);
+        if (activeYear) {
+          setForm(prev => ({ ...prev, academicYearId: activeYear.id }));
+        }
+
+      } catch (err) {
+        setDataError(err.message);
+      } finally {
+        setLoadingData(false);
       }
-    } catch { /* ignore */ }
+    })();
   }, []);
+
+  // ── Load Classes based on School ──────────────
+  useEffect(() => {
+    if (!selectedSchool) return;
+
+    (async () => {
+      try {
+        const data = await apiFetch(`/api/fees/classes?schoolId=${selectedSchool}`);
+        setClassSections(data.classSections || []);
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+  }, [selectedSchool]);
 
   const set = (key, val) => {
     setForm(prev => ({ ...prev, [key]: val }));
     if (errors[key]) setErrors(prev => ({ ...prev, [key]: "" }));
   };
 
+  // ── validation ────────────────────────────────
   const validate = () => {
     const e = {};
-    const effectiveClass = form.className === "Custom" ? form.customClass : form.className;
-    if (!effectiveClass.trim()) e.className = "Class name is required";
-    if (form.className === "Custom" && !form.customClass.trim()) e.customClass = "Please enter a custom class name";
-    if (!form.feeAmount || isNaN(Number(form.feeAmount)) || Number(form.feeAmount) <= 0)
-      e.feeAmount = "Enter a valid fee amount greater than 0";
-    if (!form.academicYear) e.academicYear = "Academic year is required";
+    if (!selectedSchool) e.school = "Please select a school";
+    if (!form.classSectionId) e.classSectionId = "Please select a class";
+    if (!form.academicYearId) e.academicYearId = "Please select an academic year";
+    if (!form.feeAmount || Number(form.feeAmount) <= 0)
+      e.feeAmount = "Enter valid fee amount";
     return e;
   };
 
-  const handleSubmit = () => {
+  // ── submit ───────────────────────────────────
+  const handleSubmit = async () => {
     const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
+    if (Object.keys(e).length) {
+      setErrors(e);
+      return;
+    }
 
     setSubmitting(true);
-    const effectiveClass = form.className === "Custom" ? form.customClass : form.className;
+    try {
+      const payload = {
+        classSectionId: form.classSectionId,
+        academicYearId: form.academicYearId,
+        feeAmount: Number(form.feeAmount),
+        status: form.status,
+      };
 
-    setTimeout(() => {
-      try {
-        const saved = localStorage.getItem("feesData");
-        let fees = saved ? JSON.parse(saved) : [];
+      if (isEditing) {
+        await apiFetch(`/api/fees/${editFee.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/fees", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
 
-        if (isEditing) {
-          fees = fees.map(f =>
-            f.id === editId
-              ? { ...f, className: effectiveClass, feeAmount: Number(form.feeAmount), academicYear: form.academicYear, status: form.status }
-              : f
-          );
-          localStorage.setItem("feesData", JSON.stringify(fees));
-          localStorage.setItem("feesToast", `Fee for ${effectiveClass} updated successfully!`);
-        } else {
-          const newFee = {
-            id: Date.now(),
-            className: effectiveClass,
-            feeAmount: Number(form.feeAmount),
-            academicYear: form.academicYear,
-            status: form.status,
-          };
-          fees.push(newFee);
-          localStorage.setItem("feesData", JSON.stringify(fees));
-          localStorage.setItem("feesToast", `Fee for ${effectiveClass} added successfully!`);
-        }
-      } catch { /* ignore */ }
-
-      setSubmitting(false);
       navigate("/superAdmin/fees");
-    }, 600);
+    } catch (err) {
+      setToast({ type: "error", msg: err.message });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const inputStyle = (hasError) => ({
@@ -138,202 +174,153 @@ export default function AddFee() {
     fontSize: "14px",
     color: "#384959",
     background: hasError ? "#FFF5F5" : "#F0F7FF",
-    transition: "border-color 0.2s",
   });
 
+  const selectedClass = classSections.find(c => c.id === form.classSectionId);
+  const selectedYear = academicYears.find(y => y.id === form.academicYearId);
+
   return (
-    <div className="min-h-screen bg-gray-100/40 backdrop-blur-xl" style={{fontFamily: "'DM Sans', 'Segoe UI', sans-serif" }} >
+    <div className="min-h-screen bg-gray-100/40">
 
       {/* Toast */}
       {toast && (
-        <div
-          className="fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium"
-          style={{ background: "#384959" }}
-        >
-          <CheckCircle size={16} color="#4ADE80" />
-          {toast}
+        <div className="fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm"
+          style={{ background: "#DC2626" }}>
+          {toast.msg}
         </div>
       )}
 
       <div className="max-w-2xl mx-auto px-6 py-10">
 
-        {/* Back Button */}
+        {/* Back */}
         <button
           onClick={() => navigate("/superAdmin/fees")}
-          className="flex items-center gap-2 text-sm font-medium mb-6 transition-opacity hover:opacity-70"
+          className="flex items-center gap-2 text-sm mb-6"
           style={{ color: "#6A89A7" }}
         >
-          <ArrowLeft size={16} />
-          Back to Fees List
+          <ArrowLeft size={16} /> Back to Fees List
         </button>
 
         {/* Card */}
-        <div
-          className="rounded-2xl shadow-sm overflow-hidden"
-          style={{ background: "#fff", border: "1px solid #BDDDFC" }}
-        >
-          {/* Card Header */}
-          <div
-            className="px-8 py-6"
-            style={{ background: "linear-gradient(135deg, #384959 0%, #6A89A7 100%)" }}
-          >
+        <div className="rounded-2xl shadow-sm overflow-hidden"
+          style={{ background: "#fff", border: "1px solid #BDDDFC" }}>
+
+          {/* Header */}
+          <div className="px-8 py-6"
+            style={{ background: "linear-gradient(135deg, #384959 0%, #6A89A7 100%)" }}>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                <GraduationCap size={20} color="#fff" />
-              </div>
+              <GraduationCap color="#fff" />
               <div>
-                <h1 className="text-lg font-bold text-white">
-                  {isEditing ? "Edit Fee Record" : "Add New Fee"}
+                <h1 className="text-white font-bold">
+                  {isEditing ? "Edit Fee" : "Add Fee"}
                 </h1>
-                <p className="text-xs text-white/70 mt-0.5">
-                  {isEditing ? "Update fee details for the selected class" : "Define class-wise fee structure"}
-                </p>
               </div>
             </div>
           </div>
 
-          {/* Form Body */}
+          {/* Body */}
           <div className="px-8 py-8 flex flex-col gap-6">
 
-            {/* Class Name */}
-            <Field label="Class Name" error={errors.className || errors.customClass} required>
-              <select
-                value={form.className}
-                onChange={e => set("className", e.target.value)}
-                style={inputStyle(!!errors.className)}
-              >
-                <option value="">— Select a class —</option>
-                {CLASS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              {form.className === "Custom" && (
-                <input
-                  type="text"
-                  placeholder="e.g. Pre-Primary, LKG, UKG..."
-                  value={form.customClass}
-                  onChange={e => set("customClass", e.target.value)}
-                  style={{ ...inputStyle(!!errors.customClass), marginTop: 8 }}
-                />
-              )}
-            </Field>
-
-            {/* Fee Amount */}
-            <Field label="Fee Amount (₹)" error={errors.feeAmount} required>
-              <div className="relative">
-                <IndianRupee
-                  size={15}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2"
-                  color="#6A89A7"
-                />
-                <input
-                  type="number"
-                  placeholder="0"
-                  min={0}
-                  value={form.feeAmount}
-                  onChange={e => set("feeAmount", e.target.value)}
-                  style={{ ...inputStyle(!!errors.feeAmount), paddingLeft: 34 }}
-                />
-              </div>
-              {form.feeAmount && !isNaN(Number(form.feeAmount)) && Number(form.feeAmount) > 0 && (
-                <p className="text-xs mt-1 font-medium" style={{ color: "#6A89A7" }}>
-                  ₹{Number(form.feeAmount).toLocaleString("en-IN")} per year
-                </p>
-              )}
-            </Field>
-
-            {/* Academic Year */}
-            <Field label="Academic Year" error={errors.academicYear} required>
-              <div className="relative">
-                <Calendar size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" color="#6A89A7" />
-                <select
-                  value={form.academicYear}
-                  onChange={e => set("academicYear", e.target.value)}
-                  style={{ ...inputStyle(!!errors.academicYear), paddingLeft: 34 }}
-                >
-                  {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-            </Field>
-
-            {/* Status Toggle */}
-            <Field label="Status">
-              <div
-                className="flex items-center justify-between px-4 py-3 rounded-xl"
-                style={{ background: "#F0F7FF", border: "1.5px solid #BDDDFC" }}
-              >
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: "#384959" }}>
-                    {form.status === "Active" ? "Active" : "Inactive"}
-                  </p>
-                  <p className="text-xs mt-0.5" style={{ color: "#6A89A7" }}>
-                    {form.status === "Active"
-                      ? "This fee is currently applicable"
-                      : "This fee is disabled for now"}
-                  </p>
-                </div>
-                <button
-                  onClick={() => set("status", form.status === "Active" ? "Inactive" : "Active")}
-                  className="transition-all hover:scale-105"
-                >
-                  {form.status === "Active"
-                    ? <ToggleRight size={40} color="#384959" />
-                    : <ToggleLeft size={40} color="#BDDDFC" />
-                  }
-                </button>
-              </div>
-            </Field>
-
-            {/* Preview Card */}
-            {form.feeAmount && form.className && (
-              <div
-                className="rounded-xl px-5 py-4"
-                style={{ background: "#EDF5FF", border: "1.5px dashed #88BDF2" }}
-              >
-                <p className="text-xs font-semibold mb-1.5" style={{ color: "#6A89A7" }}>PREVIEW</p>
-                <p className="text-sm font-bold" style={{ color: "#384959" }}>
-                  {form.className === "Custom" ? form.customClass || "Custom Class" : form.className}
-                  {" — "}
-                  ₹{Number(form.feeAmount || 0).toLocaleString("en-IN")}
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: "#6A89A7" }}>
-                  Academic Year: {form.academicYear} · Status:{" "}
-                  <span style={{ color: form.status === "Active" ? "#065F46" : "#991B1B" }}>
-                    {form.status}
-                  </span>
-                </p>
+            {loadingData && (
+              <div className="flex gap-2 items-center">
+                <Loader2 className="animate-spin" />
+                Loading...
               </div>
             )}
 
-            {/* Actions */}
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => navigate("/superAdmin/fees")}
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all hover:bg-gray-50"
-                style={{ borderColor: "#BDDDFC", color: "#6A89A7" }}
-              >
-                <X size={16} />
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
-                style={{ background: "linear-gradient(135deg, #6A89A7, #384959)" }}
-              >
-                {submitting ? (
-                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <Save size={16} />
+            {!loadingData && (
+              <>
+                {/* SCHOOL */}
+                <Field label="School" error={errors.school} required>
+                  <select
+                    value={selectedSchool}
+                    onChange={(e) => {
+                      setSelectedSchool(e.target.value);
+                      setForm(prev => ({ ...prev, classSectionId: "" }));
+                    }}
+                    style={inputStyle(!!errors.school)}
+                  >
+                    <option value="">Select School</option>
+                    {schools.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </Field>
+
+                {/* CLASS */}
+                <Field label="Class" error={errors.classSectionId} required>
+                  <select
+                    value={form.classSectionId}
+                    onChange={(e) => set("classSectionId", e.target.value)}
+                    disabled={!selectedSchool}
+                    style={inputStyle(!!errors.classSectionId)}
+                  >
+                    <option value="">
+                      {selectedSchool ? "Select Class" : "Select school first"}
+                    </option>
+                    {classSections.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </Field>
+
+                {/* YEAR */}
+                <Field label="Academic Year" error={errors.academicYearId} required>
+                  <select
+                    value={form.academicYearId}
+                    onChange={(e) => set("academicYearId", e.target.value)}
+                    style={inputStyle(!!errors.academicYearId)}
+                  >
+                    <option value="">Select Year</option>
+                    {academicYears.map(y => (
+                      <option key={y.id} value={y.id}>
+                        {y.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                {/* AMOUNT */}
+                <Field label="Fee Amount" error={errors.feeAmount} required>
+                  <input
+                    type="number"
+                    value={form.feeAmount}
+                    onChange={(e) => set("feeAmount", e.target.value)}
+                    style={inputStyle(!!errors.feeAmount)}
+                  />
+                </Field>
+
+                {/* PREVIEW */}
+                {selectedClass && form.feeAmount && (
+                  <div className="p-4 rounded-xl"
+                    style={{ background: "#EDF5FF", border: "1px dashed #88BDF2" }}>
+                    <b>{selectedClass.name}</b> — ₹{form.feeAmount}
+                    <div>{selectedYear?.name}</div>
+                  </div>
                 )}
-                {submitting ? "Saving..." : isEditing ? "Update Fee" : "Add Fee"}
-              </button>
-            </div>
+
+                {/* ACTIONS */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => navigate(-1)}
+                    className="flex-1 border py-3 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    className="flex-1 text-white py-3 rounded-xl"
+                    style={{ background: "#384959" }}
+                  >
+                    {submitting ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </>
+            )}
+
           </div>
         </div>
-
-        {/* Bottom hint */}
-        <p className="text-center text-xs mt-4" style={{ color: "#6A89A7" }}>
-          Fees are stored per class and academic year. You can add multiple classes separately.
-        </p>
       </div>
     </div>
   );

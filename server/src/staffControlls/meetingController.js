@@ -173,7 +173,8 @@ export const getMeetingStats = async (req, res) => {
       },
     };
 
-    await cacheService.set(key, responseData);
+    // ✅ FIX 1: stringify before storing so JSON.parse on cache read works correctly
+    await cacheService.set(key, JSON.stringify(responseData));
 
     return res.json(responseData);
   } catch (err) {
@@ -244,7 +245,8 @@ export const getMeetings = async (req, res) => {
 
     const responseData = { meetings, total };
 
-    await cacheService.set(key, responseData);
+    // ✅ FIX 1: stringify before storing so JSON.parse on cache read works correctly
+    await cacheService.set(key, JSON.stringify(responseData));
 
     return res.json(responseData);
   } catch (err) {
@@ -300,7 +302,8 @@ export const getMeetingById = async (req, res) => {
 
     const responseData = { data: meeting };
 
-    await cacheService.set(key, responseData);
+    // ✅ FIX 1: stringify before storing so JSON.parse on cache read works correctly
+    await cacheService.set(key, JSON.stringify(responseData));
 
     return res.json(responseData);
   } catch (err) {

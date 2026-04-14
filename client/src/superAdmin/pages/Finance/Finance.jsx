@@ -1,18 +1,163 @@
+// src/superAdmin/pages/Finance/Finance.jsx
 import { useEffect, useState } from "react";
 import { getFinances, deleteFinance } from "./components/financeApi";
 import AddFinance from "./AddFinancers";
 import {
   Users, RefreshCw, Plus, Search, Mail, School,
   Pencil, Trash2, BadgeCheck, ShieldOff, TrendingUp,
+  X, AlertTriangle, Loader2,
 } from "lucide-react";
 
+/* ── Design tokens — Stormy Morning ── */
 const C = {
-  dark:    "#384959",
-  mid:     "#6A89A7",
-  light:   "#88BDF2",
-  lighter: "#BDDDFC",
-  bg:      "#EEF4FB",
+  slate: "#6A89A7", mist: "#BDDDFC", sky: "#88BDF2", deep: "#384959",
+  deepDark: "#243340",
+  bg: "#EDF3FA", white: "#FFFFFF", border: "#C8DCF0", borderLight: "#DDE9F5",
+  text: "#243340", textMid: "#4A6880", textLight: "#6A89A7",
+  success: "#3DA882", danger: "#D95C5C",
 };
+
+/* ── Status Badge ── */
+const StatusBadge = ({ status }) => {
+  const isActive = status !== "inactive";
+  const s = isActive
+    ? { bg: "#e2f5ee", fg: "#236644", dot: C.success, label: "Active" }
+    : { bg: "#fce8e8", fg: "#8b1c1c", dot: C.danger,  label: "Inactive" };
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 20, fontSize: 10, fontWeight: 700, fontFamily: "'Inter', sans-serif", background: s.bg, color: s.fg, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
+      {s.label}
+    </span>
+  );
+};
+
+/* ── Stat Card ── */
+function StatCard({ IconComp, label, value, loading, delay = 0 }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <div
+      className="fade-up"
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        animationDelay: `${delay}ms`, background: C.white, borderRadius: 22,
+        border: `1.5px solid ${C.borderLight}`, padding: "22px 20px 18px",
+        display: "flex", flexDirection: "column", gap: 14, position: "relative", overflow: "hidden",
+        boxShadow: hov ? `0 16px 48px rgba(56,73,89,0.13), 0 0 0 2px ${C.sky}44` : "0 2px 20px rgba(56,73,89,0.07)",
+        transform: hov ? "translateY(-5px)" : "translateY(0)",
+        transition: "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
+      {/* Top accent stripe */}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${C.sky}, ${C.slate}, ${C.deep})`, borderRadius: "22px 22px 0 0", opacity: hov ? 1 : 0.6, transition: "opacity 0.3s" }} />
+      {/* Bg glow */}
+      <div style={{ position: "absolute", right: -20, bottom: -20, width: 90, height: 90, borderRadius: "50%", background: `radial-gradient(circle, ${C.mist}33, transparent 70%)`, pointerEvents: "none" }} />
+      <div style={{ width: 40, height: 40, borderRadius: 14, background: `linear-gradient(135deg, ${C.sky}22, ${C.mist}44)`, display: "flex", alignItems: "center", justifyContent: "center", border: `1.5px solid ${C.borderLight}` }}>
+        <IconComp size={18} color={C.deep} strokeWidth={1.8} />
+      </div>
+      {loading ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="animate-pulse" style={{ width: "50%", height: 32, borderRadius: 8, background: `${C.mist}55` }} />
+          <div className="animate-pulse" style={{ width: "65%", height: 11, borderRadius: 6, background: `${C.mist}55` }} />
+        </div>
+      ) : (
+        <div>
+          <p style={{ margin: 0, fontSize: 38, fontWeight: 800, color: C.text, lineHeight: 1, letterSpacing: "-1.5px" }}>{value}</p>
+          <p style={{ margin: "5px 0 0", fontSize: 11, color: C.textLight, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>{label}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Panel ── */
+function Panel({ children, style = {} }) {
+  return (
+    <div style={{ background: C.white, borderRadius: 20, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 2px 20px rgba(56,73,89,0.07)", overflow: "hidden", ...style }}>
+      {children}
+    </div>
+  );
+}
+
+/* ── Delete Confirm Dialog ── */
+function DeleteConfirmDialog({ finance, onConfirm, onCancel, loading }) {
+  useEffect(() => {
+    const h = (e) => e.key === "Escape" && onCancel();
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onCancel]);
+
+  return (
+    <>
+      <div
+        style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)" }}
+        onClick={onCancel}
+      />
+      <div
+        style={{
+          position: "fixed", zIndex: 50,
+          top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+          width: 420, maxWidth: "92vw",
+          background: C.white, borderRadius: 22,
+          boxShadow: "0 24px 64px rgba(56,73,89,0.22)",
+          animation: "fadeUp 0.18s ease",
+          fontFamily: "'Inter', sans-serif",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ padding: "28px 24px 24px" }}>
+          {/* Icon */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
+            <div style={{ width: 56, height: 56, borderRadius: 18, background: "linear-gradient(135deg, #fef2f2, #fee2e2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <AlertTriangle size={26} color="#D95C5C" />
+            </div>
+          </div>
+
+          {/* Text */}
+          <h3 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: C.text, textAlign: "center" }}>
+            Delete Finance Account?
+          </h3>
+          <p style={{ margin: "0 0 4px", fontSize: 13, color: C.textLight, textAlign: "center" }}>
+            You're about to permanently delete
+          </p>
+          <p style={{ margin: "0 0 16px", fontSize: 13, fontWeight: 700, color: C.text, textAlign: "center" }}>
+            "{finance.user?.name}"
+          </p>
+          <div style={{ padding: "10px 16px", borderRadius: 12, fontSize: 12, textAlign: "center", marginBottom: 20, background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
+            This action cannot be undone. All associated data will be lost.
+          </div>
+
+          {/* Buttons */}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={onCancel}
+              disabled={loading}
+              style={{ flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700, background: C.bg, color: C.textMid, border: `1.5px solid ${C.borderLight}`, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={loading}
+              style={{
+                flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700,
+                background: "linear-gradient(135deg, #D95C5C, #b91c1c)",
+                color: "#fff", border: "none",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              {loading ? <><Loader2 size={14} className="animate-spin" /> Deleting…</> : <><Trash2 size={14} /> Delete</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
 
 export default function FinanceListPage() {
   const [finances, setFinances]       = useState([]);
@@ -20,6 +165,8 @@ export default function FinanceListPage() {
   const [showModal, setShowModal]     = useState(false);
   const [editFinance, setEditFinance] = useState(null);
   const [search, setSearch]           = useState("");
+  const [deleteDialog, setDeleteDialog] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -36,9 +183,21 @@ export default function FinanceListPage() {
   useEffect(() => { fetchData(); }, []);
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this finance account?")) return;
-    await deleteFinance(id);
-    fetchData();
+    setDeleteDialog({ id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteDialog) return;
+    setDeleteLoading(true);
+    try {
+      await deleteFinance(deleteDialog.id);
+      setFinances(prev => prev.filter(f => f.id !== deleteDialog.id));
+      setDeleteDialog(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const handleEdit = (f) => {
@@ -62,352 +221,308 @@ export default function FinanceListPage() {
 
   const Avatar = ({ name }) => (
     <div
-      style={{ background: C.lighter, color: C.dark }}
-      className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 uppercase"
+      style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: `linear-gradient(135deg, ${C.sky}22, ${C.mist}44)`, display: "flex", alignItems: "center", justifyContent: "center", border: `1.5px solid ${C.borderLight}` }}
     >
-      {name?.[0] || "F"}
+      <span style={{ fontSize: 14, fontWeight: 700, color: C.deep }}>
+        {name?.[0]?.toUpperCase() || "F"}
+      </span>
     </div>
   );
 
   return (
     <>
-      <div style={{ background: C.bg, minHeight: "100vh" }} className="p-4 sm:p-6 font-sans">
+      <style>{`
+        * { box-sizing: border-box; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+        .fade-up { animation: fadeUp 0.45s ease both; }
+        .finance-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+        @media (max-width:900px) { .finance-grid { grid-template-columns:repeat(2,1fr); } }
+        @media (max-width:560px) { .finance-grid { grid-template-columns:1fr; } }
+        .finance-table { width:100%; border-collapse:collapse; }
+        .finance-table th { padding:11px 16px; text-align:left; font-size:11px; font-weight:700; color:${C.textLight}; text-transform:uppercase; letter-spacing:0.07em; background:${C.bg}; font-family:'Inter',sans-serif; border-bottom:1.5px solid ${C.borderLight}; white-space:nowrap; }
+        .finance-table th.center { text-align:center; }
+        .finance-table td { padding:13px 16px; font-size:13px; color:${C.text}; font-family:'Inter',sans-serif; border-bottom:1px solid ${C.borderLight}; }
+        .finance-row:hover td { background:${C.bg}; }
+        .finance-row { transition:background 0.12s; }
+        .act-btn { width:32px; height:32px; border-radius:9px; border:1.5px solid ${C.borderLight}; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.15s; background:${C.bg}; }
+        @media (max-width:768px) { .hide-md { display:none !important; } }
+        @media (max-width:540px) { .hide-sm { display:none !important; } .finance-table th, .finance-table td { padding:11px 10px; } }
+      `}</style>
 
-        {/* ── Header ── */}
-        <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
-          <div className="flex items-center gap-3">
-            <div style={{ background: C.lighter }} className="p-2.5 rounded-2xl">
-              <Users size={22} style={{ color: C.dark }} />
-            </div>
-            <div>
-              <h1 style={{ color: C.dark }} className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight">
-                Finance Management
-              </h1>
-              <p style={{ color: C.mid }} className="text-xs sm:text-sm mt-0.5">Manage all finance accounts</p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={fetchData}
-              style={{ border: `1.5px solid ${C.lighter}`, color: C.mid }}
-              className="p-2.5 bg-white rounded-xl hover:bg-blue-50 transition"
-              title="Refresh"
-            >
-              <RefreshCw size={16} />
-            </button>
-            <button
-              onClick={() => { setEditFinance(null); setShowModal(true); }}
-              style={{ background: C.dark }}
-              className="text-white px-4 sm:px-5 py-2.5 rounded-xl shadow-lg hover:opacity-90 transition flex items-center gap-2 font-semibold text-sm"
-            >
-              <Plus size={16} strokeWidth={2.5} />
-              <span className="hidden xs:inline">Add Finance</span>
-              <span className="xs:hidden">Add</span>
-            </button>
-          </div>
-        </div>
+      <div style={{
+        minHeight: "100vh", background: C.bg, padding: "28px 30px",
+        fontFamily: "'Inter', sans-serif",
+        backgroundImage: `radial-gradient(ellipse at 0% 0%, ${C.mist}40 0%, transparent 55%), radial-gradient(ellipse at 100% 100%, ${C.sky}18 0%, transparent 50%)`,
+      }}>
 
-        {/* ── Stat Cards ── */}
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-5">
-          <div
-            style={{ background: C.dark, border: `1.5px solid ${C.dark}` }}
-            className="rounded-2xl p-3 sm:p-5 shadow-lg flex items-center justify-between"
-          >
-            <div>
-              <p style={{ color: C.lighter }} className="text-[9px] sm:text-xs font-semibold uppercase tracking-widest mb-1">Total</p>
-              <p className="text-2xl sm:text-4xl font-black text-white">{total}</p>
-            </div>
-            <div style={{ background: "rgba(189,221,252,0.12)" }} className="p-2 sm:p-3.5 rounded-2xl hidden sm:flex">
-              <TrendingUp size={26} color={C.lighter} strokeWidth={1.8} />
-            </div>
-          </div>
+        {/* ══ HEADER ══ */}
+        <div className="fade-up" style={{ marginBottom: 28 }}>
+          <div style={{ display: "flex", alignItems: "stretch", gap: 16 }}>
+            <div style={{ width: 4, borderRadius: 99, background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.textLight, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 4 }}>
+                    Platform Administration
+                  </p>
+                  <h1 style={{ margin: 0, fontSize: "clamp(20px,3vw,28px)", fontWeight: 900, color: C.text, letterSpacing: "-0.6px", lineHeight: 1.1 }}>
+                    Finance{" "}
+                    <span style={{ background: `linear-gradient(90deg, ${C.slate}, ${C.deep})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                      Management
+                    </span>
+                  </h1>
+                  <p style={{ margin: "6px 0 0", fontSize: 12, color: C.textLight, fontWeight: 500 }}>
+                    Manage all finance accounts
+                  </p>
+                </div>
 
-          <div
-            style={{ background: C.light, border: `1.5px solid ${C.light}` }}
-            className="rounded-2xl p-3 sm:p-5 shadow-md flex items-center justify-between"
-          >
-            <div>
-              <p style={{ color: C.dark }} className="text-[9px] sm:text-xs font-semibold uppercase tracking-widest mb-1">Active</p>
-              <p style={{ color: C.dark }} className="text-2xl sm:text-4xl font-black">{active}</p>
-            </div>
-            <div style={{ background: "rgba(255,255,255,0.25)" }} className="p-2 sm:p-3.5 rounded-2xl hidden sm:flex">
-              <BadgeCheck size={26} color={C.dark} strokeWidth={1.8} />
-            </div>
-          </div>
-
-          <div
-            style={{ background: "#fff", border: `1.5px solid ${C.lighter}` }}
-            className="rounded-2xl p-3 sm:p-5 shadow-sm flex items-center justify-between"
-          >
-            <div>
-              <p style={{ color: C.mid }} className="text-[9px] sm:text-xs font-semibold uppercase tracking-widest mb-1">Inactive</p>
-              <p style={{ color: C.dark }} className="text-2xl sm:text-4xl font-black">{inactive}</p>
-            </div>
-            <div style={{ background: C.bg }} className="p-2 sm:p-3.5 rounded-2xl hidden sm:flex">
-              <ShieldOff size={26} color={C.mid} strokeWidth={1.8} />
+                {/* Action buttons */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    onClick={fetchData}
+                    style={{ width: 38, height: 38, borderRadius: 12, border: `1.5px solid ${C.borderLight}`, background: C.white, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.textLight, boxShadow: "0 2px 8px rgba(56,73,89,0.07)" }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = C.sky}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = C.borderLight}
+                    title="Refresh"
+                  >
+                    <RefreshCw size={15} />
+                  </button>
+                  <button
+                    onClick={() => { setEditFinance(null); setShowModal(true); }}
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 12, border: "none", background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 14px rgba(56,73,89,0.25)`, fontFamily: "'Inter', sans-serif" }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
+                    onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                  >
+                    <Plus size={15} /> Add Finance
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* ── Search ── */}
-        <div
-          style={{ border: `1.5px solid ${C.lighter}` }}
-          className="bg-white rounded-2xl px-4 py-3 flex items-center gap-3 shadow-sm mb-5"
-        >
-          <Search size={16} style={{ color: C.mid }} />
-          <input
-            className="flex-1 outline-none text-sm bg-transparent"
-            style={{ color: C.dark }}
-            placeholder="Search by name, email, school..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              style={{ color: C.mid, fontSize: 11, background: C.bg }}
-              className="px-2.5 py-1 rounded-lg hover:opacity-70 transition font-medium"
-            >
-              Clear
-            </button>
+        {/* ══ STAT CARDS ══ */}
+        <div className="finance-grid fade-up" style={{ marginBottom: 20, animationDelay: "60ms" }}>
+          <StatCard IconComp={TrendingUp} label="Total Accounts" value={total}    delay={0}   loading={loading} />
+          <StatCard IconComp={BadgeCheck} label="Active"        value={active}   delay={60}  loading={loading} />
+          <StatCard IconComp={ShieldOff}  label="Inactive"      value={inactive} delay={120} loading={loading} />
+        </div>
+
+        {/* ══ TABLE PANEL ══ */}
+        <Panel>
+          {/* Panel header + search */}
+          <div style={{ padding: "15px 20px", borderBottom: `1.5px solid ${C.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, background: `linear-gradient(90deg, ${C.bg} 0%, ${C.white} 100%)` }}>
+            {/* Title */}
+            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 10, background: `${C.sky}22`, display: "flex", alignItems: "center", justifyContent: "center", border: `1.5px solid ${C.sky}33` }}>
+                <Users size={15} color={C.slate} strokeWidth={2} />
+              </div>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 700, color: C.text }}>All Finance Accounts</span>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, color: C.textLight, fontWeight: 600, background: `${C.sky}18`, padding: "3px 10px", borderRadius: 20, border: `1px solid ${C.sky}33`, letterSpacing: "0.03em" }}>
+                {filtered.length} account{filtered.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            {/* Search */}
+            <div style={{ position: "relative", minWidth: 200, flex: "0 1 260px" }}>
+              <Search size={13} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: C.textLight }} />
+              <input
+                type="text"
+                placeholder="Search by name, email, school…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onFocus={ev => ev.target.style.borderColor = C.sky}
+                onBlur={ev => ev.target.style.borderColor = C.border}
+                style={{ width: "100%", paddingLeft: 32, paddingRight: search ? 32 : 12, paddingTop: 8, paddingBottom: 8, borderRadius: 10, border: `1.5px solid ${C.border}`, background: C.bg, fontSize: 13, color: C.text, outline: "none", fontFamily: "'Inter', sans-serif" }}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: C.textLight, display: "flex", alignItems: "center" }}
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ── Loading ── */}
+          {loading && (
+            <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+              {[...Array(5)].map((_, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div className="animate-pulse" style={{ width: 34, height: 34, borderRadius: 8, background: `${C.mist}55` }} />
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                    <div className="animate-pulse" style={{ width: "40%", height: 11, borderRadius: 6, background: `${C.mist}55` }} />
+                    <div className="animate-pulse" style={{ width: "25%", height: 9, borderRadius: 6, background: `${C.mist}55` }} />
+                  </div>
+                  <div className="animate-pulse" style={{ width: "12%", height: 11, borderRadius: 6, background: `${C.mist}55` }} />
+                  <div className="animate-pulse" style={{ width: "10%", height: 22, borderRadius: 20, background: `${C.mist}55` }} />
+                </div>
+              ))}
+            </div>
           )}
-        </div>
 
-        {/* ── Desktop Table / Mobile Cards ── */}
-
-        {/* DESKTOP TABLE — hidden on small screens */}
-        <div
-          className="hidden md:block bg-white rounded-2xl shadow-md overflow-hidden"
-          style={{ border: `1.5px solid ${C.lighter}` }}
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm min-w-[640px]">
-              <thead>
-                <tr style={{ background: C.dark }}>
-                  {["Finance Account", "Email", "School", "Designation", "Phone", "Actions"].map((h) => (
-                    <th
-                      key={h}
-                      className="px-5 py-4 text-xs font-semibold uppercase tracking-widest whitespace-nowrap"
-                      style={{ color: C.lighter }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+          {/* ── Desktop Table ── */}
+          {!loading && (
+            <div style={{ overflowX: "auto" }}>
+              <table className="finance-table">
+                <thead>
                   <tr>
-                    <td colSpan="6" className="py-16 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <div
-                          style={{ borderColor: C.light, borderTopColor: C.dark }}
-                          className="w-8 h-8 border-[3px] rounded-full animate-spin"
-                        />
-                        <span style={{ color: C.mid }} className="text-sm">Loading accounts...</span>
-                      </div>
-                    </td>
+                    <th>Finance Account</th>
+                    <th className="center">Email</th>
+                    <th className="center">School</th>
+                    <th className="center hide-sm">Designation</th>
+                    <th className="center hide-md">Phone</th>
+                    <th className="center">Status</th>
+                    <th className="center">Actions</th>
                   </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="py-16 text-center">
-                      <Users size={40} style={{ color: C.lighter }} className="mx-auto mb-3" />
-                      <p style={{ color: C.mid }} className="text-sm font-medium">No finance accounts found.</p>
-                      <p style={{ color: C.light }} className="text-xs mt-1">Try adjusting your search query.</p>
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((f, idx) => (
-                    <tr
-                      key={f.id}
-                      style={{ borderBottom: `1px solid ${C.lighter}`, background: idx % 2 === 0 ? "#fff" : "#f5f9ff" }}
-                      className="hover:bg-blue-50 transition-colors duration-150 group"
-                    >
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <Avatar name={f.user?.name} />
-                          <span style={{ color: C.dark }} className="font-semibold">{f.user?.name || "—"}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <Mail size={13} style={{ color: C.mid }} />
-                          <span style={{ color: C.mid }} className="text-xs">{f.user?.email || "—"}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <School size={13} style={{ color: C.mid }} />
-                          <span style={{ color: C.dark }} className="text-xs font-medium">{f.school?.name || "—"}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {f.designation ? (
-                          <span
-                            style={{ background: C.lighter, color: C.dark }}
-                            className="px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
-                          >
-                            {f.designation}
-                          </span>
-                        ) : <span style={{ color: C.light }}>—</span>}
-                      </td>
-                      <td className="px-5 py-3.5 text-xs" style={{ color: C.mid }}>
-                        {f.phone || "—"}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEdit(f)}
-                            style={{ border: `1.5px solid ${C.lighter}`, color: C.mid }}
-                            className="p-2 rounded-xl hover:bg-blue-50 transition opacity-0 group-hover:opacity-100"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(f.id)}
-                            style={{ border: "1.5px solid #fecaca", color: "#ef4444" }}
-                            className="p-2 rounded-xl hover:bg-red-50 transition opacity-0 group-hover:opacity-100"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan="7">
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 0", gap: 10 }}>
+                          <div style={{ width: 50, height: 50, borderRadius: 16, background: `${C.sky}18`, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${C.sky}33` }}>
+                            <Users size={22} color={C.sky} strokeWidth={1.5} />
+                          </div>
+                          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: C.textLight, margin: 0 }}>
+                            {search ? `No finance accounts matching "${search}".` : "No finance accounts found."}
+                          </p>
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {!loading && (
-            <div
-              style={{ borderTop: `1px solid ${C.lighter}`, color: C.mid }}
-              className="flex justify-between items-center px-5 py-3 text-xs"
-            >
-              <span>
-                Showing <strong style={{ color: C.dark }}>{filtered.length}</strong> of{" "}
-                <strong style={{ color: C.dark }}>{total}</strong> finance accounts
-              </span>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: C.light }} />
-                <span style={{ color: C.light }}>Live</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* MOBILE CARDS — shown only on small screens */}
-        <div className="md:hidden space-y-3">
-          {loading ? (
-            <div className="flex flex-col items-center gap-3 py-16">
-              <div
-                style={{ borderColor: C.light, borderTopColor: C.dark }}
-                className="w-8 h-8 border-[3px] rounded-full animate-spin"
-              />
-              <span style={{ color: C.mid }} className="text-sm">Loading accounts...</span>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="py-16 text-center">
-              <Users size={40} style={{ color: C.lighter }} className="mx-auto mb-3" />
-              <p style={{ color: C.mid }} className="text-sm font-medium">No finance accounts found.</p>
-              <p style={{ color: C.light }} className="text-xs mt-1">Try adjusting your search query.</p>
-            </div>
-          ) : (
-            filtered.map((f) => (
-              <div
-                key={f.id}
-                className="bg-white rounded-2xl shadow-sm p-4"
-                style={{ border: `1.5px solid ${C.lighter}` }}
-              >
-                {/* Card top row */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Avatar name={f.user?.name} />
-                    <div className="min-w-0">
-                      <p style={{ color: C.dark }} className="font-semibold text-sm truncate">
-                        {f.user?.name || "—"}
-                      </p>
-                      {f.designation && (
-                        <span
-                          style={{ background: C.lighter, color: C.dark }}
-                          className="px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                        >
-                          {f.designation}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {/* Action buttons always visible on mobile */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => handleEdit(f)}
-                      style={{ border: `1.5px solid ${C.lighter}`, color: C.mid }}
-                      className="p-2 rounded-xl hover:bg-blue-50 transition"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(f.id)}
-                      style={{ border: "1.5px solid #fecaca", color: "#ef4444" }}
-                      className="p-2 rounded-xl hover:bg-red-50 transition"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Card detail rows */}
-                <div className="space-y-1.5 pt-2" style={{ borderTop: `1px dashed ${C.lighter}` }}>
-                  <div className="flex items-center gap-2">
-                    <Mail size={12} style={{ color: C.mid }} className="shrink-0" />
-                    <span style={{ color: C.mid }} className="text-xs truncate">{f.user?.email || "—"}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <School size={12} style={{ color: C.mid }} className="shrink-0" />
-                    <span style={{ color: C.dark }} className="text-xs font-medium truncate">{f.school?.name || "—"}</span>
-                  </div>
-                  {f.phone && (
-                    <div className="flex items-center gap-2">
-                      <span style={{ color: C.mid }} className="text-[10px] font-semibold uppercase tracking-wide">Ph:</span>
-                      <span style={{ color: C.mid }} className="text-xs">{f.phone}</span>
-                    </div>
+                  ) : (
+                    filtered.map((f, i) => (
+                      <tr
+                        key={f.id}
+                        className="finance-row"
+                        style={{ animation: `fadeUp .3s ${i * 0.04}s both` }}
+                      >
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <Avatar name={f.user?.name} />
+                            <div>
+                              <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: C.text }}>{f.user?.name || "—"}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, color: C.textMid, fontSize: 12 }}>
+                            <Mail size={12} color={C.sky} />
+                            {f.user?.email || "—"}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, color: C.textMid, fontSize: 12 }}>
+                            <School size={12} color={C.sky} />
+                            {f.school?.name || "—"}
+                          </span>
+                        </td>
+                        <td className="hide-sm" style={{ textAlign: "center" }}>
+                          {f.designation ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, fontFamily: "'Inter', sans-serif", background: `${C.mist}55`, color: C.deep, border: `1px solid ${C.border}` }}>
+                              {f.designation}
+                            </span>
+                          ) : <span style={{ color: C.textLight }}>—</span>}
+                        </td>
+                        <td className="hide-md" style={{ textAlign: "center", color: C.textMid, fontSize: 12 }}>
+                          {f.phone || "—"}
+                        </td>
+                        <td style={{ textAlign: "center" }}><StatusBadge status={f.status} /></td>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                            <button
+                              className="act-btn"
+                              onClick={() => handleEdit(f)}
+                              title="Edit finance account"
+                              onMouseEnter={e => { e.currentTarget.style.background = `${C.mist}55`; e.currentTarget.style.borderColor = C.slate; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.borderLight; }}
+                            >
+                              <Pencil size={14} color={C.slate} strokeWidth={2} />
+                            </button>
+                            <button
+                              className="act-btn"
+                              onClick={() => handleDelete(f.id)}
+                              title="Delete finance account"
+                              onMouseEnter={e => { e.currentTarget.style.background = "#fee8e8"; e.currentTarget.style.borderColor = C.danger; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.borderLight; }}
+                            >
+                              <Trash2 size={14} color={C.danger} strokeWidth={2} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                   )}
-                </div>
-              </div>
-            ))
+                </tbody>
+              </table>
+            </div>
           )}
+        </Panel>
 
-          {/* Mobile footer count */}
-          {!loading && filtered.length > 0 && (
-            <p style={{ color: C.mid }} className="text-xs text-center pt-1">
-              Showing <strong style={{ color: C.dark }}>{filtered.length}</strong> of{" "}
-              <strong style={{ color: C.dark }}>{total}</strong> accounts
-            </p>
-          )}
-        </div>
+        {/* ── Footer ── */}
+        {!loading && (
+          <p style={{ fontSize: 11, color: C.textLight, marginTop: 12, textAlign: "right", fontFamily: "'Inter', sans-serif" }}>
+            Showing {filtered.length} of {total} finance accounts
+          </p>
+        )}
+      </div>
 
-        {/* ── Modal ── */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div
-              className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-5 sm:p-7 relative max-h-[90vh] overflow-y-auto"
-              style={{ border: `2px solid ${C.lighter}` }}
-            >
+      {/* ── Add / Edit Modal ── */}
+      {showModal && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)" }}
+          onClick={handleModalClose}
+        >
+          <div
+            style={{
+              position: "fixed", zIndex: 50,
+              top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+              width: 600, maxWidth: "92vw",
+              background: C.white, borderRadius: 22,
+              boxShadow: "0 24px 64px rgba(56,73,89,0.22)",
+              animation: "fadeUp 0.18s ease",
+              fontFamily: "'Inter', sans-serif",
+              overflow: "hidden",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "20px 24px 16px", borderBottom: `1.5px solid ${C.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.text }}>
+                {editFinance ? "Edit Finance Account" : "Add Finance Account"}
+              </h2>
               <button
                 onClick={handleModalClose}
-                style={{ color: C.mid }}
-                className="absolute top-4 right-4 hover:opacity-60 transition text-2xl leading-none font-light"
+                style={{ width: 32, height: 32, borderRadius: 10, border: `1.5px solid ${C.borderLight}`, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.textLight }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = C.sky}
+                onMouseLeave={e => e.currentTarget.style.borderColor = C.borderLight}
               >
-                ✕
+                <X size={16} />
               </button>
+            </div>
+            <div style={{ padding: "20px 24px", overflowY: "auto" }}>
               <AddFinance
                 editData={editFinance}
                 onSuccess={() => { handleModalClose(); fetchData(); }}
               />
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* ── Delete Confirm Dialog ── */}
+      {deleteDialog && (
+        <DeleteConfirmDialog
+          finance={finances.find(f => f.id === deleteDialog.id)}
+          loading={deleteLoading}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteDialog(null)}
+        />
+      )}
     </>
   );
 }

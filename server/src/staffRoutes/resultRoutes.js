@@ -10,6 +10,7 @@ import {
   getResultsList,
   getResultsSummary,   // ← NEW
   deleteMarkEntry,
+  exportResultsExcel 
 } from "../staffControlls/resultController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 
@@ -26,5 +27,5 @@ router.post("/schedule/:scheduleId/marks",                saveMarksForSchedule);
 router.get("/list",                                       getResultsList);
 router.get("/summary",                                    getResultsSummary);  // ← NEW
 router.delete("/marks/:id",                               deleteMarkEntry);
-
+router.get("/export/excel",                               exportResultsExcel);
 export default router;
