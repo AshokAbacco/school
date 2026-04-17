@@ -28,9 +28,15 @@ const allowedOrigins = [
 // ✅ Proper CORS setup
 app.use(cors({
   origin: function (origin, callback) {
-    console.log("CORS ORIGIN:", origin); // 👈 debug log
+    console.log("CORS ORIGIN:", origin);
 
-    // allow requests with no origin (Postman, mobile apps)
+    const allowedOrigins = [
+      "http://localhost:3000",
+      "https://school-crm-r5dq.onrender.com",
+      "https://www.eduabaccotech.com",
+      "https://eduabaccotech.com"
+    ];
+
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
@@ -44,8 +50,7 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-// ✅ Handle preflight requests (VERY IMPORTANT)
-app.options("*", cors());
+
 
 app.use(staff);
 app.use(student);
