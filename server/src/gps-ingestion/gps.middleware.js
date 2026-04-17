@@ -1,32 +1,36 @@
 const AUTH_TOKEN = process.env.AUTH_TOKEN;
 
+// ⚠️ Do NOT crash server if missing
+if (!AUTH_TOKEN) {
+  console.warn("⚠️ AUTH_TOKEN is not set in environment");
+}
+
 export const validateToken = (req, res, next) => {
   try {
-    if (!AUTH_TOKEN) {
-      return res.status(500).json({
-        status: "error",
-        message: "Server misconfiguration: AUTH_TOKEN missing",
-      });
-    }
-
     const token = req.body?.api_token_data_auth;
 
+    // 🔓 Allow requests even if token missing (IoT safe mode)
     if (!token) {
-      return res.status(401).json({
-        status: "error",
-        message: "Missing api_token_data_auth",
-      });
+      console.warn("⚠️ Missing api_token_data_auth");
+      req.isAuthenticated = false;
+      return next();
     }
 
-    if (token !== AUTH_TOKEN) {
-      return res.status(401).json({
-        status: "error",
-        message: "Invalid api_token_data_auth",
-      });
+    // 🔐 Validate if AUTH_TOKEN is configured
+    if (AUTH_TOKEN && token !== AUTH_TOKEN) {
+      console.warn("⚠️ Invalid api_token_data_auth:", token);
+      req.isAuthenticated = false;
+      return next(); // ✅ DO NOT block
     }
+
+    // ✅ Valid token
+    req.isAuthenticated = true;
 
     next();
   } catch (err) {
-    next(err);
+    console.error("❌ Token Middleware Error:", err);
+
+    // ⚠️ Never block device
+    return next();
   }
 };

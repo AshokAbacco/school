@@ -11,8 +11,7 @@ import { validateToken } from "./gps.middleware.js";
 router.post("/location", validateToken, handleLocation);
 
 /**
- * 🩺 Health check (optional but useful for device testing)
- * GET /api/gps/health
+ * 🩺 Health check (useful for device testing)
  */
 router.get("/health", (req, res) => {
   return res.status(200).json({

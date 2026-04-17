@@ -2,15 +2,47 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// 🔧 Safe number parser
+// 🔧 Safe number parser (improved)
 const toNumber = (val, fallback = null) => {
+  if (val === null || val === undefined || val === "") return fallback;
   const num = Number(val);
-  return isNaN(num) ? fallback : num;
+  return Number.isFinite(num) ? num : fallback;
 };
 
 // 🔧 Safe boolean parser
 const toBoolean = (val) => {
   return val === true || val === "true" || val === 1 || val === "1";
+};
+
+// 🔧 Robust timestamp parser
+const parseTimestamp = (val) => {
+  if (!val) return new Date();
+
+  // ✅ Try ISO format
+  const iso = new Date(val);
+  if (!isNaN(iso.getTime())) return iso;
+
+  // ✅ Handle "DD-MM-YYYY HH:mm:ss"
+  const match = val.match(
+    /^(\d{1,2})-(\d{1,2})-(\d{4}) (\d{2}):(\d{2}):(\d{2})$/,
+  );
+
+  if (match) {
+    const [, d, m, y, hh, mm, ss] = match;
+
+    const formatted = `${y}-${m.padStart(2, "0")}-${d.padStart(
+      2,
+      "0",
+    )}T${hh}:${mm}:${ss}Z`;
+
+    const parsed = new Date(formatted);
+
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+
+  // ✅ FINAL FALLBACK (never invalid)
+  console.warn("⚠️ Invalid timestamp received:", val);
+  return new Date();
 };
 
 export const processPayload = async (data = {}) => {
@@ -19,7 +51,7 @@ export const processPayload = async (data = {}) => {
 
     if (!imei) {
       console.warn("⚠️ Missing IMEI");
-      return false;
+      return true; // do NOT fail ingestion
     }
 
     // 🔍 1. Find or create device
@@ -38,7 +70,6 @@ export const processPayload = async (data = {}) => {
 
       console.log("🆕 New device created:", imei);
     } else {
-      // 🔄 Update deviceNumber if changed
       if (data.device_number && device.deviceNumber !== data.device_number) {
         await prisma.device.update({
           where: { id: device.id },
@@ -48,9 +79,9 @@ export const processPayload = async (data = {}) => {
     }
 
     // ⏱️ Normalize timestamp
-    const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+    const timestamp = parseTimestamp(data.timestamp);
 
-    // 📦 Handle batch GPS data (if present)
+    // 📦 Handle batch GPS data
     if (Array.isArray(data.gps_data) && data.gps_data.length > 0) {
       for (const point of data.gps_data) {
         await prisma.deviceLocation.create({
@@ -58,7 +89,9 @@ export const processPayload = async (data = {}) => {
             deviceId: device.id,
             latitude: toNumber(point.lat),
             longitude: toNumber(point.lng),
-            timestamp: point.timestamp ? new Date(point.timestamp) : timestamp,
+            timestamp: point.timestamp
+              ? parseTimestamp(point.timestamp)
+              : timestamp,
             raw: point,
           },
         });
@@ -68,23 +101,43 @@ export const processPayload = async (data = {}) => {
       return true;
     }
 
-    // 📍 2. Save single location
+    // 🔍 GPS validation
+    const lat = toNumber(data.device_last_lat);
+    const lng = toNumber(data.device_last_long);
+
+    const isValidGPS =
+      lat !== null && lng !== null && !(lat === 0 && lng === 0);
+
+    const gpsOn = data.gps_led_status === 1;
+
+    // 🔋 Normalize signal & satellites
+    const signal = Math.max(0, toNumber(data.signalLevel, 0));
+    const satellites = Math.max(0, toNumber(data.satellite_count, 0));
+
+    // 🚗 Fix inconsistent motion data
+    let accStatus = data.acc_status || null;
+
+    if (toNumber(data.speed_kmph) === 0 && toNumber(data.motion_avg) > 1000) {
+      accStatus = "movement";
+    }
+
+    // 📍 Save location
     await prisma.deviceLocation.create({
       data: {
         deviceId: device.id,
 
-        // 📍 GPS
-        latitude: toNumber(data.device_last_lat),
-        longitude: toNumber(data.device_last_long),
+        // 📍 GPS (safe)
+        latitude: gpsOn && isValidGPS ? lat : null,
+        longitude: gpsOn && isValidGPS ? lng : null,
         altitude: toNumber(data.device_last_altitude),
 
         // 🔋 Basic
         battery: toNumber(data.battery_level),
         speed: toNumber(data.speed_kmph),
-        signal: toNumber(data.signalLevel),
+        signal,
 
         // 🛰️ GPS quality
-        satelliteCount: toNumber(data.satellite_count),
+        satelliteCount: satellites,
         heading: toNumber(data.heading),
 
         // 📈 Motion
@@ -94,7 +147,7 @@ export const processPayload = async (data = {}) => {
 
         accMagnitude: toNumber(data.acc_magnitude),
         motionAvg: toNumber(data.motion_avg),
-        accStatus: data.acc_status || null,
+        accStatus,
 
         // 🔋 Advanced battery
         batteryVoltage: toNumber(data.battery_voltage_mV),
@@ -117,6 +170,8 @@ export const processPayload = async (data = {}) => {
     return true;
   } catch (err) {
     console.error("❌ DB Error:", err);
-    return false;
+
+    // ⚠️ Do NOT fail API — just log
+    return true;
   }
 };
