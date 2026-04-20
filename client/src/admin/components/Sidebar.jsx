@@ -29,7 +29,6 @@ const NAV = [
   { icon: Medal,          label: "Activities",  to: "/admin/activities" },
   { icon: Trophy,          label: "Awards",      to: "/admin/awards" },
   { icon: FileText,        label: "Exams",       to: "/admin/exams" },
-  { icon: DollarSign,      label: "Finance",     to: "/admin/finance" },
   { icon: CalendarCheck,   label: "Meetings",    to: "/admin/meetings" },
   { icon: Library,         label: "Curriculum",  to: "/admin/curriculum" },
   { icon: Images,          label: "Gallery",     to: "/admin/gallery" },

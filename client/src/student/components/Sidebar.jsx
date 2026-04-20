@@ -12,6 +12,7 @@ import {
   GraduationCap,
   X,
   Video,
+  BookOpen,
 } from "lucide-react";
 
 const NAV = [
@@ -20,6 +21,7 @@ const NAV = [
   { icon: CalendarCheck, label: "Attendance",      to: "/student/attendance" },
   { icon: BarChart3,     label: "Marks & Results", to: "/student/marks" },
   { icon: Clock,         label: "Time Table",      to: "/student/time-table" },
+  { icon: BookOpen,      label: "Homework",        to: "/student/homework" }, 
   { icon: Activity,      label: "Activities",      to: "/student/activites" },
   // { icon: Award,         label: "Certificates",    to: "/student/certicates" },
   { icon: Award,      label: "Certificates", to: "/student/my-certificates" },

@@ -1,5 +1,6 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
+import { saveBackup } from "../../utils/cloudBackup.js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -36,7 +37,12 @@ router.post("/addStudentFinance", async (req, res) => {
         feeBreakdown: feeBreakdown,  // JSON: { tuitionFee, examFee, ... }
       }
     });
-
+await saveBackup({
+  model: "finance_students",
+ refId: String(student.id),
+  data: student,
+  action: "create",
+});
     // console.log("Saved student 👉", student);
 
     res.json(student);
@@ -106,7 +112,12 @@ router.put("/updateStudentFinance/:id", async (req, res) => {
       where: { id },
       data: updateData,
     });
-
+await saveBackup({
+  model: "finance_students",
+  refId: String(updated.id),
+  data: updated,
+  action: "update",
+});
     res.json(updated);
 
   } catch (error) {
@@ -122,7 +133,12 @@ router.delete("/deleteStudentFinance/:id", async (req, res) => {
     await prisma.studentList.delete({
       where: { id }
     });
-    
+    await saveBackup({
+  model: "finance_students",
+  refId: String(id),
+  data: { id },
+  action: "delete",
+});
     res.json({ message: "Deleted Successfully" });
     
   } catch (error) {

@@ -12,12 +12,14 @@ import {
   Video,
   CalendarDays,
   Medal,
+  BookOpenCheck,
 } from "lucide-react";
 
 const NAV = [
   { icon: Home,        label: "Dashboard",     to: "/teacher/dashboard" },
   { icon: User,        label: "Attendance",     to: "/teacher/attendance" },
   { icon: BookOpen,    label: "Curriculum",     to: "/teacher/curriculum" },
+  { icon: BookOpenCheck, label: "Assignments", to: "/teacher/assignments" },
   { icon: Medal,       label: "Certificates", to: "/teacher/certificates" },
   { icon: Zap,         label: "Activities",     to: "/teacher/activities" },
   { icon: Trophy,      label: "Awards",         to: "/teacher/awards" },

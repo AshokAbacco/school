@@ -1,12 +1,12 @@
 // server/src/student/controllers/onlineClasses.controller.js
 
 import { prisma } from "../../config/db.js";
+import cacheService from "../../utils/cacheService.js";
 
 const ok  = (res, data, status = 200) => res.status(status).json({ success: true,  ...data });
 const err = (res, msg, status = 400)  => res.status(status).json({ success: false, message: msg });
 
 // ── guard: pull studentId from token ─────────────────────────
-// In the student app the JWT payload's `id` field IS the studentId
 const studentGuard = (req) => {
   const studentId = req.user?.id;
   if (!studentId) throw new Error("No studentId on token");
@@ -34,7 +34,6 @@ const liveClassInclude = {
 
 // ═══════════════════════════════════════════════════════════════
 //  GET ALL LIVE CLASSES FOR THE STUDENT
-//  — only classes whose sections include the student's current section
 // ═══════════════════════════════════════════════════════════════
 /**
  * GET /online-classes
@@ -43,6 +42,7 @@ const liveClassInclude = {
 export async function getLiveClasses(req, res) {
   try {
     const studentId = studentGuard(req);
+    const schoolId  = req.user?.schoolId;
     const { status, academicYearId } = req.query;
 
     // find student's active enrollment to get their classSectionId
@@ -57,6 +57,15 @@ export async function getLiveClasses(req, res) {
     });
 
     if (!enrollment) return ok(res, { data: [] });
+
+    // ── cache ──────────────────────────────────────────────────
+    const cacheKey = await cacheService.buildKey(
+      schoolId,
+      `student:live-classes:${studentId}:${enrollment.academicYearId}:${status ?? "all"}`
+    );
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return ok(res, { data: JSON.parse(cached) });
+    // ──────────────────────────────────────────────────────────
 
     const liveClasses = await prisma.liveClass.findMany({
       where: {
@@ -77,6 +86,7 @@ export async function getLiveClasses(req, res) {
       orderBy: { startTime: "desc" },
     });
 
+    await cacheService.set(cacheKey, liveClasses);
     return ok(res, { data: liveClasses });
   } catch (e) {
     console.error("[student getLiveClasses]", e);
@@ -85,11 +95,12 @@ export async function getLiveClasses(req, res) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  GET ONE
+//  GET ONE LIVE CLASS
 // ═══════════════════════════════════════════════════════════════
 export async function getLiveClassById(req, res) {
   try {
     const studentId = studentGuard(req);
+    const schoolId  = req.user?.schoolId;
 
     // verify this student has access to this class
     const enrollment = await prisma.studentEnrollment.findFirst({
@@ -99,6 +110,15 @@ export async function getLiveClassById(req, res) {
     });
 
     if (!enrollment) return err(res, "No active enrollment found", 404);
+
+    // ── cache ──────────────────────────────────────────────────
+    const cacheKey = await cacheService.buildKey(
+      schoolId,
+      `student:live-class:${studentId}:${req.params.id}`
+    );
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return ok(res, { data: JSON.parse(cached) });
+    // ──────────────────────────────────────────────────────────
 
     const liveClass = await prisma.liveClass.findFirst({
       where: {
@@ -119,6 +139,8 @@ export async function getLiveClassById(req, res) {
     });
 
     if (!liveClass) return err(res, "Live class not found", 404);
+
+    await cacheService.set(cacheKey, liveClass);
     return ok(res, { data: liveClass });
   } catch (e) {
     console.error("[student getLiveClassById]", e);

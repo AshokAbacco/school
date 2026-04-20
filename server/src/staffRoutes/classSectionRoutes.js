@@ -53,6 +53,7 @@ import {
   getPendingReadmission,
   readmitStudent,
   getPromotionLogs,
+  readmitStudentBulk,
 } from "../staffControlls/promotionController.js";
 
 // ── NEW: Roll number imports ───────────────────────────────────────────────────
@@ -204,3 +205,4 @@ promotionRouter.get(
 );
 promotionRouter.post("/readmit/:studentId", authMiddleware, readmitStudent);
 promotionRouter.get("/logs", authMiddleware, getPromotionLogs);
+promotionRouter.post("/readmit-bulk", authMiddleware, readmitStudentBulk);

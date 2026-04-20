@@ -19,21 +19,51 @@ const cards = [
 
 export default function MeetingStatsCards({ stats = {}, loading = false }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px,1fr))", gap: 12, marginBottom: 20 }}>
-      {cards.map(({ key, label, icon: Icon, accent, accentBg }) => (
-        <div key={key} style={{ background: C.white, borderRadius: 16, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 2px 12px rgba(56,73,89,0.05)", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10,  fontFamily: "'Inter', sans-serif", }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, fontWeight: 500, color: C.textLight }}>{label}</span>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: accentBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon size={14} color={accent} />
+    <>
+      <style>{`
+        .meeting-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+        @media (min-width: 640px) {
+          .meeting-stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (min-width: 1024px) {
+          .meeting-stats-grid { grid-template-columns: repeat(6, 1fr); }
+        }
+      `}</style>
+
+      <div className="meeting-stats-grid">
+        {cards.map(({ key, label, icon: Icon, accent, accentBg }) => (
+          <div
+            key={key}
+            style={{
+              background: C.white,
+              borderRadius: 16,
+              border: `1.5px solid ${C.borderLight}`,
+              boxShadow: "0 2px 12px rgba(56,73,89,0.05)",
+              padding: "14px 16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 11, fontWeight: 500, color: C.textLight }}>{label}</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: accentBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon size={14} color={accent} />
+              </div>
             </div>
+            {loading
+              ? <div style={{ height: 28, width: 48, borderRadius: 8, background: `${C.mist}88` }} />
+              : <span style={{ fontSize: 24, fontWeight: 700, color: C.text, letterSpacing: "-0.5px", lineHeight: 1 }}>{stats[key] ?? 0}</span>
+            }
           </div>
-          {loading
-            ? <div style={{ height: 28, width: 48, borderRadius: 8, background: `${C.mist}88` }} />
-            : <span style={{ fontSize: 24, fontWeight: 700, color: C.text, letterSpacing: "-0.5px", lineHeight: 1 }}>{stats[key] ?? 0}</span>
-          }
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </>
   );
 }

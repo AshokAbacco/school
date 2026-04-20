@@ -1,7 +1,7 @@
-// server/src/staffControlls/ExamsControllers.js
-
 import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import cacheService from "../utils/cacheService.js";
+
+import { prisma } from "../config/db.js";
 
 /* ============================================================
    1️⃣ TERM CONTROLLERS
@@ -19,6 +19,7 @@ export const createTerm = async (req, res) => {
       data: { name, order, academicYearId, schoolId },
     });
 
+    await cacheService.invalidateSchool(schoolId);
     res.status(201).json(term);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -28,12 +29,18 @@ export const createTerm = async (req, res) => {
 export const getTerms = async (req, res) => {
   try {
     const { academicYearId } = req.params;
+    const schoolId = req.user?.schoolId;
+
+    const cacheKey = await cacheService.buildKey(schoolId, `terms:${academicYearId}`);
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return res.json(JSON.parse(cached));
 
     const terms = await prisma.assessmentTerm.findMany({
       where: { academicYearId },
       orderBy: { order: "asc" },
     });
 
+    await cacheService.set(cacheKey, terms);
     res.json(terms);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -43,12 +50,14 @@ export const getTerms = async (req, res) => {
 export const updateTerm = async (req, res) => {
   try {
     const { id } = req.params;
+    const schoolId = req.user?.schoolId;
 
     const term = await prisma.assessmentTerm.update({
       where: { id },
       data: req.body,
     });
 
+    await cacheService.invalidateSchool(schoolId);
     res.json(term);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -58,9 +67,11 @@ export const updateTerm = async (req, res) => {
 export const deleteTerm = async (req, res) => {
   try {
     const { id } = req.params;
+    const schoolId = req.user?.schoolId;
 
     await prisma.assessmentTerm.delete({ where: { id } });
 
+    await cacheService.invalidateSchool(schoolId);
     res.json({ message: "Term deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -89,6 +100,7 @@ export const createGroup = async (req, res) => {
       },
     });
 
+    await cacheService.invalidateSchool(schoolId);
     res.status(201).json(group);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -98,43 +110,40 @@ export const createGroup = async (req, res) => {
 export const getGroups = async (req, res) => {
   try {
     const { academicYearId } = req.params;
+    const schoolId = req.user?.schoolId;
 
-    // Fetch groups and all their schedules (with classSection) in parallel
+    const cacheKey = await cacheService.buildKey(schoolId, `groups:${academicYearId}`);
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return res.json(JSON.parse(cached));
+
     const [groups, allSchedules] = await Promise.all([
       prisma.assessmentGroup.findMany({
         where: { academicYearId },
         include: { term: true },
       }),
       prisma.assessmentSchedule.findMany({
-        where: {
-          assessmentGroup: { academicYearId },
-        },
+        where: { assessmentGroup: { academicYearId } },
         select: {
           id: true,
           assessmentGroupId: true,
           classSectionId: true,
-          classSection: {
-            select: { id: true, grade: true, section: true },
-          },
+          classSection: { select: { id: true, grade: true, section: true } },
         },
       }),
     ]);
 
-    // Group schedules by assessmentGroupId
     const schedulesByGroup = {};
-    allSchedules.forEach(sc => {
-      if (!schedulesByGroup[sc.assessmentGroupId]) {
-        schedulesByGroup[sc.assessmentGroupId] = [];
-      }
+    allSchedules.forEach((sc) => {
+      if (!schedulesByGroup[sc.assessmentGroupId]) schedulesByGroup[sc.assessmentGroupId] = [];
       schedulesByGroup[sc.assessmentGroupId].push(sc);
     });
 
-    // Attach schedules to each group
-    const enriched = groups.map(g => ({
+    const enriched = groups.map((g) => ({
       ...g,
       assessmentSchedules: schedulesByGroup[g.id] || [],
     }));
 
+    await cacheService.set(cacheKey, enriched);
     res.json(enriched);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -144,12 +153,14 @@ export const getGroups = async (req, res) => {
 export const updateGroup = async (req, res) => {
   try {
     const { id } = req.params;
+    const schoolId = req.user?.schoolId;
 
     const group = await prisma.assessmentGroup.update({
       where: { id },
       data: req.body,
     });
 
+    await cacheService.invalidateSchool(schoolId);
     res.json(group);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -159,9 +170,11 @@ export const updateGroup = async (req, res) => {
 export const deleteGroup = async (req, res) => {
   try {
     const { id } = req.params;
+    const schoolId = req.user?.schoolId;
 
     await prisma.assessmentGroup.delete({ where: { id } });
 
+    await cacheService.invalidateSchool(schoolId);
     res.json({ message: "Group deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -171,12 +184,14 @@ export const deleteGroup = async (req, res) => {
 export const publishGroup = async (req, res) => {
   try {
     const { id } = req.params;
+    const schoolId = req.user?.schoolId;
 
     const group = await prisma.assessmentGroup.update({
       where: { id },
       data: { isPublished: true },
     });
 
+    await cacheService.invalidateSchool(schoolId);
     res.json(group);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -186,12 +201,14 @@ export const publishGroup = async (req, res) => {
 export const lockGroup = async (req, res) => {
   try {
     const { id } = req.params;
+    const schoolId = req.user?.schoolId;
 
     const group = await prisma.assessmentGroup.update({
       where: { id },
       data: { isLocked: true },
     });
 
+    await cacheService.invalidateSchool(schoolId);
     res.json(group);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -205,15 +222,11 @@ export const lockGroup = async (req, res) => {
 export const createSchedule = async (req, res) => {
   try {
     const data = req.body;
-
-    // examDate arrives as "YYYY-MM-DD"
+    const schoolId = req.user?.schoolId;
     const dateOnly = (data.examDate || "").split("T")[0];
 
-    // startTime/endTime arrive as plain "HH:MM" strings from frontend
-    // Build valid UTC ISO DateTime so Prisma accepts it
-    // Stored as UTC so toISOString() round-trips correctly (no timezone shift)
     const toUTCDateTime = (timeStr) => {
-      const t = String(timeStr || "00:00").trim().substring(0, 8); // "HH:MM" or "HH:MM:SS"
+      const t = String(timeStr || "00:00").trim().substring(0, 8);
       const parts = t.split(":");
       const hh = (parts[0] || "00").padStart(2, "0");
       const mm = (parts[1] || "00").padStart(2, "0");
@@ -233,6 +246,7 @@ export const createSchedule = async (req, res) => {
       },
     });
 
+    await cacheService.invalidateSchool(schoolId);
     res.status(201).json(schedule);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -242,26 +256,30 @@ export const createSchedule = async (req, res) => {
 export const getSchedules = async (req, res) => {
   try {
     const { groupId } = req.params;
+    const schoolId = req.user?.schoolId;
+
+    const cacheKey = await cacheService.buildKey(schoolId, `schedules:${groupId}`);
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return res.json(JSON.parse(cached));
 
     const schedules = await prisma.assessmentSchedule.findMany({
       where: { assessmentGroupId: groupId },
       include: { subject: true, classSection: true },
     });
 
-    // Extract plain "HH:MM:SS" from stored UTC DateTime using toISOString()
-    // Since we store as UTC (e.g. 09:00Z), toISOString() gives back "09:00:00" correctly
     const toTimeStr = (dt) => {
       if (!dt) return "";
       const iso = dt instanceof Date ? dt.toISOString() : String(dt);
       return iso.includes("T") ? iso.split("T")[1].substring(0, 8) : iso;
     };
 
-    const normalized = schedules.map(sc => ({
+    const normalized = schedules.map((sc) => ({
       ...sc,
       startTime: toTimeStr(sc.startTime),
       endTime:   toTimeStr(sc.endTime),
     }));
 
+    await cacheService.set(cacheKey, normalized);
     res.json(normalized);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -271,9 +289,11 @@ export const getSchedules = async (req, res) => {
 export const deleteSchedule = async (req, res) => {
   try {
     const { id } = req.params;
+    const schoolId = req.user?.schoolId;
 
     await prisma.assessmentSchedule.delete({ where: { id } });
 
+    await cacheService.invalidateSchool(schoolId);
     res.json({ message: "Schedule deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -287,30 +307,19 @@ export const deleteSchedule = async (req, res) => {
 export const bulkMarksEntry = async (req, res) => {
   try {
     const { scheduleId, marks } = req.body;
+    const schoolId = req.user?.schoolId;
 
     const operations = marks.map((m) =>
       prisma.marks.upsert({
-        where: {
-          scheduleId_studentId: {
-            scheduleId,
-            studentId: m.studentId,
-          },
-        },
-        update: {
-          marksObtained: m.marksObtained,
-          isAbsent: m.isAbsent || false,
-        },
-        create: {
-          scheduleId,
-          studentId: m.studentId,
-          marksObtained: m.marksObtained,
-          isAbsent: m.isAbsent || false,
-        },
+        where: { scheduleId_studentId: { scheduleId, studentId: m.studentId } },
+        update: { marksObtained: m.marksObtained, isAbsent: m.isAbsent || false },
+        create: { scheduleId, studentId: m.studentId, marksObtained: m.marksObtained, isAbsent: m.isAbsent || false },
       })
     );
 
     await prisma.$transaction(operations);
 
+    await cacheService.invalidateSchool(schoolId);
     res.json({ message: "Marks saved successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -320,12 +329,18 @@ export const bulkMarksEntry = async (req, res) => {
 export const getMarksBySchedule = async (req, res) => {
   try {
     const { scheduleId } = req.params;
+    const schoolId = req.user?.schoolId;
+
+    const cacheKey = await cacheService.buildKey(schoolId, `marks:${scheduleId}`);
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return res.json(JSON.parse(cached));
 
     const marks = await prisma.marks.findMany({
       where: { scheduleId },
       include: { student: true },
     });
 
+    await cacheService.set(cacheKey, marks);
     res.json(marks);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -339,10 +354,9 @@ export const getMarksBySchedule = async (req, res) => {
 export const calculateResults = async (req, res) => {
   try {
     const { groupId } = req.params;
+    const schoolId = req.user?.schoolId;
 
-    const group = await prisma.assessmentGroup.findUnique({
-      where: { id: groupId },
-    });
+    const group = await prisma.assessmentGroup.findUnique({ where: { id: groupId } });
 
     const schedules = await prisma.assessmentSchedule.findMany({
       where: { assessmentGroupId: groupId },
@@ -350,15 +364,10 @@ export const calculateResults = async (req, res) => {
     });
 
     const studentMap = {};
-
     for (const schedule of schedules) {
       for (const mark of schedule.marks) {
-        if (!studentMap[mark.studentId]) {
-          studentMap[mark.studentId] = { total: 0, max: 0 };
-        }
-        if (!mark.isAbsent) {
-          studentMap[mark.studentId].total += mark.marksObtained || 0;
-        }
+        if (!studentMap[mark.studentId]) studentMap[mark.studentId] = { total: 0, max: 0 };
+        if (!mark.isAbsent) studentMap[mark.studentId].total += mark.marksObtained || 0;
         studentMap[mark.studentId].max += schedule.maxMarks;
       }
     }
@@ -373,11 +382,7 @@ export const calculateResults = async (req, res) => {
             assessmentGroupId: groupId,
           },
         },
-        update: {
-          totalMarks:  data.total,
-          maxMarks:    data.max,
-          percentage:  (data.total / data.max) * 100,
-        },
+        update: { totalMarks: data.total, maxMarks: data.max, percentage: (data.total / data.max) * 100 },
         create: {
           studentId,
           academicYearId:    group.academicYearId,
@@ -392,6 +397,7 @@ export const calculateResults = async (req, res) => {
 
     await prisma.$transaction(operations);
 
+    await cacheService.invalidateSchool(schoolId);
     res.json({ message: "Results calculated successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -401,12 +407,18 @@ export const calculateResults = async (req, res) => {
 export const getStudentResult = async (req, res) => {
   try {
     const { studentId, academicYearId } = req.params;
+    const schoolId = req.user?.schoolId;
+
+    const cacheKey = await cacheService.buildKey(schoolId, `results:${studentId}:${academicYearId}`);
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return res.json(JSON.parse(cached));
 
     const results = await prisma.resultSummary.findMany({
       where: { studentId, academicYearId },
       include: { assessmentGroup: true, term: true },
     });
 
+    await cacheService.set(cacheKey, results);
     res.json(results);
   } catch (err) {
     res.status(500).json({ error: err.message });

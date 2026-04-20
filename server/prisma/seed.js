@@ -1527,7 +1527,7 @@ async function seedSchool(university, password) {
   await seedActivitiesAndEvents({ school, ay, allSections, allEnrollments, adminUser });
 
   // NEW: Awards
-  await seedAwards({ school, ay, allSections, allEnrollments, adminUser });
+  // await seedAwards({ school, ay, allSections, allEnrollments, adminUser });
 
 
    await seedStaffAndSalaries({ school, adminUser });
@@ -1901,49 +1901,49 @@ async function main() {
   // const D = degResult.totalStudents;
   const total = S;
 
-  console.log(`
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║                        ✨  SEEDING COMPLETE  ✨                               ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║  ALL PASSWORDS              →  123456                                         ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║  SUPER ADMIN                →  superadmin@gmail.com                           ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║  🏫  HIGH SCHOOL  admin1@gmail.com  /  finance1@gmail.com                     ║
-║      20 sections × 120 students  =  ${String(S).padEnd(6)} students                       ║
-║      📝 5 exam groups with marks + results                                    ║
-║      📅 Full-year attendance (Jun 2025 – Mar 2026)                            ║
-║      🏆 12 activities + 6 standalone events + awards + gallery                ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║  🎓  PUC          admin2@gmail.com  /  finance2@gmail.com                     ║
-║      18 sections × 110 students  =  ${String(P).padEnd(6)} students                       ║
-║      📝 5 exam groups + 📅 Full-year attendance + 🏆 activities/events        ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║  🎓  DEGREE       admin3@gmail.com  /  finance3@gmail.com                     ║
-║      36 sections × 100 students  =  ${String(D).padEnd(6)} students                       ║
-║      📝 5 exam groups + 📅 Full-year attendance + 🏆 activities/events        ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║  GRAND TOTAL  ${String(total).padEnd(7)} students                                          ║
-║  student1@gmail.com  …  student${total}@gmail.com                             ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║  NEW TABLES SEEDED:                                                           ║
-║  ✅ AttendanceRecord      — ~92% present, ~4% absent, full academic year      ║
-║  ✅ TeacherAttendance     — all teachers, full academic year                  ║
-║  ✅ SchoolHoliday         — 6 govt recurring + 7 school-specific per school   ║
-║  ✅ GalleryAlbum/Image    — 6 albums × 6-10 images per school                 ║
-║  ✅ Activity              — 12 clubs/sports (standalone, no event link)        ║
-║  ✅ ActivityClass         — activities linked to class sections               ║
-║  ✅ StudentActivityEnroll — students enrolled in activities                   ║
-║  ✅ ActivityEvent         — 6 standalone events (activityId = null)           ║
-║  ✅ EventClass            — events linked to class sections                   ║
-║  ✅ EventTeam/Member      — teams with 5 students each                        ║
-║  ✅ EventParticipant      — individual participants                           ║
-║  ✅ EventResult           — winners/runners-up for completed events           ║
-║  ✅ Certificate           — issued for event results + awards                 ║
-║  ✅ Award                 — 8 award types per school                          ║
-║  ✅ StudentAward          — top students per section receive awards           ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
-`);
+//   console.log(`
+// ╔═══════════════════════════════════════════════════════════════════════════════╗
+// ║                        ✨  SEEDING COMPLETE  ✨                              ║
+// ╠═══════════════════════════════════════════════════════════════════════════════╣
+// ║  ALL PASSWORDS              →  123456                                         ║
+// ╠═══════════════════════════════════════════════════════════════════════════════╣
+// ║  SUPER ADMIN                →  superadmin@gmail.com                           ║
+// ╠═══════════════════════════════════════════════════════════════════════════════╣
+// ║  🏫  HIGH SCHOOL  admin1@gmail.com  /  finance1@gmail.com                     ║
+// ║      20 sections × 120 students  =  ${String(S).padEnd(6)} students                       ║
+// ║      📝 5 exam groups with marks + results                                    ║
+// ║      📅 Full-year attendance (Jun 2025 – Mar 2026)                            ║
+// ║      🏆 12 activities + 6 standalone events + awards + gallery                ║
+// ╠═══════════════════════════════════════════════════════════════════════════════╣
+// ║  🎓  PUC          admin2@gmail.com  /  finance2@gmail.com                     ║
+// ║      18 sections × 110 students  =  ${String(P).padEnd(6)} students           ║
+// ║      📝 5 exam groups + 📅 Full-year attendance + 🏆 activities/events       ║
+// ╠═══════════════════════════════════════════════════════════════════════════════╣
+// ║  🎓  DEGREE       admin3@gmail.com  /  finance3@gmail.com                     ║
+// ║      36 sections × 100 students  =  ${String(D).padEnd(6)} students           ║
+// ║      📝 5 exam groups + 📅 Full-year attendance + 🏆 activities/events        ║
+// ╠═══════════════════════════════════════════════════════════════════════════════╣
+// ║  GRAND TOTAL  ${String(total).padEnd(7)} students                                          ║
+// ║  student1@gmail.com  …  student${total}@gmail.com                             ║
+// ╠═══════════════════════════════════════════════════════════════════════════════╣
+// ║  NEW TABLES SEEDED:                                                           ║
+// ║  ✅ AttendanceRecord      — ~92% present, ~4% absent, full academic year      ║
+// ║  ✅ TeacherAttendance     — all teachers, full academic year                  ║
+// ║  ✅ SchoolHoliday         — 6 govt recurring + 7 school-specific per school   ║
+// ║  ✅ GalleryAlbum/Image    — 6 albums × 6-10 images per school                 ║
+// ║  ✅ Activity              — 12 clubs/sports (standalone, no event link)        ║
+// ║  ✅ ActivityClass         — activities linked to class sections               ║
+// ║  ✅ StudentActivityEnroll — students enrolled in activities                   ║
+// ║  ✅ ActivityEvent         — 6 standalone events (activityId = null)           ║
+// ║  ✅ EventClass            — events linked to class sections                   ║
+// ║  ✅ EventTeam/Member      — teams with 5 students each                        ║
+// ║  ✅ EventParticipant      — individual participants                           ║
+// ║  ✅ EventResult           — winners/runners-up for completed events           ║
+// ║  ✅ Certificate           — issued for event results + awards                 ║
+// ║  ✅ Award                 — 8 award types per school                          ║
+// ║  ✅ StudentAward          — top students per section receive awards           ║
+// ╚═══════════════════════════════════════════════════════════════════════════════╝
+// `);
 }
 
 main()

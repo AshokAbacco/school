@@ -897,3 +897,166 @@ export const getPromotionLogs = async (req, res) => {
     return res.status(500).json({ message: err.message });
   }
 };
+
+
+export const readmitStudentBulk = async (req, res) => {
+  try {
+    const schoolId = req.user.schoolId;
+    const { students } = req.body;
+ 
+    if (!Array.isArray(students) || students.length === 0) {
+      return res.status(400).json({ message: "students array is required" });
+    }
+ 
+    const results = [];
+ 
+    for (const s of students) {
+      const {
+        studentId,
+        newAdmissionNumber,
+        newClassSectionId,
+        newAcademicYearId,
+        reason,
+        _row,
+      } = s;
+ 
+      try {
+        // ── Validate required fields ──────────────────────────────────────
+        if (!studentId || !newAdmissionNumber || !newClassSectionId || !newAcademicYearId) {
+          results.push({
+            _row,
+            studentId,
+            success: false,
+            error: "Missing required fields (admission number, class, or year)",
+          });
+          continue;
+        }
+ 
+        // ── Find pending enrollment ───────────────────────────────────────
+        const lastEnrollment = await prisma.studentEnrollment.findFirst({
+          where: { studentId, status: "PENDING_READMISSION" },
+          include: { classSection: true, academicYear: true },
+        });
+ 
+        if (!lastEnrollment) {
+          results.push({
+            _row,
+            studentId,
+            success: false,
+            error: "Student is not in PENDING_READMISSION status",
+          });
+          continue;
+        }
+ 
+        // ── Check duplicate admission number ──────────────────────────────
+        const dupAdmission = await prisma.studentEnrollment.findFirst({
+          where: { admissionNumber: newAdmissionNumber, academicYearId: newAcademicYearId },
+        });
+ 
+        if (dupAdmission) {
+          results.push({
+            _row,
+            studentId,
+            success: false,
+            error: `Admission number "${newAdmissionNumber}" is already in use`,
+          });
+          continue;
+        }
+ 
+        // ── Verify target section belongs to this school ──────────────────
+        const targetSection = await prisma.classSection.findFirst({
+          where: { id: newClassSectionId, schoolId },
+        });
+ 
+        if (!targetSection) {
+          results.push({
+            _row,
+            studentId,
+            success: false,
+            error: "Target class section not found",
+          });
+          continue;
+        }
+ 
+        // ── Run transaction (same logic as readmitStudent) ────────────────
+        await prisma.$transaction(async (tx) => {
+          // 1. Create readmission log
+          await tx.studentReadmission.create({
+            data: {
+              studentId,
+              previousAdmissionNumber: lastEnrollment.admissionNumber || "",
+              previousGrade:           lastEnrollment.classSection?.grade || "",
+              previousAcademicYearId:  lastEnrollment.academicYearId,
+              previousClassSectionId:  lastEnrollment.classSectionId,
+              newAdmissionNumber,
+              newGrade:           targetSection.grade,
+              newAcademicYearId,
+              newClassSectionId,
+              reason:             reason || null,
+              readmissionDate:    new Date(),
+            },
+          });
+ 
+          // 2. Mark old enrollment as COMPLETED
+          await tx.studentEnrollment.update({
+            where: { id: lastEnrollment.id },
+            data:  { status: "COMPLETED" },
+          });
+ 
+          // 3. Create new ACTIVE enrollment
+          await tx.studentEnrollment.create({
+            data: {
+              studentId,
+              classSectionId: newClassSectionId,
+              academicYearId: newAcademicYearId,
+              admissionNumber: newAdmissionNumber,
+              admissionDate:   new Date(),
+              status:          "ACTIVE",
+              rollNumber:      null,
+            },
+          });
+ 
+          // 4. Ensure section is active for that year
+          await tx.classSectionAcademicYear.upsert({
+            where: {
+              classSectionId_academicYearId: {
+                classSectionId: newClassSectionId,
+                academicYearId: newAcademicYearId,
+              },
+            },
+            update: { isActive: true },
+            create: {
+              classSectionId: newClassSectionId,
+              academicYearId: newAcademicYearId,
+              isActive:       true,
+            },
+          });
+        });
+ 
+        results.push({ _row, studentId, success: true });
+ 
+      } catch (err) {
+        results.push({
+          _row,
+          studentId,
+          success: false,
+          error: err.message,
+        });
+      }
+    }
+ 
+    await invalidate(schoolId);
+ 
+    const totalSuccess = results.filter((r) => r.success).length;
+    const totalFailed  = results.filter((r) => !r.success).length;
+ 
+    return res.json({
+      message: `${totalSuccess} re-admitted, ${totalFailed} failed`,
+      results,
+    });
+ 
+  } catch (err) {
+    console.error("BULK READMISSION ERROR:", err);
+    return res.status(500).json({ message: err.message });
+  }
+};

@@ -120,7 +120,7 @@ export const PROFILE_CSS = `
     gap: 8px;
     grid-template-columns: 1fr;
   }
-  @media (min-width: 480px)  { .pf-info-grid { grid-template-columns: repeat(2, 1fr); gap: 9px; } }
+  @media (min-width: 640px)  { .pf-info-grid { grid-template-columns: repeat(2, 1fr); gap: 9px; } }
   @media (min-width: 1024px) { .pf-info-grid { gap: 10px; } }
 
   /* Main layout: sidebar + content */
@@ -130,10 +130,10 @@ export const PROFILE_CSS = `
     border-radius: 18px;
     overflow: hidden;
   }
-  @media (min-width: 768px) {
-    .pf-layout { grid-template-columns: 230px 1fr; }
+  @media (min-width: 900px) {
+    .pf-layout { grid-template-columns: 220px 1fr; }
   }
-  @media (min-width: 1024px) {
+  @media (min-width: 1100px) {
     .pf-layout { grid-template-columns: 268px 1fr; }
   }
 
@@ -143,7 +143,7 @@ export const PROFILE_CSS = `
     padding: 20px 18px;
     font-family: 'Inter', sans-serif;
   }
-  @media (min-width: 768px) {
+  @media (min-width: 900px) {
     .pf-sidebar {
       border-bottom: none;
       border-right: 1.5px solid ${C.pale};
@@ -159,22 +159,22 @@ export const PROFILE_CSS = `
     overflow-y: auto;
   }
   @media (min-width: 480px)  { .pf-content { padding: 20px; } }
-  @media (min-width: 768px)  { .pf-content { padding: 24px; max-height: calc(100vh - 160px); } }
-  @media (min-width: 1024px) { .pf-content { padding: 28px; } }
+  @media (min-width: 900px)  { .pf-content { padding: 24px; max-height: calc(100vh - 160px); } }
+  @media (min-width: 1100px) { .pf-content { padding: 28px; } }
 
   /* Health / doc grid */
   .pf-health-grid {
     display: grid; gap: 8px;
     grid-template-columns: 1fr;
   }
-  @media (min-width: 480px)  { .pf-health-grid { grid-template-columns: repeat(2, 1fr); gap: 9px; } }
+  @media (min-width: 640px)  { .pf-health-grid { grid-template-columns: repeat(2, 1fr); gap: 9px; } }
   @media (min-width: 1024px) { .pf-health-grid { gap: 10px; } }
 
   .pf-doc-grid {
     display: grid; gap: 9px;
     grid-template-columns: 1fr;
   }
-  @media (min-width: 480px)  { .pf-doc-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 640px)  { .pf-doc-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (min-width: 1200px) { .pf-doc-grid { grid-template-columns: repeat(3, 1fr); } }
 
   /* Pill badge */
@@ -189,7 +189,7 @@ export const PROFILE_CSS = `
   .pf-sidebar-mobile {
     display: flex; align-items: center; gap: 14px;
   }
-  @media (min-width: 768px) {
+  @media (min-width: 900px) {
     .pf-sidebar-mobile {
       flex-direction: column; align-items: center; gap: 0;
     }
@@ -200,7 +200,7 @@ export const PROFILE_CSS = `
     display: grid; grid-template-columns: repeat(4,1fr); gap: 6px;
     width: 100%;
   }
-  @media (min-width: 768px) {
+  @media (min-width: 900px) {
     .pf-stat-grid { grid-template-columns: repeat(2,1fr); gap: 7px; }
   }
 

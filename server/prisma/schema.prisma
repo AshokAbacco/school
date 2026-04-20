@@ -314,6 +314,7 @@ model School {
   Award                 Award[]
   liveClasses           LiveClass[]
   StaffProfile          StaffProfile[]
+  assignments           Assignment[]
 
   @@index([universityId])
   @@index([type])
@@ -671,6 +672,7 @@ model StudentDocumentInfo {
   isVerified Boolean   @default(false)
   verifiedAt DateTime?
   uploadedAt DateTime  @default(now())
+  deletedAt  DateTime?
 
   @@index([studentId])
   @@map("student_document_info")
@@ -695,6 +697,7 @@ model Subject {
   subjectSyllabus     SubjectSyllabus[]
   portionProgress     SectionPortionProgress[]
   liveClasses         LiveClass[]
+  assignments         Assignment[]
 
   @@unique([code, schoolId])
   @@index([schoolId])
@@ -774,6 +777,7 @@ model TeacherProfile {
   syllabusUpdated      SubjectSyllabus[]          @relation("SyllabusUpdatedBy")
   portionProgress      SectionPortionProgress[]
   liveClasses          LiveClass[]
+  homeworkAssignments  Assignment[]
 
   @@index([schoolId])
   @@index([department])
@@ -857,6 +861,7 @@ model AcademicYear {
   activityEnrollments StudentActivityEnrollment[]
   StudentAward        StudentAward[]
   liveClasses         LiveClass[]
+  assignments         Assignment[]
 
   @@unique([name, schoolId])
   @@index([schoolId])
@@ -900,6 +905,7 @@ model ClassSection {
   StudentAward        StudentAward[]
   liveClasses         LiveClass[]
   liveClassSections   LiveClassSection[]
+  assignmentSections  AssignmentSection[]
 
   @@index([schoolId])
   @@index([grade, schoolId])
@@ -2226,4 +2232,94 @@ model LiveClassAttendance {
   @@index([studentId])
   @@index([liveClassId])
   @@map("live_class_attendance")
+}
+
+enum AssignmentType {
+  REGULAR
+  HOLIDAY
+  WEEKEND
+  PROJECT
+}
+
+enum AssignmentStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+model Assignment {
+  id          String  @id @default(uuid())
+  title       String
+  description String?
+
+  type   AssignmentType   @default(REGULAR)
+  status AssignmentStatus @default(DRAFT)
+
+  dueDate    DateTime
+  isArchived Boolean  @default(false)
+
+  // Files (R2 keys)
+  attachmentKeys  String[] @default([])
+  attachmentNames String[] @default([])
+  attachmentTypes String[] @default([])
+
+  // Relations
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sections AssignmentSection[]
+
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([subjectId])
+  @@index([academicYearId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([schoolId, academicYearId, status])
+  @@index([schoolId, academicYearId, dueDate])
+  @@map("assignments")
+}
+
+model AssignmentSection {
+  id String @id @default(uuid())
+
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, classSectionId])
+  @@index([classSectionId])
+  @@index([assignmentId])
+  @@map("assignment_sections")
+}
+
+model CloudBackup {
+  id    String @id @default(uuid())
+  model String
+  refId String
+
+  schoolId String?
+  name     String?
+
+  fileKey  String
+  fileType String
+
+  createdAt DateTime @default(now())
+
+  // 🔥 NEW FIELD
+  deletedAt DateTime?
 }
