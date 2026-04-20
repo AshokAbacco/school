@@ -160,7 +160,7 @@ export default function Home() {
                         </h1>
 
                         <p className="text-base leading-relaxed mb-9 max-w-md" style={{ color: "#5a7a96" }}>
-                            EducationCRM brings together students, teachers, parents, finance, and administration into a single
+                             Education Management CRM brings together students, teachers, parents, finance, and administration into a single
                             powerful system built with role-based access so everyone gets exactly what they need.
                         </p>
 
@@ -217,7 +217,7 @@ export default function Home() {
                                     className="flex-1 bg-white border border-slate-100 rounded-md px-3 py-1 text-center text-xs"
                                     style={{ color: "#9db8cc" }}
                                 >
-                                    EducationCRM.app/admin/dashboard
+                                     Education Management CRM.app/admin/dashboard
                                 </div>
                             </div>
 
@@ -342,7 +342,7 @@ export default function Home() {
                             className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full border text-xs font-semibold uppercase tracking-widest mb-4"
                             style={{ background: "#e8f3fd", borderColor: "#BDDDFC", color: "#6A89A7" }}
                         >
-                            <LayoutDashboard size={12} /> What's Inside EducationCRM
+                            <LayoutDashboard size={12} /> What's Inside  Education Management CRM
                         </div>
                         <h2 className="text-4xl font-black mb-4" style={{ color: "#1a2533", fontFamily: "Georgia, serif" }}>
                             Every Module Your{" "}
@@ -629,7 +629,7 @@ export default function Home() {
                             className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full border text-xs font-semibold uppercase tracking-widest mb-4"
                             style={{ background: "#e8f3fd", borderColor: "#BDDDFC", color: "#6A89A7" }}
                         >
-                            <School size={12} /> Why EducationCRM
+                            <School size={12} /> Why  Education Management CRM
                         </div>
                         <h2 className="text-4xl font-black mb-5" style={{ color: "#1a2533", fontFamily: "Georgia, serif" }}>
                             Every Department,{" "}
@@ -641,7 +641,7 @@ export default function Home() {
                             </span>
                         </h2>
                         <p className="text-base leading-relaxed mb-7" style={{ color: "#6A89A7" }}>
-                            EducationCRM isn't just student records. It's a complete ecosystem from finance and staff management
+                             Education Management CRM isn't just student records. It's a complete ecosystem from finance and staff management
                             to parent portals and academic reporting all talking to each other in real time.
                         </p>
                         <ul className="space-y-4 mb-10">
@@ -694,11 +694,11 @@ export default function Home() {
                                 Educators Say
                             </span>
                         </h2>
-                        <p className="text-sm" style={{ color: "#9db8cc" }}>From the people who use EducationCRM every day</p>
+                        <p className="text-sm" style={{ color: "#9db8cc" }}>From the people who use  Education Management CRM every day</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {[
-                            { quote: "Managing 1,200 students used to be chaos. EducationCRM made it completely organized attendance, fees, results all in one place.", name: "Priya Sharma", role: "Principal, Delhi Public School", Icon: School },
+                            { quote: "Managing 1,200 students used to be chaos.  Education Management CRM made it completely organized attendance, fees, results all in one place.", name: "Priya Sharma", role: "Principal, Delhi Public School", Icon: School },
                             { quote: "The finance module is exactly what we needed. Fee collection, reminders, and reports everything automated and clean.", name: "Rajesh Nair", role: "Finance Head, Kendriya Vidyalaya", Icon: Wallet },
                             { quote: "As a parent I can see my child's attendance and marks anytime. The notifications keep me in the loop.", name: "Meena Iyer", role: "Parent, Presidency School", Icon: UsersRound },
                         ].map((t, i) => (
