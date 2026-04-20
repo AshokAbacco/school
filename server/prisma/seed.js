@@ -1325,7 +1325,7 @@ async function seedTeacherSalaries({ school, allTeachers }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  EXPENSE SEEDER
 // ═══════════════════════════════════════════════════════════════════════════════
-async function seedExpenses() {
+async function seedExpenses({ school }) {
   console.log(`\n   💸  Seeding expenses & categories…`);
 
   const CATEGORY_DEFS = [
@@ -1344,7 +1344,7 @@ async function seedExpenses() {
     let cat = await prisma.expenseCategory.findFirst({ where: { name: def.name } });
     if (!cat) {
       cat = await prisma.expenseCategory.create({
-        data: { name: def.name, icon: def.icon, color: def.color },
+        data: { name: def.name, icon: def.icon, color: def.color, schoolId: school.id },
       });
     }
     categories.push(cat);
@@ -1888,14 +1888,23 @@ async function main() {
   // const pucResult    = await seedPUC(university, password);
   // const degResult    = await seedDegree(university, password);
 
-  for (const { school } of [schoolResult]) {
-    await prisma.superAdminSchoolAccess.upsert({
-      where:  { superAdminId_schoolId:{ superAdminId: sa.id, schoolId: school.id } },
-      update: {},
-      create: { superAdminId: sa.id, schoolId: school.id },
-    });
-  }
- await seedExpenses();
+const { school } = schoolResult;
+
+await prisma.superAdminSchoolAccess.upsert({
+  where: {
+    superAdminId_schoolId: {
+      superAdminId: sa.id,
+      schoolId: school.id,
+    },
+  },
+  update: {},
+  create: {
+    superAdminId: sa.id,
+    schoolId: school.id,
+  },
+});
+
+await seedExpenses({ school });
   const S = schoolResult.totalStudents;
   // const P = pucResult.totalStudents;
   // const D = degResult.totalStudents;

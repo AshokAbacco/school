@@ -74,16 +74,18 @@ export async function getTeacherCurriculumAssignments(req, res) {
           syllabus: syllabus
             ? {
                 totalChapters: syllabus.totalChapters,
+                chapterNames: syllabus.chapterNames, 
                 setBy: syllabus.createdBy,
                 updatedBy: syllabus.updatedBy,
               }
             : null,
-          progress: progress
-            ? {
-                completedChapters: progress.completedChapters,
-                updatedAt: progress.updatedAt,
-              }
-            : null,
+        progress: progress
+          ? {
+              completedChapters: progress.completedChapters,
+              completedChapterIndices: progress.completedChapterIndices,  // ← ADD THIS
+              updatedAt: progress.updatedAt,
+            }
+          : null,
         };
       }),
     );
@@ -243,7 +245,7 @@ export async function updateSectionProgress(req, res) {
     if (!teacherProfile)
       return res.status(403).json({ message: "Teacher profile not found" });
     const teacherId = teacherProfile.id;
-    const { subjectId, classSectionId, completedChapters } = req.body;
+    const { subjectId, classSectionId, completedChapters, completedChapterIndices } = req.body;
 
     if (!subjectId || !classSectionId || completedChapters === undefined) {
       return res.status(400).json({
@@ -294,23 +296,114 @@ export async function updateSectionProgress(req, res) {
           academicYearId: activeYear.id,
         },
       },
-      update: {
-        completedChapters: Number(completedChapters),
-        updatedById: teacherId,
-      },
-      create: {
-        subjectId,
-        classSectionId,
-        academicYearId: activeYear.id,
-        schoolId,
-        completedChapters: Number(completedChapters),
-        updatedById: teacherId,
-      },
+    update: {
+            completedChapters: Number(completedChapters),
+            completedChapterIndices: Array.isArray(completedChapterIndices)
+              ? completedChapterIndices
+              : [],
+            updatedById: teacherId,
+          },
+          create: {
+            subjectId,
+            classSectionId,
+            academicYearId: activeYear.id,
+            schoolId,
+            completedChapters: Number(completedChapters),
+            completedChapterIndices: Array.isArray(completedChapterIndices)
+              ? completedChapterIndices
+              : [],
+            updatedById: teacherId,
+          },
     });
 
     res.json(progress);
   } catch (err) {
     console.error("updateSectionProgress:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   PUT /api/teacher/curriculum/chapters
+   Save chapter names for a subject+grade syllabus (optional)
+   Body: { subjectId, grade, chapterNames: string[] }
+─────────────────────────────────────────────────────────────── */
+export async function updateChapterNames(req, res) {
+  try {
+    const { schoolId } = req.user;
+    const teacherProfile = await prisma.teacherProfile.findFirst({
+      where: { userId: req.user.id },
+    });
+    if (!teacherProfile)
+      return res.status(403).json({ message: "Teacher profile not found" });
+    const teacherId = teacherProfile.id;
+
+    const { subjectId, grade, chapterNames } = req.body;
+
+    if (!subjectId || !grade || !Array.isArray(chapterNames)) {
+      return res.status(400).json({
+        message: "subjectId, grade, and chapterNames[] are required",
+      });
+    }
+
+    const activeYear = await prisma.academicYear.findFirst({
+      where: { schoolId, isActive: true },
+    });
+    if (!activeYear)
+      return res.status(404).json({ message: "No active academic year" });
+
+    // Verify teacher is assigned to this subject+grade
+    const assignment = await prisma.teacherAssignment.findFirst({
+      where: {
+        teacherId,
+        subjectId,
+        academicYearId: activeYear.id,
+        classSection: { grade },
+      },
+    });
+    if (!assignment)
+      return res
+        .status(403)
+        .json({ message: "You are not assigned to this subject/grade" });
+
+    // Syllabus must already exist
+    const syllabus = await prisma.subjectSyllabus.findUnique({
+      where: {
+        subjectId_grade_academicYearId: {
+          subjectId,
+          grade,
+          academicYearId: activeYear.id,
+        },
+      },
+    });
+    if (!syllabus)
+      return res
+        .status(404)
+        .json({ message: "Set total chapters first before naming them" });
+
+    // Trim names, clamp array to totalChapters length
+    const cleaned = chapterNames
+      .slice(0, syllabus.totalChapters)
+      .map((n) => (typeof n === "string" ? n.trim() : ""));
+
+    const updated = await prisma.subjectSyllabus.update({
+      where: {
+        subjectId_grade_academicYearId: {
+          subjectId,
+          grade,
+          academicYearId: activeYear.id,
+        },
+      },
+      data: {
+        chapterNames: cleaned,
+        updatedById: teacherId,
+      },
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error("updateChapterNames:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 }

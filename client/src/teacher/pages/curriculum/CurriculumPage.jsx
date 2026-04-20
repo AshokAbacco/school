@@ -101,6 +101,7 @@ export default function CurriculumPage() {
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [showSetModal, setShowSetModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [showChaptersModal, setShowChaptersModal] = useState(false);
 
   useEffect(() => {
     fetchAssignments();
@@ -146,7 +147,6 @@ export default function CurriculumPage() {
         @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
         .fade-up { animation: fadeUp 0.45s ease forwards; }
 
-        /* ── Responsive ── */
         .curr-page { padding: 20px 16px; }
         .curr-subject-header { flex-direction: column; align-items: flex-start !important; gap: 10px !important; }
         .curr-set-btn { width: 100%; justify-content: center; }
@@ -380,44 +380,93 @@ export default function CurriculumPage() {
                     </div>
                   </div>
 
-                  {/* right: set/edit button */}
-                  <button
-                    className="curr-set-btn"
-                    onClick={() => {
-                      setSelectedSubject(group);
-                      setShowSetModal(true);
-                    }}
+                  {/* right: buttons */}
+                  <div
                     style={{
                       display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      padding: "8px 14px",
-                      borderRadius: 12,
-                      background: group.syllabus
-                        ? `${C.sky}18`
-                        : `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
-                      border: group.syllabus ? `1px solid ${C.sky}44` : "none",
-                      color: group.syllabus ? C.deep : "#fff",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      fontFamily: "'Inter', sans-serif",
-                      whiteSpace: "nowrap",
+                      gap: 8,
                       flexShrink: 0,
+                      flexWrap: "wrap",
+                      justifyContent: "flex-end",
                     }}
                   >
-                    {group.syllabus ? (
-                      <>
-                        <Pencil size={12} /> Edit Chapters (
-                        {group.syllabus.totalChapters})
-                      </>
-                    ) : (
-                      <>
-                        <Plus size={12} /> Set Total Chapters
-                      </>
+                    {/* ── Chapter names button ── */}
+                    {group.syllabus && (
+                      <button
+                        onClick={() => {
+                          setSelectedSubject(group);
+                          setShowChaptersModal(true);
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: "8px 13px",
+                          borderRadius: 12,
+                          background: group.syllabus.chapterNames?.some((n) => n)
+                            ? `${C.sky}22`
+                            : `${C.mist}44`,
+                          border: `1px solid ${
+                            group.syllabus.chapterNames?.some((n) => n)
+                              ? C.sky
+                              : C.border
+                          }`,
+                          color: group.syllabus.chapterNames?.some((n) => n)
+                            ? C.deep
+                            : C.textLight,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontFamily: "'Inter', sans-serif",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <BookOpen size={12} />
+                        {group.syllabus.chapterNames?.some((n) => n)
+                          ? "Edit chapter names"
+                          : "Add chapter names"}
+                      </button>
                     )}
-                  </button>
+
+                    {/* ── Set/Edit total chapters button ── */}
+                    <button
+                      className="curr-set-btn"
+                      onClick={() => {
+                        setSelectedSubject(group);
+                        setShowSetModal(true);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        padding: "8px 14px",
+                        borderRadius: 12,
+                        background: group.syllabus
+                          ? `${C.sky}18`
+                          : `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
+                        border: group.syllabus ? `1px solid ${C.sky}44` : "none",
+                        color: group.syllabus ? C.deep : "#fff",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        fontFamily: "'Inter', sans-serif",
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {group.syllabus ? (
+                        <>
+                          <Pencil size={12} /> Edit Chapters (
+                          {group.syllabus.totalChapters})
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={12} /> Set Total Chapters
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 {/* ── Sections ── */}
@@ -540,6 +589,17 @@ export default function CurriculumPage() {
           onSaved={fetchAssignments}
         />
       )}
+
+      {showChaptersModal && selectedSubject && (
+        <ChapterNamesModal
+          group={selectedSubject}
+          onClose={() => {
+            setShowChaptersModal(false);
+            setSelectedSubject(null);
+          }}
+          onSaved={fetchAssignments}
+        />
+      )}
     </>
   );
 }
@@ -551,14 +611,24 @@ function SetChaptersModal({ group, onClose, onSaved }) {
   const [error, setError] = useState("");
 
   async function handleSave() {
-    if (!total || isNaN(total) || Number(total) < 1) {
-      setError("Enter a valid chapter count");
+    const num = Number(total);
+    if (!num || num < 1) {
+      setError("Please enter a valid number of chapters (minimum 1)");
       return;
     }
     try {
       setSaving(true);
-      const res = await fetch(`${API_URL}/api/teacher/curriculum/syllabus`, {
-        method: group.syllabus ? "PUT" : "POST",
+      setError("");
+
+      // ── BUG FIX: use correct endpoint and body ──
+      // If syllabus already exists → PUT (update), else → POST (create)
+      const method = group.syllabus ? "PUT" : "POST";
+      const endpoint = group.syllabus
+        ? `${API_URL}/api/teacher/curriculum/syllabus`   // PUT
+        : `${API_URL}/api/teacher/curriculum/syllabus`;  // POST
+
+      const res = await fetch(endpoint, {
+        method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${getToken()}`,
@@ -566,13 +636,15 @@ function SetChaptersModal({ group, onClose, onSaved }) {
         body: JSON.stringify({
           subjectId: group.subject.id,
           grade: group.grade,
-          totalChapters: Number(total),
+          totalChapters: num,            // ✅ FIXED: was sending `names` and `chapterNames`
         }),
       });
+
       if (!res.ok) {
         const d = await res.json();
-        throw new Error(d.message || "Failed");
+        throw new Error(d.message || "Failed to save");
       }
+
       onSaved();
       onClose();
     } catch (e) {
@@ -691,21 +763,61 @@ function SetChaptersModal({ group, onClose, onSaved }) {
 
 /* ── Update Progress Modal ────────────────────────────────── */
 function UpdateProgressModal({ group, onClose, onSaved }) {
+  const total = group.syllabus?.totalChapters ?? 0;
+  const chapterNames = group.syllabus?.chapterNames ?? [];
+  const hasNames = chapterNames.some((n) => n?.trim());
+
+  const [mode, setMode] = useState(hasNames ? "select" : "number");
   const [completed, setCompleted] = useState(
-    group.activeSection?.progress?.completedChapters ?? "",
+    group.activeSection?.progress?.completedChapters ?? 0,
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const total = group.syllabus?.totalChapters ?? 0;
+
+  const [checkedChapters, setCheckedChapters] = useState(() => {
+    const savedIndices = new Set(
+      group.activeSection?.progress?.completedChapterIndices ?? []
+    );
+    if (savedIndices.size > 0) {
+      return Array.from({ length: total }, (_, i) => savedIndices.has(i));
+    }
+    const count = group.activeSection?.progress?.completedChapters ?? 0;
+    return Array.from({ length: total }, (_, i) => i < count);
+  });
+
+  const completedFromChecks = checkedChapters.filter(Boolean).length;
+
+  function toggleChapter(index) {
+    setCheckedChapters((prev) => {
+      const next = [...prev];
+      next[index] = !next[index];
+      return next;
+    });
+  }
+
+  const effectiveCompleted =
+    mode === "select" ? completedFromChecks : Number(completed);
+  const pct = total
+    ? Math.min(Math.round((effectiveCompleted / total) * 100), 100)
+    : 0;
 
   async function handleSave() {
-    const val = Number(completed);
+    const val = effectiveCompleted;
     if (isNaN(val) || val < 0 || val > total) {
       setError(`Enter 0 – ${total}`);
       return;
     }
     try {
       setSaving(true);
+
+      // ── BUG FIX: send completedChapterIndices ──
+      const completedChapterIndices =
+        mode === "select"
+          ? checkedChapters
+              .map((checked, i) => (checked ? i : -1))
+              .filter((i) => i !== -1)
+          : Array.from({ length: val }, (_, i) => i); // number mode: assume serial
+
       const res = await fetch(`${API_URL}/api/teacher/curriculum/progress`, {
         method: "PUT",
         headers: {
@@ -716,6 +828,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
           subjectId: group.subject.id,
           classSectionId: group.activeSection.classSection.id,
           completedChapters: val,
+          completedChapterIndices,        // ✅ FIXED: was missing entirely
         }),
       });
       if (!res.ok) {
@@ -731,10 +844,6 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
     }
   }
 
-  const pct = total
-    ? Math.min(Math.round((Number(completed) / total) * 100), 100)
-    : 0;
-
   return (
     <Modal
       title={`Update — ${group.activeSection?.classSection?.name}`}
@@ -744,17 +853,61 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
         style={{
           fontSize: 12,
           color: C.textLight,
-          margin: "0 0 4px",
+          margin: "0 0 12px",
           fontFamily: "'Inter', sans-serif",
         }}
       >
         <strong style={{ color: C.deep }}>{group.subject?.name}</strong> ·{" "}
         <strong style={{ color: C.deep }}>{total} chapters</strong>
       </p>
-      {/* live preview */}
+
+      {/* ── Mode toggle (only show if chapter names exist) ── */}
+      {hasNames && (
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            marginBottom: 14,
+            background: C.bg,
+            borderRadius: 10,
+            padding: 4,
+            border: `1.5px solid ${C.borderLight}`,
+          }}
+        >
+          {[
+            { key: "select", label: "By chapter" },
+            { key: "number", label: "By number" },
+          ].map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => setMode(opt.key)}
+              style={{
+                flex: 1,
+                padding: "7px 0",
+                borderRadius: 8,
+                border: "none",
+                background:
+                  mode === opt.key
+                    ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
+                    : "transparent",
+                color: mode === opt.key ? "#fff" : C.textLight,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                fontFamily: "'Inter', sans-serif",
+                transition: "all 0.2s",
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Live progress preview ── */}
       <div
         style={{
-          margin: "14px 0",
+          margin: "0 0 14px",
           padding: "12px 14px",
           borderRadius: 13,
           background: C.bg,
@@ -775,7 +928,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
               color: C.textLight,
             }}
           >
-            Preview
+            {effectiveCompleted}/{total} chapters · Preview
           </span>
           <span
             style={{
@@ -807,38 +960,148 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
           />
         </div>
       </div>
-      <label
-        style={{
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 12,
-          fontWeight: 600,
-          color: C.text,
-          display: "block",
-          marginBottom: 6,
-        }}
-      >
-        Completed Chapters
-      </label>
-      <input
-        type="number"
-        min={0}
-        max={total}
-        value={completed}
-        onChange={(e) => setCompleted(e.target.value)}
-        placeholder={`0 – ${total}`}
-        style={{
-          width: "100%",
-          padding: "10px 14px",
-          borderRadius: 12,
-          border: `1.5px solid ${C.border}`,
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 14,
-          fontWeight: 600,
-          color: C.text,
-          background: C.bg,
-          outline: "none",
-        }}
-      />
+
+      {/* ── Select mode: chapter checklist ── */}
+      {mode === "select" && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            maxHeight: 240,
+            overflowY: "auto",
+            paddingRight: 4,
+            marginBottom: 4,
+          }}
+        >
+          {Array.from({ length: total }, (_, i) => {
+            const name = chapterNames[i]?.trim() || `Chapter ${i + 1}`;
+            const checked = checkedChapters[i] ?? false;
+            return (
+              <div
+                key={i}
+                onClick={() => toggleChapter(i)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "9px 12px",
+                  borderRadius: 10,
+                  border: `1.5px solid ${checked ? C.sky : C.borderLight}`,
+                  background: checked ? `${C.sky}14` : C.white,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                  userSelect: "none",
+                }}
+              >
+                <div
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 5,
+                    border: `2px solid ${checked ? C.deep : C.border}`,
+                    background: checked
+                      ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
+                      : C.white,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {checked && (
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path
+                        d="M1 4l3 3 5-6"
+                        stroke="#fff"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </div>
+                <div
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 6,
+                    background: checked
+                      ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
+                      : `${C.mist}55`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: checked ? "#fff" : C.textLight,
+                    flexShrink: 0,
+                    fontFamily: "'Inter', sans-serif",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {i + 1}
+                </div>
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 12,
+                    fontWeight: checked ? 700 : 400,
+                    color: checked ? C.text : C.textLight,
+                    flex: 1,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {name}
+                </span>
+                {checked && (
+                  <CheckCircle2 size={13} color={C.slate} strokeWidth={2.5} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Number mode: plain input ── */}
+      {mode === "number" && (
+        <>
+          <label
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 12,
+              fontWeight: 600,
+              color: C.text,
+              display: "block",
+              marginBottom: 6,
+            }}
+          >
+            Completed Chapters
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={total}
+            value={completed}
+            onChange={(e) => setCompleted(e.target.value)}
+            placeholder={`0 – ${total}`}
+            style={{
+              width: "100%",
+              padding: "10px 14px",
+              borderRadius: 12,
+              border: `1.5px solid ${C.border}`,
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 14,
+              fontWeight: 600,
+              color: C.text,
+              background: C.bg,
+              outline: "none",
+            }}
+          />
+        </>
+      )}
+
       {error && (
         <p
           style={{
@@ -851,6 +1114,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
           {error}
         </p>
       )}
+
       <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
         <button
           onClick={onClose}
@@ -974,5 +1238,208 @@ function Modal({ title, onClose, children }) {
         {children}
       </div>
     </div>
+  );
+}
+
+/* ── Chapter Names Modal ──────────────────────────────────── */
+function ChapterNamesModal({ group, onClose, onSaved }) {
+  const total = group.syllabus?.totalChapters ?? 0;
+
+  const [names, setNames] = useState(() => {
+    const existing = group.syllabus?.chapterNames ?? [];
+    return Array.from({ length: total }, (_, i) => existing[i] ?? "");
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function handleChange(index, value) {
+    setNames((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  }
+
+  // ── BUG FIX: correct request body for chapter names ──
+  async function handleSave() {
+    try {
+      setSaving(true);
+      setError("");
+      const res = await fetch(`${API_URL}/api/teacher/curriculum/chapters`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          subjectId: group.subject.id,
+          grade: group.grade,             // ✅ FIXED: was using classSectionId + completedChapters
+          chapterNames: names,            // ✅ FIXED: correct payload for this endpoint
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.message || "Failed to save");
+      }
+      onSaved();
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const filledCount = names.filter((n) => n.trim()).length;
+
+  return (
+    <Modal
+      title={`Chapter names — ${group.subject?.name} · Grade ${group.grade}`}
+      onClose={onClose}
+    >
+      <p
+        style={{
+          fontSize: 12,
+          color: C.textLight,
+          margin: "0 0 14px",
+          fontFamily: "'Inter', sans-serif",
+          lineHeight: 1.5,
+        }}
+      >
+        <strong style={{ color: C.deep }}>
+          {filledCount}/{total} named
+        </strong>
+      </p>
+
+      {/* Scrollable chapter list */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          maxHeight: 320,
+          overflowY: "auto",
+          paddingRight: 4,
+          marginBottom: 4,
+        }}
+      >
+        {Array.from({ length: total }, (_, i) => (
+          <div
+            key={i}
+            style={{ display: "flex", alignItems: "center", gap: 8 }}
+          >
+            <div
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 7,
+                background: names[i]?.trim()
+                  ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
+                  : `${C.mist}55`,
+                border: `1px solid ${names[i]?.trim() ? "transparent" : C.border}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 10,
+                fontWeight: 700,
+                color: names[i]?.trim() ? "#fff" : C.textLight,
+                flexShrink: 0,
+                fontFamily: "'Inter', sans-serif",
+                transition: "all 0.2s",
+              }}
+            >
+              {i + 1}
+            </div>
+            <input
+              type="text"
+              value={names[i]}
+              onChange={(e) => handleChange(i, e.target.value)}
+              placeholder={`Chapter ${i + 1} name…`}
+              maxLength={100}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                borderRadius: 10,
+                border: `1.5px solid ${names[i]?.trim() ? C.sky : C.border}`,
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                fontWeight: names[i]?.trim() ? 600 : 400,
+                color: C.text,
+                background: C.bg,
+                outline: "none",
+                transition: "border-color 0.2s",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = C.sky)}
+              onBlur={(e) =>
+                (e.target.style.borderColor = names[i]?.trim()
+                  ? C.sky
+                  : C.border)
+              }
+            />
+          </div>
+        ))}
+      </div>
+
+      {error && (
+        <p
+          style={{
+            color: "#c0392b",
+            fontSize: 11,
+            margin: "6px 0 0",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {error}
+        </p>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+        <button
+          onClick={onClose}
+          style={{
+            flex: 1,
+            padding: "10px",
+            borderRadius: 12,
+            border: `1.5px solid ${C.border}`,
+            background: C.white,
+            color: C.textLight,
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            flex: 2,
+            padding: "10px",
+            borderRadius: 12,
+            border: "none",
+            background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
+            color: "#fff",
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+          }}
+        >
+          {saving ? (
+            <>
+              <Loader2 size={14} className="animate-spin" /> Saving...
+            </>
+          ) : (
+            "Save chapter names"
+          )}
+        </button>
+      </div>
+    </Modal>
   );
 }
