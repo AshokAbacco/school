@@ -2,7 +2,7 @@
 import { getToken } from "../../../../auth/storage";
 
 const API_URL = import.meta.env.VITE_API_URL;
-const BASE = `${API_URL}/api`;
+const BASE    = `${API_URL}/api`;
 
 const authHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
 

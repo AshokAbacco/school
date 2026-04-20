@@ -396,3 +396,11 @@ export const activateAcademicYear = (yearId) =>
     method: "PATCH",
     headers: authHeaders(true),
   }).then(handle);
+
+
+  export const readmitStudentBulk = (data) =>
+  fetch(`${BASE}/promotion/readmit-bulk`, {
+    method: "POST",
+    headers: authHeaders(true),
+    body: JSON.stringify(data),
+  }).then(handle);

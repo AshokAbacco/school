@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { getToken } from "../../../auth/storage";
 import AddStudent from "./AddStudents";
+import BulkImportStudents from "./BulkImportStudents";
 import SignedProfileImage from "./components/SignedProfileImage";
 import { useInstitutionConfig } from "../classes/hooks/useInstitutionConfig";
 
@@ -1108,6 +1109,7 @@ function StudentsList() {
   const [level1Items, setLevel1Items] = useState([]);
   const [selectedSection, setSelectedSection] = useState(null);
   const [openModal, setOpenModal] = useState(false);
+  const [openImport, setOpenImport] = useState(false);
   const [students, setStudents] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -1569,7 +1571,42 @@ function StudentsList() {
                 {viewLevel >= 2 && selectedSection && selectedSection.name}
               </p>
             </div>
-            <button
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+              <button
+                onClick={() => setOpenImport(true)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  padding: "10px 18px",
+                  borderRadius: 13,
+                  border: `1.5px solid ${C.border}`,
+                  background: C.white,
+                  color: C.textLight,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                  transition: "all 0.2s",
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = `${C.mist}55`;
+                  e.currentTarget.style.borderColor = C.sky;
+                  e.currentTarget.style.color = C.deep;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = C.white;
+                  e.currentTarget.style.borderColor = C.border;
+                  e.currentTarget.style.color = C.textLight;
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Import CSV
+              </button>
+              <button
               onClick={() => setOpenModal(true)}
               style={{
                 display: "flex",
@@ -1593,6 +1630,7 @@ function StudentsList() {
             >
               <Plus size={15} /> Add Student
             </button>
+            </div>
           </div>
         </div>
 
@@ -1962,6 +2000,17 @@ function StudentsList() {
           <AddStudent
             closeModal={() => setOpenModal(false)}
             onSuccess={() => {
+              invalidate();
+            }}
+          />
+        )}
+
+        {/* Bulk Import Modal */}
+        {openImport && (
+          <BulkImportStudents
+            onClose={() => setOpenImport(false)}
+            onSuccess={() => {
+              setOpenImport(false);
               invalidate();
             }}
           />

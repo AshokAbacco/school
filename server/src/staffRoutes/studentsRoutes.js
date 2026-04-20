@@ -14,7 +14,8 @@ import {
   getMyParentStudents, // ← NEW
   createParentLogin,
   getProfileImage,
-  
+  bulkImportRow,
+   bulkImportStudents, 
 } from "../staffControlls/StudentsControlls.js";
 
 const router = express.Router();
@@ -73,7 +74,8 @@ router.post(
   upload.array("files", 20),
   uploadDocumentsBulk,
 );
-
+router.post("/bulk-import-row", authMiddleware, bulkImportRow);
+router.post("/bulk-import", authMiddleware, bulkImportStudents);
 // List students (with filters)
 router.get("/", authMiddleware, listStudents);
 

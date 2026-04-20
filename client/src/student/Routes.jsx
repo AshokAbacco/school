@@ -12,6 +12,7 @@ import ActivitiesPage from "./pages/Activities/ActivitiesPage";
 // import CertificatesPage from "./pages/Certificates/CertificatesPage";
 import OnlineClassesPage from "./pages/onlineClasses/OnlineClassesPage";
 import StudentCertificatesPage from "./pages/Certificates/StudentCertificatesPage";
+import HomeworkPage  from "./pages/Homework/HomeworkPage.jsx";
 
 
 function StudentRoutes() {        // ← fixed: was named "App"
@@ -28,6 +29,7 @@ function StudentRoutes() {        // ← fixed: was named "App"
         {/* <Route path="certicates"      element={<CertificatesPage />} /> */}
         <Route path="my-certificates" element={<StudentCertificatesPage />} />
         <Route path="online-classes"  element={<OnlineClassesPage />} />
+        <Route path="homework" element={<HomeworkPage />} />
         <Route path="*"               element={<Navigate to="dashboard" replace />} />
       </Routes>
     </PageLayout>

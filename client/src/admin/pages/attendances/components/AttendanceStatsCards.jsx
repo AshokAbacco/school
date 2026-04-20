@@ -2,30 +2,39 @@
 import React, { useMemo } from "react";
 import { Users, UserCheck, UserX } from "lucide-react";
 
+// ── Shared palette (mirrors OnlineClassesPage) ────────────────────────────
 const C = {
-  primary: "#384959",
-  secondary: "#6A89A7",
-  border: "rgba(136,189,242,0.30)",
+  slate:       "#6A89A7",
+  mist:        "#BDDDFC",
+  sky:         "#88BDF2",
+  deep:        "#384959",
+  white:       "#FFFFFF",
+  borderLight: "#DDE9F5",
+  text:        "#243340",
+  textLight:   "#6A89A7",
 };
 
 const STAT_CARDS_CONFIG = [
   {
-    key: "total",
+    key:   "total",
     label: "Total Students",
-    icon: Users,
-    bar: "#6A89A7", // neutral secondary
+    icon:  Users,
+    bar:   C.sky,
+    soft:  `${C.mist}55`,
   },
   {
-    key: "present",
+    key:   "present",
     label: "Present",
-    icon: UserCheck,
-    bar: "#88BDF2", // accent blue
+    icon:  UserCheck,
+    bar:   "#10b981",
+    soft:  "rgba(16,185,129,0.12)",
   },
   {
-    key: "absent",
+    key:   "absent",
     label: "Absent",
-    icon: UserX,
-    bar: "#384959", // primary dark
+    icon:  UserX,
+    bar:   "#f43f5e",
+    soft:  "rgba(244,63,94,0.12)",
   },
 ];
 
@@ -33,44 +42,62 @@ export default function AttendanceStatsCards({ attendance }) {
   const stats = useMemo(() => {
     if (!attendance || attendance.length === 0)
       return { total: 0, present: 0, absent: 0 };
-
-    const total = attendance.length;
+    const total   = attendance.length;
     const present = attendance.filter((a) => a.status === "PRESENT").length;
-    const absent = total - present;
-
-    return { total, present, absent };
+    return { total, present, absent: total - present };
   }, [attendance]);
 
   if (!attendance || attendance.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      {STAT_CARDS_CONFIG.map(({ key, label, icon: Icon, bar }) => (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+        gap: 14,
+        marginBottom: 16,
+      }}
+    >
+      {STAT_CARDS_CONFIG.map(({ key, label, icon: Icon, bar, soft }) => (
         <div
           key={key}
-          className="relative overflow-hidden rounded-2xl bg-white shadow-sm"
-          style={{ border: `1px solid ${C.border}` }}
+          style={{
+            position: "relative", overflow: "hidden",
+            borderRadius: 16, background: C.white,
+            border: `1.5px solid ${C.borderLight}`,
+            boxShadow: "0 2px 8px rgba(56,73,89,0.06)",
+          }}
         >
-          <div
-            className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl"
-            style={{ background: bar }}
-          />
-          <div className="px-5 pt-5 pb-4">
+          {/* colour accent bar — same top stripe pattern as grade cards */}
+          <div style={{ height: 5, background: bar, width: "100%" }} />
+          <div style={{ padding: "14px 16px" }}>
+            {/* icon */}
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center mb-3"
-              style={{ background: `${bar}22` }}
+              style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: soft,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                marginBottom: 10,
+              }}
             >
-              <Icon
-                size={16}
-                style={{ color: bar === "#BDDDFC" ? "#6A89A7" : bar }}
-              />
+              <Icon size={16} style={{ color: bar }} />
             </div>
-            <p className="text-2xl font-bold" style={{ color: C.primary }}>
+            {/* number */}
+            <p
+              style={{
+                margin: 0, fontSize: 24, fontWeight: 800,
+                color: C.text, lineHeight: 1,
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
               {(stats[key] || 0).toLocaleString()}
             </p>
+            {/* label */}
             <p
-              className="text-xs font-semibold mt-0.5"
-              style={{ color: C.secondary }}
+              style={{
+                margin: "4px 0 0", fontSize: 11, fontWeight: 600,
+                color: C.textLight, fontFamily: "'Inter', sans-serif",
+              }}
             >
               {label}
             </p>

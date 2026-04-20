@@ -2374,7 +2374,10 @@ export default function ClassesList() {
                         }}
                       >
                         <button
-                          onClick={() => setAssignModal(cls)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAssignModal(cls);
+                          }}
                           style={{
                             display: "flex",
                             alignItems: "center",
@@ -2478,17 +2481,21 @@ export default function ClassesList() {
                         {[
                           {
                             label: "View",
+                            onClick: (e) => {
+                              e.stopPropagation();
+                              navigate(`/admin/classes/${cls.id}/timetable`);
+                            },
                             icon: Eye,
-                            onClick: () =>
-                              navigate(`/admin/classes/${cls.id}/timetable`),
                           },
                           {
                             label: "Edit",
-                            icon: Edit,
-                            onClick: () =>
+                            onClick: (e) => {
+                              e.stopPropagation();
                               navigate(`/admin/classes/timetable`, {
                                 state: { sectionId: cls.id },
-                              }),
+                              });
+                            },
+                            icon: Edit,
                           },
                         ].map(({ label, icon: Icon, onClick }) => (
                           <button
@@ -2514,9 +2521,10 @@ export default function ClassesList() {
                         ))}
                         {showRollNumbers && (
                           <button
-                            onClick={() =>
-                              setRollModal({ mode: "single", cls })
-                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRollModal({ mode: "single", cls });
+                            }}
                             disabled={!yearId || !isActivated}
                             style={{
                               display: "flex",

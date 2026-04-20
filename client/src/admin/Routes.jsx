@@ -16,7 +16,6 @@ import TimetablePage from "./pages/classes/TimetablePage";
 import ClassTimetableViewPage from "./pages/classes/ClassTimetableViewPage";
 import AttendanceList from "./pages/attendances/AttendanceList";
 import ExamsList from "./pages/Exams/ExamsList";
-import FinanceList from "./pages/finance/FinanceList";
 import MeetingsList from "./pages/meeting/MeetingsList";
 import CurriculumList from "./pages/curriculum/CurriculumList";
 import Gallery from "./pages/gallery/Gallery.jsx";
@@ -68,7 +67,6 @@ function AdminRoutes() {
         <Route path="exams"                 element={<ExamsList />} />
         <Route path="exams-page"            element={<ExamsPage />} />
         <Route path="activities"            element={<ActivitiesList />} />
-        <Route path="finance"               element={<FinanceList />} />
         <Route path="meetings"              element={<MeetingsList />} />
         <Route path="curriculum"            element={<CurriculumList />} />
         <Route path="gallery"               element={<Gallery />} />

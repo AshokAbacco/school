@@ -11,12 +11,13 @@ import {
 const handle = (serviceFn) => async (req, res) => {
   try {
     const result = await serviceFn(req.body);
-    return res.status(200).json({ success: true, ...result });
+    return res.status(200).json({ success: true, ...result, remainingAttempts: req.rateLimit?.remaining, });
+    
   } catch (err) {
     const status = err.status || 500;
     const message = err.message || "Server error";
     console.error(`[auth] ${message}`, err);
-    return res.status(status).json({ success: false, message });
+    return res.status(status).json({ success: false, message, remainingAttempts: req.rateLimit?.remaining, });
   }
 };
 

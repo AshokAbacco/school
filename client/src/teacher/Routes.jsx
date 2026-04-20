@@ -12,6 +12,7 @@ import OnlineClassesPage from "./pages/onlineClasses/OnlineClassesPage";
 import TimetablePage from "./pages/timetable/TimetablePage";
 import Result from "./pages/result/Result"
 import CertificatesUploadPage from "./pages/Certificates/CertificatesUploadPage";
+import AssignmentsPage from "./pages/assignments/AssignmentsPage";
 
 
 function TeacherRoutes() {
@@ -27,8 +28,9 @@ function TeacherRoutes() {
         <Route path="online-classes" element={<OnlineClassesPage />} />
         <Route path="timetable"      element={<TimetablePage />} />
         <Route path="result"      element={<Result />} />
-        <Route path="*"              element={<Navigate to="dashboard" replace />} />
         <Route path="certificates" element={<CertificatesUploadPage />} />
+        <Route path="assignments" element={<AssignmentsPage />} />
+        <Route path="*"              element={<Navigate to="dashboard" replace />} />
       </Routes>
     </PageLayout>
   );

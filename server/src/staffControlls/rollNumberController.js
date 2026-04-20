@@ -7,7 +7,7 @@
 import { PrismaClient } from "@prisma/client";
 import cacheService from "../utils/cacheService.js";
 
-const prisma = new PrismaClient();
+import { prisma } from "../config/db.js";
 const invalidate = (schoolId) => cacheService.invalidateSchool(schoolId);
 
 const ROLL_NUMBER_SCHOOL_TYPES = ["SCHOOL", "PUC"];

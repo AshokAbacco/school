@@ -38,6 +38,8 @@ import teacherLiveClassRoute from "./staffRoutes/teacherLiveClassRoute.js";
 import teacherTimetableRoute from "./staffRoutes/teacherTimetableRoute.js";
 import staffRoutes from "./staffRoutes/staffRoutes.js";
 import resultRoutes from "./staffRoutes/resultRoutes.js";
+import teacherAssignmentRoute from "./staffRoutes/teacherAssignmentRoute.js";
+
 
 
 
@@ -93,6 +95,8 @@ staff.use("/api/teacher/timetable", teacherTimetableRoute);
 staff.use("/api/staff/profiles", staffRoutes);
 staff.use("/api/results", resultRoutes);
 staff.use("/api/teacher/certificates", teacherCertificateRoutes);
+staff.use("/api/teacher/assignments", teacherAssignmentRoute);
+
 
 
 

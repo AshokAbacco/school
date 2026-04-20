@@ -1,15 +1,21 @@
 // server/src/staffControlls/adminAttendanceController.js
 import { prisma } from "../config/db.js";
+import cacheService from "../utils/cacheService.js";
 
 // ── GET /api/admin/attendance ─────────────────────────────────────────────────
-// ✅ FIX 1: Uses active academic year from DB (req.user.academicYearId was always undefined)
-// ✅ FIX 2: student name built from personalInfo since Student has no top-level name
 export const getAttendance = async (req, res) => {
   try {
     const { classSectionId, date } = req.query;
     const schoolId = req.user.schoolId;
 
-    // Always resolve active year from DB
+    const cacheKey = await cacheService.buildKey(
+      schoolId,
+      `attendance:list:${classSectionId || "all"}:${date || "all"}`
+    );
+
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return res.json(JSON.parse(cached));
+
     const activeYear = await prisma.academicYear.findFirst({
       where: { schoolId, isActive: true },
     });
@@ -23,10 +29,8 @@ export const getAttendance = async (req, res) => {
     };
     if (classSectionId) filters.classSectionId = classSectionId;
     if (date) {
-      const start = new Date(date);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(date);
-      end.setHours(23, 59, 59, 999);
+      const start = new Date(date); start.setHours(0, 0, 0, 0);
+      const end   = new Date(date); end.setHours(23, 59, 59, 999);
       filters.date = { gte: start, lte: end };
     }
 
@@ -46,21 +50,16 @@ export const getAttendance = async (req, res) => {
       orderBy: [{ classSection: { grade: "asc" } }, { date: "desc" }],
     });
 
-    // Normalise: give every record a student.name string
     const normalised = attendance.map((r) => ({
       ...r,
       student: {
         ...r.student,
-        name:
-          [
-            r.student?.personalInfo?.firstName,
-            r.student?.personalInfo?.lastName,
-          ]
-            .filter(Boolean)
-            .join(" ") || "Unknown Student",
+        name: [r.student?.personalInfo?.firstName, r.student?.personalInfo?.lastName]
+          .filter(Boolean).join(" ") || "Unknown Student",
       },
     }));
 
+    await cacheService.set(cacheKey, normalised);
     return res.json(normalised);
   } catch (error) {
     console.error("getAttendance error:", error);
@@ -68,14 +67,22 @@ export const getAttendance = async (req, res) => {
   }
 };
 
-// ── GET /api/admin/attendance/summary?date=YYYY-MM-DD ────────────────────────
-// Returns per-section: totalStudents, present, absent, marked, attendanceRate
-// Also returns grade-level aggregates and activeAcademicYear info
-// Used by grade cards + section cards to show live stats
+// ── GET /api/admin/attendance/summary ────────────────────────────────────────
 export const getAttendanceSummary = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
     const { date } = req.query;
+
+    const targetDate = date ? new Date(date) : new Date();
+    const dateStr = targetDate.toISOString().split("T")[0];
+
+    const cacheKey = await cacheService.buildKey(
+      schoolId,
+      `attendance:summary:${dateStr}`
+    );
+
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return res.json(JSON.parse(cached));
 
     const activeYear = await prisma.academicYear.findFirst({
       where: { schoolId, isActive: true },
@@ -84,13 +91,9 @@ export const getAttendanceSummary = async (req, res) => {
       return res.status(404).json({ message: "No active academic year found" });
     }
 
-    const targetDate = date ? new Date(date) : new Date();
-    const start = new Date(targetDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(targetDate);
-    end.setHours(23, 59, 59, 999);
+    const start = new Date(targetDate); start.setHours(0, 0, 0, 0);
+    const end   = new Date(targetDate); end.setHours(23, 59, 59, 999);
 
-    // All active section links for this year
     const sectionLinks = await prisma.classSectionAcademicYear.findMany({
       where: { academicYearId: activeYear.id, isActive: true },
       include: {
@@ -106,11 +109,7 @@ export const getAttendanceSummary = async (req, res) => {
 
         const [totalStudents, attendanceRecords] = await Promise.all([
           prisma.studentEnrollment.count({
-            where: {
-              classSectionId: sectionId,
-              academicYearId: activeYear.id,
-              status: "ACTIVE",
-            },
+            where: { classSectionId: sectionId, academicYearId: activeYear.id, status: "ACTIVE" },
           }),
           prisma.attendanceRecord.findMany({
             where: {
@@ -122,13 +121,9 @@ export const getAttendanceSummary = async (req, res) => {
           }),
         ]);
 
-        const present = attendanceRecords.filter(
-          (r) => r.status === "PRESENT",
-        ).length;
-        const absent = attendanceRecords.filter(
-          (r) => r.status === "ABSENT",
-        ).length;
-        const marked = attendanceRecords.length;
+        const present = attendanceRecords.filter((r) => r.status === "PRESENT").length;
+        const absent  = attendanceRecords.filter((r) => r.status === "ABSENT").length;
+        const marked  = attendanceRecords.length;
 
         return {
           classSectionId: sectionId,
@@ -139,21 +134,21 @@ export const getAttendanceSummary = async (req, res) => {
           present,
           absent,
           marked,
-          attendanceRate:
-            marked > 0 ? Math.round((present / marked) * 100) : null,
+          attendanceRate: marked > 0 ? Math.round((present / marked) * 100) : null,
         };
-      }),
+      })
     );
 
-    return res.json({
+    const payload = {
       academicYear: { id: activeYear.id, name: activeYear.name },
-      date: targetDate.toISOString().split("T")[0],
+      date: dateStr,
       summaries,
-    });
+    };
+
+    await cacheService.set(cacheKey, payload);
+    return res.json(payload);
   } catch (error) {
     console.error("getAttendanceSummary error:", error);
-    return res
-      .status(500)
-      .json({ message: "Failed to fetch attendance summary" });
+    return res.status(500).json({ message: "Failed to fetch attendance summary" });
   }
 };

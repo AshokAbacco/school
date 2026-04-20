@@ -4,8 +4,10 @@ import { PrismaClient } from "@prisma/client";
 import { uploadToR2, generateSignedUrl } from "../lib/r2.js";
 import cacheService from "../utils/cacheService.js";
 import { getExpiryByRole } from "../utils/fileAccessPolicy.js";
+import { uploadToCloud } from "../utils/cloud.service.js";
 
-const prisma = new PrismaClient();
+import { saveBackup } from "../utils/cloudBackup.js";
+import { prisma } from "../config/db.js";
 
 async function bustStudentCache(schoolId) {
   await cacheService.invalidateSchool(schoolId);
@@ -32,6 +34,7 @@ const bloodGroupMap = {
   O_POS: "O_POS",
   O_NEG: "O_NEG",
 };
+
 
 const VALID_CASTE_CATEGORIES = ["SC", "ST", "OBC", "GM", "OTHER"];
 
@@ -75,10 +78,11 @@ export const registerStudent = async (req, res) => {
       });
 
     const hashed = await bcrypt.hash(password, 10);
-    const student = await prisma.student.create({
-      data: { name, email, password: hashed, schoolId },
-      select: { id: true, name: true, email: true, createdAt: true },
-    });
+const student = await prisma.student.create({
+  data: { name, email, password: hashed, schoolId },
+});
+
+
 
     await bustStudentCache(schoolId);
     return res.status(201).json({ student });
@@ -140,6 +144,11 @@ export const createParentLogin = async (req, res) => {
           schoolId,
         },
       });
+      await saveBackup({
+  model: "parents",
+  refId: parent.id,
+  data: parent,
+});
     }
 
     const link = await prisma.studentParent.create({
@@ -162,7 +171,11 @@ export const createParentLogin = async (req, res) => {
         },
       },
     });
-
+await saveBackup({
+  model: "studentParent",
+  refId: link.id,
+  data: link,
+});
     await bustStudentCache(schoolId);
     return res.status(201).json({
       parent: link.parent,
@@ -699,13 +712,12 @@ export const deleteStudent = async (req, res) => {
     if (!schoolId)
       return res.status(400).json({ message: "schoolId missing from token" });
 
-    const student = await prisma.student.findUnique({
-      where: { id, schoolId },
-      select: { id: true },
-    });
+   const student = await prisma.student.findUnique({
+  where: { id, schoolId },
+});
     if (!student) return res.status(404).json({ message: "Student not found" });
 
-    await prisma.student.delete({ where: { id, schoolId } });
+
     await bustStudentCache(schoolId);
     return res.json({ message: "Student deleted" });
   } catch (err) {
@@ -872,3 +884,251 @@ export const getMyParentStudents = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
+
+
+export const bulkImportRow = async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing from token" });
+
+    // Uses the unified worker to handle all database operations at once
+    const student = await createStudentFull(req.body, schoolId);
+
+    await bustStudentCache(schoolId);
+
+    return res.status(201).json({
+      studentId: student.id,
+      name: student.name,
+      message: "Student imported successfully",
+    });
+
+  } catch (err) {
+    console.error("[bulkImportRow]", err);
+    // Return specific error message (e.g., "Duplicate Email" or "Class not found")
+    return res.status(400).json({ message: err.message || "Server error" });
+  }
+};
+
+export const bulkImportStudents = async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing" });
+
+    const students = req.body.students;
+    if (!Array.isArray(students) || students.length === 0) {
+      return res.status(400).json({ message: "No students provided" });
+    }
+
+    const results = [];
+
+    // Process each student row through the unified worker
+    for (let i = 0; i < students.length; i++) {
+      const row = students[i];
+      try {
+        const student = await createStudentFull(row, schoolId);
+        results.push({
+          row: i + 1,
+          success: true,
+          studentId: student.id,
+        });
+      } catch (err) {
+        // Capture the specific reason for failure for this row
+        results.push({
+          row: i + 1,
+          success: false,
+          error: err.message,
+        });
+      }
+    }
+
+    await bustStudentCache(schoolId);
+
+    return res.json({
+      total: students.length,
+      successCount: results.filter(r => r.success).length,
+      failCount: results.filter(r => !r.success).length,
+      results,
+    });
+
+  } catch (err) {
+    console.error("[bulkImportStudents]", err);
+    return res.status(500).json({ message: "Import process encountered a server error" });
+  }
+};
+
+const parseIndianDate = (dateStr) => {
+  if (!dateStr) return undefined;
+  if (dateStr instanceof Date) return dateStr;
+  const parts = dateStr.toString().trim().split(/[-/]/); 
+  if (parts.length === 3) {
+    const d = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1; // JS months are 0-11
+    let y = parseInt(parts[2], 10);
+    if (y < 100) y = y > 25 ? 1900 + y : 2000 + y; // Handle 2-digit years
+    const date = new Date(y, m, d);
+    if (!isNaN(date.getTime())) return date;
+  }
+  return new Date(dateStr);
+};
+
+
+// server/src/staffControlls/StudentsControlls.js
+
+async function createStudentFull(row, schoolId) {
+  const {
+    // Basic & Identity
+    firstName, lastName, email, password, gender, dateOfBirth, phone,
+    address, city, state, zipCode, nationality, religion, casteCategory,
+    motherTongue, subcaste, domicileState, annualIncome, physicallyChallenged,
+    disabilityType, aadhaarNumber, panNumber, satsNumber,
+    // Academic
+    admissionNumber, classSectionName, academicYearName, rollNumber, externalId, 
+    admissionDate, status, previousSchoolName, previousSchoolBoard, udiseCode, lateralEntry,
+    // Parent (Unified Single Login)
+    parentName, parentPhone, parentEmail, parentPassword, parentOccupation, parentRelation,
+    emergencyContact,
+    // Health
+    bloodGroup, heightCm, weightKg, identifyingMarks, medicalConditions, allergies
+  } = row;
+
+  // 1. Mandatory Pre-validations (Provides clear UI feedback)
+  const studentEmail = (row.loginEmail || email)?.toLowerCase().trim();
+  if (!studentEmail) throw new Error("Student login email is required.");
+  if (!admissionNumber) throw new Error("Admission Number is required.");
+
+  const exists = await prisma.student.findFirst({ where: { email: studentEmail, schoolId } });
+  if (exists) throw new Error(`Student email "${studentEmail}" is already registered.`);
+
+  // 2. Resolve Class Section (Smart lookup for "10-A", "10 A", or "10A")
+  const classSection = await prisma.classSection.findFirst({
+    where: {
+      schoolId,
+      OR: [
+        { name: { equals: classSectionName?.trim(), mode: "insensitive" } },
+        {
+          AND: [
+            { grade: { equals: classSectionName?.split(/[-\s]/)[0]?.trim(), mode: "insensitive" } },
+            { section: { equals: classSectionName?.split(/[-\s]/)[1]?.trim(), mode: "insensitive" } }
+          ]
+        }
+      ],
+    },
+  });
+  if (!classSection) throw new Error(`Class "${classSectionName}" not found in system.`);
+
+  // 3. Resolve Academic Year
+  const academicYear = await prisma.academicYear.findFirst({
+    where: { schoolId, name: { equals: academicYearName?.trim(), mode: "insensitive" } },
+  });
+  if (!academicYear) throw new Error(`Academic year "${academicYearName}" not found.`);
+
+  // 4. Pre-check Roll Number Conflict
+  if (rollNumber?.toString().trim()) {
+    const rollExists = await prisma.studentEnrollment.findFirst({
+      where: { 
+        classSectionId: classSection.id, 
+        academicYearId: academicYear.id, 
+        rollNumber: rollNumber.toString().trim() 
+      }
+    });
+    if (rollExists) throw new Error(`Roll No ${rollNumber} already assigned in ${classSection.name}.`);
+  }
+
+  // 5. Atomic Transaction (Matches manual form Tabs 1-6)
+  return await prisma.$transaction(async (tx) => {
+    // Step A: Register Student Base (Login)
+    const student = await tx.student.create({
+      data: {
+        name: `${firstName} ${lastName}`.trim(),
+        email: studentEmail,
+        password: await bcrypt.hash(password.toString(), 10),
+        schoolId,
+      },
+    });
+
+    // Step B: Personal & Health Info
+    const normalizedBlood = bloodGroupMap[bloodGroup?.toUpperCase().replace(/\s/g, "")] || undefined;
+    
+    await tx.studentPersonalInfo.create({
+      data: {
+        studentId: student.id,
+        firstName, lastName,
+        dateOfBirth: parseIndianDate(dateOfBirth),
+        gender: toEnum(gender),
+        phone: phone?.toString(),
+        address, city, state, zipCode: zipCode?.toString(),
+        nationality: nationality || "Indian",
+        religion,
+        aadhaarNumber: row.aadhaarNumber 
+        ? row.aadhaarNumber.toString()      // Convert to string first
+            .replace(/\s/g, "")             // Remove any spaces
+            .replace(/\.0$/, "")            // Remove ".0" if Excel added it
+            .replace(/[^0-9]/g, "")         // Remove anything else (dots, letters)
+            .slice(0, 12)                   // Keep exactly 12 digits
+        : null,
+        panNumber: panNumber?.toString().toUpperCase(),
+        satsNumber: satsNumber?.toString(),
+        casteCategory: toEnum(casteCategory),
+        motherTongue, subcaste,
+        domicileState: domicileState || "Karnataka",
+        annualIncome: annualIncome ? parseFloat(annualIncome) : null,
+        physicallyChallenged: physicallyChallenged === "true" || physicallyChallenged === true,
+        disabilityType,
+        bloodGroup: normalizedBlood,
+        heightCm: heightCm ? parseFloat(heightCm) : null,
+        weightKg: weightKg ? parseFloat(weightKg) : null,
+        identifyingMarks,
+        medicalConditions,
+        allergies,
+        parentName, 
+        parentPhone: parentPhone?.toString(),
+        parentEmail,
+        emergencyContact: emergencyContact || parentPhone?.toString(),
+      }
+    });
+
+    // Step C: Enrollment (Assign to Class & History)
+    await tx.studentEnrollment.create({
+      data: {
+        studentId: student.id,
+        classSectionId: classSection.id,
+        academicYearId: academicYear.id,
+        admissionNumber: admissionNumber.toString(),
+        admissionDate: parseIndianDate(admissionDate) || new Date(),
+        rollNumber: rollNumber?.toString().trim() || null,
+        externalId: externalId?.toString(),
+        status: toEnum(status) || "ACTIVE",
+        previousSchoolName,
+        previousSchoolBoard: toEnum(previousSchoolBoard),
+        udiseCode: udiseCode?.toString(),
+        lateralEntry: lateralEntry === "true" || lateralEntry === true,
+      }
+    });
+
+    // Step D: Unified Parent Account Sync (One Login per row)
+    if (parentName && parentEmail) {
+      const pEmail = parentEmail.toLowerCase().trim();
+      let parent = await tx.parent.findFirst({ where: { email: pEmail, schoolId } });
+      
+      if (!parent) {
+        // Use Excel password if provided, otherwise default
+        const rawPw = parentPassword?.toString().trim() || "Parent@123";
+        parent = await tx.parent.create({
+          data: {
+            name: parentName,
+            email: pEmail,
+            password: await bcrypt.hash(rawPw, 10),
+            phone: parentPhone?.toString(),
+            occupation: parentOccupation,
+            schoolId,
+          }
+        });
+      }
+
+      // Link Parent record to Student
+
+    }
+
+    return student;
+  });
+}

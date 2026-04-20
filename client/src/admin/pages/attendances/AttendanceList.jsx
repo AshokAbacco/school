@@ -20,6 +20,7 @@ import {
   Palmtree,
   X,
   Building2,
+  AlertCircle,
 } from "lucide-react";
 import AttendanceStatsCards from "./components/AttendanceStatsCards";
 import AttendanceTableRow from "./components/AttendanceTableRow";
@@ -27,39 +28,55 @@ import AttendanceTableRow from "./components/AttendanceTableRow";
 const API_URL = import.meta.env.VITE_API_URL;
 const BASE = `${API_URL}/api`;
 
+// ── Shared palette (mirrors OnlineClassesPage) ─────────────────────────────
 const C = {
-  primary: "#384959",
-  secondary: "#6A89A7",
-  accent: "#88BDF2",
-  light: "#BDDDFC",
-  border: "rgba(136,189,242,0.30)",
-  bg: "#F4F8FC",
-  cardBg: "white",
-  softBg: "rgba(189,221,252,0.08)",
+  slate:       "#6A89A7",
+  mist:        "#BDDDFC",
+  sky:         "#88BDF2",
+  deep:        "#384959",
+  deepDark:    "#243340",
+  bg:          "#EDF3FA",
+  white:       "#FFFFFF",
+  border:      "#C8DCF0",
+  borderLight: "#DDE9F5",
+  text:        "#243340",
+  textLight:   "#6A89A7",
 };
 
 const GRADE_COLORS = [
   { bar: "#88BDF2", soft: "rgba(136,189,242,0.12)" },
   { bar: "#6A89A7", soft: "rgba(106,137,167,0.12)" },
   { bar: "#BDDDFC", soft: "rgba(189,221,252,0.20)" },
-  { bar: "#384959", soft: "rgba(56,73,89,0.08)" },
+  { bar: "#384959", soft: "rgba(56,73,89,0.08)"   },
 ];
 
-// ── Tiny stat pill ─────────────────────────────────────────────────────────────
+// ── Skeleton pulse (mirrors OnlineClassesPage Pulse) ──────────────────────
+function Pulse({ w = "100%", h = 13, r = 8 }) {
+  return (
+    <div
+      className="animate-pulse"
+      style={{ width: w, height: h, borderRadius: r, background: `${C.mist}55` }}
+    />
+  );
+}
+
+// ── Tiny stat pill ─────────────────────────────────────────────────────────
 function Pill({ icon: Icon, value, color, bg, label }) {
   return (
     <div
-      className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl"
-      style={{ background: bg }}
+      style={{
+        display: "flex", flexDirection: "column", alignItems: "center",
+        gap: 2, padding: "6px 12px", borderRadius: 12, background: bg,
+      }}
     >
-      <div className="flex items-center gap-1">
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
         <Icon size={11} style={{ color }} />
-        <span className="text-sm font-bold" style={{ color }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color, fontFamily: "'Inter', sans-serif" }}>
           {value ?? "—"}
         </span>
       </div>
       {label && (
-        <span className="text-xs font-medium" style={{ color: C.secondary }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: C.textLight, fontFamily: "'Inter', sans-serif" }}>
           {label}
         </span>
       )}
@@ -67,62 +84,61 @@ function Pill({ icon: Icon, value, color, bg, label }) {
   );
 }
 
-// ── Thin progress bar ──────────────────────────────────────────────────────────
+// ── Thin progress bar ──────────────────────────────────────────────────────
 function RateBar({ rate, barColor }) {
   if (rate === null || rate === undefined)
     return (
-      <p className="text-xs mt-2" style={{ color: C.secondary }}>
+      <p style={{ fontSize: 11, color: C.textLight, marginTop: 8, fontFamily: "'Inter', sans-serif" }}>
         No attendance yet
       </p>
     );
   return (
-    <div className="mt-2">
-      <div className="flex justify-between mb-1">
-        <span className="text-xs" style={{ color: C.secondary }}>
-          Attendance
-        </span>
-        <span className="text-xs font-bold" style={{ color: C.primary }}>
-          {rate}%
-        </span>
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+        <span style={{ fontSize: 11, color: C.textLight, fontFamily: "'Inter', sans-serif" }}>Attendance</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.text, fontFamily: "'Inter', sans-serif" }}>{rate}%</span>
       </div>
-      <div
-        className="h-1.5 rounded-full overflow-hidden"
-        style={{ background: "rgba(136,189,242,0.18)" }}
-      >
+      <div style={{ height: 6, borderRadius: 99, overflow: "hidden", background: `${C.mist}44` }}>
         <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${rate}%`, background: barColor }}
+          style={{
+            width: `${rate}%`, height: "100%", borderRadius: 99,
+            background: barColor, transition: "width 0.5s ease",
+          }}
         />
       </div>
     </div>
   );
 }
 
-// ── Breadcrumb ─────────────────────────────────────────────────────────────────
+// ── Breadcrumb ─────────────────────────────────────────────────────────────
 function Breadcrumb({ grade, section, onGradeClick, onSectionClick }) {
   return (
-    <div className="flex items-center gap-1.5 text-sm mb-5 flex-wrap">
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
       <button
         onClick={onGradeClick}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold"
         style={{
-          color: grade ? C.secondary : C.primary,
-          background: grade ? "transparent" : C.softBg,
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "6px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+          color: grade ? C.textLight : C.text,
+          background: grade ? "transparent" : `${C.mist}44`,
           border: grade ? "none" : `1px solid ${C.border}`,
+          cursor: "pointer", fontFamily: "'Inter', sans-serif",
         }}
       >
         <LayoutGrid size={13} /> All Grades
       </button>
       {grade && (
         <>
-          <ChevronRight size={14} style={{ color: C.secondary }} />
+          <ChevronRight size={14} style={{ color: C.textLight }} />
           <button
             onClick={onSectionClick}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold"
             style={{
-              color: section ? C.secondary : C.primary,
-              background: section ? "transparent" : C.softBg,
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "6px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+              color: section ? C.textLight : C.text,
+              background: section ? "transparent" : `${C.mist}44`,
               border: section ? "none" : `1px solid ${C.border}`,
+              cursor: "pointer", fontFamily: "'Inter', sans-serif",
             }}
           >
             <BookOpen size={13} /> Grade {grade}
@@ -131,13 +147,13 @@ function Breadcrumb({ grade, section, onGradeClick, onSectionClick }) {
       )}
       {section && (
         <>
-          <ChevronRight size={14} style={{ color: C.secondary }} />
+          <ChevronRight size={14} style={{ color: C.textLight }} />
           <span
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold"
             style={{
-              color: C.primary,
-              background: C.softBg,
-              border: `1px solid ${C.border}`,
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "6px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+              color: C.text, background: `${C.mist}44`, border: `1px solid ${C.border}`,
+              fontFamily: "'Inter', sans-serif",
             }}
           >
             <Users size={13} /> Section {section}
@@ -148,79 +164,62 @@ function Breadcrumb({ grade, section, onGradeClick, onSectionClick }) {
   );
 }
 
+// ── Table Header cell ──────────────────────────────────────────────────────
 const TH = ({ children }) => (
   <th
-    className="px-5 py-3.5 text-left"
     style={{
-      fontSize: "11px",
-      fontWeight: 700,
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      color: C.secondary,
-      borderBottom: `1px solid rgba(136,189,242,0.20)`,
-      background: "rgba(189,221,252,0.12)",
+      padding: "12px 20px", textAlign: "left",
+      fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+      letterSpacing: "0.08em", color: C.textLight,
+      borderBottom: `1px solid ${C.borderLight}`,
+      background: `${C.mist}22`,
+      fontFamily: "'Inter', sans-serif",
     }}
   >
     {children}
   </th>
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  MAIN PAGE
+// ═══════════════════════════════════════════════════════════════════════════
 export default function AttendanceList() {
-  const [sections, setSections] = useState([]);
-  const [selectedGrade, setSelectedGrade] = useState(null);
-  const [gradeSections, setGradeSections] = useState([]);
+  const [sections,        setSections]        = useState([]);
+  const [selectedGrade,   setSelectedGrade]   = useState(null);
+  const [gradeSections,   setGradeSections]   = useState([]);
   const [selectedSection, setSelectedSection] = useState(null);
-  const [attendance, setAttendance] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [summaryLoading, setSummaryLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
-  const [summaryMap, setSummaryMap] = useState({}); // classSectionId → stats
-  const [activeYearName, setActiveYearName] = useState("");
-  const [holidayInfo, setHolidayInfo] = useState(null); // { title, type, description } | null
-  const [holidayPanelOpen, setHolidayPanelOpen] = useState(false);
+  const [attendance,      setAttendance]      = useState([]);
+  const [loading,         setLoading]         = useState(false);
+  const [summaryLoading,  setSummaryLoading]  = useState(true);
+  const [searchTerm,      setSearchTerm]      = useState("");
+  const [selectedDate,    setSelectedDate]    = useState(new Date().toISOString().split("T")[0]);
+  const [summaryMap,      setSummaryMap]      = useState({});
+  const [activeYearName,  setActiveYearName]  = useState("");
+  const [holidayInfo,     setHolidayInfo]     = useState(null);
+  const [holidayPanelOpen,setHolidayPanelOpen]= useState(false);
 
-  // ── Load sections filtered to active year + summary stats ─────────────────
+  // ── Load sections + summary ─────────────────────────────────────────────
   const loadSummary = useCallback(async (date) => {
     setSummaryLoading(true);
     try {
       const [sectionsRes, summaryRes] = await Promise.all([
-        fetch(`${BASE}/class-sections`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        }),
+        fetch(`${BASE}/class-sections`, { headers: { Authorization: `Bearer ${getToken()}` } }),
         fetchAttendanceSummary({ date }),
       ]);
       const sectionsData = await sectionsRes.json();
+      const activeIds = new Set(summaryRes.summaries.map((s) => s.classSectionId));
+      setSections((sectionsData.classSections || []).filter((s) => activeIds.has(s.id)));
 
-      // Only show sections active in current year
-      const activeIds = new Set(
-        summaryRes.summaries.map((s) => s.classSectionId),
-      );
-      setSections(
-        (sectionsData.classSections || []).filter((s) => activeIds.has(s.id)),
-      );
-
-      // Build lookup map
       const map = {};
-      summaryRes.summaries.forEach((s) => {
-        map[s.classSectionId] = s;
-      });
+      summaryRes.summaries.forEach((s) => { map[s.classSectionId] = s; });
       setSummaryMap(map);
       setActiveYearName(summaryRes.academicYear?.name || "");
 
-      // ── Check if selected date is a holiday ───────────────────────────
       try {
-        const hRes = await fetch(
-          `${BASE}/admin/holidays/check?date=${date}`,
-          { headers: { Authorization: `Bearer ${getToken()}` } },
-        );
+        const hRes  = await fetch(`${BASE}/admin/holidays/check?date=${date}`, { headers: { Authorization: `Bearer ${getToken()}` } });
         const hData = await hRes.json();
         setHolidayInfo(hData.holiday || null);
-      } catch {
-        setHolidayInfo(null);
-      }
+      } catch { setHolidayInfo(null); }
     } catch (err) {
       console.error("Failed to load sections/summary", err);
     } finally {
@@ -228,65 +227,42 @@ export default function AttendanceList() {
     }
   }, []);
 
-  useEffect(() => {
-    loadSummary(selectedDate);
-  }, [selectedDate, loadSummary]);
+  useEffect(() => { loadSummary(selectedDate); }, [selectedDate, loadSummary]);
 
-  // ── Group by grade ─────────────────────────────────────────────────────────
+  // ── Grade grouping ─────────────────────────────────────────────────────
   const grades = useMemo(() => {
     const g = {};
-    sections.forEach((sec) => {
-      if (!g[sec.grade]) g[sec.grade] = [];
-      g[sec.grade].push(sec);
-    });
+    sections.forEach((sec) => { if (!g[sec.grade]) g[sec.grade] = []; g[sec.grade].push(sec); });
     return Object.keys(g)
-      .sort(
-        (a, b) =>
-          parseInt(a.replace(/\D/g, "")) - parseInt(b.replace(/\D/g, "")),
-      )
+      .sort((a, b) => parseInt(a.replace(/\D/g, "")) - parseInt(b.replace(/\D/g, "")))
       .reduce((acc, k) => {
-        acc[k] = g[k].sort((a, b) =>
-          (a.section || "").localeCompare(b.section || ""),
-        );
+        acc[k] = g[k].sort((a, b) => (a.section || "").localeCompare(b.section || ""));
         return acc;
       }, {});
   }, [sections]);
 
-  // ── Grade-level aggregated stats ──────────────────────────────────────────
   const gradeSummary = useMemo(() => {
     const res = {};
     Object.entries(grades).forEach(([grade, secs]) => {
-      let total = 0,
-        present = 0,
-        absent = 0,
-        marked = 0;
+      let total = 0, present = 0, absent = 0, marked = 0;
       secs.forEach((sec) => {
         const s = summaryMap[sec.id] || {};
-        total += s.totalStudents || 0;
-        present += s.present || 0;
-        absent += s.absent || 0;
-        marked += s.marked || 0;
+        total   += s.totalStudents || 0;
+        present += s.present       || 0;
+        absent  += s.absent        || 0;
+        marked  += s.marked        || 0;
       });
-      res[grade] = {
-        total,
-        present,
-        absent,
-        marked,
-        rate: marked > 0 ? Math.round((present / marked) * 100) : null,
-      };
+      res[grade] = { total, present, absent, marked, rate: marked > 0 ? Math.round((present / marked) * 100) : null };
     });
     return res;
   }, [grades, summaryMap]);
 
-  // ── Fetch attendance records for selected section ─────────────────────────
+  // ── Fetch attendance for selected section ──────────────────────────────
   const fetchAttendance = useCallback(async () => {
     if (!selectedSection) return;
     setLoading(true);
     try {
-      const data = await fetchAdminAttendance({
-        classSectionId: selectedSection.id,
-        date: selectedDate,
-      });
+      const data = await fetchAdminAttendance({ classSectionId: selectedSection.id, date: selectedDate });
       setAttendance(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to load attendance", err);
@@ -296,129 +272,100 @@ export default function AttendanceList() {
     }
   }, [selectedSection, selectedDate]);
 
-  useEffect(() => {
-    fetchAttendance();
-  }, [fetchAttendance]);
+  useEffect(() => { fetchAttendance(); }, [fetchAttendance]);
 
-  // ── Navigation ─────────────────────────────────────────────────────────────
-  const handleSelectGrade = (grade, secs) => {
-    setSelectedGrade(grade);
-    setGradeSections(secs);
-    setSelectedSection(null);
-    setAttendance([]);
-  };
-  const handleBackToGrades = () => {
-    setSelectedGrade(null);
-    setGradeSections([]);
-    setSelectedSection(null);
-    setAttendance([]);
-  };
-  const handleBackToSections = () => {
-    setSelectedSection(null);
-    setAttendance([]);
-  };
+  // ── Navigation ─────────────────────────────────────────────────────────
+  const handleSelectGrade    = (grade, secs) => { setSelectedGrade(grade); setGradeSections(secs); setSelectedSection(null); setAttendance([]); };
+  const handleBackToGrades   = ()            => { setSelectedGrade(null); setGradeSections([]); setSelectedSection(null); setAttendance([]); };
+  const handleBackToSections = ()            => { setSelectedSection(null); setAttendance([]); };
 
-  const viewLevel = !selectedGrade
-    ? "grades"
-    : !selectedSection
-      ? "sections"
-      : "attendance";
+  const viewLevel = !selectedGrade ? "grades" : !selectedSection ? "sections" : "attendance";
 
   const filteredAttendance = useMemo(() => {
     if (!searchTerm) return attendance;
-    return attendance.filter((a) =>
-      a.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
+    return attendance.filter((a) => a.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [attendance, searchTerm]);
 
   return (
     <>
-      <div
-        className="p-4 md:p-6"
-        style={{ background: C.bg, minHeight: "100%" }}
-      >
-        {/* ── Page Header ─────────────────────────────────────────────────── */}
-        <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div
-                className="w-1 h-6 rounded-full"
-                style={{ background: C.primary }}
-              />
-              <h1 className="text-2xl font-bold" style={{ color: C.primary }}>
-                Attendance
-              </h1>
-              {/* ✅ Active year badge */}
-              {activeYearName && (
-                <span
-                  className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                  style={{
-                    background: "rgba(136,189,242,0.18)",
-                    color: C.primary,
-                  }}
-                >
-                  {activeYearName}
-                </span>
-              )}
-            </div>
-            <p className="text-sm ml-3" style={{ color: C.secondary }}>
-              {viewLevel === "grades" && "Select a grade to view attendance"}
-              {viewLevel === "sections" &&
-                `Grade ${selectedGrade} — Select a section`}
-              {viewLevel === "attendance" &&
-                `Grade ${selectedGrade} · Section ${selectedSection?.section}`}
-            </p>
-          </div>
-          {/* ── Date picker + Holiday indicator ─────────────────────────── */}
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2">
-              {/* Holiday dot indicator on date picker */}
-              <div className="relative">
-                <CalendarIcon
-                  size={14}
-                  className="absolute left-3 top-1/2 -translate-y-1/2"
-                  style={{ color: holidayInfo ? "#b45309" : C.secondary }}
-                />
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="text-sm pl-9 pr-4 py-2 rounded-xl bg-white focus:outline-none"
-                  style={{
-                    border: `1px solid ${holidayInfo ? "rgba(245,158,11,0.60)" : C.border}`,
-                    color: C.primary,
-                  }}
-                  onFocus={(e) => (e.target.style.borderColor = C.accent)}
-                  onBlur={(e) =>
-                    (e.target.style.borderColor = holidayInfo
-                      ? "rgba(245,158,11,0.60)"
-                      : C.border)
-                  }
-                />
-                {holidayInfo && (
-                  <span
-                    className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full border-2 border-white"
-                    style={{ background: "#f59e0b" }}
-                  />
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+      <style>{`
+        * { box-sizing: border-box; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+        .fade-up { animation: fadeUp 0.45s ease forwards; }
+        .att-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .att-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(56,73,89,0.12) !important; }
+      `}</style>
+
+      <div style={{ padding: "clamp(16px, 3vw, 28px) clamp(16px, 3vw, 32px)", minHeight: "100vh", background: C.bg, fontFamily: "'Inter', sans-serif" }}>
+
+        {/* ── Page Header ──────────────────────────────────────────────────── */}
+        <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }} className="fade-up">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 4, height: 28, borderRadius: 99, background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`, flexShrink: 0 }} />
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <h1 style={{ margin: 0, fontSize: "clamp(18px, 5vw, 26px)", fontWeight: 800, color: C.text, letterSpacing: "-0.5px" }}>
+                  Attendance
+                </h1>
+                {activeYearName && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 99,
+                    background: `${C.mist}99`, color: C.deep,
+                    fontFamily: "'Inter', sans-serif",
+                  }}>
+                    {activeYearName}
+                  </span>
                 )}
               </div>
+              <p style={{ margin: 0, fontSize: 12, color: C.textLight, fontWeight: 500 }}>
+                {viewLevel === "grades"     && "Select a grade to view attendance"}
+                {viewLevel === "sections"   && `Grade ${selectedGrade} — Select a section`}
+                {viewLevel === "attendance" && `Grade ${selectedGrade} · Section ${selectedSection?.section}`}
+              </p>
+            </div>
+          </div>
 
-              {/* Holiday quick-view button */}
+          {/* Date picker */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ position: "relative" }}>
+              <CalendarIcon
+                size={14}
+                style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: holidayInfo ? "#b45309" : C.textLight, pointerEvents: "none" }}
+              />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                style={{
+                  fontSize: 13, paddingLeft: 36, paddingRight: 16, paddingTop: 8, paddingBottom: 8,
+                  borderRadius: 12, background: C.white, outline: "none",
+                  border: `1.5px solid ${holidayInfo ? "rgba(245,158,11,0.60)" : C.border}`,
+                  color: C.text, fontFamily: "'Inter', sans-serif",
+                }}
+              />
               {holidayInfo && (
-                <button
-                  onClick={() => setHolidayPanelOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
-                  style={{
-                    background: "rgba(245,158,11,0.12)",
-                    color: "#b45309",
-                    border: "1px solid rgba(245,158,11,0.30)",
-                  }}
-                >
-                  <Palmtree size={13} />
-                  Holiday
-                </button>
+                <span style={{
+                  position: "absolute", top: -4, right: -4,
+                  width: 10, height: 10, borderRadius: "50%",
+                  background: "#f59e0b", border: "2px solid white",
+                }} />
               )}
             </div>
+            {holidayInfo && (
+              <button
+                onClick={() => setHolidayPanelOpen(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+                  background: "rgba(245,158,11,0.12)", color: "#b45309",
+                  border: "1px solid rgba(245,158,11,0.30)", cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                <Palmtree size={13} /> Holiday
+              </button>
+            )}
           </div>
         </div>
 
@@ -432,201 +379,100 @@ export default function AttendanceList() {
           />
         )}
 
-        {/* ── Holiday Banner ──────────────────────────────────────────────── */}
+        {/* ── Holiday Banner ────────────────────────────────────────────────── */}
         {holidayInfo && (
           <div
-            className="flex items-center gap-3 px-4 py-3 rounded-2xl mb-5"
+            className="fade-up"
             style={{
-              background: "rgba(245,158,11,0.10)",
-              border: "1px solid rgba(245,158,11,0.30)",
+              display: "flex", alignItems: "center", gap: 12,
+              padding: "12px 16px", borderRadius: 16, marginBottom: 20,
+              background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.30)",
             }}
           >
-            <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: "rgba(245,158,11,0.18)" }}
-            >
-              <Palmtree size={15} style={{ color: "#b45309" }} />
+            <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(245,158,11,0.18)" }}>
+              <Palmtree size={16} style={{ color: "#b45309" }} />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold" style={{ color: "#92400e" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#92400e" }}>
                 {holidayInfo.title}
-                {holidayInfo.type === "GOVERNMENT" && (
-                  <span
-                    className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full"
-                    style={{
-                      background: "rgba(245,158,11,0.20)",
-                      color: "#b45309",
-                    }}
-                  >
-                    Government Holiday
-                  </span>
-                )}
-                {holidayInfo.type === "SCHOOL" && (
-                  <span
-                    className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full"
-                    style={{
-                      background: "rgba(245,158,11,0.20)",
-                      color: "#b45309",
-                    }}
-                  >
-                    School Holiday
-                  </span>
-                )}
+                <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "rgba(245,158,11,0.20)", color: "#b45309" }}>
+                  {holidayInfo.type === "GOVERNMENT" ? "Government" : "School"} Holiday
+                </span>
               </p>
               {holidayInfo.description && (
-                <p className="text-xs mt-0.5" style={{ color: "#b45309" }}>
-                  {holidayInfo.description}
-                </p>
+                <p style={{ margin: "2px 0 0", fontSize: 11, color: "#b45309" }}>{holidayInfo.description}</p>
               )}
             </div>
             <button
               onClick={() => setHolidayPanelOpen(true)}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
-              style={{
-                background: "rgba(245,158,11,0.18)",
-                color: "#b45309",
-              }}
+              style={{ fontSize: 11, fontWeight: 600, padding: "6px 12px", borderRadius: 8, background: "rgba(245,158,11,0.18)", color: "#b45309", border: "none", cursor: "pointer", fontFamily: "'Inter', sans-serif", flexShrink: 0 }}
             >
               Details
             </button>
           </div>
         )}
 
-        {/* ══ LEVEL 1: Grade Cards ══════════════════════════════════════════ */}
+        {/* ══ LEVEL 1: Grade Cards ════════════════════════════════════════════ */}
         {viewLevel === "grades" && (
           <div
-            className="rounded-2xl overflow-hidden bg-white shadow-sm"
-            style={{ border: `1px solid ${C.border}` }}
+            className="fade-up"
+            style={{ background: C.white, borderRadius: 20, border: `1.5px solid ${C.borderLight}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(56,73,89,0.06)" }}
           >
-            <div
-              className="flex items-center justify-between px-5 py-4"
-              style={{
-                borderBottom: `1px solid rgba(136,189,242,0.20)`,
-                background: C.softBg,
-              }}
-            >
-              <p className="font-bold text-sm" style={{ color: C.primary }}>
-                All Grades
-              </p>
+            {/* panel header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${C.borderLight}`, background: `${C.mist}22` }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>All Grades</p>
               {activeYearName && (
-                <span
-                  className="text-xs font-medium px-2.5 py-1 rounded-full"
-                  style={{
-                    background: "rgba(136,189,242,0.15)",
-                    color: C.secondary,
-                  }}
-                >
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 99, background: `${C.mist}55`, color: C.textLight }}>
                   {activeYearName} · {selectedDate}
                 </span>
               )}
             </div>
 
             {summaryLoading ? (
-              <div className="flex items-center justify-center py-16 gap-3">
-                <Loader2
-                  size={22}
-                  className="animate-spin"
-                  style={{ color: C.accent }}
-                />
-                <p
-                  className="text-sm font-medium"
-                  style={{ color: C.secondary }}
-                >
-                  Loading...
-                </p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16, padding: 20 }}>
+                {[1,2,3,4].map((i) => (
+                  <div key={i} style={{ borderRadius: 16, border: `1.5px solid ${C.borderLight}`, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                    <Pulse w={40} h={40} r={12} />
+                    <Pulse w="60%" h={13} />
+                    <Pulse w="40%" h={10} />
+                    <Pulse w="100%" h={8} r={99} />
+                  </div>
+                ))}
               </div>
             ) : (
-              <div className="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16, padding: 20 }}>
                 {Object.keys(grades).map((grade, idx) => {
                   const color = GRADE_COLORS[idx % GRADE_COLORS.length];
-                  const gs = gradeSummary[grade] || {};
+                  const gs    = gradeSummary[grade] || {};
                   return (
                     <button
                       key={grade}
+                      className="att-card"
                       onClick={() => handleSelectGrade(grade, grades[grade])}
-                      className="group relative overflow-hidden rounded-2xl bg-white text-left transition-all duration-200 shadow-sm"
-                      style={{ border: `1px solid ${C.border}` }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = "translateY(-2px)";
-                        e.currentTarget.style.boxShadow =
-                          "0 8px 24px rgba(136,189,242,0.20)";
-                        e.currentTarget.style.borderColor = C.accent;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "";
-                        e.currentTarget.style.borderColor = C.border;
+                      style={{
+                        position: "relative", overflow: "hidden", borderRadius: 16,
+                        background: C.white, textAlign: "left", cursor: "pointer",
+                        border: `1.5px solid ${C.borderLight}`,
+                        boxShadow: "0 2px 8px rgba(56,73,89,0.06)",
+                        padding: 0,
                       }}
                     >
-                      <div
-                        className="h-1.5 w-full"
-                        style={{ background: color.bar }}
-                      />
-                      <div className="p-4">
-                        <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
-                          style={{ background: color.soft }}
-                        >
-                          <GraduationCap
-                            size={20}
-                            style={{
-                              color:
-                                color.bar === "#BDDDFC"
-                                  ? C.secondary
-                                  : color.bar,
-                            }}
-                          />
+                      <div style={{ height: 6, background: color.bar, width: "100%" }} />
+                      <div style={{ padding: 16 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 12, background: color.soft, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                          <GraduationCap size={20} style={{ color: color.bar === "#BDDDFC" ? C.textLight : color.bar }} />
                         </div>
-                        <p
-                          className="text-lg font-bold mb-0.5"
-                          style={{ color: C.primary }}
-                        >
-                          Grade {grade}
-                        </p>
-                        <p
-                          className="text-xs font-medium mb-3"
-                          style={{ color: C.secondary }}
-                        >
-                          {grades[grade].length} Section
-                          {grades[grade].length !== 1 ? "s" : ""}
-                        </p>
-
-                        {/* ✅ Stats pills */}
-                        <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                          <Pill
-                            icon={Users}
-                            value={gs.total}
-                            color={C.primary}
-                            bg="rgba(189,221,252,0.25)"
-                            label="Total"
-                          />
-                          <Pill
-                            icon={UserCheck}
-                            value={gs.present}
-                            color="#047857"
-                            bg="rgba(16,185,129,0.12)"
-                            label="Present"
-                          />
-                          <Pill
-                            icon={UserX}
-                            value={gs.absent}
-                            color="#be123c"
-                            bg="rgba(244,63,94,0.12)"
-                            label="Absent"
-                          />
+                        <p style={{ margin: "0 0 2px", fontSize: 18, fontWeight: 800, color: C.text }}>Grade {grade}</p>
+                        <p style={{ margin: "0 0 12px", fontSize: 11, fontWeight: 600, color: C.textLight }}>{grades[grade].length} Section{grades[grade].length !== 1 ? "s" : ""}</p>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                          <Pill icon={Users}     value={gs.total}   color={C.deep}    bg={`${C.mist}55`}              label="Total"   />
+                          <Pill icon={UserCheck} value={gs.present} color="#047857"   bg="rgba(16,185,129,0.12)"      label="Present" />
+                          <Pill icon={UserX}     value={gs.absent}  color="#be123c"   bg="rgba(244,63,94,0.12)"       label="Absent"  />
                         </div>
-
-                        {/* ✅ Rate bar */}
                         <RateBar rate={gs.rate} barColor={color.bar} />
                       </div>
-                      <div
-                        className="absolute bottom-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center group-hover:translate-x-0.5 transition-all"
-                        style={{ background: color.soft }}
-                      >
-                        <ChevronRight
-                          size={14}
-                          style={{ color: C.secondary }}
-                        />
+                      <div style={{ position: "absolute", bottom: 12, right: 12, width: 28, height: 28, borderRadius: 8, background: color.soft, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <ChevronRight size={14} style={{ color: C.textLight }} />
                       </div>
                     </button>
                   );
@@ -636,123 +482,54 @@ export default function AttendanceList() {
           </div>
         )}
 
-        {/* ══ LEVEL 2: Section Cards ════════════════════════════════════════ */}
+        {/* ══ LEVEL 2: Section Cards ══════════════════════════════════════════ */}
         {viewLevel === "sections" && (
           <div
-            className="rounded-2xl overflow-hidden bg-white shadow-sm"
-            style={{ border: `1px solid ${C.border}` }}
+            className="fade-up"
+            style={{ background: C.white, borderRadius: 20, border: `1.5px solid ${C.borderLight}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(56,73,89,0.06)" }}
           >
-            {/* Header with grade-level totals */}
-            <div
-              className="flex items-center gap-3 px-5 py-4 flex-wrap"
-              style={{
-                borderBottom: `1px solid rgba(136,189,242,0.20)`,
-                background: C.softBg,
-              }}
-            >
-              <p className="font-bold text-sm" style={{ color: C.primary }}>
-                Grade {selectedGrade}
-              </p>
+            {/* panel header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: `1px solid ${C.borderLight}`, background: `${C.mist}22`, flexWrap: "wrap" }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>Grade {selectedGrade}</p>
               {gradeSummary[selectedGrade] && (
-                <div className="flex items-center gap-2 ml-1">
-                  <Pill
-                    icon={Users}
-                    value={gradeSummary[selectedGrade].total}
-                    color={C.primary}
-                    bg="rgba(189,221,252,0.25)"
-                  />
-                  <Pill
-                    icon={UserCheck}
-                    value={gradeSummary[selectedGrade].present}
-                    color="#047857"
-                    bg="rgba(16,185,129,0.12)"
-                  />
-                  <Pill
-                    icon={UserX}
-                    value={gradeSummary[selectedGrade].absent}
-                    color="#be123c"
-                    bg="rgba(244,63,94,0.12)"
-                  />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Pill icon={Users}     value={gradeSummary[selectedGrade].total}   color={C.deep}  bg={`${C.mist}55`}         />
+                  <Pill icon={UserCheck} value={gradeSummary[selectedGrade].present} color="#047857" bg="rgba(16,185,129,0.12)" />
+                  <Pill icon={UserX}     value={gradeSummary[selectedGrade].absent}  color="#be123c" bg="rgba(244,63,94,0.12)"  />
                 </div>
               )}
             </div>
-            <div className="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16, padding: 20 }}>
               {gradeSections.map((sec, idx) => {
                 const color = GRADE_COLORS[idx % GRADE_COLORS.length];
-                const ss = summaryMap[sec.id] || {};
+                const ss    = summaryMap[sec.id] || {};
                 return (
                   <button
                     key={sec.id}
+                    className="att-card"
                     onClick={() => setSelectedSection(sec)}
-                    className="group relative overflow-hidden rounded-2xl bg-white text-left transition-all duration-200 shadow-sm"
-                    style={{ border: `1px solid ${C.border}` }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-2px)";
-                      e.currentTarget.style.boxShadow =
-                        "0 8px 24px rgba(136,189,242,0.20)";
-                      e.currentTarget.style.borderColor = C.accent;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "";
-                      e.currentTarget.style.borderColor = C.border;
+                    style={{
+                      position: "relative", overflow: "hidden", borderRadius: 16,
+                      background: C.white, textAlign: "left", cursor: "pointer",
+                      border: `1.5px solid ${C.borderLight}`,
+                      boxShadow: "0 2px 8px rgba(56,73,89,0.06)", padding: 0,
                     }}
                   >
-                    <div
-                      className="h-1.5 w-full"
-                      style={{ background: color.bar }}
-                    />
-                    <div className="p-4">
-                      <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
-                        style={{ background: color.soft }}
-                      >
-                        <BookOpen
-                          size={20}
-                          style={{
-                            color:
-                              color.bar === "#BDDDFC" ? C.secondary : color.bar,
-                          }}
-                        />
+                    <div style={{ height: 6, background: color.bar }} />
+                    <div style={{ padding: 16 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 12, background: color.soft, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                        <BookOpen size={20} style={{ color: color.bar === "#BDDDFC" ? C.textLight : color.bar }} />
                       </div>
-                      <p
-                        className="text-lg font-bold mb-3"
-                        style={{ color: C.primary }}
-                      >
-                        Section {sec.section}
-                      </p>
-
-                      {/* ✅ Per-section stats */}
-                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                        <Pill
-                          icon={Users}
-                          value={ss.totalStudents}
-                          color={C.primary}
-                          bg="rgba(189,221,252,0.25)"
-                          label="Total"
-                        />
-                        <Pill
-                          icon={UserCheck}
-                          value={ss.present}
-                          color="#047857"
-                          bg="rgba(16,185,129,0.12)"
-                          label="Present"
-                        />
-                        <Pill
-                          icon={UserX}
-                          value={ss.absent}
-                          color="#be123c"
-                          bg="rgba(244,63,94,0.12)"
-                          label="Absent"
-                        />
+                      <p style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 800, color: C.text }}>Section {sec.section}</p>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                        <Pill icon={Users}     value={ss.totalStudents} color={C.deep}  bg={`${C.mist}55`}         label="Total"   />
+                        <Pill icon={UserCheck} value={ss.present}       color="#047857" bg="rgba(16,185,129,0.12)" label="Present" />
+                        <Pill icon={UserX}     value={ss.absent}        color="#be123c" bg="rgba(244,63,94,0.12)"  label="Absent"  />
                       </div>
                       <RateBar rate={ss.attendanceRate} barColor={color.bar} />
                     </div>
-                    <div
-                      className="absolute bottom-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center group-hover:translate-x-0.5 transition-all"
-                      style={{ background: color.soft }}
-                    >
-                      <ChevronRight size={14} style={{ color: C.secondary }} />
+                    <div style={{ position: "absolute", bottom: 12, right: 12, width: 28, height: 28, borderRadius: 8, background: color.soft, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <ChevronRight size={14} style={{ color: C.textLight }} />
                     </div>
                   </button>
                 );
@@ -761,123 +538,88 @@ export default function AttendanceList() {
           </div>
         )}
 
-        {/* ══ LEVEL 3: Attendance Table ══════════════════════════════════════ */}
+        {/* ══ LEVEL 3: Attendance Table ════════════════════════════════════════ */}
         {viewLevel === "attendance" && (
-          <div className="animate-in fade-in duration-300">
-            {/* ✅ Section summary header */}
-            {selectedSection &&
-              summaryMap[selectedSection.id] &&
-              (() => {
-                const ss = summaryMap[selectedSection.id];
-                return (
-                  <div
-                    className="bg-white rounded-2xl shadow-sm p-4 mb-4 flex flex-wrap items-center gap-6"
-                    style={{ border: `1px solid ${C.border}` }}
-                  >
-                    <div>
-                      <p
-                        className="font-bold text-sm"
-                        style={{ color: C.primary }}
-                      >
-                        {selectedSection.name}
-                      </p>
-                      <p
-                        className="text-xs mt-0.5"
-                        style={{ color: C.secondary }}
-                      >
-                        {selectedDate} · {activeYearName}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4 ml-auto flex-wrap">
-                      {[
-                        {
-                          label: "Total",
-                          value: ss.totalStudents,
-                          color: C.primary,
-                        },
-                        {
-                          label: "Present",
-                          value: ss.present,
-                          color: "#047857",
-                        },
-                        { label: "Absent", value: ss.absent, color: "#be123c" },
-                        ...(ss.attendanceRate !== null
-                          ? [
-                              {
-                                label: "Rate",
-                                value: `${ss.attendanceRate}%`,
-                                color: C.accent,
-                              },
-                            ]
-                          : []),
-                      ].map(({ label, value, color }) => (
-                        <div key={label} className="text-center">
-                          <p className="text-xl font-bold" style={{ color }}>
-                            {value}
-                          </p>
-                          <p className="text-xs" style={{ color: C.secondary }}>
-                            {label}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
+          <div className="fade-up">
 
-            {/* Search + Refresh */}
+            {/* Section summary card */}
+            {selectedSection && summaryMap[selectedSection.id] && (() => {
+              const ss = summaryMap[selectedSection.id];
+              return (
+                <div
+                  style={{
+                    background: C.white, borderRadius: 16, border: `1.5px solid ${C.borderLight}`,
+                    padding: "14px 20px", marginBottom: 16,
+                    display: "flex", flexWrap: "wrap", alignItems: "center", gap: 24,
+                    boxShadow: "0 2px 8px rgba(56,73,89,0.06)",
+                  }}
+                >
+                  <div>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>{selectedSection.name}</p>
+                    <p style={{ margin: "2px 0 0", fontSize: 11, color: C.textLight }}>{selectedDate} · {activeYearName}</p>
+                  </div>
+                  <div style={{ display: "flex", gap: 24, marginLeft: "auto", flexWrap: "wrap" }}>
+                    {[
+                      { label: "Total",   value: ss.totalStudents,                                 color: C.text    },
+                      { label: "Present", value: ss.present,                                       color: "#047857" },
+                      { label: "Absent",  value: ss.absent,                                        color: "#be123c" },
+                      ...(ss.attendanceRate != null ? [{ label: "Rate", value: `${ss.attendanceRate}%`, color: C.sky }] : []),
+                    ].map(({ label, value, color }) => (
+                      <div key={label} style={{ textAlign: "center" }}>
+                        <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color }}>{value}</p>
+                        <p style={{ margin: 0, fontSize: 11, color: C.textLight }}>{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Search + refresh */}
             <div
-              className="bg-white rounded-2xl shadow-sm p-4 mb-5 flex flex-col sm:flex-row items-center gap-3"
-              style={{ border: `1px solid ${C.border}` }}
+              style={{
+                background: C.white, borderRadius: 16, border: `1.5px solid ${C.borderLight}`,
+                padding: "12px 16px", marginBottom: 16,
+                display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10,
+                boxShadow: "0 2px 8px rgba(56,73,89,0.06)",
+              }}
             >
-              <div className="flex-1 relative w-full">
-                <Search
-                  size={15}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2"
-                  style={{ color: C.secondary }}
-                />
+              <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+                <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: C.textLight }} />
                 <input
                   type="text"
                   placeholder="Search students..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full text-sm pl-10 pr-4 py-2.5 rounded-xl bg-white focus:outline-none"
-                  style={{ border: `1px solid ${C.border}`, color: C.primary }}
-                  onFocus={(e) => (e.target.style.borderColor = C.accent)}
-                  onBlur={(e) => (e.target.style.borderColor = C.border)}
+                  style={{
+                    width: "100%", paddingLeft: 38, paddingRight: 16, paddingTop: 9, paddingBottom: 9,
+                    borderRadius: 10, fontSize: 13, border: `1.5px solid ${C.border}`,
+                    background: C.white, color: C.text, outline: "none",
+                    fontFamily: "'Inter', sans-serif",
+                  }}
                 />
               </div>
               <button
                 onClick={fetchAttendance}
-                className="flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
                 style={{
-                  border: `1px solid ${C.border}`,
-                  background: "white",
-                  color: C.secondary,
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "9px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600,
+                  border: `1.5px solid ${C.border}`, background: C.white, color: C.textLight,
+                  cursor: "pointer", fontFamily: "'Inter', sans-serif",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "rgba(189,221,252,0.25)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "white")
-                }
               >
-                <RefreshCw
-                  size={14}
-                  className={loading ? "animate-spin" : ""}
-                />
-                <span className="hidden sm:inline">Refresh</span>
+                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+                <span>Refresh</span>
               </button>
             </div>
 
+            {/* Stats cards */}
             <AttendanceStatsCards attendance={filteredAttendance} />
 
-            <div
-              className="bg-white rounded-2xl border shadow-sm overflow-hidden"
-              style={{ borderColor: C.border }}
-            >
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+            {/* Table */}
+            <div style={{ background: C.white, borderRadius: 16, border: `1.5px solid ${C.borderLight}`, overflow: "hidden", boxShadow: "0 2px 8px rgba(56,73,89,0.06)" }}>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
                       <TH>Student Name</TH>
@@ -888,46 +630,24 @@ export default function AttendanceList() {
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td
-                          colSpan={3}
-                          className="px-6 py-12 text-center"
-                          style={{ color: C.secondary }}
-                        >
-                          <Loader2
-                            size={24}
-                            className="animate-spin inline-block mb-2"
-                            style={{ color: C.accent }}
-                          />
-                          <p className="text-sm font-medium">
-                            Loading attendance records...
-                          </p>
+                        <td colSpan={3} style={{ padding: "48px 24px", textAlign: "center" }}>
+                          <Loader2 size={24} className="animate-spin" style={{ color: C.sky, display: "block", margin: "0 auto 8px" }} />
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: C.textLight }}>Loading attendance records…</p>
                         </td>
                       </tr>
                     ) : filteredAttendance.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="px-6 py-16 text-center">
-                          <p
-                            className="text-base font-medium"
-                            style={{ color: C.primary }}
-                          >
-                            No records found
-                          </p>
-                          <p
-                            className="text-sm font-medium mt-1"
-                            style={{ color: C.secondary }}
-                          >
-                            Attendance has not been logged for this section/date
-                            yet.
-                          </p>
+                        <td colSpan={3} style={{ padding: "64px 24px", textAlign: "center" }}>
+                          <div style={{ width: 52, height: 52, borderRadius: 14, background: `${C.mist}55`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                            <Users size={22} style={{ color: C.textLight }} />
+                          </div>
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.text }}>No records found</p>
+                          <p style={{ margin: "4px 0 0", fontSize: 12, color: C.textLight }}>Attendance has not been logged for this section/date yet.</p>
                         </td>
                       </tr>
                     ) : (
                       filteredAttendance.map((a, idx) => (
-                        <AttendanceTableRow
-                          key={a.id}
-                          record={a}
-                          isEven={idx % 2 === 0}
-                        />
+                        <AttendanceTableRow key={a.id} record={a} isEven={idx % 2 === 0} />
                       ))
                     )}
                   </tbody>
@@ -938,119 +658,72 @@ export default function AttendanceList() {
         )}
       </div>
 
-      {/* ── Holiday Detail Panel (slide-in modal) ──────────────────────────── */}
+      {/* ── Holiday Detail Panel ───────────────────────────────────────────── */}
       {holidayPanelOpen && holidayInfo && (
         <div
-          className="fixed inset-0 z-40 flex items-end sm:items-center justify-center p-4"
-          style={{ background: "rgba(56,73,89,0.45)", backdropFilter: "blur(4px)" }}
+          style={{ position: "fixed", inset: 0, zIndex: 40, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(56,73,89,0.45)", backdropFilter: "blur(4px)" }}
           onClick={(e) => e.target === e.currentTarget && setHolidayPanelOpen(false)}
         >
-          <div
-            className="w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden"
-            style={{ background: "white", border: `1px solid ${C.border}` }}
-          >
-            {/* Panel header */}
-            <div
-              className="flex items-center justify-between px-6 py-5"
-              style={{
-                background: "rgba(245,158,11,0.08)",
-                borderBottom: "1px solid rgba(245,158,11,0.20)",
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-10 h-10 rounded-2xl flex items-center justify-center"
-                  style={{ background: "rgba(245,158,11,0.18)" }}
-                >
+          <div style={{ width: "100%", maxWidth: 380, borderRadius: 24, overflow: "hidden", background: C.white, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 20px 60px rgba(56,73,89,0.20)" }}>
+            {/* header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", background: "rgba(245,158,11,0.08)", borderBottom: "1px solid rgba(245,158,11,0.20)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(245,158,11,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Palmtree size={18} style={{ color: "#b45309" }} />
                 </div>
                 <div>
-                  <p className="font-bold text-sm" style={{ color: "#92400e" }}>
-                    Holiday Details
-                  </p>
-                  <p className="text-xs mt-0.5" style={{ color: "#b45309" }}>
-                    {selectedDate}
-                  </p>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#92400e" }}>Holiday Details</p>
+                  <p style={{ margin: 0, fontSize: 11, color: "#b45309" }}>{selectedDate}</p>
                 </div>
               </div>
               <button
                 onClick={() => setHolidayPanelOpen(false)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{ background: "rgba(245,158,11,0.12)" }}
+                style={{ width: 32, height: 32, borderRadius: 10, background: "rgba(245,158,11,0.12)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 <X size={15} style={{ color: "#b45309" }} />
               </button>
             </div>
 
-            {/* Panel body */}
-            <div className="px-6 py-5 space-y-4">
+            {/* body */}
+            <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
-                <p className="text-xs font-semibold mb-1" style={{ color: C.secondary }}>
-                  Holiday Name
-                </p>
-                <p className="text-base font-bold" style={{ color: C.primary }}>
-                  {holidayInfo.title}
-                </p>
+                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 600, color: C.textLight }}>Holiday Name</p>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.text }}>{holidayInfo.title}</p>
               </div>
-
               <div>
-                <p className="text-xs font-semibold mb-1" style={{ color: C.secondary }}>
-                  Type
-                </p>
-                <div className="flex items-center gap-2">
-                  {holidayInfo.type === "GOVERNMENT" ? (
-                    <Building2 size={14} style={{ color: "#b45309" }} />
-                  ) : (
-                    <GraduationCap size={14} style={{ color: "#b45309" }} />
-                  )}
-                  <p className="text-sm font-semibold" style={{ color: C.primary }}>
+                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 600, color: C.textLight }}>Type</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {holidayInfo.type === "GOVERNMENT" ? <Building2 size={14} style={{ color: "#b45309" }} /> : <GraduationCap size={14} style={{ color: "#b45309" }} />}
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: C.text }}>
                     {holidayInfo.type === "GOVERNMENT" ? "Government Holiday" : "School Holiday"}
                   </p>
                 </div>
                 {holidayInfo.type === "GOVERNMENT" && (
-                  <p className="text-xs mt-1" style={{ color: C.secondary }}>
-                    Repeats every year on this date
-                  </p>
+                  <p style={{ margin: "4px 0 0", fontSize: 11, color: C.textLight }}>Repeats every year on this date</p>
                 )}
                 {holidayInfo.type === "SCHOOL" && holidayInfo.academicYear?.name && (
-                  <p className="text-xs mt-1" style={{ color: C.secondary }}>
-                    Applies to academic year: {holidayInfo.academicYear.name}
-                  </p>
+                  <p style={{ margin: "4px 0 0", fontSize: 11, color: C.textLight }}>Applies to academic year: {holidayInfo.academicYear.name}</p>
                 )}
               </div>
-
               {holidayInfo.description && (
                 <div>
-                  <p className="text-xs font-semibold mb-1" style={{ color: C.secondary }}>
-                    Note
-                  </p>
-                  <p className="text-sm" style={{ color: C.primary }}>
-                    {holidayInfo.description}
-                  </p>
+                  <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 600, color: C.textLight }}>Note</p>
+                  <p style={{ margin: 0, fontSize: 13, color: C.text }}>{holidayInfo.description}</p>
                 </div>
               )}
-
-              <div
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold"
-                style={{
-                  background: "rgba(245,158,11,0.10)",
-                  color: "#b45309",
-                  border: "1px solid rgba(245,158,11,0.25)",
-                }}
-              >
-                <Palmtree size={13} />
-                Attendance may not be marked on this date
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.25)", fontSize: 11, fontWeight: 600, color: "#b45309" }}>
+                <Palmtree size={13} /> Attendance may not be marked on this date
               </div>
             </div>
 
-            <div
-              className="px-6 py-4"
-              style={{ borderTop: `1px solid ${C.border}` }}
-            >
+            <div style={{ padding: "0 20px 20px" }}>
               <button
                 onClick={() => setHolidayPanelOpen(false)}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold"
-                style={{ background: C.softBg, color: C.secondary }}
+                style={{
+                  width: "100%", padding: "10px", borderRadius: 12, fontSize: 13, fontWeight: 600,
+                  background: `${C.mist}44`, color: C.textLight, border: "none", cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                }}
               >
                 Close
               </button>
