@@ -1,12 +1,3 @@
-// ═══════════════════════════════════════════════════════════════
-//  ACADEMIC ERP — UPDATED PRISMA SCHEMA
-//  Added: heightCm, weightKg, identifyingMarks, motherTongue,
-//         subcaste, annualIncome, physicallyChallenged,
-//         disabilityType, domicileState on StudentPersonalInfo
-//  Added: previousSchoolName, previousSchoolBoard, udiseCode,
-//         lateralEntry on StudentEnrollment
-// ═══════════════════════════════════════════════════════════════
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -200,7 +191,6 @@ enum CasteCategory {
   OTHER
 }
 
-// ── NEW: Previous school board enum ───────────────────────────
 enum SchoolBoard {
   KSEEB // Karnataka State Board
   CBSE
@@ -598,14 +588,12 @@ model StudentPersonalInfo {
   religion      String?
   casteCategory CasteCategory?
 
-  // ── NEW: Karnataka / India specific identity fields ────────
   motherTongue         String? // Kannada, Telugu, Tamil, Hindi, English, Urdu, Other
   subcaste             String? // Sub-caste (needed for SC/ST/OBC certificates)
   domicileState        String? @default("Karnataka")
   annualIncome         Float? // Family annual income (needed for fee waivers)
   physicallyChallenged Boolean @default(false)
   disabilityType       String? // e.g. Visual, Hearing, Locomotor, etc.
-  // ──────────────────────────────────────────────────────────
 
   parentName       String?
   parentEmail      String?
@@ -616,11 +604,9 @@ model StudentPersonalInfo {
   medicalConditions String?
   allergies         String?
 
-  // ── NEW: Health measurements ───────────────────────────────
   heightCm         Float?
   weightKg         Float?
   identifyingMarks String? // Birthmarks, scars, etc.
-  // ──────────────────────────────────────────────────────────
 
   @@map("student_personal_info")
 }
@@ -646,12 +632,10 @@ model StudentEnrollment {
   externalId String?
   status     StudentStatus @default(ACTIVE)
 
-  // ── NEW: Previous institution details ─────────────────────
   previousSchoolName  String? // Name of school/college student came from
   previousSchoolBoard SchoolBoard? // KSEEB, CBSE, ICSE, etc.
   udiseCode           String? // Karnataka: UDISE code of previous school
   lateralEntry        Boolean      @default(false) // Diploma/Degree lateral entry
-  // ──────────────────────────────────────────────────────────
 
   @@unique([studentId, academicYearId])
   @@unique([admissionNumber, academicYearId])
@@ -1353,7 +1337,6 @@ model StreamCombination {
   @@map("stream_combinations")
 }
 
-//  Finance 
 model FinanceProfile {
   id           String   @id @default(uuid())
   userId       String   @unique
@@ -1484,8 +1467,6 @@ model StudentList {
   @@map("student_list")
 }
 
-// GROUP B STAFF
-
 model GroupBStaffSalary {
   id String @id @default(uuid())
 
@@ -1586,6 +1567,7 @@ model SubjectSyllabus {
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   totalChapters Int
+  chapterNames  String[] @default([])
 
   createdById String
   createdBy   TeacherProfile @relation("SyllabusCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
@@ -1617,7 +1599,8 @@ model SectionPortionProgress {
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  completedChapters Int @default(0)
+  completedChapters       Int   @default(0)
+  completedChapterIndices Int[] @default([]) // ADD THIS
 
   updatedById String
   updatedBy   TeacherProfile @relation(fields: [updatedById], references: [id], onDelete: Restrict)
@@ -1717,12 +1700,6 @@ model SchoolHoliday {
   @@index([academicYearId, startDate])
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  ACTIVITIES & EVENTS MODULE
-// ═══════════════════════════════════════════════════════════════
-
-// ─── Enums ───────────────────────────────────────────────────────────────────
-
 enum ActivityCategory {
   SPORTS
   CULTURAL
@@ -1774,8 +1751,6 @@ enum CertificateStatus {
   ISSUED
 }
 
-// ─── Activity ────────────────────────────────────────────────────────────────
-
 model Activity {
   id                String                    @id @default(uuid())
   name              String
@@ -1804,8 +1779,6 @@ model Activity {
   @@map("activities")
 }
 
-// ─── ActivityClass ───────────────────────────────────────────────────────────
-
 model ActivityClass {
   id String @id @default(uuid())
 
@@ -1817,8 +1790,6 @@ model ActivityClass {
   @@unique([activityId, classSectionId])
   @@map("activity_classes")
 }
-
-// ─── StudentActivityEnrollment ───────────────────────────────────────────────
 
 model StudentActivityEnrollment {
   id String @id @default(uuid())
@@ -1840,8 +1811,6 @@ model StudentActivityEnrollment {
   @@index([academicYearId])
   @@map("student_activity_enrollments")
 }
-
-// ─── ActivityEvent ───────────────────────────────────────────────────────────
 
 model ActivityEvent {
   id                  String                 @id @default(uuid())
@@ -1884,8 +1853,6 @@ model ActivityEvent {
   @@map("activity_events")
 }
 
-// ─── EventClass ──────────────────────────────────────────────────────────────
-
 model EventClass {
   id String @id @default(uuid())
 
@@ -1897,8 +1864,6 @@ model EventClass {
   @@unique([eventId, classSectionId])
   @@map("event_classes")
 }
-
-// ─── EventTeam ───────────────────────────────────────────────────────────────
 
 model EventTeam {
   id       String  @id @default(uuid())
@@ -1920,8 +1885,6 @@ model EventTeam {
   @@map("event_teams")
 }
 
-// ─── EventTeamMember ─────────────────────────────────────────────────────────
-
 model EventTeamMember {
   id String @id @default(uuid())
 
@@ -1935,8 +1898,6 @@ model EventTeamMember {
   @@index([studentId])
   @@map("event_team_members")
 }
-
-// ─── EventParticipant ────────────────────────────────────────────────────────
 
 model EventParticipant {
   id String @id @default(uuid())
@@ -1956,10 +1917,6 @@ model EventParticipant {
   @@index([studentId])
   @@map("event_participants")
 }
-
-// ─── EventResult ─────────────────────────────────────────────────────────────
-// Single source of truth for all results.
-// Either studentId OR teamId must be set — enforced in controller logic.
 
 model EventResult {
   id String @id @default(uuid())
@@ -1992,7 +1949,6 @@ model EventResult {
   @@map("event_results")
 }
 
-// ─── Certificate ─────────────────────────────────────────────────────────────
 model Certificate {
   id String @id @default(uuid())
 
@@ -2105,11 +2061,6 @@ model StudentAward {
   @@index([classSectionId])
   @@map("student_awards")
 }
-
-// ═══════════════════════════════════════════════════════════════
-//  ADD THESE THREE MODELS TO YOUR schema.prisma FILE
-//  Place them in the Finance section, after StudentList
-// ═══════════════════════════════════════════════════════════════
 
 model ExpenseCategory {
   id        String               @id @default(uuid())
@@ -2319,11 +2270,6 @@ model AssignmentSection {
   @@map("assignment_sections")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  TRANSPORT MANAGEMENT MODULE — UPDATED
-//  Changes marked with: // ✅ ADDED / // ✅ FIXED / // ✅ IMPROVED
-// ═══════════════════════════════════════════════════════════════
-
 enum PickupType {
   PICKUP
   DROP
@@ -2342,10 +2288,6 @@ enum TransportFeeStatus {
   WAIVED
   OVERDUE
 }
-
-// ── 1. TransportRoute ─────────────────────────────────────────
-// No changes required — already correct.
-// ──────────────────────────────────────────────────────────────
 
 model TransportRoute {
   id        String   @id @default(uuid())
@@ -2376,10 +2318,6 @@ model TransportRoute {
   @@map("transport_routes")
 }
 
-// ── 2. TransportStop ──────────────────────────────────────────
-// ✅ IMPROVED: Added @@index([schoolId, area]) for area-based filtering
-// ──────────────────────────────────────────────────────────────
-
 model TransportStop {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
@@ -2404,10 +2342,6 @@ model TransportStop {
   @@index([schoolId, area]) // ✅ IMPROVED: area-based search index
   @@map("transport_stops")
 }
-
-// ── 3. TransportRouteStop ─────────────────────────────────────
-// ✅ IMPROVED: Added isActive for soft delete consistency
-// ──────────────────────────────────────────────────────────────
 
 model TransportRouteStop {
   id        String   @id @default(uuid())
@@ -2435,16 +2369,6 @@ model TransportRouteStop {
   @@map("transport_route_stops")
 }
 
-// ── 4. TransportFeePlan ───────────────────────────────────────
-// ✅ FIXED #1:  @@unique([routeId, stopId, academicYearId]) — was already
-//              present; confirmed correct.
-// ✅ FIXED #5:  frequency TransportFeeFrequency field — was already present;
-//              confirmed correct.
-// ✅ FIXED #6:  isActive Boolean @default(true) — was already present;
-//              confirmed correct.
-// ✅ IMPROVED #7: Added effectiveFrom DateTime? for mid-year fee changes
-// ──────────────────────────────────────────────────────────────
-
 model TransportFeePlan {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
@@ -2471,14 +2395,6 @@ model TransportFeePlan {
   @@index([academicYearId])
   @@map("transport_fee_plans")
 }
-
-// ── 5. StudentTransport ───────────────────────────────────────
-// ✅ FIXED #2:  Added schoolId + School relation + @@index([schoolId])
-// ✅ FIXED #3:  Renamed feeAmountSnapshot → feeAmount (Float, non-nullable)
-//              for clarity; stores fee locked at assignment time
-// ✅ FIXED #4:  @@index([studentId, academicYearId, isActive]) confirmed
-// ✅ IMPROVED #8: Added @@index([routeId, stopId])
-// ──────────────────────────────────────────────────────────────
 
 model StudentTransport {
   id        String   @id @default(uuid())
@@ -2526,10 +2442,6 @@ model StudentTransport {
   @@index([studentId, academicYearId, isActive]) // ✅ FIXED #4
   @@map("student_transports")
 }
-
-// ── 6. TransportFeeEntry ──────────────────────────────────────
-// No structural changes — already correct.
-// ──────────────────────────────────────────────────────────────
 
 model TransportFeeEntry {
   id        String   @id @default(uuid())
@@ -2670,14 +2582,6 @@ enum FeeStatus {
   INACTIVE
 }
 
-// ChatBoxs
-// ═══════════════════════════════════════════════════════════════
-// 💬 CHAT MODULE (FULLY OPTIMIZED + CASCADE SAFE)
-// ═══════════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════
-// 💬 CHAT MODULE (FINAL CLEAN VERSION)
-// ═══════════════════════════════════════════════
-
 enum ChatType {
   PRIVATE
   NOTIFICATION
@@ -2688,9 +2592,6 @@ enum MessageType {
   NOTIFICATION
 }
 
-// ─────────────────────────────
-// CHAT ROOM
-// ─────────────────────────────
 model ChatRoom {
   id        String   @id @default(uuid())
   type      ChatType @default(PRIVATE)
@@ -2730,37 +2631,15 @@ model Message {
 
   senderId   String
   senderRole String
+  isSeen     Boolean     @default(false)
+  content    String
+  type       MessageType @default(TEXT) // ✅ IMPORTANT (your code uses this)
 
-  content   String
-  type      MessageType @default(TEXT) // ✅ IMPORTANT (your code uses this)
-  isSeen    Boolean     @default(false)
-  createdAt DateTime    @default(now())
+  createdAt DateTime @default(now())
 
   @@index([chatRoomId])
   @@index([senderId])
   @@index([createdAt])
   // ⚠️ match DB table
   @@map("Message")
-}
-
-// Payment
-model Payment {
-  id         String @id @default(uuid())
-  fullName   String
-  schoolName String
-  email      String
-  address    String
-  phone      String
-
-  planId    String
-  userCount Int
-  amount    Int
-
-  razorpayOrderId   String?
-  razorpayPaymentId String?
-  razorpaySignature String?
-
-  status String @default("pending") // pending, success, failed
-
-  createdAt DateTime @default(now())
 }
