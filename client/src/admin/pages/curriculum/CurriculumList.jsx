@@ -90,24 +90,22 @@ function Breadcrumb({ items }) {
   );
 }
 
-// ── FIX 1: BackHeader — wrap on mobile so badge doesn't overlap ──
 function BackHeader({ onBack, icon, title, subtitle, badge }) {
   return (
     <div
       style={{
         display: "flex",
-        alignItems: "flex-start",        // ← was "center", now flex-start so wrapping looks clean
+        alignItems: "flex-start",
         gap: 12,
         marginBottom: 22,
-        padding: "14px 16px",            // ← reduced horizontal padding for mobile
+        padding: "14px 16px",
         background: C.white,
         borderRadius: 16,
         border: `1.5px solid ${C.borderLight}`,
         boxShadow: "0 2px 12px rgba(56,73,89,0.05)",
-        flexWrap: "wrap",                // ← allows badge to wrap on narrow screens
+        flexWrap: "wrap",
       }}
     >
-      {/* back button */}
       <button
         onClick={onBack}
         style={{ width: 34, height: 34, borderRadius: 10, background: `${C.sky}18`, border: `1px solid ${C.sky}33`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
@@ -117,23 +115,19 @@ function BackHeader({ onBack, icon, title, subtitle, badge }) {
 
       <div style={{ width: 1, height: 28, background: C.borderLight, alignSelf: "center" }} />
 
-      {/* icon */}
       <div style={{ width: 38, height: 38, borderRadius: 12, background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 10px ${C.sky}44`, flexShrink: 0 }}>
         {icon}
       </div>
 
-      {/* title + subtitle — takes remaining space */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {title}
         </p>
-        {/* FIX 2: subtitle wraps instead of overflowing */}
         <p style={{ margin: 0, fontSize: 11, color: C.textLight, lineHeight: 1.4, wordBreak: "break-word" }}>
           {subtitle}
         </p>
       </div>
 
-      {/* badge — wraps to its own row on very narrow screens */}
       {badge && (
         <div style={{ flexShrink: 0 }}>
           {badge}
@@ -200,14 +194,17 @@ export default function AdminCurriculumPage() {
         .fade-up { animation: fadeUp 0.38s ease forwards; opacity:0; }
         @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
         .fade-in { animation: fadeIn 0.3s ease forwards; opacity:0; }
+
+        /* Chapter list scroll */
+        .chapter-list::-webkit-scrollbar { width: 4px; }
+        .chapter-list::-webkit-scrollbar-thumb { background: ${C.sky}88; border-radius: 99px; }
       `}</style>
 
-      {/* FIX 3: page padding responsive */}
       <div
         style={{
           minHeight: "100vh",
           background: C.bg,
-          padding: "20px 16px",          // ← was "28px 32px", now mobile-first
+          padding: "20px 16px",
           fontFamily: "'Inter', sans-serif",
           backgroundImage: `radial-gradient(circle at 10% 0%, ${C.mist}28 0%, transparent 45%)`,
         }}
@@ -253,7 +250,6 @@ function Level1Grades({ gradeMap, sortedGrades, gradeAvg, onSelect }) {
 
   return (
     <div className="fade-in">
-      {/* summary bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, padding: "12px 16px", background: C.white, borderRadius: 14, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 2px 12px rgba(56,73,89,0.05)" }}>
         <div style={{ width: 34, height: 34, borderRadius: 10, background: `${C.sky}22`, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${C.sky}33`, flexShrink: 0 }}>
           <GraduationCap size={16} color={C.sky} strokeWidth={2} />
@@ -266,7 +262,6 @@ function Level1Grades({ gradeMap, sortedGrades, gradeAvg, onSelect }) {
         </div>
       </div>
 
-      {/* FIX 4: grade cards — 1 col on mobile, auto-fill on wider */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(210px, 100%), 1fr))", gap: 14 }}>
         {sortedGrades.map((grade) => {
           const g = gradeMap[grade];
@@ -330,12 +325,12 @@ function Level2Subjects({ grade, subjectKeys, avgPct, onBack, onSelect }) {
       <Breadcrumb items={[{ label: "All Grades", onClick: onBack }, { label: grade }]} />
       <BackHeader onBack={onBack} icon={<BookOpen size={17} color="#fff" strokeWidth={2} />} title={grade} subtitle={`${subjects.length} subject${subjects.length !== 1 ? "s" : ""}`} />
 
-      {/* FIX 5: subject cards — 1 col on mobile */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(230px, 100%), 1fr))", gap: 14 }}>
         {subjects.map(([sk, group]) => {
           const total = group.syllabus?.totalChapters || 0;
           const pct = avgPct(group.sections, total);
           const sectionCount = group.sections.length;
+          const hasNames = group.syllabus?.chapterNames?.some((n) => n?.trim());
 
           return (
             <div
@@ -354,15 +349,23 @@ function Level2Subjects({ grade, subjectKeys, avgPct, onBack, onSelect }) {
                 <p style={{ margin: "0 0 12px", fontSize: 11, color: C.textLight }}>
                   {group.subject?.code} · {sectionCount} section{sectionCount !== 1 ? "s" : ""}
                 </p>
-                {total ? (
-                  <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, background: `${C.sky}18`, border: `1px solid ${C.sky}33`, fontSize: 10, fontWeight: 700, color: C.deep, marginBottom: 14 }}>
-                    {total} chapters
-                  </span>
-                ) : (
-                  <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, background: "#fff3f3", border: "1px solid #fca5a5", fontSize: 10, fontWeight: 700, color: "#991b1b", marginBottom: 14 }}>
-                    Syllabus not set
-                  </span>
-                )}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+                  {total ? (
+                    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, background: `${C.sky}18`, border: `1px solid ${C.sky}33`, fontSize: 10, fontWeight: 700, color: C.deep }}>
+                      {total} chapters
+                    </span>
+                  ) : (
+                    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, background: "#fff3f3", border: "1px solid #fca5a5", fontSize: 10, fontWeight: 700, color: "#991b1b" }}>
+                      Syllabus not set
+                    </span>
+                  )}
+                  {/* ── Show "named" badge if chapter names exist ── */}
+                  {hasNames && (
+                    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, background: `${C.mist}55`, border: `1px solid ${C.sky}44`, fontSize: 10, fontWeight: 700, color: C.deep }}>
+                      ✓ Named
+                    </span>
+                  )}
+                </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ height: 5, borderRadius: 99, background: `${C.mist}55`, overflow: "hidden" }}>
@@ -391,17 +394,26 @@ function Level3Sections({ grade, subjectKey, subjectKeys, onBack, onBackToGrades
   if (!group) return null;
 
   const total = group.syllabus?.totalChapters || 0;
-  const sections = [...group.sections].sort((a, b) => (a.classSection?.name || "").localeCompare(b.classSection?.name || ""));
+  const chapterNames = group.syllabus?.chapterNames ?? [];
+  const hasNames = chapterNames.some((n) => n?.trim());
+  const sections = [...group.sections].sort((a, b) =>
+    (a.classSection?.name || "").localeCompare(b.classSection?.name || "")
+  );
 
   return (
     <div className="fade-in">
-      <Breadcrumb items={[{ label: "All Grades", onClick: onBackToGrades }, { label: grade, onClick: onBack }, { label: group.subject?.name }]} />
+      <Breadcrumb
+        items={[
+          { label: "All Grades", onClick: onBackToGrades },
+          { label: grade, onClick: onBack },
+          { label: group.subject?.name },
+        ]}
+      />
 
       <BackHeader
         onBack={onBack}
         icon={<BookOpen size={17} color="#fff" strokeWidth={2} />}
         title={group.subject?.name}
-        // FIX 6: subtitle shortened on mobile — grade · code on one token
         subtitle={`${grade} · ${group.subject?.code} · ${sections.length} section${sections.length !== 1 ? "s" : ""}`}
         badge={
           total ? (
@@ -416,20 +428,82 @@ function Level3Sections({ grade, subjectKey, subjectKeys, onBack, onBackToGrades
         }
       />
 
-      {/* FIX 7: section cards — 1 col on mobile, 2 on tablet+ */}
+      {/* ── Chapter names overview panel (only when names exist) ── */}
+      {hasNames && total > 0 && (
+        <div style={{
+          marginBottom: 20,
+          padding: "14px 16px",
+          background: C.white,
+          borderRadius: 16,
+          border: `1.5px solid ${C.borderLight}`,
+          boxShadow: "0 2px 12px rgba(56,73,89,0.05)",
+        }}>
+          <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: C.deep, fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", gap: 6 }}>
+            <BookOpen size={13} color={C.sky} />
+            Chapter Index — {group.subject?.name}
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {chapterNames.map((name, idx) => name?.trim() ? (
+              <span key={idx} style={{
+                padding: "4px 10px",
+                borderRadius: 20,
+                background: `${C.sky}14`,
+                border: `1px solid ${C.sky}44`,
+                fontSize: 11,
+                fontWeight: 600,
+                color: C.deep,
+                fontFamily: "'Inter', sans-serif",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+              }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: C.slate }}>{idx + 1}</span>
+                {name.trim()}
+              </span>
+            ) : null)}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(290px, 100%), 1fr))", gap: 14 }}>
         {sections.map((sec, si) => {
-          const done = sec.progress?.completedChapters ?? 0;
+          // ── BUG FIX: use completedChapterIndices if available ──
+          const completedIndices = new Set(sec.progress?.completedChapterIndices ?? []);
+          // Determine "done" count: prefer indices if we have them, else fall back to completedChapters
+          const done = completedIndices.size > 0
+            ? completedIndices.size
+            : (sec.progress?.completedChapters || 0);
           const pct = total ? Math.min(Math.round((done / total) * 100), 100) : 0;
           const teacher = sec.teacher;
+
+          // ── Chapter name breakdown using saved indices ──
+          const completedChapters = hasNames
+            ? chapterNames
+                .map((name, idx) => ({ name, idx }))
+                .filter(({ name, idx }) => name?.trim() && completedIndices.has(idx))
+            : [];
+
+          const remainingChapters = hasNames
+            ? chapterNames
+                .map((name, idx) => ({ name, idx }))
+                .filter(({ name, idx }) => name?.trim() && !completedIndices.has(idx))
+            : [];
 
           return (
             <div
               key={si}
-              style={{ background: C.white, borderRadius: 18, border: `1.5px solid ${C.borderLight}`, overflow: "hidden", boxShadow: "0 2px 14px rgba(56,73,89,0.06)", transition: "box-shadow 0.2s, transform 0.2s" }}
+              style={{
+                background: C.white,
+                borderRadius: 18,
+                border: `1.5px solid ${C.borderLight}`,
+                overflow: "hidden",
+                boxShadow: "0 2px 14px rgba(56,73,89,0.06)",
+                transition: "box-shadow 0.2s, transform 0.2s",
+              }}
               onMouseEnter={(e) => { e.currentTarget.style.boxShadow = `0 10px 30px ${C.sky}28`; e.currentTarget.style.transform = "translateY(-3px)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 2px 14px rgba(56,73,89,0.06)"; e.currentTarget.style.transform = "translateY(0)"; }}
             >
+              {/* top colour bar */}
               <div style={{ height: 5, background: total > 0 ? `linear-gradient(90deg, ${C.slate} ${pct}%, ${C.mist}55 ${pct}%)` : `${C.mist}55` }} />
 
               <div style={{ padding: "16px 16px" }}>
@@ -488,12 +562,98 @@ function Level3Sections({ grade, subjectKey, subjectKeys, onBack, onBackToGrades
 
                 <ProgressBar completed={done} total={total} height={7} />
 
+                {/* ── Chapter names breakdown ── */}
+                {hasNames && total > 0 && (
+                  <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                    {/* Completed chapters */}
+                    {completedChapters.length > 0 && (
+                      <div>
+                        <p style={{ margin: "0 0 6px", fontSize: 10, fontWeight: 700, color: "#166534", fontFamily: "'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 4 }}>
+                          <CheckCircle2 size={10} color="#166534" /> Done ({completedChapters.length})
+                        </p>
+                        <div
+                          className="chapter-list"
+                          style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", paddingRight: 2 }}
+                        >
+                          {completedChapters.map((item) => (
+                            <div
+                              key={item.idx}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 7,
+                                padding: "5px 9px",
+                                borderRadius: 8,
+                                background: "#f0fdf4",
+                                border: "1px solid #bbf7d0",
+                              }}
+                            >
+                              <div style={{ width: 16, height: 16, borderRadius: 4, background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+                                  <path d="M1 3l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </div>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: C.slate, minWidth: 14, fontFamily: "'Inter', sans-serif" }}>{item.idx + 1}</span>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: "#166534", fontFamily: "'Inter', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                                {item.name}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Remaining chapters */}
+                    {remainingChapters.length > 0 && (
+                      <div>
+                        <p style={{ margin: "0 0 6px", fontSize: 10, fontWeight: 700, color: C.textLight, fontFamily: "'Inter', sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          Pending ({remainingChapters.length})
+                        </p>
+                        <div
+                          className="chapter-list"
+                          style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 120, overflowY: "auto", paddingRight: 2 }}
+                        >
+                          {remainingChapters.map((item) => (
+                            <div
+                              key={item.idx}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 7,
+                                padding: "5px 9px",
+                                borderRadius: 8,
+                                background: `${C.mist}22`,
+                                border: `1px solid ${C.borderLight}`,
+                              }}
+                            >
+                              <div style={{ width: 16, height: 16, borderRadius: 4, background: `${C.mist}55`, border: `1px solid ${C.border}`, flexShrink: 0 }} />
+                              <span style={{ fontSize: 9, fontWeight: 700, color: C.textLight, minWidth: 14, fontFamily: "'Inter', sans-serif" }}>{item.idx + 1}</span>
+                              <span style={{ fontSize: 11, fontWeight: 400, color: C.textLight, fontFamily: "'Inter', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                                {item.name}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* No progress yet but names exist */}
+                    {completedChapters.length === 0 && done === 0 && (
+                      <div style={{ padding: "8px 12px", borderRadius: 10, background: `${C.mist}22`, border: `1px solid ${C.borderLight}` }}>
+                        <p style={{ margin: 0, fontSize: 11, color: C.textLight, fontFamily: "'Inter', sans-serif", textAlign: "center" }}>
+                          No chapters marked complete yet
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {sec.progress?.updatedAt ? (
-                  <p style={{ margin: "8px 0 0", fontSize: 10, color: C.textLight, textAlign: "right", fontFamily: "'Inter', sans-serif" }}>
+                  <p style={{ margin: "10px 0 0", fontSize: 10, color: C.textLight, textAlign: "right", fontFamily: "'Inter', sans-serif" }}>
                     Updated {new Date(sec.progress.updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                   </p>
                 ) : (
-                  <p style={{ margin: "8px 0 0", fontSize: 10, color: C.textLight, textAlign: "right", fontFamily: "'Inter', sans-serif" }}>No updates yet</p>
+                  <p style={{ margin: "10px 0 0", fontSize: 10, color: C.textLight, textAlign: "right", fontFamily: "'Inter', sans-serif" }}>No updates yet</p>
                 )}
               </div>
             </div>

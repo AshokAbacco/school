@@ -124,6 +124,7 @@ enum ExtraClassDay {
   SATURDAY
   SUNDAY
 }
+
 enum ExtraClassType {
   HOLIDAY
   WEEKEND
@@ -635,7 +636,6 @@ model StudentEnrollment {
   previousSchoolBoard SchoolBoard? // KSEEB, CBSE, ICSE, etc.
   udiseCode           String? // Karnataka: UDISE code of previous school
   lateralEntry        Boolean      @default(false) // Diploma/Degree lateral entry
-  
 
   @@unique([studentId, academicYearId])
   @@unique([admissionNumber, academicYearId])
@@ -1567,6 +1567,7 @@ model SubjectSyllabus {
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   totalChapters Int
+  chapterNames  String[] @default([])
 
   createdById String
   createdBy   TeacherProfile @relation("SyllabusCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
@@ -1598,7 +1599,8 @@ model SectionPortionProgress {
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  completedChapters Int @default(0)
+  completedChapters       Int   @default(0)
+  completedChapterIndices Int[] @default([]) // ADD THIS
 
   updatedById String
   updatedBy   TeacherProfile @relation(fields: [updatedById], references: [id], onDelete: Restrict)
@@ -1883,7 +1885,6 @@ model EventTeam {
   @@map("event_teams")
 }
 
-
 model EventTeamMember {
   id String @id @default(uuid())
 
@@ -2060,7 +2061,6 @@ model StudentAward {
   @@index([classSectionId])
   @@map("student_awards")
 }
-
 
 model ExpenseCategory {
   id        String               @id @default(uuid())
@@ -2289,7 +2289,6 @@ enum TransportFeeStatus {
   OVERDUE
 }
 
-
 model TransportRoute {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
@@ -2370,7 +2369,6 @@ model TransportRouteStop {
   @@map("transport_route_stops")
 }
 
-
 model TransportFeePlan {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
@@ -2444,7 +2442,6 @@ model StudentTransport {
   @@index([studentId, academicYearId, isActive]) // ✅ FIXED #4
   @@map("student_transports")
 }
-
 
 model TransportFeeEntry {
   id        String   @id @default(uuid())
@@ -2634,37 +2631,15 @@ model Message {
 
   senderId   String
   senderRole String
+  isSeen     Boolean     @default(false)
+  content    String
+  type       MessageType @default(TEXT) // ✅ IMPORTANT (your code uses this)
 
-  content   String
-  type      MessageType @default(TEXT) // ✅ IMPORTANT (your code uses this)
-  isSeen    Boolean     @default(false)
-  createdAt DateTime    @default(now())
+  createdAt DateTime @default(now())
 
   @@index([chatRoomId])
   @@index([senderId])
   @@index([createdAt])
   // ⚠️ match DB table
   @@map("Message")
-}
-
-// Payment
-model Payment {
-  id         String @id @default(uuid())
-  fullName   String
-  schoolName String
-  email      String
-  address    String
-  phone      String
-
-  planId    String
-  userCount Int
-  amount    Int
-
-  razorpayOrderId   String?
-  razorpayPaymentId String?
-  razorpaySignature String?
-
-  status String @default("pending") // pending, success, failed
-
-  createdAt DateTime @default(now())
 }

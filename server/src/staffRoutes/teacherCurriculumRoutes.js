@@ -6,6 +6,7 @@ import {
   setSubjectSyllabus,
   updateSubjectSyllabus,
   updateSectionProgress,
+  updateChapterNames, 
 } from "../staffControlls/teacherCurriculumController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 // use your existing auth middleware
@@ -26,5 +27,6 @@ router.put("/syllabus", updateSubjectSyllabus);
 
 // PUT  — update completed chapters for a section
 router.put("/progress", updateSectionProgress);
+router.put("/chapters", updateChapterNames);
 
 export default router;

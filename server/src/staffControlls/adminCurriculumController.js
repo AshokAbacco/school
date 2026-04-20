@@ -8,8 +8,8 @@ export async function getAdminCurriculumOverview(req, res) {
     const { schoolId } = req.user;
 
     const cacheKey = await cacheService.buildKey(schoolId, "curriculum:overview");
-    const cached = await cacheService.get(cacheKey);
-    if (cached) return res.json(JSON.parse(cached));
+    // const cached = await cacheService.get(cacheKey);
+    // if (cached) return res.json(JSON.parse(cached));
 
     const activeYear = await prisma.academicYear.findFirst({
       where: { schoolId, isActive: true },
@@ -61,16 +61,23 @@ export async function getAdminCurriculumOverview(req, res) {
           classSection: a.classSection,
           teacher:      a.teacher,
           syllabus: syllabus
-            ? { totalChapters: syllabus.totalChapters, setBy: syllabus.createdBy, updatedBy: syllabus.updatedBy }
+            ? { totalChapters: syllabus.totalChapters, chapterNames: syllabus.chapterNames, setBy: syllabus.createdBy, updatedBy: syllabus.updatedBy }
             : null,
           progress: progress
-            ? { completedChapters: progress.completedChapters, updatedAt: progress.updatedAt }
+            ? { 
+                completedChapters:
+                  progress.completedChapterIndices?.length ??
+                  progress.completedChapters ??
+                  0,
+                completedChapterIndices: progress.completedChapterIndices,
+                updatedAt: progress.updatedAt 
+              }
             : null,
         };
       }),
     );
 
-    await cacheService.set(cacheKey, results);
+    // await cacheService.set(cacheKey, results);
     res.json(results);
   } catch (err) {
     console.error("getAdminCurriculumOverview:", err);
