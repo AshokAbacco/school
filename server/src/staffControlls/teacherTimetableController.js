@@ -117,6 +117,7 @@ export async function getTodaySchedule(req, res) {
     if (!userId || !schoolId) return err(res, "Unauthorized", 401);
 
     const teacher = await prisma.teacherProfile.findUnique({ where: { userId } });
+
     if (!teacher) return err(res, "Teacher profile not found", 404);
 
     const activeYear = await prisma.academicYear.findFirst({ where: { schoolId, isActive: true } });

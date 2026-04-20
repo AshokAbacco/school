@@ -3,7 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import cacheService from "../utils/cacheService.js";
 import { uploadToR2, generateSignedUrl } from "../lib/r2.js";
-const prisma = new PrismaClient();
+import { saveBackup } from "../utils/cloudBackup.js";
+import { prisma } from "../config/db.js";
 
 const SALT_ROUNDS = 10;
 
@@ -19,6 +20,7 @@ export async function uploadProfileImage(req, res) {
       where: { id, schoolId },
       select: { id: true },
     });
+    
     if (!teacher) return res.status(404).json({ error: "Teacher not found" });
 
     const key = `schools/${schoolId}/teachers/${id}/profile/${Date.now()}-${req.file.originalname}`;

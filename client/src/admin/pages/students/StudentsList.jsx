@@ -1772,39 +1772,16 @@ const handleExportExcel = async () => {
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: "pointer",
-                fontFamily: "'Inter', sans-serif",
-                  boxShadow: `0 4px 14px ${C.deep}44`,
-                  transition: "all 0.2s",
-                  flexShrink: 0,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-              >
-                <Plus size={15} /> Add Student
-              </button>
-            
-              <button
-                onClick={handleExportExcel}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 7,
-                  padding: "10px 18px",
-                  borderRadius: 13,
-                  border: "1.5px solid #7dd3fc",
-                  background: "#e0f2fe",
-                  color: "#0369a1",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontFamily: "'Inter', sans-serif",
-                }}
-              >
-                <Download size={14} />
-                {selectedSection
-                  ? `Export ${selectedSection.name}`
-                  : "Export All Students"}
-              </button>
+               fontFamily: "'Inter', sans-serif",
+                boxShadow: `0 4px 14px ${C.deep}44`,
+                transition: "all 0.2s",
+                flexShrink: 0,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              <Plus size={15} /> Add Student
+            </button>
             </div>
           </div>
         </div>

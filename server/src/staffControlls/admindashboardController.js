@@ -2,7 +2,7 @@
 import { PrismaClient } from "@prisma/client";
 import cacheService from "../utils/cacheService.js";
 
-const prisma = new PrismaClient();
+import { prisma } from "../config/db.js";
 
 export async function getDashboardSummary(req, res) {
   try {
