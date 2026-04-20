@@ -145,6 +145,7 @@ const allFeatureKeys = [
   "Parent Dashboard",
   "Student Fees (Basic)",
   "Reports & Advanced Analytics",
+  "curriculum Management",
   "Exams & Results",
   "Activities & Events",
   "Payment Gateway",
