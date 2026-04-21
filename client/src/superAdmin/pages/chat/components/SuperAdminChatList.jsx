@@ -1,3 +1,4 @@
+//client\src\superAdmin\pages\chat\components\SuperAdminChatList.jsx
 import React, { useState, useEffect } from "react";
 import { getToken } from "../../../../auth/storage";
 

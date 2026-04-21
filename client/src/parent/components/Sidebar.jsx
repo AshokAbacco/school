@@ -11,7 +11,8 @@ import {
   GraduationCap,
   X,
   CreditCard,
-  MessageCircle
+  MessageCircle,
+  BookOpen
 } from "lucide-react";
 import { getAuth } from "../../auth/storage";
 
@@ -31,6 +32,7 @@ function Sidebar({ isOpen, onClose }) {
     { icon: LayoutDashboard, label: "Dashboard",       href: `${base}/dashboard` },
     { icon: User,            label: "My Child Profile", href: `${base}/profile` },
     { icon: ClipboardCheck,  label: "Attendance",      href: `${base}/attendance` },
+    { icon: BookOpen,        label: "Syllabus Progress", href: `${base}/syllabus-progress`},
     { icon: BarChart2,       label: "Results",         href: `${base}/marks` },
     { icon: Calendar,        label: "Time Table",      href: `${base}/timetable` },
     { icon: Award,           label: "Certificates",    href: `${base}/certificates` },

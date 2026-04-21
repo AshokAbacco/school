@@ -7,6 +7,8 @@ import {
   Plus,
   Pencil,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { getToken } from "../../../auth/storage";
 
@@ -44,42 +46,15 @@ function ProgressBar({ completed, total }) {
   const pct = total ? Math.min(Math.round((completed / total) * 100), 100) : 0;
   return (
     <div style={{ width: "100%" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: 5,
-        }}
-      >
-        <span
-          style={{
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 11,
-            color: C.textLight,
-            fontWeight: 500,
-          }}
-        >
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: C.textLight, fontWeight: 500 }}>
           {completed}/{total} chapters
         </span>
-        <span
-          style={{
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 12,
-            fontWeight: 700,
-            color: C.deep,
-          }}
-        >
+        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 700, color: C.deep }}>
           {pct}%
         </span>
       </div>
-      <div
-        style={{
-          height: 7,
-          borderRadius: 99,
-          background: `${C.mist}55`,
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ height: 7, borderRadius: 99, background: `${C.mist}55`, overflow: "hidden" }}>
         <div
           style={{
             height: "100%",
@@ -103,9 +78,7 @@ export default function CurriculumPage() {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showChaptersModal, setShowChaptersModal] = useState(false);
 
-  useEffect(() => {
-    fetchAssignments();
-  }, []);
+  useEffect(() => { fetchAssignments(); }, []);
 
   async function fetchAssignments() {
     try {
@@ -126,34 +99,24 @@ export default function CurriculumPage() {
   const grouped = assignments.reduce((acc, a) => {
     const key = `${a.subjectId}_${a.grade}`;
     if (!acc[key])
-      acc[key] = {
-        subject: a.subject,
-        grade: a.grade,
-        syllabus: a.syllabus,
-        sections: [],
-      };
+      acc[key] = { subject: a.subject, grade: a.grade, syllabus: a.syllabus, sections: [] };
     acc[key].sections.push(a);
     return acc;
   }, {});
 
   return (
     <>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap"
-        rel="stylesheet"
-      />
+      <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       <style>{`
         * { box-sizing: border-box; }
         @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
         .fade-up { animation: fadeUp 0.45s ease forwards; }
-
         .curr-page { padding: 20px 16px; }
         .curr-subject-header { flex-direction: column; align-items: flex-start !important; gap: 10px !important; }
         .curr-set-btn { width: 100%; justify-content: center; }
         .curr-sections-grid { grid-template-columns: 1fr !important; }
         .curr-section-row { flex-direction: column; align-items: flex-start !important; gap: 10px !important; }
         .curr-section-btn { width: 100%; justify-content: center; }
-
         @media (min-width: 480px) {
           .curr-page { padding: 20px 20px; }
           .curr-sections-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important; }
@@ -165,9 +128,7 @@ export default function CurriculumPage() {
           .curr-section-row { flex-direction: row !important; align-items: center !important; }
           .curr-section-btn { width: auto; }
         }
-        @media (min-width: 1024px) {
-          .curr-page { padding: 28px 32px; }
-        }
+        @media (min-width: 1024px) { .curr-page { padding: 28px 32px; } }
       `}</style>
 
       <div
@@ -179,95 +140,33 @@ export default function CurriculumPage() {
           backgroundImage: `radial-gradient(circle at 15% 0%, ${C.mist}28 0%, transparent 50%)`,
         }}
       >
-        {/* ── Header ── */}
+        {/* Header */}
         <div style={{ marginBottom: 24 }} className="fade-up">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 5,
-            }}
-          >
-            <div
-              style={{
-                width: 4,
-                height: 28,
-                borderRadius: 99,
-                background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`,
-                flexShrink: 0,
-              }}
-            />
-            <h1
-              style={{
-                margin: 0,
-                fontSize: "clamp(18px, 5vw, 26px)",
-                fontWeight: 800,
-                color: C.text,
-                letterSpacing: "-0.5px",
-              }}
-            >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 5 }}>
+            <div style={{ width: 4, height: 28, borderRadius: 99, background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`, flexShrink: 0 }} />
+            <h1 style={{ margin: 0, fontSize: "clamp(18px, 5vw, 26px)", fontWeight: 800, color: C.text, letterSpacing: "-0.5px" }}>
               Curriculum Progress
             </h1>
           </div>
-          <p
-            style={{
-              margin: 0,
-              paddingLeft: 14,
-              fontSize: 12,
-              color: C.textLight,
-              fontWeight: 500,
-            }}
-          >
+          <p style={{ margin: 0, paddingLeft: 14, fontSize: 12, color: C.textLight, fontWeight: 500 }}>
             Manage chapter counts and track portion completion per section
           </p>
         </div>
 
         {error && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "12px 14px",
-              borderRadius: 12,
-              background: "#fee8e8",
-              border: "1px solid #f5b0b0",
-              marginBottom: 16,
-              fontSize: 13,
-              color: "#8b1c1c",
-            }}
-          >
-            <AlertCircle size={14} style={{ flexShrink: 0 }} />{" "}
-            <span>{error}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 12, background: "#fee8e8", border: "1px solid #f5b0b0", marginBottom: 16, fontSize: 13, color: "#8b1c1c" }}>
+            <AlertCircle size={14} style={{ flexShrink: 0 }} /> <span>{error}</span>
           </div>
         )}
 
-        {/* ── Loading ── */}
         {loading ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                style={{
-                  background: C.white,
-                  borderRadius: 16,
-                  border: `1.5px solid ${C.borderLight}`,
-                  padding: 20,
-                }}
-              >
+              <div key={i} style={{ background: C.white, borderRadius: 16, border: `1.5px solid ${C.borderLight}`, padding: 20 }}>
                 <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
                   <Pulse w={40} h={40} r={12} />
-                  <div
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 8,
-                    }}
-                  >
-                    <Pulse w="45%" h={14} />
-                    <Pulse w="28%" h={10} />
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <Pulse w="45%" h={14} /> <Pulse w="28%" h={10} />
                   </div>
                 </div>
                 <Pulse w="100%" h={70} r={12} />
@@ -275,251 +174,94 @@ export default function CurriculumPage() {
             ))}
           </div>
         ) : Object.keys(grouped).length === 0 ? (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              padding: "50px 0",
-              gap: 12,
-            }}
-          >
-            <div
-              style={{
-                width: 60,
-                height: 60,
-                borderRadius: 18,
-                background: `${C.sky}18`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: `1px solid ${C.sky}33`,
-              }}
-            >
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "50px 0", gap: 12 }}>
+            <div style={{ width: 60, height: 60, borderRadius: 18, background: `${C.sky}18`, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${C.sky}33` }}>
               <BookOpen size={26} color={C.sky} strokeWidth={1.5} />
             </div>
-            <p
-              style={{
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 13,
-                color: C.textLight,
-                margin: 0,
-              }}
-            >
+            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: C.textLight, margin: 0 }}>
               No subjects assigned yet
             </p>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {Object.values(grouped).map((group, gi) => (
-              <div
-                key={gi}
-                className="fade-up"
-                style={{
-                  background: C.white,
-                  borderRadius: 18,
-                  border: `1.5px solid ${C.borderLight}`,
-                  boxShadow: "0 2px 16px rgba(56,73,89,0.06)",
-                  overflow: "hidden",
-                }}
-              >
-                {/* ── Subject header ── */}
-                <div
-                  className="curr-subject-header"
-                  style={{
-                    padding: "14px 18px",
-                    background: `linear-gradient(90deg, ${C.bg}, ${C.white})`,
-                    borderBottom: `1.5px solid ${C.borderLight}`,
-                    display: "flex",
-                  }}
-                >
-                  {/* left: icon + name */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      flex: 1,
-                      minWidth: 0,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 12,
-                        background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        boxShadow: `0 4px 10px ${C.sky}44`,
-                        flexShrink: 0,
-                      }}
-                    >
+              <div key={gi} className="fade-up" style={{ background: C.white, borderRadius: 18, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 2px 16px rgba(56,73,89,0.06)", overflow: "hidden" }}>
+                {/* Subject header */}
+                <div className="curr-subject-header" style={{ padding: "14px 18px", background: `linear-gradient(90deg, ${C.bg}, ${C.white})`, borderBottom: `1.5px solid ${C.borderLight}`, display: "flex" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 10px ${C.sky}44`, flexShrink: 0 }}>
                       <BookOpen size={17} color="#fff" strokeWidth={2} />
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: 14,
-                          fontWeight: 700,
-                          color: C.text,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {group.subject?.name}
                       </p>
-                      <p
-                        style={{ margin: 0, fontSize: 11, color: C.textLight }}
-                      >
+                      <p style={{ margin: 0, fontSize: 11, color: C.textLight }}>
                         Grade {group.grade} · {group.subject?.code}
                       </p>
+                      {group.syllabus?.description && (
+                        <p style={{ margin: 0, fontSize: 11, color: C.textLight, marginTop: 3, lineHeight: 1.4 }}>
+                          {group.syllabus.description}
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  {/* right: buttons */}
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      flexShrink: 0,
-                      flexWrap: "wrap",
-                      justifyContent: "flex-end",
-                    }}
-                  >
-                    {/* ── Chapter names button ── */}
+                  <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {/* Chapter names/descriptions button */}
                     {group.syllabus && (
                       <button
-                        onClick={() => {
-                          setSelectedSubject(group);
-                          setShowChaptersModal(true);
-                        }}
+                        onClick={() => { setSelectedSubject(group); setShowChaptersModal(true); }}
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 5,
-                          padding: "8px 13px",
-                          borderRadius: 12,
-                          background: group.syllabus.chapterNames?.some((n) => n)
-                            ? `${C.sky}22`
-                            : `${C.mist}44`,
-                          border: `1px solid ${
-                            group.syllabus.chapterNames?.some((n) => n)
-                              ? C.sky
-                              : C.border
-                          }`,
-                          color: group.syllabus.chapterNames?.some((n) => n)
-                            ? C.deep
-                            : C.textLight,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          fontFamily: "'Inter', sans-serif",
-                          whiteSpace: "nowrap",
+                          display: "flex", alignItems: "center", gap: 5, padding: "8px 13px", borderRadius: 12,
+                          background: group.syllabus.chapters?.some((c) => c.name)
+                            ? `${C.sky}22` : `${C.mist}44`,
+                          border: `1px solid ${group.syllabus.chapters?.some((c) => c.name) ? C.sky : C.border}`,
+                          color: group.syllabus.chapters?.some((c) => c.name) ? C.deep : C.textLight,
+                          fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap",
                         }}
                       >
                         <BookOpen size={12} />
-                        {group.syllabus.chapterNames?.some((n) => n)
-                          ? "Edit chapter names"
-                          : "Add chapter names"}
+                        {group.syllabus.chapters?.some((c) => c.name) ? "Edit chapters" : "Add chapters"}
                       </button>
                     )}
 
-                    {/* ── Set/Edit total chapters button ── */}
+                    {/* Set/Edit total chapters button */}
                     <button
                       className="curr-set-btn"
-                      onClick={() => {
-                        setSelectedSubject(group);
-                        setShowSetModal(true);
-                      }}
+                      onClick={() => { setSelectedSubject(group); setShowSetModal(true); }}
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 6,
-                        padding: "8px 14px",
-                        borderRadius: 12,
-                        background: group.syllabus
-                          ? `${C.sky}18`
-                          : `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 14px", borderRadius: 12,
+                        background: group.syllabus ? `${C.sky}18` : `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
                         border: group.syllabus ? `1px solid ${C.sky}44` : "none",
                         color: group.syllabus ? C.deep : "#fff",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        fontFamily: "'Inter', sans-serif",
-                        whiteSpace: "nowrap",
-                        flexShrink: 0,
+                        fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap", flexShrink: 0,
                       }}
                     >
                       {group.syllabus ? (
-                        <>
-                          <Pencil size={12} /> Edit Chapters (
-                          {group.syllabus.totalChapters})
-                        </>
+                        <><Pencil size={12} /> Edit Chapters ({group.syllabus.totalChapters})</>
                       ) : (
-                        <>
-                          <Plus size={12} /> Set Total Chapters
-                        </>
+                        <><Plus size={12} /> Set Total Chapters</>
                       )}
                     </button>
                   </div>
                 </div>
 
-                {/* ── Sections ── */}
-                <div
-                  className="curr-sections-grid"
-                  style={{ padding: "14px 18px", display: "grid", gap: 12 }}
-                >
+                {/* Sections */}
+                <div className="curr-sections-grid" style={{ padding: "14px 18px", display: "grid", gap: 12 }}>
                   {group.sections.map((sec, si) => (
                     <div
                       key={si}
-                      style={{
-                        borderRadius: 13,
-                        border: `1.5px solid ${C.borderLight}`,
-                        padding: "14px 16px",
-                        background: C.bg,
-                        transition: "box-shadow 0.2s",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.boxShadow = `0 4px 16px ${C.sky}28`)
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.boxShadow = "none")
-                      }
+                      style={{ borderRadius: 13, border: `1.5px solid ${C.borderLight}`, padding: "14px 16px", background: C.bg, transition: "box-shadow 0.2s" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = `0 4px 16px ${C.sky}28`)}
+                      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
                     >
-                      {/* section row: name + button */}
-                      <div
-                        className="curr-section-row"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          marginBottom: 12,
-                        }}
-                      >
+                      <div className="curr-section-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                         <div>
-                          <p
-                            style={{
-                              margin: 0,
-                              fontSize: 13,
-                              fontWeight: 700,
-                              color: C.text,
-                            }}
-                          >
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>
                             {sec.classSection?.name}
                           </p>
-                          <p
-                            style={{
-                              margin: 0,
-                              fontSize: 10,
-                              color: C.textLight,
-                              marginTop: 2,
-                            }}
-                          >
+                          <p style={{ margin: 0, fontSize: 10, color: C.textLight, marginTop: 2 }}>
                             {sec.progress?.updatedAt
                               ? `Updated ${new Date(sec.progress.updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
                               : "Not started"}
@@ -527,30 +269,14 @@ export default function CurriculumPage() {
                         </div>
                         <button
                           className="curr-section-btn"
-                          onClick={() => {
-                            setSelectedSubject({
-                              ...group,
-                              activeSection: sec,
-                            });
-                            setShowUpdateModal(true);
-                          }}
+                          onClick={() => { setSelectedSubject({ ...group, activeSection: sec }); setShowUpdateModal(true); }}
                           disabled={!group.syllabus}
                           style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 5,
-                            padding: "7px 14px",
-                            borderRadius: 10,
-                            background: group.syllabus
-                              ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
-                              : C.border,
+                            display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "7px 14px", borderRadius: 10,
+                            background: group.syllabus ? `linear-gradient(135deg, ${C.slate}, ${C.deep})` : C.border,
                             border: "none",
                             color: group.syllabus ? "#fff" : C.textLight,
-                            fontSize: 12,
-                            fontWeight: 700,
-                            cursor: group.syllabus ? "pointer" : "not-allowed",
-                            fontFamily: "'Inter', sans-serif",
+                            fontSize: 12, fontWeight: 700, cursor: group.syllabus ? "pointer" : "not-allowed", fontFamily: "'Inter', sans-serif",
                           }}
                         >
                           <CheckCircle2 size={12} /> Update
@@ -572,31 +298,21 @@ export default function CurriculumPage() {
       {showSetModal && selectedSubject && (
         <SetChaptersModal
           group={selectedSubject}
-          onClose={() => {
-            setShowSetModal(false);
-            setSelectedSubject(null);
-          }}
+          onClose={() => { setShowSetModal(false); setSelectedSubject(null); }}
           onSaved={fetchAssignments}
         />
       )}
       {showUpdateModal && selectedSubject && (
         <UpdateProgressModal
           group={selectedSubject}
-          onClose={() => {
-            setShowUpdateModal(false);
-            setSelectedSubject(null);
-          }}
+          onClose={() => { setShowUpdateModal(false); setSelectedSubject(null); }}
           onSaved={fetchAssignments}
         />
       )}
-
       {showChaptersModal && selectedSubject && (
         <ChapterNamesModal
           group={selectedSubject}
-          onClose={() => {
-            setShowChaptersModal(false);
-            setSelectedSubject(null);
-          }}
+          onClose={() => { setShowChaptersModal(false); setSelectedSubject(null); }}
           onSaved={fetchAssignments}
         />
       )}
@@ -607,44 +323,68 @@ export default function CurriculumPage() {
 /* ── Set Total Chapters Modal ─────────────────────────────── */
 function SetChaptersModal({ group, onClose, onSaved }) {
   const [total, setTotal] = useState(group.syllabus?.totalChapters ?? "");
+  const [description, setDescription] = useState(group.syllabus?.description || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const originalTotal = group.syllabus?.totalChapters ?? "";
+const originalDescription = group.syllabus?.description || "";
+
   async function handleSave() {
     const num = Number(total);
-    if (!num || num < 1) {
+
+    // allow empty (partial update)
+    if (total !== "" && (isNaN(num) || num < 1)) {
       setError("Please enter a valid number of chapters (minimum 1)");
       return;
     }
     try {
       setSaving(true);
       setError("");
-
-      // ── BUG FIX: use correct endpoint and body ──
-      // If syllabus already exists → PUT (update), else → POST (create)
       const method = group.syllabus ? "PUT" : "POST";
-      const endpoint = group.syllabus
-        ? `${API_URL}/api/teacher/curriculum/syllabus`   // PUT
-        : `${API_URL}/api/teacher/curriculum/syllabus`;  // POST
+const payload = {
+  subjectId: group.subject.id,
+  grade: group.grade,
+};
 
-      const res = await fetch(endpoint, {
+// 👉 CREATE (POST) → total is REQUIRED
+      if (!group.syllabus) {
+        if (!total || isNaN(Number(total)) || Number(total) < 1) {
+          setError("Total chapters is required");
+          setSaving(false);
+          return;
+        }
+
+        payload.totalChapters = Number(total);
+
+        if (description) {
+          payload.description = description;
+        }
+      }
+
+      // 👉 UPDATE (PUT) → partial allowed
+      else {
+        if (total !== "" && Number(total) !== originalTotal) {
+          payload.totalChapters = Number(total);
+        }
+
+        if (description !== originalDescription) {
+          payload.description = description;
+        }
+      }
+
+      const res = await fetch(`${API_URL}/api/teacher/curriculum/syllabus`, {
         method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${getToken()}`,
         },
-        body: JSON.stringify({
-          subjectId: group.subject.id,
-          grade: group.grade,
-          totalChapters: num,            // ✅ FIXED: was sending `names` and `chapterNames`
-        }),
+        body: JSON.stringify(payload),
       });
-
       if (!res.ok) {
         const d = await res.json();
         throw new Error(d.message || "Failed to save");
       }
-
       onSaved();
       onClose();
     } catch (e) {
@@ -656,116 +396,340 @@ function SetChaptersModal({ group, onClose, onSaved }) {
 
   return (
     <Modal title={`Set Chapters — ${group.subject?.name}`} onClose={onClose}>
-      <p
-        style={{
-          fontSize: 12,
-          color: C.textLight,
-          margin: "0 0 16px",
-          fontFamily: "'Inter', sans-serif",
-        }}
-      >
-        Applies to all sections of{" "}
-        <strong style={{ color: C.deep }}>Grade {group.grade}</strong>
+      <p style={{ fontSize: 12, color: C.textLight, margin: "0 0 16px", fontFamily: "'Inter', sans-serif" }}>
+        Applies to all sections of <strong style={{ color: C.deep }}>Grade {group.grade}</strong>
       </p>
-      <label
-        style={{
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 12,
-          fontWeight: 600,
-          color: C.text,
-          display: "block",
-          marginBottom: 6,
-        }}
-      >
-        Total Chapters
-      </label>
+
+      <label style={labelStyle}>Total Chapters</label>
       <input
-        type="number"
-        min={1}
-        value={total}
+        type="number" min={1} value={total}
         onChange={(e) => setTotal(e.target.value)}
         placeholder="e.g. 15"
-        style={{
-          width: "100%",
-          padding: "10px 14px",
-          borderRadius: 12,
-          border: `1.5px solid ${C.border}`,
-          fontFamily: "'Inter', sans-serif",
-          fontSize: 14,
-          fontWeight: 600,
-          color: C.text,
-          background: C.bg,
-          outline: "none",
-        }}
+        style={inputStyle}
       />
-      {error && (
-        <p
-          style={{
-            color: "#c0392b",
-            fontSize: 11,
-            margin: "8px 0 0",
-            fontFamily: "'Inter', sans-serif",
-          }}
-        >
-          {error}
-        </p>
-      )}
+
+      <label style={{ ...labelStyle, marginTop: 14 }}>Subject Description <span style={{ color: C.textLight, fontWeight: 400 }}>(optional)</span></label>
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Brief overview of this subject's curriculum…"
+        rows={3}
+        style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+      />
+
+      {error && <p style={errorStyle}>{error}</p>}
+
       <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-        <button
-          onClick={onClose}
-          style={{
-            flex: 1,
-            padding: "10px",
-            borderRadius: 12,
-            border: `1.5px solid ${C.border}`,
-            background: C.white,
-            color: C.textLight,
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            flex: 2,
-            padding: "10px",
-            borderRadius: 12,
-            border: "none",
-            background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
-            color: "#fff",
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-          }}
-        >
-          {saving ? (
-            <>
-              <Loader2 size={14} className="animate-spin" /> Saving...
-            </>
-          ) : (
-            "Save"
-          )}
+        <button onClick={onClose} style={cancelBtnStyle}>Cancel</button>
+        <button onClick={handleSave} disabled={saving} style={saveBtnStyle}>
+          {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : "Save"}
         </button>
       </div>
     </Modal>
   );
 }
 
+function ChapterNamesModal({ group, onClose, onSaved }) {
+  const total = group.syllabus?.totalChapters ?? 0;
+
+  const [chapters, setChapters] = useState(() => {
+    const existing = group.syllabus?.chapters ?? [];
+    return Array.from({ length: total }, (_, i) => ({
+      name: existing[i]?.name ?? "",
+      description: existing[i]?.description ?? "",
+    }));
+  });
+
+  const [expandedIndex, setExpandedIndex] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function handleFieldChange(index, field, value) {
+    setChapters((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+    setError("");
+  }
+
+  async function handleSave() {
+      const hasAtLeastOne = chapters.some((c) => c.name.trim());
+
+      if (!hasAtLeastOne) {
+        setError("Please add at least one chapter");
+        return;
+      }
+    try {
+      setSaving(true);
+      setError("");
+      const res = await fetch(`${API_URL}/api/teacher/curriculum/chapters`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          subjectId: group.subject.id,
+          grade: group.grade,
+            chapters: chapters
+              .filter((c) => c.name.trim()) // ignore empty chapters
+              .map((c) => ({
+                name: c.name.trim(),
+                description: c.description.trim(),
+              })),
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.message || "Failed to save");
+      }
+      onSaved();
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const filledCount = chapters.filter((c) => c.name.trim()).length;
+
+  return (
+    <Modal
+      title={`Chapters — ${group.subject?.name} · Grade ${group.grade}`}
+      onClose={onClose}
+      wide
+    >
+      {/* 
+        KEY FIX: wrap everything in a div with role="presentation" 
+        so Chrome does NOT treat this as a form 
+      */}
+      <div role="presentation">
+        <p
+          style={{
+            fontSize: 12,
+            color: C.textLight,
+            margin: "0 0 14px",
+            fontFamily: "'Inter', sans-serif",
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ color: C.deep }}>{filledCount}/{total} named</strong>
+          <span style={{ marginLeft: 6 }}>
+            · Add a description per chapter for richer tracking
+          </span>
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            overflowY: "auto",
+            overflowX: "hidden",
+            paddingRight: 4,
+            width: "100%",
+          }}
+        >
+          {chapters.map((ch, i) => {
+            const isOpen = expandedIndex === i;
+            const hasDesc = !!ch.description.trim();
+
+            return (
+              <div
+                key={i}
+                style={{
+                  borderRadius: 12,
+                  border: `1.5px solid ${ch.name.trim() ? C.sky : C.border}`,
+                  background: ch.name.trim() ? `${C.sky}08` : C.white,
+                  overflow: "hidden",
+                  width: "100%",
+                  boxSizing: "border-box",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 10px",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {/* Number badge */}
+                  <div
+                    style={{
+                      width: 26,
+                      height: 26,
+                      minWidth: 26,
+                      borderRadius: 8,
+                      flexShrink: 0,
+                      background: ch.name.trim()
+                        ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
+                        : `${C.mist}55`,
+                      border: `1px solid ${
+                        ch.name.trim() ? "transparent" : C.border
+                      }`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: ch.name.trim() ? "#fff" : C.textLight,
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+
+                  {/* 
+                    KEY FIX: use type="search" — Chrome NEVER shows 
+                    autofill/password icons on search inputs 
+                  */}
+                  <input
+                    type="search"
+                    value={ch.name}
+                    onChange={(e) => handleFieldChange(i, "name", e.target.value)}
+                    placeholder={`Chapter ${i + 1} name…`}
+                    maxLength={120}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      padding: "7px 10px",
+                      borderRadius: 8,
+                      border: `1px solid ${ch.name.trim() ? C.sky : C.border}`,
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 13,
+                      fontWeight: ch.name.trim() ? 600 : 400,
+                      color: C.text,
+                      background: "transparent",
+                      outline: "none",
+                      boxSizing: "border-box",
+                      // hide the default search clear button
+                      WebkitAppearance: "none",
+                      MozAppearance: "none",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = C.sky)}
+                    onBlur={(e) =>
+                      (e.target.style.borderColor = ch.name.trim()
+                        ? C.sky
+                        : C.border)
+                    }
+                  />
+
+                  {/* Expand toggle */}
+                  <button
+                    onClick={() => setExpandedIndex(isOpen ? null : i)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      minWidth: 28,
+                      borderRadius: 8,
+                      flexShrink: 0,
+                      background: hasDesc ? `${C.sky}22` : C.bg,
+                      border: `1px solid ${hasDesc ? C.sky : C.border}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      color: hasDesc ? C.deep : C.textLight,
+                    }}
+                  >
+                    {isOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  </button>
+                </div>
+
+                {/* Description — use contentEditable div, NOT textarea */}
+                {isOpen && (
+                  <div style={{ padding: "0 10px 10px", boxSizing: "border-box", width: "100%" }}>
+                  <div
+                    contentEditable
+                    suppressContentEditableWarning
+                    ref={(el) => {
+                      if (el && el.textContent !== ch.description) {
+                        el.textContent = ch.description;
+                      }
+                    }}
+                    onInput={(e) =>
+                      handleFieldChange(
+                        i,
+                        "description",
+                        e.currentTarget.textContent || ""
+                      )
+                    }
+                    data-placeholder="Brief description of what this chapter covers…"
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        minHeight: 52,
+                        maxHeight: 120,
+                        overflowY: "auto",
+                        padding: "8px 10px",
+                        borderRadius: 9,
+                        border: `1.5px solid ${C.sky}66`,
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12,
+                        color: C.text,
+                        background: C.white,
+                        outline: "none",
+                        lineHeight: 1.5,
+                        boxSizing: "border-box",
+                        wordBreak: "break-word",
+                        whiteSpace: "pre-wrap",
+                      }}
+                    />
+                    {/* placeholder via CSS since contentEditable can't use placeholder attr */}
+                    <style>{`
+                      [contenteditable][data-placeholder]:empty::before {
+                        content: attr(data-placeholder);
+                        color: #aab8c8;
+                        pointer-events: none;
+                      }
+                    `}</style>
+                    <p
+                      style={{
+                        margin: "4px 0 0",
+                        fontSize: 10,
+                        color: C.textLight,
+                        textAlign: "right",
+                      }}
+                    >
+                      {ch.description.length}/500
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {error && <p style={errorStyle}>{error}</p>}
+
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+          <button onClick={onClose} style={cancelBtnStyle}>
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving} style={saveBtnStyle}>
+            {saving ? (
+              <>
+                <Loader2 size={14} className="animate-spin" /> Saving…
+              </>
+            ) : (
+              "Save chapters"
+            )}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 /* ── Update Progress Modal ────────────────────────────────── */
 function UpdateProgressModal({ group, onClose, onSaved }) {
   const total = group.syllabus?.totalChapters ?? 0;
-  const chapterNames = group.syllabus?.chapterNames ?? [];
-  const hasNames = chapterNames.some((n) => n?.trim());
+  const chapters = group.syllabus?.chapters ?? [];
+  const hasNames = chapters.some((c) => c?.name?.trim());
 
   const [mode, setMode] = useState(hasNames ? "select" : "number");
   const [completed, setCompleted] = useState(
@@ -786,6 +750,8 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
   });
 
   const completedFromChecks = checkedChapters.filter(Boolean).length;
+  const effectiveCompleted = mode === "select" ? completedFromChecks : Number(completed);
+  const pct = total ? Math.min(Math.round((effectiveCompleted / total) * 100), 100) : 0;
 
   function toggleChapter(index) {
     setCheckedChapters((prev) => {
@@ -795,12 +761,6 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
     });
   }
 
-  const effectiveCompleted =
-    mode === "select" ? completedFromChecks : Number(completed);
-  const pct = total
-    ? Math.min(Math.round((effectiveCompleted / total) * 100), 100)
-    : 0;
-
   async function handleSave() {
     const val = effectiveCompleted;
     if (isNaN(val) || val < 0 || val > total) {
@@ -809,26 +769,19 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
     }
     try {
       setSaving(true);
-
-      // ── BUG FIX: send completedChapterIndices ──
       const completedChapterIndices =
         mode === "select"
-          ? checkedChapters
-              .map((checked, i) => (checked ? i : -1))
-              .filter((i) => i !== -1)
-          : Array.from({ length: val }, (_, i) => i); // number mode: assume serial
+          ? checkedChapters.map((checked, i) => (checked ? i : -1)).filter((i) => i !== -1)
+          : Array.from({ length: val }, (_, i) => i);
 
       const res = await fetch(`${API_URL}/api/teacher/curriculum/progress`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({
           subjectId: group.subject.id,
           classSectionId: group.activeSection.classSection.id,
           completedChapters: val,
-          completedChapterIndices,        // ✅ FIXED: was missing entirely
+          completedChapterIndices,
         }),
       });
       if (!res.ok) {
@@ -845,57 +798,23 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
   }
 
   return (
-    <Modal
-      title={`Update — ${group.activeSection?.classSection?.name}`}
-      onClose={onClose}
-    >
-      <p
-        style={{
-          fontSize: 12,
-          color: C.textLight,
-          margin: "0 0 12px",
-          fontFamily: "'Inter', sans-serif",
-        }}
-      >
-        <strong style={{ color: C.deep }}>{group.subject?.name}</strong> ·{" "}
-        <strong style={{ color: C.deep }}>{total} chapters</strong>
+    <Modal title={`Update — ${group.activeSection?.classSection?.name}`} onClose={onClose}>
+      <p style={{ fontSize: 12, color: C.textLight, margin: "0 0 12px", fontFamily: "'Inter', sans-serif" }}>
+        <strong style={{ color: C.deep }}>{group.subject?.name}</strong> · <strong style={{ color: C.deep }}>{total} chapters</strong>
       </p>
 
-      {/* ── Mode toggle (only show if chapter names exist) ── */}
+      {/* Mode toggle */}
       {hasNames && (
-        <div
-          style={{
-            display: "flex",
-            gap: 6,
-            marginBottom: 14,
-            background: C.bg,
-            borderRadius: 10,
-            padding: 4,
-            border: `1.5px solid ${C.borderLight}`,
-          }}
-        >
-          {[
-            { key: "select", label: "By chapter" },
-            { key: "number", label: "By number" },
-          ].map((opt) => (
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, background: C.bg, borderRadius: 10, padding: 4, border: `1.5px solid ${C.borderLight}` }}>
+          {[{ key: "select", label: "By chapter" }, { key: "number", label: "By number" }].map((opt) => (
             <button
               key={opt.key}
               onClick={() => setMode(opt.key)}
               style={{
-                flex: 1,
-                padding: "7px 0",
-                borderRadius: 8,
-                border: "none",
-                background:
-                  mode === opt.key
-                    ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
-                    : "transparent",
+                flex: 1, padding: "7px 0", borderRadius: 8, border: "none",
+                background: mode === opt.key ? `linear-gradient(135deg, ${C.slate}, ${C.deep})` : "transparent",
                 color: mode === opt.key ? "#fff" : C.textLight,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "'Inter', sans-serif",
-                transition: "all 0.2s",
+                fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "all 0.2s",
               }}
             >
               {opt.label}
@@ -904,101 +823,48 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
         </div>
       )}
 
-      {/* ── Live progress preview ── */}
-      <div
-        style={{
-          margin: "0 0 14px",
-          padding: "12px 14px",
-          borderRadius: 13,
-          background: C.bg,
-          border: `1.5px solid ${C.borderLight}`,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: 7,
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 11,
-              color: C.textLight,
-            }}
-          >
+      {/* Progress preview */}
+      <div style={{ margin: "0 0 14px", padding: "12px 14px", borderRadius: 13, background: C.bg, border: `1.5px solid ${C.borderLight}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: C.textLight }}>
             {effectiveCompleted}/{total} chapters · Preview
           </span>
-          <span
-            style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 13,
-              fontWeight: 800,
-              color: C.deep,
-            }}
-          >
-            {pct}%
-          </span>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 800, color: C.deep }}>{pct}%</span>
         </div>
-        <div
-          style={{
-            height: 8,
-            borderRadius: 99,
-            background: `${C.mist}55`,
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              height: "100%",
-              width: `${pct}%`,
-              background: `linear-gradient(90deg, ${C.slate}, ${C.deep})`,
-              borderRadius: 99,
-              transition: "width 0.4s ease",
-            }}
-          />
+        <div style={{ height: 8, borderRadius: 99, background: `${C.mist}55`, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${C.slate}, ${C.deep})`, borderRadius: 99, transition: "width 0.4s ease" }} />
         </div>
       </div>
 
-      {/* ── Select mode: chapter checklist ── */}
+      {/* Select mode: chapter checklist with description tooltip */}
       {mode === "select" && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-            maxHeight: 240,
-            overflowY: "auto",
-            paddingRight: 4,
-            marginBottom: 4,
-          }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto", paddingRight: 4, marginBottom: 4 }}>
           {Array.from({ length: total }, (_, i) => {
-            const name = chapterNames[i]?.trim() || `Chapter ${i + 1}`;
+            const chapter = chapters[i];
+            const name = chapter?.name?.trim() || `Chapter ${i + 1}`;
+            const description = chapter?.description?.trim() || "";
             const checked = checkedChapters[i] ?? false;
             return (
               <div
                 key={i}
                 onClick={() => toggleChapter(i)}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "9px 12px",
-                  borderRadius: 10,
+                  borderRadius: 12,
                   border: `1.5px solid ${checked ? C.sky : C.borderLight}`,
                   background: checked ? `${C.sky}14` : C.white,
+                  padding: "12px 14px",
                   cursor: "pointer",
-                  transition: "all 0.15s",
-                  userSelect: "none",
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "flex-start",
                 }}
               >
+                {/* checkbox */}
                 <div
                   style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: 5,
+                    width: 20,
+                    height: 20,
+                    borderRadius: 6,
                     border: `2px solid ${checked ? C.deep : C.border}`,
                     background: checked
                       ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
@@ -1007,159 +873,66 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
                     alignItems: "center",
                     justifyContent: "center",
                     flexShrink: 0,
-                    transition: "all 0.15s",
+                    marginTop: 2,
                   }}
                 >
                   {checked && (
-                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                      <path
-                        d="M1 4l3 3 5-6"
-                        stroke="#fff"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
+                    <svg width="10" height="8">
+                      <path d="M1 4l3 3 5-6" stroke="#fff" strokeWidth="2" />
                     </svg>
                   )}
                 </div>
-                <div
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 6,
-                    background: checked
-                      ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
-                      : `${C.mist}55`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: checked ? "#fff" : C.textLight,
-                    flexShrink: 0,
-                    fontFamily: "'Inter', sans-serif",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  {i + 1}
+
+                {/* content */}
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: checked ? C.text : C.textLight,
+                    }}
+                  >
+                    {i + 1}. {name}
+                  </div>
+
+                  {description && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: C.textLight,
+                        marginTop: 4,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {description}
+                    </div>
+                  )}
                 </div>
-                <span
-                  style={{
-                    fontFamily: "'Inter', sans-serif",
-                    fontSize: 12,
-                    fontWeight: checked ? 700 : 400,
-                    color: checked ? C.text : C.textLight,
-                    flex: 1,
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {name}
-                </span>
-                {checked && (
-                  <CheckCircle2 size={13} color={C.slate} strokeWidth={2.5} />
-                )}
               </div>
             );
           })}
         </div>
       )}
 
-      {/* ── Number mode: plain input ── */}
+      {/* Number mode */}
       {mode === "number" && (
         <>
-          <label
-            style={{
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 12,
-              fontWeight: 600,
-              color: C.text,
-              display: "block",
-              marginBottom: 6,
-            }}
-          >
-            Completed Chapters
-          </label>
+          <label style={labelStyle}>Completed Chapters</label>
           <input
-            type="number"
-            min={0}
-            max={total}
-            value={completed}
+            type="number" min={0} max={total} value={completed}
             onChange={(e) => setCompleted(e.target.value)}
             placeholder={`0 – ${total}`}
-            style={{
-              width: "100%",
-              padding: "10px 14px",
-              borderRadius: 12,
-              border: `1.5px solid ${C.border}`,
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 14,
-              fontWeight: 600,
-              color: C.text,
-              background: C.bg,
-              outline: "none",
-            }}
+            style={inputStyle}
           />
         </>
       )}
 
-      {error && (
-        <p
-          style={{
-            color: "#c0392b",
-            fontSize: 11,
-            margin: "8px 0 0",
-            fontFamily: "'Inter', sans-serif",
-          }}
-        >
-          {error}
-        </p>
-      )}
+      {error && <p style={errorStyle}>{error}</p>}
 
       <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-        <button
-          onClick={onClose}
-          style={{
-            flex: 1,
-            padding: "10px",
-            borderRadius: 12,
-            border: `1.5px solid ${C.border}`,
-            background: C.white,
-            color: C.textLight,
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            flex: 2,
-            padding: "10px",
-            borderRadius: 12,
-            border: "none",
-            background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
-            color: "#fff",
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-          }}
-        >
-          {saving ? (
-            <>
-              <Loader2 size={14} className="animate-spin" /> Saving...
-            </>
-          ) : (
-            "Save Progress"
-          )}
+        <button onClick={onClose} style={cancelBtnStyle}>Cancel</button>
+        <button onClick={handleSave} disabled={saving} style={saveBtnStyle}>
+          {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : "Save Progress"}
         </button>
       </div>
     </Modal>
@@ -1167,7 +940,7 @@ function UpdateProgressModal({ group, onClose, onSaved }) {
 }
 
 /* ── Generic Modal wrapper ────────────────────────────────── */
-function Modal({ title, onClose, children }) {
+function Modal({ title, onClose, children, wide = false }) {
   return (
     <div
       style={{
@@ -1179,7 +952,7 @@ function Modal({ title, onClose, children }) {
         alignItems: "center",
         justifyContent: "center",
         zIndex: 1000,
-        padding: 16,
+       padding: "12px 8px",
       }}
     >
       <div
@@ -1189,16 +962,21 @@ function Modal({ title, onClose, children }) {
           border: `1.5px solid ${C.borderLight}`,
           boxShadow: `0 24px 64px rgba(56,73,89,0.22)`,
           width: "100%",
-          maxWidth: 420,
+          maxWidth: wide ? "min(520px, 96vw)" : "min(420px, 96vw)",
           padding: "22px 22px",
+          maxHeight: "90vh",
+          overflowY: "auto",
+        
+          boxSizing: "border-box",
         }}
       >
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-start",
             justifyContent: "space-between",
             marginBottom: 18,
+            gap: 10,
           }}
         >
           <h2
@@ -1209,7 +987,8 @@ function Modal({ title, onClose, children }) {
               fontWeight: 800,
               color: C.text,
               flex: 1,
-              marginRight: 10,
+              wordBreak: "break-word",   // ← long subject names wrap instead of overflow
+              lineHeight: 1.4,
             }}
           >
             {title}
@@ -1219,6 +998,7 @@ function Modal({ title, onClose, children }) {
             style={{
               width: 28,
               height: 28,
+              minWidth: 28,              // ← stop shrinking
               borderRadius: 8,
               border: `1px solid ${C.border}`,
               background: C.bg,
@@ -1241,205 +1021,62 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-/* ── Chapter Names Modal ──────────────────────────────────── */
-function ChapterNamesModal({ group, onClose, onSaved }) {
-  const total = group.syllabus?.totalChapters ?? 0;
+/* ── Shared style objects ─────────────────────────────────── */
+const labelStyle = {
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 12,
+  fontWeight: 600,
+  color: C.text,
+  display: "block",
+  marginBottom: 6,
+};
 
-  const [names, setNames] = useState(() => {
-    const existing = group.syllabus?.chapterNames ?? [];
-    return Array.from({ length: total }, (_, i) => existing[i] ?? "");
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+const inputStyle = {
+  width: "100%",
+  padding: "10px 14px",
+  borderRadius: 12,
+  border: `1.5px solid ${C.border}`,
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 14,
+  fontWeight: 600,
+  color: C.text,
+  background: C.bg,
+  outline: "none",
+};
 
-  function handleChange(index, value) {
-    setNames((prev) => {
-      const next = [...prev];
-      next[index] = value;
-      return next;
-    });
-  }
+const errorStyle = {
+  color: "#c0392b",
+  fontSize: 11,
+  margin: "8px 0 0",
+  fontFamily: "'Inter', sans-serif",
+};
 
-  // ── BUG FIX: correct request body for chapter names ──
-  async function handleSave() {
-    try {
-      setSaving(true);
-      setError("");
-      const res = await fetch(`${API_URL}/api/teacher/curriculum/chapters`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-        body: JSON.stringify({
-          subjectId: group.subject.id,
-          grade: group.grade,             // ✅ FIXED: was using classSectionId + completedChapters
-          chapterNames: names,            // ✅ FIXED: correct payload for this endpoint
-        }),
-      });
-      if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.message || "Failed to save");
-      }
-      onSaved();
-      onClose();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setSaving(false);
-    }
-  }
+const cancelBtnStyle = {
+  flex: 1,
+  padding: "10px",
+  borderRadius: 12,
+  border: `1.5px solid ${C.border}`,
+  background: C.white,
+  color: C.textLight,
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+};
 
-  const filledCount = names.filter((n) => n.trim()).length;
-
-  return (
-    <Modal
-      title={`Chapter names — ${group.subject?.name} · Grade ${group.grade}`}
-      onClose={onClose}
-    >
-      <p
-        style={{
-          fontSize: 12,
-          color: C.textLight,
-          margin: "0 0 14px",
-          fontFamily: "'Inter', sans-serif",
-          lineHeight: 1.5,
-        }}
-      >
-        <strong style={{ color: C.deep }}>
-          {filledCount}/{total} named
-        </strong>
-      </p>
-
-      {/* Scrollable chapter list */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          maxHeight: 320,
-          overflowY: "auto",
-          paddingRight: 4,
-          marginBottom: 4,
-        }}
-      >
-        {Array.from({ length: total }, (_, i) => (
-          <div
-            key={i}
-            style={{ display: "flex", alignItems: "center", gap: 8 }}
-          >
-            <div
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: 7,
-                background: names[i]?.trim()
-                  ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
-                  : `${C.mist}55`,
-                border: `1px solid ${names[i]?.trim() ? "transparent" : C.border}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 10,
-                fontWeight: 700,
-                color: names[i]?.trim() ? "#fff" : C.textLight,
-                flexShrink: 0,
-                fontFamily: "'Inter', sans-serif",
-                transition: "all 0.2s",
-              }}
-            >
-              {i + 1}
-            </div>
-            <input
-              type="text"
-              value={names[i]}
-              onChange={(e) => handleChange(i, e.target.value)}
-              placeholder={`Chapter ${i + 1} name…`}
-              maxLength={100}
-              style={{
-                flex: 1,
-                padding: "8px 12px",
-                borderRadius: 10,
-                border: `1.5px solid ${names[i]?.trim() ? C.sky : C.border}`,
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 13,
-                fontWeight: names[i]?.trim() ? 600 : 400,
-                color: C.text,
-                background: C.bg,
-                outline: "none",
-                transition: "border-color 0.2s",
-              }}
-              onFocus={(e) => (e.target.style.borderColor = C.sky)}
-              onBlur={(e) =>
-                (e.target.style.borderColor = names[i]?.trim()
-                  ? C.sky
-                  : C.border)
-              }
-            />
-          </div>
-        ))}
-      </div>
-
-      {error && (
-        <p
-          style={{
-            color: "#c0392b",
-            fontSize: 11,
-            margin: "6px 0 0",
-            fontFamily: "'Inter', sans-serif",
-          }}
-        >
-          {error}
-        </p>
-      )}
-
-      <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-        <button
-          onClick={onClose}
-          style={{
-            flex: 1,
-            padding: "10px",
-            borderRadius: 12,
-            border: `1.5px solid ${C.border}`,
-            background: C.white,
-            color: C.textLight,
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            flex: 2,
-            padding: "10px",
-            borderRadius: 12,
-            border: "none",
-            background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
-            color: "#fff",
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-          }}
-        >
-          {saving ? (
-            <>
-              <Loader2 size={14} className="animate-spin" /> Saving...
-            </>
-          ) : (
-            "Save chapter names"
-          )}
-        </button>
-      </div>
-    </Modal>
-  );
-}
+const saveBtnStyle = {
+  flex: 2,
+  padding: "10px",
+  borderRadius: 12,
+  border: "none",
+  background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
+  color: "#fff",
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+};

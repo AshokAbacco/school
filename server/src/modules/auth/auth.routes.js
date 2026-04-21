@@ -8,28 +8,40 @@ import {
   loginParent,
   loginFinance,
 } from "./auth.controller.js";
+import { authLimiter } from "../../middlewares/rateLimiter.js";
+
 
 const router = Router();
 
 // ── Super Admin ────────────────────────────────────────────────
 // POST /api/auth/super-admin/register  ← NEW (register university + super admin)
+// ── Super Admin ────────────────────────────────────────────────
 router.post("/super-admin/register", registerSuperAdmin);
-// POST /api/auth/super-admin/login
-router.post("/super-admin/login", loginSuperAdmin);
 
-// ── Staff (Admin / Teacher) ────────────────────────────────────
-// POST /api/auth/staff/login
-router.post("/staff/login", loginStaff);
+// 🔐 Apply limiter
+router.post("/super-admin/login", authLimiter, loginSuperAdmin);
+
+// ── Staff ──────────────────────────────────────────────────────
+router.post("/staff/login", authLimiter, loginStaff);
 
 // ── Student ────────────────────────────────────────────────────
-// POST /api/auth/student/login
-router.post("/student/login", loginStudent);
+router.post("/student/login", authLimiter, loginStudent);
 
 // ── Parent ─────────────────────────────────────────────────────
-// POST /api/auth/parent/login
-router.post("/parent/login", loginParent);
+router.post("/parent/login", authLimiter, loginParent);
 
-///finance/login
-router.post("/finance/login", loginFinance);
+// ── Finance ────────────────────────────────────────────────────
+router.post("/finance/login", authLimiter, loginFinance);
+
+router.post(
+  "/login",
+  authLimiter,
+  (req, res) => {
+    res.json({
+      message: `Login API`,
+      remainingAttempts: req.rateLimit?.remaining,
+    });
+  }
+);
 
 export default router;

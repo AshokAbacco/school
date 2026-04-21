@@ -353,6 +353,20 @@ export default function AttendanceList() {
                 {viewLevel === "attendance" && `Grade ${selectedGrade} · Section ${selectedSection?.section}`}
               </p>
             </div>
+            {holidayInfo && (
+              <button
+                onClick={() => setHolidayPanelOpen(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 12px", borderRadius: 10, fontSize: 12, fontWeight: 600,
+                  background: "rgba(245,158,11,0.12)", color: "#b45309",
+                  border: "1px solid rgba(245,158,11,0.30)", cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                <Palmtree size={13} /> Holiday
+              </button>
+            )}
           </div>
 
           {/* Date picker */}

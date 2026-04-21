@@ -287,6 +287,7 @@ export async function uploadCertificate(req, res) {
       },
     });
 
+
     return ok(res, { data: certificate }, 201);
   } catch (e) {
     console.error("[teacherCertificate.uploadCertificate]", e);

@@ -4,9 +4,11 @@ import { PrismaClient } from "@prisma/client";
 import { uploadToR2, generateSignedUrl } from "../lib/r2.js";
 import cacheService from "../utils/cacheService.js";
 import { getExpiryByRole } from "../utils/fileAccessPolicy.js";
+import { uploadToCloud } from "../utils/cloud.service.js";
 import XLSX from "xlsx";
 
-const prisma = new PrismaClient();
+import { saveBackup } from "../utils/cloudBackup.js";
+import { prisma } from "../config/db.js";
 
 async function bustStudentCache(schoolId) {
   await cacheService.invalidateSchool(schoolId);
@@ -77,10 +79,11 @@ export const registerStudent = async (req, res) => {
       });
 
     const hashed = await bcrypt.hash(password, 10);
-    const student = await prisma.student.create({
-      data: { name, email, password: hashed, schoolId },
-      select: { id: true, name: true, email: true, createdAt: true },
-    });
+const student = await prisma.student.create({
+  data: { name, email, password: hashed, schoolId },
+});
+
+
 
     await bustStudentCache(schoolId);
     return res.status(201).json({ student });
@@ -142,6 +145,11 @@ export const createParentLogin = async (req, res) => {
           schoolId,
         },
       });
+      await saveBackup({
+  model: "parents",
+  refId: parent.id,
+  data: parent,
+});
     }
 
     const link = await prisma.studentParent.create({
@@ -164,7 +172,11 @@ export const createParentLogin = async (req, res) => {
         },
       },
     });
-
+await saveBackup({
+  model: "studentParent",
+  refId: link.id,
+  data: link,
+});
     await bustStudentCache(schoolId);
     return res.status(201).json({
       parent: link.parent,
@@ -701,13 +713,12 @@ export const deleteStudent = async (req, res) => {
     if (!schoolId)
       return res.status(400).json({ message: "schoolId missing from token" });
 
-    const student = await prisma.student.findUnique({
-      where: { id, schoolId },
-      select: { id: true },
-    });
+   const student = await prisma.student.findUnique({
+  where: { id, schoolId },
+});
     if (!student) return res.status(404).json({ message: "Student not found" });
 
-    await prisma.student.delete({ where: { id, schoolId } });
+
     await bustStudentCache(schoolId);
     return res.json({ message: "Student deleted" });
   } catch (err) {

@@ -5,6 +5,7 @@ import PageLayout from "./components/PageLayout";
 import Dashboard from "./dashboard/Dashboard";
 import Profile from "./pages/Profile/Profile";
 import Attendance from "./pages/Attendance/Attendance";
+import SyllabusProgress from "./pages/SyllabusProgress/SyllabusProgress";
 import Marks from './pages/Marksresults/Marks';       // ← added
 import Timetable from "./pages/Timetable/Timetable";
 import Activities from "./pages/Activities/Activities";
@@ -24,6 +25,7 @@ const ParentRoutes = () => {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="profile" element={<Profile />} />
         <Route path="attendance" element={<Attendance />} />
+        <Route path="syllabus-progress" element={<SyllabusProgress />} />
         <Route path="marks" element={<Marks />} />          {/* ← added */}
         <Route path="timetable" element={<Timetable />} />
         <Route path="activities" element={<Activities />} />

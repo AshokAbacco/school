@@ -1,4 +1,4 @@
-// client/src/admin/components/Navbar.jsx
+// client\src\parent\components\PageLayout.jsx
 import React, { useState, useRef, useEffect } from "react";
 import {
   Search,
@@ -36,8 +36,14 @@ export default function Navbar({ onMenuClick, user }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const socketRef = useRef(null);
-  const displayName = user?.name || "Admin User";
-  const displayRole = user?.role || "Administrator";
+const displayName =
+  user?.name ||
+  user?.user?.name ||
+  "Parent User";
+const displayRole =
+  user?.role ||
+  user?.user?.role ||
+  "Parent";
   const notificationSound = new Audio("/Audio/notification.wav");
 
 useEffect(() => {

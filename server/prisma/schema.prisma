@@ -665,6 +665,7 @@ model StudentDocumentInfo {
   isVerified Boolean   @default(false)
   verifiedAt DateTime?
   uploadedAt DateTime  @default(now())
+  deletedAt  DateTime?
 
   @@index([studentId])
   @@map("student_document_info")
@@ -1567,7 +1568,8 @@ model SubjectSyllabus {
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   totalChapters Int
-  chapterNames  String[] @default([])
+  chapters      Json    @default("[]") // ← ADD THIS (replaces chapterNames)
+  description   String?
 
   createdById String
   createdBy   TeacherProfile @relation("SyllabusCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
@@ -2268,6 +2270,23 @@ model AssignmentSection {
   @@index([classSectionId])
   @@index([assignmentId])
   @@map("assignment_sections")
+}
+
+model CloudBackup {
+  id    String @id @default(uuid())
+  model String
+  refId String
+
+  schoolId String?
+  name     String?
+
+  fileKey  String
+  fileType String
+
+  createdAt DateTime @default(now())
+
+  // 🔥 NEW FIELD
+  deletedAt DateTime?
 }
 
 enum PickupType {

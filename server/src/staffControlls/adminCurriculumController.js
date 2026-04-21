@@ -1,15 +1,34 @@
-import { PrismaClient } from "@prisma/client";
-import cacheService from "../utils/cacheService.js";
+// server/src/adminControlls/adminCurriculumController.js
 
+import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
+
+/**
+ * Coerces the stored `chapters` JSON into a typed array.
+ * Also handles legacy data where chapters may be missing or null.
+ */
+function normaliseChapters(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((ch) => ({
+    name: typeof ch?.name === "string" ? ch.name : "",
+    description: typeof ch?.description === "string" ? ch.description : "",
+  }));
+}
+
+function formatSyllabus(syllabus) {
+  if (!syllabus) return null;
+  return {
+    totalChapters: syllabus.totalChapters,
+    chapters: normaliseChapters(syllabus.chapters),
+    description: syllabus.description ?? null,
+    setBy: syllabus.createdBy ?? null,
+    updatedBy: syllabus.updatedBy ?? null,
+  };
+}
 
 export async function getAdminCurriculumOverview(req, res) {
   try {
     const { schoolId } = req.user;
-
-    const cacheKey = await cacheService.buildKey(schoolId, "curriculum:overview");
-    // const cached = await cacheService.get(cacheKey);
-    // if (cached) return res.json(JSON.parse(cached));
 
     const activeYear = await prisma.academicYear.findFirst({
       where: { schoolId, isActive: true },
@@ -60,24 +79,21 @@ export async function getAdminCurriculumOverview(req, res) {
           grade:        a.classSection.grade,
           classSection: a.classSection,
           teacher:      a.teacher,
-          syllabus: syllabus
-            ? { totalChapters: syllabus.totalChapters, chapterNames: syllabus.chapterNames, setBy: syllabus.createdBy, updatedBy: syllabus.updatedBy }
-            : null,
+          syllabus:     formatSyllabus(syllabus),
           progress: progress
-            ? { 
+            ? {
                 completedChapters:
-                  progress.completedChapterIndices?.length ??
-                  progress.completedChapters ??
-                  0,
-                completedChapterIndices: progress.completedChapterIndices,
-                updatedAt: progress.updatedAt 
+                  progress.completedChapterIndices?.length > 0
+                    ? progress.completedChapterIndices.length
+                    : (progress.completedChapters ?? 0),
+                completedChapterIndices: progress.completedChapterIndices ?? [],
+                updatedAt: progress.updatedAt,
               }
             : null,
         };
       }),
     );
 
-    // await cacheService.set(cacheKey, results);
     res.json(results);
   } catch (err) {
     console.error("getAdminCurriculumOverview:", err);

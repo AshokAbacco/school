@@ -14,6 +14,7 @@ import activitiesRoutes from "./parent/routes/activities.routes.js";
 import dashboardRoutes  from "./parent/routes/Dashboardroutes.js";
 import profileRoutes    from "./parent/routes/Profileroutes.js";
 import certificatesRoutes  from "./parent/routes/Certificatesroutes.js";
+import syllabusProgressRoutes from "./parent/routes/SyllabusProgressRoutes.js";
 
 
 
@@ -40,6 +41,7 @@ parent.use("/activities", activitiesRoutes);
 parent.use("/dashboard",   dashboardRoutes);
 parent.use("/profile",     profileRoutes);
 parent.use("/certificates", certificatesRoutes);
+parent.use("/syllabus-progress", syllabusProgressRoutes);
 
 
 export default parent;

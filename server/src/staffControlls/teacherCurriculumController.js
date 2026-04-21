@@ -1,12 +1,73 @@
 // server/src/staffControlls/teacherCurriculumController.js
 
 import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { prisma } from "../config/db.js";
+
+/* ─── helpers ────────────────────────────────────────────────────────────── */
+
+/**
+ * Validates and normalises the `chapters` payload.
+ * Returns { ok: true, chapters } or { ok: false, message }.
+ *
+ * Each element must be an object with at least a non-empty `name`.
+ * `description` defaults to an empty string if missing.
+ */
+function parseChapters(raw, existing = []) {
+  if (!Array.isArray(raw)) {
+    return { ok: false, message: "`chapters` must be an array" };
+  }
+
+  const chapters = raw
+    .map((ch, i) => {
+      const name = typeof ch?.name === "string" ? ch.name.trim() : "";
+      const description =
+        typeof ch?.description === "string"
+          ? ch.description.trim()
+          : "";
+
+      // 🔥 preserve old description if not provided
+      return {
+        name,
+        description: description || existing[i]?.description || "",
+      };
+    })
+    .filter((c) => c.name);
+
+  if (chapters.length === 0) {
+    return { ok: false, message: "At least one chapter is required" };
+  }
+
+  return { ok: true, chapters };
+}
+
+/**
+ * Coerces the stored `chapters` JSON value into a typed array.
+ * Guards against null / legacy data shapes.
+ */
+function normaliseChapters(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((ch) => ({
+    name: typeof ch?.name === "string" ? ch.name : "",
+    description: typeof ch?.description === "string" ? ch.description : "",
+  }));
+}
+
+/** Builds the syllabus shape returned to the client. */
+function formatSyllabus(syllabus) {
+  if (!syllabus) return null;
+  return {
+    totalChapters: syllabus.totalChapters,
+    chapters: normaliseChapters(syllabus.chapters),
+    description: syllabus.description ?? null,
+    setBy: syllabus.createdBy ?? null,
+    updatedBy: syllabus.updatedBy ?? null,
+  };
+}
 
 /* ──────────────────────────────────────────────────────────────
    GET /api/teacher/curriculum/assignments
    Returns all subjects + sections assigned to the logged-in teacher
-   with syllabus (total chapters) and their section's progress
+   with syllabus and section progress.
 ─────────────────────────────────────────────────────────────── */
 export async function getTeacherCurriculumAssignments(req, res) {
   try {
@@ -18,14 +79,12 @@ export async function getTeacherCurriculumAssignments(req, res) {
       return res.status(403).json({ message: "Teacher profile not found" });
     const teacherId = teacherProfile.id;
 
-    // Get active academic year
     const activeYear = await prisma.academicYear.findFirst({
       where: { schoolId, isActive: true },
     });
     if (!activeYear)
       return res.status(404).json({ message: "No active academic year found" });
 
-    // Fetch all teacher assignments for active year
     const assignments = await prisma.teacherAssignment.findMany({
       where: { teacherId, academicYearId: activeYear.id },
       include: {
@@ -36,34 +95,32 @@ export async function getTeacherCurriculumAssignments(req, res) {
       },
     });
 
-    // For each assignment, fetch syllabus and progress
     const results = await Promise.all(
       assignments.map(async (a) => {
-        // Syllabus is per subject + grade
-        const syllabus = await prisma.subjectSyllabus.findUnique({
-          where: {
-            subjectId_grade_academicYearId: {
-              subjectId: a.subjectId,
-              grade: a.classSection.grade,
-              academicYearId: activeYear.id,
+        const [syllabus, progress] = await Promise.all([
+          prisma.subjectSyllabus.findUnique({
+            where: {
+              subjectId_grade_academicYearId: {
+                subjectId: a.subjectId,
+                grade: a.classSection.grade,
+                academicYearId: activeYear.id,
+              },
             },
-          },
-          include: {
-            createdBy: { select: { firstName: true, lastName: true } },
-            updatedBy: { select: { firstName: true, lastName: true } },
-          },
-        });
-
-        // Progress is per subject + section
-        const progress = await prisma.sectionPortionProgress.findUnique({
-          where: {
-            subjectId_classSectionId_academicYearId: {
-              subjectId: a.subjectId,
-              classSectionId: a.classSectionId,
-              academicYearId: activeYear.id,
+            include: {
+              createdBy: { select: { firstName: true, lastName: true } },
+              updatedBy: { select: { firstName: true, lastName: true } },
             },
-          },
-        });
+          }),
+          prisma.sectionPortionProgress.findUnique({
+            where: {
+              subjectId_classSectionId_academicYearId: {
+                subjectId: a.subjectId,
+                classSectionId: a.classSectionId,
+                academicYearId: activeYear.id,
+              },
+            },
+          }),
+        ]);
 
         return {
           assignmentId: a.id,
@@ -71,21 +128,14 @@ export async function getTeacherCurriculumAssignments(req, res) {
           subject: a.subject,
           grade: a.classSection.grade,
           classSection: a.classSection,
-          syllabus: syllabus
+          syllabus: formatSyllabus(syllabus),
+          progress: progress
             ? {
-                totalChapters: syllabus.totalChapters,
-                chapterNames: syllabus.chapterNames, 
-                setBy: syllabus.createdBy,
-                updatedBy: syllabus.updatedBy,
+                completedChapters: progress.completedChapters,
+                completedChapterIndices: progress.completedChapterIndices ?? [],
+                updatedAt: progress.updatedAt,
               }
             : null,
-        progress: progress
-          ? {
-              completedChapters: progress.completedChapters,
-              completedChapterIndices: progress.completedChapterIndices,  // ← ADD THIS
-              updatedAt: progress.updatedAt,
-            }
-          : null,
         };
       }),
     );
@@ -99,7 +149,10 @@ export async function getTeacherCurriculumAssignments(req, res) {
 
 /* ──────────────────────────────────────────────────────────────
    POST /api/teacher/curriculum/syllabus
-   Set total chapters for a subject+grade (first time)
+   Create syllabus for a subject+grade (first time).
+
+   Body: { subjectId, grade, totalChapters, description?, chapters? }
+   `chapters` is optional on creation — can be added later via PUT /chapters.
 ─────────────────────────────────────────────────────────────── */
 export async function setSubjectSyllabus(req, res) {
   try {
@@ -110,12 +163,23 @@ export async function setSubjectSyllabus(req, res) {
     if (!teacherProfile)
       return res.status(403).json({ message: "Teacher profile not found" });
     const teacherId = teacherProfile.id;
-    const { subjectId, grade, totalChapters } = req.body;
 
-    if (!subjectId || !grade || !totalChapters || totalChapters < 1) {
-      return res
-        .status(400)
-        .json({ message: "subjectId, grade, and totalChapters are required" });
+    const { subjectId, grade, totalChapters, description, chapters } = req.body;
+
+if (!subjectId || !grade) {
+  return res.status(400).json({
+    message: "subjectId and grade are required",
+  });
+}
+
+    const total = Number(totalChapters);
+
+    // Validate chapters if provided
+    let parsedChapters = [];
+    if (chapters !== undefined) {
+      const result = parseChapters(chapters, total);
+      if (!result.ok) return res.status(400).json({ message: result.message });
+      parsedChapters = result.chapters;
     }
 
     const activeYear = await prisma.academicYear.findFirst({
@@ -138,7 +202,6 @@ export async function setSubjectSyllabus(req, res) {
         .status(403)
         .json({ message: "You are not assigned to this subject/grade" });
 
-    // Check if already exists
     const existing = await prisma.subjectSyllabus.findUnique({
       where: {
         subjectId_grade_academicYearId: {
@@ -148,11 +211,10 @@ export async function setSubjectSyllabus(req, res) {
         },
       },
     });
-    if (existing) {
+    if (existing)
       return res
         .status(409)
         .json({ message: "Syllabus already set. Use PUT to update." });
-    }
 
     const syllabus = await prisma.subjectSyllabus.create({
       data: {
@@ -160,13 +222,19 @@ export async function setSubjectSyllabus(req, res) {
         grade,
         academicYearId: activeYear.id,
         schoolId,
-        totalChapters: Number(totalChapters),
+        totalChapters: total,
+        chapters: parsedChapters,
+        description: description?.trim() || null,
         createdById: teacherId,
         updatedById: teacherId,
       },
+      include: {
+        createdBy: { select: { firstName: true, lastName: true } },
+        updatedBy: { select: { firstName: true, lastName: true } },
+      },
     });
 
-    res.status(201).json(syllabus);
+    res.status(201).json({ syllabus: formatSyllabus(syllabus) });
   } catch (err) {
     console.error("setSubjectSyllabus:", err);
     res.status(500).json({ message: "Internal server error" });
@@ -175,7 +243,9 @@ export async function setSubjectSyllabus(req, res) {
 
 /* ──────────────────────────────────────────────────────────────
    PUT /api/teacher/curriculum/syllabus
-   Edit total chapters (any assigned teacher can edit)
+   Edit total chapters (and optionally chapters + description).
+
+   Body: { subjectId, grade, totalChapters, description?, chapters? }
 ─────────────────────────────────────────────────────────────── */
 export async function updateSubjectSyllabus(req, res) {
   try {
@@ -186,12 +256,22 @@ export async function updateSubjectSyllabus(req, res) {
     if (!teacherProfile)
       return res.status(403).json({ message: "Teacher profile not found" });
     const teacherId = teacherProfile.id;
-    const { subjectId, grade, totalChapters } = req.body;
 
-    if (!subjectId || !grade || !totalChapters || totalChapters < 1) {
-      return res
-        .status(400)
-        .json({ message: "subjectId, grade, and totalChapters are required" });
+    const { subjectId, grade, totalChapters, description, chapters } = req.body;
+
+      if (!subjectId || !grade) {
+        return res.status(400).json({
+          message: "subjectId and grade are required",
+        });
+      }
+
+    const total = Number(totalChapters);
+
+    let parsedChapters;
+    if (chapters !== undefined) {
+      const result = parseChapters(chapters, total);
+      if (!result.ok) return res.status(400).json({ message: result.message });
+      parsedChapters = result.chapters;
     }
 
     const activeYear = await prisma.academicYear.findFirst({
@@ -200,7 +280,6 @@ export async function updateSubjectSyllabus(req, res) {
     if (!activeYear)
       return res.status(404).json({ message: "No active academic year" });
 
-    // Verify teacher is assigned to this subject in this grade
     const assignment = await prisma.teacherAssignment.findFirst({
       where: {
         teacherId,
@@ -209,7 +288,34 @@ export async function updateSubjectSyllabus(req, res) {
         classSection: { grade },
       },
     });
-    if (!assignment) return res.status(403).json({ message: "Not authorized" });
+    if (!assignment)
+      return res.status(403).json({ message: "Not authorized" });
+
+    // Build update data — only include chapters if provided
+      const updateData = {
+        updatedById: teacherId,
+      };
+
+      if (totalChapters !== undefined) {
+        const total = Number(totalChapters);
+        if (!total || total < 1) {
+          return res.status(400).json({
+            message: "totalChapters must be >= 1",
+          });
+        }
+        updateData.totalChapters = total;
+      }
+
+      if (description !== undefined) {
+        updateData.description = description?.trim() || null;
+      }
+
+      if (parsedChapters !== undefined) {
+        updateData.chapters = parsedChapters;
+      }
+    if (parsedChapters !== undefined) {
+      updateData.chapters = parsedChapters;
+    }
 
     const syllabus = await prisma.subjectSyllabus.update({
       where: {
@@ -219,13 +325,14 @@ export async function updateSubjectSyllabus(req, res) {
           academicYearId: activeYear.id,
         },
       },
-      data: {
-        totalChapters: Number(totalChapters),
-        updatedById: teacherId,
+      data: updateData,
+      include: {
+        createdBy: { select: { firstName: true, lastName: true } },
+        updatedBy: { select: { firstName: true, lastName: true } },
       },
     });
 
-    res.json(syllabus);
+    res.json({ syllabus: formatSyllabus(syllabus) });
   } catch (err) {
     console.error("updateSubjectSyllabus:", err);
     res.status(500).json({ message: "Internal server error" });
@@ -233,101 +340,10 @@ export async function updateSubjectSyllabus(req, res) {
 }
 
 /* ──────────────────────────────────────────────────────────────
-   PUT /api/teacher/curriculum/progress
-   Update completed chapters for a specific section
-─────────────────────────────────────────────────────────────── */
-export async function updateSectionProgress(req, res) {
-  try {
-    const { schoolId } = req.user;
-    const teacherProfile = await prisma.teacherProfile.findFirst({
-      where: { userId: req.user.id },
-    });
-    if (!teacherProfile)
-      return res.status(403).json({ message: "Teacher profile not found" });
-    const teacherId = teacherProfile.id;
-    const { subjectId, classSectionId, completedChapters, completedChapterIndices } = req.body;
-
-    if (!subjectId || !classSectionId || completedChapters === undefined) {
-      return res.status(400).json({
-        message: "subjectId, classSectionId, and completedChapters required",
-      });
-    }
-
-    const activeYear = await prisma.academicYear.findFirst({
-      where: { schoolId, isActive: true },
-    });
-    if (!activeYear)
-      return res.status(404).json({ message: "No active academic year" });
-
-    // Verify teacher is assigned to this exact subject + section
-    const assignment = await prisma.teacherAssignment.findFirst({
-      where: {
-        teacherId,
-        subjectId,
-        classSectionId,
-        academicYearId: activeYear.id,
-      },
-    });
-    if (!assignment)
-      return res
-        .status(403)
-        .json({ message: "You are not assigned to this section" });
-
-    // Verify syllabus exists and completed <= total
-    const section = await prisma.classSection.findUnique({
-      where: { id: classSectionId },
-    });
-    const syllabus = await prisma.subjectSyllabus.findUnique({
-      where: {
-        subjectId_grade_academicYearId: {
-          subjectId,
-          grade: section.grade,
-          academicYearId: activeYear.id,
-        },
-      },
-    });
-
-    // Upsert progress
-    const progress = await prisma.sectionPortionProgress.upsert({
-      where: {
-        subjectId_classSectionId_academicYearId: {
-          subjectId,
-          classSectionId,
-          academicYearId: activeYear.id,
-        },
-      },
-    update: {
-            completedChapters: Number(completedChapters),
-            completedChapterIndices: Array.isArray(completedChapterIndices)
-              ? completedChapterIndices
-              : [],
-            updatedById: teacherId,
-          },
-          create: {
-            subjectId,
-            classSectionId,
-            academicYearId: activeYear.id,
-            schoolId,
-            completedChapters: Number(completedChapters),
-            completedChapterIndices: Array.isArray(completedChapterIndices)
-              ? completedChapterIndices
-              : [],
-            updatedById: teacherId,
-          },
-    });
-
-    res.json(progress);
-  } catch (err) {
-    console.error("updateSectionProgress:", err);
-    res.status(500).json({ message: "Internal server error" });
-  }
-}
-
-
-/* ──────────────────────────────────────────────────────────────
    PUT /api/teacher/curriculum/chapters
-   Save chapter names for a subject+grade syllabus (optional)
-   Body: { subjectId, grade, chapterNames: string[] }
+   Save/update individual chapter names + descriptions.
+
+   Body: { subjectId, grade, chapters: [{ name, description }] }
 ─────────────────────────────────────────────────────────────── */
 export async function updateChapterNames(req, res) {
   try {
@@ -339,12 +355,12 @@ export async function updateChapterNames(req, res) {
       return res.status(403).json({ message: "Teacher profile not found" });
     const teacherId = teacherProfile.id;
 
-    const { subjectId, grade, chapterNames } = req.body;
+    const { subjectId, grade, chapters } = req.body;
 
-    if (!subjectId || !grade || !Array.isArray(chapterNames)) {
-      return res.status(400).json({
-        message: "subjectId, grade, and chapterNames[] are required",
-      });
+    if (!subjectId || !grade) {
+      return res
+        .status(400)
+        .json({ message: "subjectId and grade are required" });
     }
 
     const activeYear = await prisma.academicYear.findFirst({
@@ -353,7 +369,7 @@ export async function updateChapterNames(req, res) {
     if (!activeYear)
       return res.status(404).json({ message: "No active academic year" });
 
-    // Verify teacher is assigned to this subject+grade
+    // Verify teacher assignment
     const assignment = await prisma.teacherAssignment.findFirst({
       where: {
         teacherId,
@@ -382,10 +398,9 @@ export async function updateChapterNames(req, res) {
         .status(404)
         .json({ message: "Set total chapters first before naming them" });
 
-    // Trim names, clamp array to totalChapters length
-    const cleaned = chapterNames
-      .slice(0, syllabus.totalChapters)
-      .map((n) => (typeof n === "string" ? n.trim() : ""));
+    // Validate chapters array
+   const result = parseChapters(chapters, syllabus.chapters);
+    if (!result.ok) return res.status(400).json({ message: result.message });
 
     const updated = await prisma.subjectSyllabus.update({
       where: {
@@ -396,14 +411,95 @@ export async function updateChapterNames(req, res) {
         },
       },
       data: {
-        chapterNames: cleaned,
+        chapters: result.chapters,
+        updatedById: teacherId,
+      },
+      include: {
+        createdBy: { select: { firstName: true, lastName: true } },
+        updatedBy: { select: { firstName: true, lastName: true } },
+      },
+    });
+
+    res.json({ syllabus: formatSyllabus(updated) });
+  } catch (err) {
+    console.error("updateChapterNames:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   PUT /api/teacher/curriculum/progress
+   Update completed chapters for a specific section. Unchanged.
+─────────────────────────────────────────────────────────────── */
+export async function updateSectionProgress(req, res) {
+  try {
+    const { schoolId } = req.user;
+    const teacherProfile = await prisma.teacherProfile.findFirst({
+      where: { userId: req.user.id },
+    });
+    if (!teacherProfile)
+      return res.status(403).json({ message: "Teacher profile not found" });
+    const teacherId = teacherProfile.id;
+
+    const { subjectId, classSectionId, completedChapters, completedChapterIndices } =
+      req.body;
+
+    if (!subjectId || !classSectionId || completedChapters === undefined) {
+      return res.status(400).json({
+        message: "subjectId, classSectionId, and completedChapters required",
+      });
+    }
+
+    const activeYear = await prisma.academicYear.findFirst({
+      where: { schoolId, isActive: true },
+    });
+    if (!activeYear)
+      return res.status(404).json({ message: "No active academic year" });
+
+    const assignment = await prisma.teacherAssignment.findFirst({
+      where: {
+        teacherId,
+        subjectId,
+        classSectionId,
+        academicYearId: activeYear.id,
+      },
+    });
+    if (!assignment)
+      return res
+        .status(403)
+        .json({ message: "You are not assigned to this section" });
+
+    const progress = await prisma.sectionPortionProgress.upsert({
+      where: {
+        subjectId_classSectionId_academicYearId: {
+          subjectId,
+          classSectionId,
+          academicYearId: activeYear.id,
+        },
+      },
+      update: {
+        completedChapters: Number(completedChapters),
+        completedChapterIndices: Array.isArray(completedChapterIndices)
+          ? completedChapterIndices
+          : [],
+        updatedById: teacherId,
+      },
+      create: {
+        subjectId,
+        classSectionId,
+        academicYearId: activeYear.id,
+        schoolId,
+        completedChapters: Number(completedChapters),
+        completedChapterIndices: Array.isArray(completedChapterIndices)
+          ? completedChapterIndices
+          : [],
         updatedById: teacherId,
       },
     });
 
-    res.json(updated);
+    res.json(progress);
   } catch (err) {
-    console.error("updateChapterNames:", err);
+    console.error("updateSectionProgress:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 }
