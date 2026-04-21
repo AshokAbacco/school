@@ -1,7 +1,7 @@
 // server/src/student.js
 
 import express from "express";
-import cors from "cors";
+// import cors from "cors";
 import dotenv from "dotenv";
 
 import dashboardRouter   from "./student/routes/dashboard.routes.js";   // ← ADD
@@ -24,12 +24,12 @@ dotenv.config();
 const student = express();
 
 // ── Middlewares ───────────────────────────────────────────────────────────────
-student.use(  
-  cors({
-    origin: process.env.CLIENT_ORIGIN,
-    credentials: true,
-  })
-);
+// student.use(  
+//   cors({
+//     origin: process.env.CLIENT_ORIGIN,
+//     credentials: true,
+//   })
+// );
 student.use(express.json());
 
 // ── Routes ────────────────────────────────────────────────────────────────────
