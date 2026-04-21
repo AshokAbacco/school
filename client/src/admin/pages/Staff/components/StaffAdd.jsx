@@ -274,7 +274,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
             </div>
 
             {/* ── Login Access ── */}
-            {!isEdit && (
+            {/* {!isEdit && (
               <div style={{ borderRadius: 14, border: `1.5px dashed ${C.border}`, background: C.bg, padding: "14px 16px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -286,7 +286,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
                       <p style={{ margin: "2px 0 0", fontSize: 11, color: C.textLight }}>Staff can log in to the portal</p>
                     </div>
                   </div>
-                  {/* Toggle */}
+                  
                   <button type="button" onClick={() => setGiveLogin(v => !v)}
                     style={{ position: "relative", width: 44, height: 24, borderRadius: 99, border: "none", cursor: "pointer", transition: "background 0.2s", background: giveLogin ? `linear-gradient(135deg, ${C.slate}, ${C.deep})` : C.border, flexShrink: 0 }}>
                     <span style={{ position: "absolute", top: 2, left: giveLogin ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.18)", transition: "left 0.2s" }} />
@@ -305,7 +305,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
                   </div>
                 )}
               </div>
-            )}
+            )} */}
           </div>
 
           {/* ── Footer ── */}
