@@ -18,9 +18,9 @@ const PORT = process.env.PORT || 5000;
 const allowedOrigins = [
   "http://localhost:5173",
   "https://eduabaccotech.com",
-  "https://www.eduabaccotech.com"
+  "https://www.eduabaccotech.com",
+  "https://school-crm.onrender.com"
 ];
-
 // CORS
 app.use(cors({
   origin: allowedOrigins,
