@@ -1,8 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import cacheService from "../utils/cacheService.js";
+import { saveBackup } from "../utils/cloudBackup.js";
 
-const prisma = new PrismaClient();
+import { prisma } from "../config/db.js"; 
 const SALT_ROUNDS = 10;
 
 // ➤ Create Staff
@@ -51,6 +52,7 @@ export async function createStaff(req, res) {
           },
           include: { user: { select: { id: true, email: true } } },
         });
+        
       });
     } else {
       staff = await prisma.staffProfile.create({
@@ -69,6 +71,7 @@ export async function createStaff(req, res) {
           ifscCode: ifscCode || null,
         },
       });
+ 
     }
 
     // ✅ Bust the cache so next GET reflects the new staff immediately

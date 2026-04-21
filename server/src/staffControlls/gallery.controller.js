@@ -66,6 +66,7 @@ export const uploadGalleryImages = async (req, res) => {
           fileSizeBytes: full.buffer.length,
         },
       });
+ 
 
       // ── 5. Return thumb URL for immediate display ──────────────────────────
       const thumbUrl = await getCachedSignedUrl(schoolId, thumbKey, 3600);

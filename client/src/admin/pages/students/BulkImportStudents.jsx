@@ -26,78 +26,76 @@ const auth = () => ({ Authorization: `Bearer ${getToken()}` });
 // Flexible: accepts multiple aliases per field
 const COLUMN_MAP = {
   // Personal
-  firstName:           ["first name", "firstname", "first_name", "fname"],
-  lastName:            ["last name", "lastname", "last_name", "lname"],
-  dateOfBirth:         ["dob", "date of birth", "dateofbirth", "birth date", "birthdate"],
-  gender:              ["gender", "sex"],
-  email:               ["email", "student email", "student_email"],
-  phone:               ["phone", "mobile", "contact", "phone number"],
-  address:             ["address", "street address"],
-  city:                ["city"],
-  state:               ["state"],
-  zipCode:             ["zip", "zipcode", "pincode", "pin code", "postal code"],
-  aadhaarNumber:       ["aadhaar", "aadhar", "aadhaar number", "aadhar number"],
-  panNumber:           ["pan", "pan number", "pannumber"],
-  satsNumber:          ["sats", "sats number", "satsnumber"],
-  nationality:         ["nationality"],
-  religion:            ["religion"],
-  casteCategory:       ["caste", "caste category", "castecategory"],
-  motherTongue:        ["mother tongue", "mothertongue", "native language"],
-  subcaste:            ["subcaste", "sub caste", "sub-caste"],
-  domicileState:       ["domicile", "domicile state"],
-  annualIncome:        ["annual income", "annualincome", "income"],
-  physicallyChallenged:["physically challenged", "disabled", "disability"],
-  disabilityType:      ["disability type", "disabilitytype"],
+  firstName: ["first name", "firstname", "first_name", "fname"],
+  lastName: ["last name", "lastname", "last_name", "lname"],
+  dateOfBirth: ["dob", "date of birth", "dateofbirth", "birth date", "birthdate"],
+  gender: ["gender", "sex"],
+  email: ["email", "student email", "student_email"],
+  phone: ["phone", "mobile", "contact", "phone number"],
+  address: ["address", "street address"],
+  city: ["city"],
+  state: ["state"],
+  zipCode: ["zip", "zipcode", "pincode", "pin code", "postal code"],
+  aadhaarNumber: ["aadhaar", "aadhar", "aadhaar number", "aadhar number"],
+  panNumber: ["pan", "pan number", "pannumber"],
+  satsNumber: ["sats", "sats number", "satsnumber"],
+  nationality: ["nationality"],
+  religion: ["religion"],
+  casteCategory: ["caste", "caste category", "castecategory"],
+  motherTongue: ["mother tongue", "mothertongue", "native language"],
+  subcaste: ["subcaste", "sub caste", "sub-caste"],
+  domicileState: ["domicile", "domicile state"],
+  annualIncome: ["annual income", "annualincome", "income"],
+  physicallyChallenged: ["physically challenged", "disabled", "disability"],
+  disabilityType: ["disability type", "disabilitytype"],
 
   // Login
-  loginEmail:          ["login email", "loginemail", "username"],
-  password:            ["password", "pass"],
+  loginEmail: ["login email", "loginemail", "username"],
+  password: ["password", "pass"],
 
   // Academic
-  admissionNumber:     ["admission no", "admission number", "admno", "adm no", "admissionnumber"],
-  classSectionName:    ["class", "section", "class section", "classsection", "grade section"],
-  academicYearName:    ["academic year", "academicyear", "year"],
-  rollNumber:          ["roll no", "roll number", "rollno", "rollnumber"],
-  externalId:          ["external id", "board roll no", "university reg no", "externalid"], // ✅ ADDED
-  admissionDate:       ["admission date", "admissiondate", "joining date"],
+  admissionNumber: ["admission no", "admission number", "admno", "adm no", "admissionnumber"],
+  classSectionName: ["class", "section", "class section", "classsection", "grade section"],
+  academicYearName: ["academic year", "academicyear", "year"],
+  rollNumber: ["roll no", "roll number", "rollno", "rollnumber"],
+  externalId: ["external id", "board roll no", "university reg no", "externalid"], // ✅ ADDED
+  admissionDate: ["admission date", "admissiondate", "joining date"],
 
-  parentName:          ["parent name", "father name", "mother name", "guardian name", "pname"],
-  parentPhone:         ["parent phone", "father phone", "mother phone", "pphone", "mobile"],
-  parentEmail:         ["parent email", "father email", "mother email", "pemail"],
-  parentPassword:      ["parent password", "parent login password", "ppass"],
-  parentOccupation:    ["parent occupation", "father occupation", "mother occupation"],
-  parentRelation:      ["relation", "parent relation", "role"], // e.g., FATHER or MOTHER
-  emergencyContact:   ["emergency contact", "emergencycontact", "emergency"],
+  parentName: ["parent name", "father name", "mother name", "guardian name", "pname"],
+  parentPhone: ["parent phone", "father phone", "mother phone", "pphone", "mobile"],
+  parentEmail: ["parent email", "father email", "mother email", "pemail"],
+  parentPassword: ["parent password", "parent login password", "ppass"],
+  parentOccupation: ["parent occupation", "father occupation", "mother occupation"],
+  parentRelation: ["relation", "parent relation", "role"], // e.g., FATHER or MOTHER
+  emergencyContact: ["emergency contact", "emergencycontact", "emergency"],
 
-
-  status:              ["status", "student status"],
-  previousSchoolName:  ["previous school", "prev school", "previousschool"],
+  status: ["status", "student status"],
+  previousSchoolName: ["previous school", "prev school", "previousschool"],
   previousSchoolBoard: ["previous board", "prev board", "board"],
-  udiseCode:           ["udise", "udise code", "udisecode"],
-  lateralEntry:        ["lateral entry", "lateralentry"],
+  udiseCode: ["udise", "udise code", "udisecode"],
+  lateralEntry: ["lateral entry", "lateralentry"],
 
   // Parent – Father
-  fatherName:          ["father name", "fathername", "father"],
-  fatherPhone:         ["father phone", "fatherphone", "father mobile", "father contact"],
-  fatherEmail:         ["father email", "fatheremail"],
-  fatherOccupation:    ["father occupation", "fatheroccupation"],
+  fatherName: ["father name", "fathername", "father"],
+  fatherPhone: ["father phone", "fatherphone", "father mobile", "father contact"],
+  fatherEmail: ["father email", "fatheremail"],
+  fatherOccupation: ["father occupation", "fatheroccupation"],
 
   // Parent – Mother
-  motherName:          ["mother name", "mothername", "mother"],
-  motherPhone:         ["mother phone", "motherphone", "mother mobile"],
-  motherEmail:         ["mother email", "motheremail"],
-  motherOccupation:    ["mother occupation", "motheroccupation"],
+  motherName: ["mother name", "mothername", "mother"],
+  motherPhone: ["mother phone", "motherphone", "mother mobile"],
+  motherEmail: ["mother email", "motheremail"],
+  motherOccupation: ["mother occupation", "motheroccupation"],
 
-  // Guardian / Emergency
-  // emergencyContact:    ["emergency contact", "emergencycontact", "emergency"],
+
 
   // Health
-  bloodGroup:          ["blood group", "blood", "bloodgroup", "blood type"],
-  heightCm:            ["height", "height cm", "heightcm"],
-  weightKg:            ["weight", "weight kg", "weightkg"],
-  identifyingMarks:    ["identifying marks", "birthmarks", "marks"],
-  medicalConditions:   ["medical conditions", "medical", "health conditions"],
-  allergies:           ["allergies", "allergy"],
+  bloodGroup: ["blood group", "blood", "bloodgroup", "blood type"],
+  heightCm: ["height", "height cm", "heightcm"],
+  weightKg: ["weight", "weight kg", "weightkg"],
+  identifyingMarks: ["identifying marks", "birthmarks", "marks"],
+  medicalConditions: ["medical conditions", "medical", "health conditions"],
+  allergies: ["allergies", "allergy"],
 };
 
 // ── Normalize a raw header string to a field key ─────────────────────────────
@@ -162,62 +160,62 @@ function parseRow(rawRow, headerMap) {
 
   return {
     // ── Personal & Identity ──────────────────────────────────────────────────
-    firstName:            get("firstName"),
-    lastName:             get("lastName"),
-    dateOfBirth:          get("dateOfBirth"),
-    gender:               normalizeGender(get("gender")),
-    email:                get("email"),
-    phone:                get("phone"),
-    address:              get("address"),
-    city:                 get("city"),
-    state:                get("state"),
-    zipCode:              get("zipCode"),
-    aadhaarNumber:        get("aadhaarNumber"),
-    panNumber:            get("panNumber"),            // ✅ ADDED
-    satsNumber:           get("satsNumber"),           // ✅ ADDED
-    nationality:          get("nationality") || "Indian",
-    religion:             get("religion"),
-    casteCategory:        normalizeCaste(get("casteCategory")),
-    motherTongue:         get("motherTongue"),
-    subcaste:             get("subcaste"),
-    domicileState:        get("domicileState") || "Karnataka",
-    annualIncome:         get("annualIncome"),
+    firstName: get("firstName"),
+    lastName: get("lastName"),
+    dateOfBirth: get("dateOfBirth"),
+    gender: normalizeGender(get("gender")),
+    email: get("email"),
+    phone: get("phone"),
+    address: get("address"),
+    city: get("city"),
+    state: get("state"),
+    zipCode: get("zipCode"),
+    aadhaarNumber: get("aadhaarNumber"),
+    panNumber: get("panNumber"),            // ✅ ADDED
+    satsNumber: get("satsNumber"),           // ✅ ADDED
+    nationality: get("nationality") || "Indian",
+    religion: get("religion"),
+    casteCategory: normalizeCaste(get("casteCategory")),
+    motherTongue: get("motherTongue"),
+    subcaste: get("subcaste"),
+    domicileState: get("domicileState") || "Karnataka",
+    annualIncome: get("annualIncome"),
     physicallyChallenged: normalizeBool(get("physicallyChallenged")),
-    disabilityType:       get("disabilityType"),
+    disabilityType: get("disabilityType"),
 
     // ── Student Login ────────────────────────────────────────────────────────
-    loginEmail:           get("loginEmail") || get("email"),
-    password:             get("password"),
+    loginEmail: get("loginEmail") || get("email"),
+    password: get("password"),
 
     // ── Academic Enrollment ──────────────────────────────────────────────────
-    admissionNumber:      get("admissionNumber"),
-    classSectionName:     get("classSectionName"),
-    academicYearName:     get("academicYearName"),
-    rollNumber:           get("rollNumber"),
-    externalId:           get("externalId"), 
-    admissionDate:        get("admissionDate"),
-    status:               normalizeStatus(get("status")),
-    previousSchoolName:   get("previousSchoolName"),
-    previousSchoolBoard:  normalizeBoard(get("previousSchoolBoard")),
-    udiseCode:            get("udiseCode"),
-    lateralEntry:         normalizeBool(get("lateralEntry")),
+    admissionNumber: get("admissionNumber"),
+    classSectionName: get("classSectionName"),
+    academicYearName: get("academicYearName"),
+    rollNumber: get("rollNumber"),
+    externalId: get("externalId"),
+    admissionDate: get("admissionDate"),
+    status: normalizeStatus(get("status")),
+    previousSchoolName: get("previousSchoolName"),
+    previousSchoolBoard: normalizeBoard(get("previousSchoolBoard")),
+    udiseCode: get("udiseCode"),
+    lateralEntry: normalizeBool(get("lateralEntry")),
 
     // ── Unified Parent Account (Replaces separate Father/Mother fields) ──────
-    parentName:           get("parentName"),           // ✅ CONSOLIDATED
-    parentPhone:          get("parentPhone"),          // ✅ CONSOLIDATED
-    parentEmail:          get("parentEmail"),          // ✅ CONSOLIDATED
-    parentPassword:       get("parentPassword"),       // ✅ ADDED for custom login
-    parentOccupation:     get("parentOccupation"),     // ✅ CONSOLIDATED
-    parentRelation:       get("parentRelation"),       // ✅ ADDED (e.g., FATHER/MOTHER)
-    emergencyContact:     get("emergencyContact"),
+    parentName: get("parentName"),           // ✅ CONSOLIDATED
+    parentPhone: get("parentPhone"),          // ✅ CONSOLIDATED
+    parentEmail: get("parentEmail"),          // ✅ CONSOLIDATED
+    parentPassword: get("parentPassword"),       // ✅ ADDED for custom login
+    parentOccupation: get("parentOccupation"),     // ✅ CONSOLIDATED
+    parentRelation: get("parentRelation"),       // ✅ ADDED (e.g., FATHER/MOTHER)
+    emergencyContact: get("emergencyContact"),
 
     // ── Health Measurements ──────────────────────────────────────────────────
-    bloodGroup:           normalizeBlood(get("bloodGroup")),
-    heightCm:             get("heightCm"),
-    weightKg:             get("weightKg"),
-    identifyingMarks:     get("identifyingMarks"),
-    medicalConditions:    get("medicalConditions"),
-    allergies:            get("allergies"),
+    bloodGroup: normalizeBlood(get("bloodGroup")),
+    heightCm: get("heightCm"),
+    weightKg: get("weightKg"),
+    identifyingMarks: get("identifyingMarks"),
+    medicalConditions: get("medicalConditions"),
+    allergies: get("allergies"),
   };
 }
 
@@ -225,11 +223,11 @@ function parseRow(rawRow, headerMap) {
 function validateRow(s, idx) {
   const errors = [];
   if (!s.firstName) errors.push("First Name is required");
-  if (!s.lastName)  errors.push("Last Name is required");
-  if (!s.email)     errors.push("Email is required");
+  if (!s.lastName) errors.push("Last Name is required");
+  if (!s.email) errors.push("Email is required");
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email))
     errors.push("Invalid email format");
-  if (!s.password)  errors.push("Password is required");
+  if (!s.password) errors.push("Password is required");
   if (!s.admissionNumber) errors.push("Admission Number is required");
   if (!s.classSectionName) errors.push("Class Section is required");
   if (!s.academicYearName) errors.push("Academic Year is required");
@@ -239,36 +237,36 @@ function validateRow(s, idx) {
 function downloadTemplate() {
   const headers = [
     "First Name", "Last Name", "DOB", "Gender", "Email", "Password", "Phone",
-    "Address", "City", "State", "ZIP", "Aadhaar", "PAN Number", "SATS Number", 
-    "Nationality", "Religion", "Caste Category", "Mother Tongue", "Subcaste", 
+    "Address", "City", "State", "ZIP", "Aadhaar", "PAN Number", "SATS Number",
+    "Nationality", "Religion", "Caste Category", "Mother Tongue", "Subcaste",
     "Domicile State", "Annual Income", "Physically Challenged", "Disability Type",
-    "Admission No", "Class Section", "Academic Year", "Roll No", "External ID", 
+    "Admission No", "Class Section", "Academic Year", "Roll No", "External ID",
     "Admission Date", "Status", "Previous School", "Previous Board", "UDISE Code", "Lateral Entry",
-    "Parent Name", "Parent Phone", "Parent Email", "Parent Password", "Parent Occupation", 
-    "Parent Relation", "Emergency Contact", "Blood Group", "Height CM", "Weight KG", 
+    "Parent Name", "Parent Phone", "Parent Email", "Parent Password", "Parent Occupation",
+    "Parent Relation", "Emergency Contact", "Blood Group", "Height CM", "Weight KG",
     "Identifying Marks", "Medical Conditions", "Allergies",
   ];
 
   // IMPORTANT: Wrapped numbers in quotes "" to tell JavaScript these are strings, not math numbers
   const sample = [
     "Rahul", "Kumar", "15-06-2008", "Male", "rahul@school.com", "Pass@123", "9876543210",
-    "123 MG Road", "Bengaluru", "Karnataka", "560001", 
+    "123 MG Road", "Bengaluru", "Karnataka", "560001",
     "123456789012", // Aadhaar as String
-    "ABCDE1234F", 
+    "ABCDE1234F",
     "123456789",    // SATS as String
-    "Indian", "Hindu", "OBC", "Kannada", "Vokkaliga", 
+    "Indian", "Hindu", "OBC", "Kannada", "Vokkaliga",
     "Karnataka", "300000", "No", "",
-    "ADM2024001", "10-A", "2024-25", "1", "REG-998877", 
-    "01-06-2024", "ACTIVE", "St. Mary's School", "KSEEB", 
+    "ADM2024001", "10-A", "2024-25", "1", "REG-998877",
+    "01-06-2024", "ACTIVE", "St. Mary's School", "KSEEB",
     "29140100102",  // UDISE as String
     "No",
-    "Suresh Kumar", "9876543211", "suresh@gmail.com", "Parent@123", "Engineer", 
+    "Suresh Kumar", "9876543211", "suresh@gmail.com", "Parent@123", "Engineer",
     "FATHER", "9876543211", "O+", "165", "55", "Mole on right hand",
     "None", "None",
   ];
 
   const wb = XLSX.utils.book_new();
-  
+
   // Create worksheet
   const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
 
@@ -282,7 +280,7 @@ function downloadTemplate() {
     for (let C = range.s.c; C <= range.e.c; ++C) {
       const cell_address = { c: C, r: R };
       const cell_ref = XLSX.utils.encode_cell(cell_address);
-      
+
       if (!ws[cell_ref]) continue;
 
       // Set format to 'Text' for all cells
@@ -322,14 +320,14 @@ function RowStatus({ status, errors }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function BulkImportStudents({ onClose, onSuccess }) {
-  const [file, setFile]           = useState(null);
-  const [rows, setRows]           = useState([]);        // parsed + validated rows
+  const [file, setFile] = useState(null);
+  const [rows, setRows] = useState([]);        // parsed + validated rows
   const [importing, setImporting] = useState(false);
-  const [results, setResults]     = useState([]);        // per-row import results
-  const [done, setDone]           = useState(false);
-  const [dragOver, setDragOver]   = useState(false);
+  const [results, setResults] = useState([]);        // per-row import results
+  const [done, setDone] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [expandedRow, setExpandedRow] = useState(null);
-  const [step, setStep]           = useState("upload"); // upload | preview | done
+  const [step, setStep] = useState("upload"); // upload | preview | done
   const [unmappedCols, setUnmappedCols] = useState([]);
 
   const fileRef = useRef();
@@ -367,7 +365,7 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
           .filter((r) => r.some((c) => c !== ""))
           .map((r, i) => {
             const student = parseRow(r, headerMap);
-            const errors  = validateRow(student, i);
+            const errors = validateRow(student, i);
             return { _idx: i + 2, student, errors, status: "pending" };
           });
 
@@ -451,10 +449,10 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
     onSuccess?.();
   };
 
-  const validCount   = rows.filter((r) => r.errors.length === 0).length;
+  const validCount = rows.filter((r) => r.errors.length === 0).length;
   const invalidCount = rows.filter((r) => r.errors.length > 0).length;
   const successCount = rows.filter((r) => r.status === "success").length;
-  const failCount    = rows.filter((r) => r.status === "error").length;
+  const failCount = rows.filter((r) => r.status === "error").length;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -537,34 +535,34 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
             <div className="space-y-5">
               {/* Instructions */}
               {/* Instructions / How it works */}
-<div
-  className="rounded-xl p-4 text-sm space-y-2"
-  style={{ background: "#eff6ff", border: "1px solid #bfdbfe" }}
->
-  <div className="flex items-center gap-2 font-bold" style={{ color: "#1d4ed8" }}>
-    <Info size={14} /> Data Entry Tips
-  </div>
-  <ul className="text-xs space-y-1.5" style={{ color: "#1e40af" }}>
-    <li>
-      • <strong>Download Template:</strong> Start by downloading the <code>.xlsx</code> template below and filling in your student data.
-    </li>
-    <li>
-      • <strong>Date Format:</strong> Use the Indian format <strong>DD-MM-YYYY</strong> (e.g., <code>15-06-2008</code>) for DOB and Admission Date.
-    </li>
-    <li>
-      • <strong>Class & Section:</strong> Use formats like "10-A" or "10 A". The system automatically splits these into Grade and Section.
-    </li>
-    <li>
-      • <strong>Parent Login:</strong> Fill the <strong>Parent Email</strong> and <strong>Parent Password</strong> columns to automatically create one login for the family (Father, Mother, or Guardian).
-    </li>
-    <li>
-      • <strong>Identity Numbers:</strong> Ensure <strong>Aadhaar</strong> (12 digits) and <strong>PAN</strong> are entered as text to prevent Excel from scientific notation (e.g., 1.23E+11).
-    </li>
-    <li>
-      • <strong>Required Fields:</strong> First Name, Last Name, Student Email, Password, Admission No, Class, and Academic Year are mandatory.
-    </li>
-  </ul>
-</div>
+              <div
+                className="rounded-xl p-4 text-sm space-y-2"
+                style={{ background: "#eff6ff", border: "1px solid #bfdbfe" }}
+              >
+                <div className="flex items-center gap-2 font-bold" style={{ color: "#1d4ed8" }}>
+                  <Info size={14} /> Data Entry Tips
+                </div>
+                <ul className="text-xs space-y-1.5" style={{ color: "#1e40af" }}>
+                  <li>
+                    • <strong>Download Template:</strong> Start by downloading the <code>.xlsx</code> template below and filling in your student data.
+                  </li>
+                  <li>
+                    • <strong>Date Format:</strong> Use the Indian format <strong>DD-MM-YYYY</strong> (e.g., <code>15-06-2008</code>) for DOB and Admission Date.
+                  </li>
+                  <li>
+                    • <strong>Class & Section:</strong> Use formats like "10-A" or "10 A". The system automatically splits these into Grade and Section.
+                  </li>
+                  <li>
+                    • <strong>Parent Login:</strong> Fill the <strong>Parent Email</strong> and <strong>Parent Password</strong> columns to automatically create one login for the family (Father, Mother, or Guardian).
+                  </li>
+                  <li>
+                    • <strong>Identity Numbers:</strong> Ensure <strong>Aadhaar</strong> (12 digits) and <strong>PAN</strong> are entered as text to prevent Excel from scientific notation (e.g., 1.23E+11).
+                  </li>
+                  <li>
+                    • <strong>Required Fields:</strong> First Name, Last Name, Student Email, Password, Admission No, Class, and Academic Year are mandatory.
+                  </li>
+                </ul>
+              </div>
 
               {/* Template download */}
               <button
@@ -668,132 +666,132 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
                 style={{ border: `1px solid ${COLORS.border}` }}
               >
                 <div className="overflow-x-auto">
-                <table className="w-full text-xs" style={{ minWidth: 480 }}>
-                  <thead>
-                    <tr style={{ background: `${COLORS.bgSoft}`, borderBottom: `1px solid ${COLORS.border}` }}>
-                      {[
-                        { h: "Row", cls: "" },
-                        { h: "Name", cls: "" },
-                        { h: "Email", cls: "hidden sm:table-cell" },
-                        { h: "Class / Year", cls: "hidden md:table-cell" },
-                        { h: "Adm No", cls: "hidden sm:table-cell" },
-                        { h: "Status", cls: "" },
-                        { h: "", cls: "" },
-                      ].map(({ h, cls }) => (
-                        <th
-                          key={h}
-                          className={`px-3 py-2.5 text-left font-bold ${cls}`}
-                          style={{ color: COLORS.secondary }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                   {rows.map((row) => (
-                  <React.Fragment key={row._idx}>
-                    <tr
-                      className="transition-colors"
-                      style={{
-                        borderBottom: `1px solid ${COLORS.border}`,
-                        background: row.errors.length ? "#fffbeb" : "white",
-                      }}
-                    >
-                      <td
-                        className="px-3 py-2.5 font-mono"
-                        style={{ color: COLORS.secondary }}
-                      >
-                        #{row._idx}
-                      </td>
-
-                      <td
-                        className="px-3 py-2.5 font-semibold"
-                        style={{ color: COLORS.primary, maxWidth: 120 }}
-                      >
-                        <span className="block truncate">{row.student.firstName} {row.student.lastName}</span>
-                        {/* Show email below name on mobile */}
-                        <span className="sm:hidden block text-[10px] font-normal truncate" style={{ color: COLORS.secondary }}>
-                          {row.student.email || "—"}
-                        </span>
-                      </td>
-
-                      <td
-                        className="px-3 py-2.5 hidden sm:table-cell"
-                        style={{ color: COLORS.secondary, maxWidth: 160 }}
-                      >
-                        <span className="block truncate">{row.student.email || "—"}</span>
-                      </td>
-
-                      <td
-                        className="px-3 py-2.5 hidden md:table-cell"
-                        style={{ color: COLORS.secondary }}
-                      >
-                        {row.student.classSectionName || "—"} /{" "}
-                        {row.student.academicYearName || "—"}
-                      </td>
-
-                      <td
-                        className="px-3 py-2.5 hidden sm:table-cell"
-                        style={{ color: COLORS.secondary }}
-                      >
-                        {row.student.admissionNumber || "—"}
-                      </td>
-
-                      <td className="px-3 py-2.5">
-                        <RowStatus status={row.status} errors={row.errors} />
-                      </td>
-
-                      <td className="px-3 py-2.5">
-                        {row.errors.length > 0 && (
-                          <button
-                            onClick={() =>
-                              setExpandedRow(
-                                expandedRow === row._idx ? null : row._idx
-                              )
-                            }
-                            className="flex items-center gap-1 text-[10px] font-bold transition-all hover:opacity-70"
-                            style={{ color: "#d97706" }}
+                  <table className="w-full text-xs" style={{ minWidth: 480 }}>
+                    <thead>
+                      <tr style={{ background: `${COLORS.bgSoft}`, borderBottom: `1px solid ${COLORS.border}` }}>
+                        {[
+                          { h: "Row", cls: "" },
+                          { h: "Name", cls: "" },
+                          { h: "Email", cls: "hidden sm:table-cell" },
+                          { h: "Class / Year", cls: "hidden md:table-cell" },
+                          { h: "Adm No", cls: "hidden sm:table-cell" },
+                          { h: "Status", cls: "" },
+                          { h: "", cls: "" },
+                        ].map(({ h, cls }) => (
+                          <th
+                            key={h}
+                            className={`px-3 py-2.5 text-left font-bold ${cls}`}
+                            style={{ color: COLORS.secondary }}
                           >
-                            {expandedRow === row._idx ? (
-                              <ChevronUp size={11} />
-                            ) : (
-                              <ChevronDown size={11} />
-                            )}
-                            Details
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-
-                    {expandedRow === row._idx && row.errors.length > 0 && (
-                      <tr>
-                        <td
-                          colSpan={7}
-                          className="px-4 py-2"
-                          style={{
-                            background: "#fffbeb",
-                            borderBottom: `1px solid ${COLORS.border}`,
-                          }}
-                        >
-                          <ul className="space-y-0.5">
-                            {row.errors.map((e, i) => (
-                              <li
-                                key={`${row._idx}-${i}-${e}`}
-                                className="text-[11px] font-semibold"
-                                style={{ color: "#b45309" }}
-                              >
-                                · {e}
-                              </li>
-                            ))}
-                          </ul>
-                        </td>
+                            {h}
+                          </th>
+                        ))}
                       </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => (
+                        <React.Fragment key={row._idx}>
+                          <tr
+                            className="transition-colors"
+                            style={{
+                              borderBottom: `1px solid ${COLORS.border}`,
+                              background: row.errors.length ? "#fffbeb" : "white",
+                            }}
+                          >
+                            <td
+                              className="px-3 py-2.5 font-mono"
+                              style={{ color: COLORS.secondary }}
+                            >
+                              #{row._idx}
+                            </td>
+
+                            <td
+                              className="px-3 py-2.5 font-semibold"
+                              style={{ color: COLORS.primary, maxWidth: 120 }}
+                            >
+                              <span className="block truncate">{row.student.firstName} {row.student.lastName}</span>
+                              {/* Show email below name on mobile */}
+                              <span className="sm:hidden block text-[10px] font-normal truncate" style={{ color: COLORS.secondary }}>
+                                {row.student.email || "—"}
+                              </span>
+                            </td>
+
+                            <td
+                              className="px-3 py-2.5 hidden sm:table-cell"
+                              style={{ color: COLORS.secondary, maxWidth: 160 }}
+                            >
+                              <span className="block truncate">{row.student.email || "—"}</span>
+                            </td>
+
+                            <td
+                              className="px-3 py-2.5 hidden md:table-cell"
+                              style={{ color: COLORS.secondary }}
+                            >
+                              {row.student.classSectionName || "—"} /{" "}
+                              {row.student.academicYearName || "—"}
+                            </td>
+
+                            <td
+                              className="px-3 py-2.5 hidden sm:table-cell"
+                              style={{ color: COLORS.secondary }}
+                            >
+                              {row.student.admissionNumber || "—"}
+                            </td>
+
+                            <td className="px-3 py-2.5">
+                              <RowStatus status={row.status} errors={row.errors} />
+                            </td>
+
+                            <td className="px-3 py-2.5">
+                              {row.errors.length > 0 && (
+                                <button
+                                  onClick={() =>
+                                    setExpandedRow(
+                                      expandedRow === row._idx ? null : row._idx
+                                    )
+                                  }
+                                  className="flex items-center gap-1 text-[10px] font-bold transition-all hover:opacity-70"
+                                  style={{ color: "#d97706" }}
+                                >
+                                  {expandedRow === row._idx ? (
+                                    <ChevronUp size={11} />
+                                  ) : (
+                                    <ChevronDown size={11} />
+                                  )}
+                                  Details
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+
+                          {expandedRow === row._idx && row.errors.length > 0 && (
+                            <tr>
+                              <td
+                                colSpan={7}
+                                className="px-4 py-2"
+                                style={{
+                                  background: "#fffbeb",
+                                  borderBottom: `1px solid ${COLORS.border}`,
+                                }}
+                              >
+                                <ul className="space-y-0.5">
+                                  {row.errors.map((e, i) => (
+                                    <li
+                                      key={`${row._idx}-${i}-${e}`}
+                                      className="text-[11px] font-semibold"
+                                      style={{ color: "#b45309" }}
+                                    >
+                                      · {e}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -843,50 +841,50 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
                 style={{ border: `1px solid ${COLORS.border}` }}
               >
                 <div className="overflow-x-auto">
-                <table className="w-full text-xs" style={{ minWidth: 400 }}>
-                  <thead>
-                    <tr style={{ background: COLORS.bgSoft, borderBottom: `1px solid ${COLORS.border}` }}>
-                      <th className="px-3 py-2.5 text-left font-bold" style={{ color: COLORS.secondary }}>Row</th>
-                      <th className="px-3 py-2.5 text-left font-bold" style={{ color: COLORS.secondary }}>Name</th>
-                      <th className="px-3 py-2.5 text-left font-bold hidden sm:table-cell" style={{ color: COLORS.secondary }}>Email</th>
-                      <th className="px-3 py-2.5 text-left font-bold" style={{ color: COLORS.secondary }}>Result</th>
-                      <th className="px-3 py-2.5 text-left font-bold hidden sm:table-cell" style={{ color: COLORS.secondary }}>Message</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => (
-                      <tr
-                        key={row._idx}
-                        style={{
-                          borderBottom: `1px solid ${COLORS.border}`,
-                          background:
-                            row.status === "success" ? "#f0fdf4"
-                            : row.status === "error" ? "#fef2f2"
-                            : row.errors.length ? "#fffbeb"
-                            : "white",
-                        }}
-                      >
-                        <td className="px-3 py-2.5 font-mono" style={{ color: COLORS.secondary }}>#{row._idx}</td>
-                        <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.primary }}>
-                          <span className="block">{row.student.firstName} {row.student.lastName}</span>
-                          {/* show error inline on mobile */}
-                          {(row.serverError || row.errors[0]) && (
-                            <span className="sm:hidden text-[10px] font-normal block" style={{ color: "#dc2626" }}>
-                              {row.serverError || row.errors[0]}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 hidden sm:table-cell" style={{ color: COLORS.secondary }}>{row.student.email}</td>
-                        <td className="px-3 py-2.5">
-                          <RowStatus status={row.status} errors={row.errors} />
-                        </td>
-                        <td className="px-3 py-2.5 hidden sm:table-cell" style={{ color: "#dc2626" }}>
-                          {row.serverError || (row.errors.length ? row.errors[0] : "")}
-                        </td>
+                  <table className="w-full text-xs" style={{ minWidth: 400 }}>
+                    <thead>
+                      <tr style={{ background: COLORS.bgSoft, borderBottom: `1px solid ${COLORS.border}` }}>
+                        <th className="px-3 py-2.5 text-left font-bold" style={{ color: COLORS.secondary }}>Row</th>
+                        <th className="px-3 py-2.5 text-left font-bold" style={{ color: COLORS.secondary }}>Name</th>
+                        <th className="px-3 py-2.5 text-left font-bold hidden sm:table-cell" style={{ color: COLORS.secondary }}>Email</th>
+                        <th className="px-3 py-2.5 text-left font-bold" style={{ color: COLORS.secondary }}>Result</th>
+                        <th className="px-3 py-2.5 text-left font-bold hidden sm:table-cell" style={{ color: COLORS.secondary }}>Message</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => (
+                        <tr
+                          key={row._idx}
+                          style={{
+                            borderBottom: `1px solid ${COLORS.border}`,
+                            background:
+                              row.status === "success" ? "#f0fdf4"
+                                : row.status === "error" ? "#fef2f2"
+                                  : row.errors.length ? "#fffbeb"
+                                    : "white",
+                          }}
+                        >
+                          <td className="px-3 py-2.5 font-mono" style={{ color: COLORS.secondary }}>#{row._idx}</td>
+                          <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.primary }}>
+                            <span className="block">{row.student.firstName} {row.student.lastName}</span>
+                            {/* show error inline on mobile */}
+                            {(row.serverError || row.errors[0]) && (
+                              <span className="sm:hidden text-[10px] font-normal block" style={{ color: "#dc2626" }}>
+                                {row.serverError || row.errors[0]}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 hidden sm:table-cell" style={{ color: COLORS.secondary }}>{row.student.email}</td>
+                          <td className="px-3 py-2.5">
+                            <RowStatus status={row.status} errors={row.errors} />
+                          </td>
+                          <td className="px-3 py-2.5 hidden sm:table-cell" style={{ color: "#dc2626" }}>
+                            {row.serverError || (row.errors.length ? row.errors[0] : "")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>

@@ -14,6 +14,8 @@ import SuperAdminRoutes from "./superAdmin/Routes";
 import TeacherRoutes from "./teacher/Routes";
 import ParentRoutes from "./parent/Routes";
 import FinanceRoutes from "./finance/Routes";
+import LandingPage from "./pages/LandingPage";
+
 
 import PublicLayout from "./LandingPages/components/PublicLayout";
 import Home from "./LandingPages/Home";
@@ -79,13 +81,13 @@ function App() {
           <Navigate
             to={
               !auth ? "/login"
-              : auth.accountType === "staff" && auth.role === "ADMIN" ? "/admin/dashboard"
-              : auth.accountType === "staff" && auth.role === "TEACHER" ? "/teacher/dashboard"
-              : auth.accountType === "staff" && auth.role === "FINANCE" ? "/finance/dashboard"
-              : auth.accountType === "student" ? "/student/dashboard"
-              : auth.accountType === "parent" ? "/parent/dashboard"
-              : (auth.accountType === "superAdmin" || auth.role === "SUPER_ADMIN") ? "/superAdmin/dashboard"
-              : "/login"
+                : auth.accountType === "staff" && auth.role === "ADMIN" ? "/admin/dashboard"
+                  : auth.accountType === "staff" && auth.role === "TEACHER" ? "/teacher/dashboard"
+                    : auth.accountType === "staff" && auth.role === "FINANCE" ? "/finance/dashboard"
+                      : auth.accountType === "student" ? "/student/dashboard"
+                        : auth.accountType === "parent" ? "/parent/dashboard"
+                          : (auth.accountType === "superAdmin" || auth.role === "SUPER_ADMIN") ? "/superAdmin/dashboard"
+                            : "/login"
             }
             replace
           />

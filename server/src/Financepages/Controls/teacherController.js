@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
+
 const prisma = new PrismaClient();
 
 // ── Per-day salary = (monthly × 12) / 365 ──────────────────────────────────
