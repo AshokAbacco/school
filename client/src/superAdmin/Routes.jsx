@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import PageLayout from "./components/PageLayout";
 
 import Dashboard from "./dashboard/Dashboard";
+import Profile from "./components/Profile";
 import StudentsList from "./pages/students/StudentsList";
 import Schools from "./pages/schools/Schools";
 import SchoolAdmins from "./pages/schoolAdmins/SchoolAdmins";
@@ -22,6 +23,7 @@ function SuperAdminRoutes() {
     <PageLayout>
       <Routes>
         <Route index                     element={<Navigate to="dashboard" replace />} />
+        <Route path="profile"            element={<Profile />} />
         <Route path="dashboard"          element={<Dashboard />} />
         <Route path="students"           element={<StudentsList />} />
         <Route path="schools"            element={<Schools />} />

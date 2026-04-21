@@ -1,5 +1,7 @@
 // client/src/superadmin/components/Navbar.jsx
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
 import {
   Search,
   Bell,
@@ -17,6 +19,7 @@ const font = { fontFamily: "'DM Sans', sans-serif" };
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+
 const initials = (name = "AU") =>
   name
     .trim()
@@ -27,6 +30,7 @@ const initials = (name = "AU") =>
     .slice(0, 2);
 
 export default function Navbar({ onMenuClick, user }) {
+  const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
   const [search, setSearch] = useState("");
@@ -39,6 +43,7 @@ export default function Navbar({ onMenuClick, user }) {
   const displayName = user?.name || "Admin User";
   const displayRole = user?.role || "Administrator";
   const notificationSound = new Audio("/Audio/notification.wav");
+  
 
 useEffect(() => {
   const socket = getSocket();
@@ -370,7 +375,10 @@ useEffect(() => {
                 </div>
 
                 <button
-                  onClick={() => setDropdownOpen(false)}
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    navigate("/superadmin/profile");
+                  }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
                   style={{
                     color: "#384959",

@@ -35,7 +35,7 @@ app.use("/api/parent", parent);
 app.use("/api/device", gpsRoutes);
 app.use("/api/payment", paymentRoutes);
 
-// Create HTTP server first
+
 const server = createServer(app);
 
 // Socket

@@ -1,6 +1,7 @@
 // client/src/parent/components/Sidebar.jsx
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useSchoolLogo } from "../../hooks/useSchoolLogo";  // ← ADD
 import {
   LayoutDashboard,
   User,
@@ -18,6 +19,7 @@ import { getAuth } from "../../auth/storage";
 
 function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
+  const logoUrl = useSchoolLogo();  
   const [hovered, setHovered] = useState(false);
 
   const base = "/parent";
@@ -83,36 +85,66 @@ function Sidebar({ isOpen, onClose }) {
 
         {/* Logo */}
         <div
-          className="flex items-center justify-between px-3.5 h-16 flex-shrink-0"
-          style={{ borderBottom: "1px solid rgba(136,189,242,0.12)" }}
+          className="flex items-center h-16 flex-shrink-0"
+          style={{
+            borderBottom: "1px solid rgba(136,189,242,0.12)",
+            paddingLeft: "12px",
+            paddingRight: "12px",
+          }}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "linear-gradient(135deg, #88BDF2, #6A89A7)" }}
-            >
-              <GraduationCap size={18} color="#fff" />
-            </div>
-
-            <div
-              className="leading-tight min-w-0"
-              style={{
-                opacity: expanded ? 1 : 0,
-                transform: expanded ? "translateX(0)" : "translateX(-6px)",
-                transition: "opacity 200ms ease, transform 200ms ease",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-              }}
-            >
-              <p className="font-bold text-sm" style={{ color: "#fff" }}>SchoolHub</p>
-              <p
-                className="text-[10px] font-semibold uppercase tracking-[0.12em]"
-                style={{ color: "rgba(200,220,240,0.85)" }}
-              >
-                Parent Portal
-              </p>
-            </div>
+          {/* Logo circle */}
+          <div
+            className="flex items-center justify-center overflow-hidden flex-shrink-0"
+            style={{
+              width: "40px",
+              height: "40px",
+              minWidth: "40px",
+              borderRadius: "50%",
+              background: logoUrl
+                ? "transparent"
+                : "linear-gradient(135deg, #88BDF2, #6A89A7)",
+            }}
+          >
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="School Logo"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <GraduationCap size={20} color="#fff" />
+            )}
           </div>
+
+          {/* Text */}
+          <div
+            className="leading-tight min-w-0 ml-2"
+            style={{
+              opacity: expanded ? 1 : 0,
+              transform: expanded ? "translateX(0)" : "translateX(-6px)",
+              transition: "opacity 200ms ease, transform 200ms ease",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+            }}
+          >
+            <p className="font-bold text-sm" style={{ color: "#fff" }}>
+              SchoolHub
+            </p>
+            <p
+              className="text-[10px] font-semibold uppercase tracking-[0.12em]"
+              style={{ color: "rgb(200,200,200)" }}
+            >
+              Finance Panel
+            </p>
+          </div>
+
+          {/* Mobile close */}
+          <button
+            onClick={onClose}
+            className="md:hidden ml-auto"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Navigation */}

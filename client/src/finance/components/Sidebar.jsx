@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, GraduationCap, Wallet, X,MessageCircle } from "lucide-react";
+import { useSchoolLogo } from "../../hooks/useSchoolLogo";
 
 const NAV = [
   { icon: LayoutDashboard, label: "Dashboard", to: "/finance/dashboard" },
@@ -16,6 +17,7 @@ const initials = (name = "AU") =>
 
 export default function Sidebar({ isOpen, onClose, user }) {
   const { pathname } = useLocation();
+  const logoUrl = useSchoolLogo();
   const [hovered, setHovered] = useState(false);
 
   const isActive = (to) => pathname === to || pathname.startsWith(to + "/");
@@ -61,58 +63,65 @@ export default function Sidebar({ isOpen, onClose, user }) {
       >
         {/* Logo */}
         <div
-          className="flex items-center justify-between px-3.5 h-16 flex-shrink-0"
-          style={{ borderBottom: "1px solid rgba(136,189,242,0.12)" }}
+          className="flex items-center h-16 flex-shrink-0"
+          style={{
+            borderBottom: "1px solid rgba(136,189,242,0.12)",
+            paddingLeft: "12px",
+            paddingRight: "12px",
+          }}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "linear-gradient(135deg, #88BDF2, #6A89A7)" }}
-            >
-              <GraduationCap size={18} color="#fff" />
-            </div>
-
-            <div
-              className="leading-tight min-w-0"
-              style={{
-                opacity: expanded ? 1 : 0,
-                transform: expanded ? "translateX(0)" : "translateX(-6px)",
-                transition: "opacity 200ms ease, transform 200ms ease",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-              }}
-            >
-              <p className="font-bold text-sm" style={{ color: "#fff" }}>
-                SchoolHub
-              </p>
-              <p
-                className="text-[10px] font-semibold uppercase tracking-[0.12em]"
-                style={{ color: "rgb(200,200,200)" }}
-              >
-                Finance Panel
-              </p>
-            </div>
+          {/* Logo circle */}
+          <div
+            className="flex items-center justify-center overflow-hidden flex-shrink-0"
+            style={{
+              width: "40px",
+              height: "40px",
+              minWidth: "40px",
+              borderRadius: "50%",
+              background: logoUrl
+                ? "transparent"
+                : "linear-gradient(135deg, #88BDF2, #6A89A7)",
+            }}
+          >
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="School Logo"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <GraduationCap size={20} color="#fff" />
+            )}
           </div>
 
-          {/* Mobile close button */}
+          {/* Text */}
+          <div
+            className="leading-tight min-w-0 ml-2"
+            style={{
+              opacity: expanded ? 1 : 0,
+              transform: expanded ? "translateX(0)" : "translateX(-6px)",
+              transition: "opacity 200ms ease, transform 200ms ease",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+            }}
+          >
+            <p className="font-bold text-sm" style={{ color: "#fff" }}>
+              SchoolHub
+            </p>
+            <p
+              className="text-[10px] font-semibold uppercase tracking-[0.12em]"
+              style={{ color: "rgb(200,200,200)" }}
+            >
+              Finance Panel
+            </p>
+          </div>
+
+          {/* Mobile close */}
           <button
             onClick={onClose}
-            className="md:hidden rounded-lg p-1.5 transition-colors"
-            style={{
-              color: "#8fafc4",
-              background: "rgba(136,189,242,0.08)",
-              border: "none",
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "rgba(136,189,242,0.18)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "rgba(136,189,242,0.08)")
-            }
+            className="md:hidden ml-auto"
           >
-            <X size={17} />
+            <X size={18} />
           </button>
         </div>
 

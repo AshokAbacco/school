@@ -11,6 +11,8 @@ import errorHandler from "./middlewares/errorMiddleware.js";
 
 import { startBackupScheduler } from "./backup/scheduler.js";
 import { cleanCloud } from "./backup/cleanupCloud.js";
+import logoRoutes from "./utils/logoRoutes.js";
+import { requireAuth } from "./middlewares/auth.middleware.js";
 
 
 
@@ -32,6 +34,7 @@ app.use(express.json());
 
 // routes
 app.use("/api/auth", authRoutes);
+app.use("/api", logoRoutes(requireAuth));
 app.use(globalLimiter);
 app.use(errorHandler);
 

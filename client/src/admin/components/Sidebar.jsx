@@ -1,6 +1,7 @@
 // src/admin/components/Sidebar.jsx
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useSchoolLogo } from "../../hooks/useSchoolLogo";  // ← ADD
 import {
   LayoutDashboard,
   Users,
@@ -52,6 +53,7 @@ const PANEL_LABEL = {
 export default function Sidebar({ isOpen, onClose, user }) {
   const { pathname } = useLocation();
   const [hovered, setHovered] = useState(false);
+  const logoUrl = useSchoolLogo();   // ← ADD
 
   const isActive = (to) => pathname === to || pathname.startsWith(to + "/");
 
@@ -63,29 +65,14 @@ export default function Sidebar({ isOpen, onClose, user }) {
 
   return (
     <>
-      {/* Inline Style for Custom Scrollbar */}
       <style>{`
-        .sidebar-nav::-webkit-scrollbar {
-          width: 5px;
-        }
-        .sidebar-nav::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .sidebar-nav::-webkit-scrollbar-thumb {
-          background: rgba(136, 189, 242, 0.2);
-          border-radius: 10px;
-        }
-        .sidebar-nav:hover::-webkit-scrollbar-thumb {
-          background: rgba(136, 189, 242, 0.4);
-        }
-        /* Hide scrollbar for Firefox */
-        .sidebar-nav {
-          scrollbar-width: thin;
-          scrollbar-color: rgba(136, 189, 242, 0.2) transparent;
-        }
+        .sidebar-nav::-webkit-scrollbar { width: 5px; }
+        .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(136,189,242,0.2); border-radius: 10px; }
+        .sidebar-nav:hover::-webkit-scrollbar-thumb { background: rgba(136,189,242,0.4); }
+        .sidebar-nav { scrollbar-width: thin; scrollbar-color: rgba(136,189,242,0.2) transparent; }
       `}</style>
 
-      {/* Mobile overlay */}
       {isOpen && (
         <div
           className="fixed inset-0 z-40 md:hidden"
@@ -110,51 +97,79 @@ export default function Sidebar({ isOpen, onClose, user }) {
           overflow: "hidden",
         }}
       >
-        {/* Logo */}
+        {/* ── Logo row ── */}
         <div
-          className="flex items-center justify-between px-3.5 h-16 flex-shrink-0"
-          style={{ borderBottom: "1px solid rgba(136,189,242,0.12)" }}
+          className="flex items-center h-16 flex-shrink-0"
+          style={{
+            borderBottom: "1px solid rgba(136,189,242,0.12)",
+            paddingLeft: "12px",
+            paddingRight: "12px",
+          }}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "linear-gradient(135deg, #88BDF2, #6A89A7)" }}
-            >
-              <GraduationCap size={18} color="#fff" />
-            </div>
-
-            <div
-              className="leading-tight min-w-0"
-              style={{
-                opacity: expanded ? 1 : 0,
-                transform: expanded ? "translateX(0)" : "translateX(-6px)",
-                transition: "opacity 200ms ease, transform 200ms ease",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-              }}
-            >
-              <p className="font-bold text-sm" style={{ color: "#fff" }}>
-                SchoolHub
-              </p>
-              <p
-                className="text-[10px] font-semibold uppercase tracking-[0.12em]"
-                style={{ color: "rgb(200,200,200)" }}
-              >
-                {panelLabel}
-              </p>
-            </div>
+          {/* Logo circle — always 40px so it stays centred when collapsed */}
+          <div
+            className="flex items-center justify-center overflow-hidden flex-shrink-0"
+            style={{
+              width: "40px",
+              height: "40px",
+              minWidth: "40px",
+              borderRadius: "50%",
+              background: logoUrl
+                ? "transparent"
+                : "linear-gradient(135deg, #88BDF2, #6A89A7)",
+            }}
+          >
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="School Logo"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <GraduationCap size={20} color="#fff" />
+            )}
           </div>
 
+          {/* Text — fades in when expanded */}
+          <div
+            className="leading-tight min-w-0 ml-2"
+            style={{
+              opacity: expanded ? 1 : 0,
+              transform: expanded ? "translateX(0)" : "translateX(-6px)",
+              transition: "opacity 200ms ease, transform 200ms ease",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              pointerEvents: expanded ? "auto" : "none",
+            }}
+          >
+            <p className="font-bold text-sm" style={{ color: "#fff" }}>
+              SchoolHub
+            </p>
+            <p
+              className="text-[10px] font-semibold uppercase tracking-[0.12em]"
+              style={{ color: "rgb(200,200,200)" }}
+            >
+              {panelLabel}
+            </p>
+          </div>
+
+          {/* Mobile close button */}
           <button
             onClick={onClose}
-            className="md:hidden rounded-lg p-1 transition-opacity hover:opacity-60"
-            style={{ color: "#6A89A7", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}
+            className="md:hidden rounded-lg p-1 transition-opacity hover:opacity-60 ml-auto flex-shrink-0"
+            style={{
+              color: "#6A89A7",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: expanded ? "block" : "none",
+            }}
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Nav items with custom scrollbar class */}
+        {/* ── Nav items ── */}
         <nav className="sidebar-nav flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 space-y-0.5">
           {NAV.map(({ icon: Icon, label, to }) => {
             const active = isActive(to);
@@ -227,7 +242,7 @@ export default function Sidebar({ isOpen, onClose, user }) {
           })}
         </nav>
 
-        {/* User card */}
+        {/* ── User card ── */}
         <div
           className="px-2 py-3 flex-shrink-0"
           style={{ borderTop: "1px solid rgba(136,189,242,0.12)" }}

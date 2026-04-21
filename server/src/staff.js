@@ -13,7 +13,7 @@ import financeProfileRoutes from "./superAdmin/routes/financeProfile.routes.js";
 import teacherCertificateRoutes from "./staffRoutes/teacherCertificateRoutes.js";
 import adminTransportRoute from "./staffRoutes/adminTransportRoute.js";
 import feeRoutes from "./superAdmin/routes/Feeroutes.js";
-
+import superAdminProfileRoutes from "./staffRoutes/superAdminProfile.Routes.js";
 // import classSectionRoutes from "./staffRoutes/classSectionRoutes.js";
 import classSectionRoutes, {
   streamsRouter,
@@ -42,6 +42,8 @@ import resultRoutes from "./staffRoutes/resultRoutes.js";
 import teacherAssignmentRoute from "./staffRoutes/teacherAssignmentRoute.js";
 
 import chatRoutes from "../src/chatbox/chat.routes.js";
+import logoRoutes from "./utils/logoRoutes.js";
+import { requireAuth } from "./middlewares/auth.middleware.js";
 
 
 
@@ -99,9 +101,11 @@ staff.use("/api/results", resultRoutes);
 staff.use("/api/teacher/certificates", teacherCertificateRoutes);
 staff.use("/api/teacher/assignments", teacherAssignmentRoute);
 staff.use("/api/admin/transport", adminTransportRoute);
+staff.use("/api/superadmin/profile", superAdminProfileRoutes);
 
 
 staff.use("/api/chat", chatRoutes);
+staff.use("/api", logoRoutes(requireAuth));
 
 
 

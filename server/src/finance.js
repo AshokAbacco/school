@@ -8,6 +8,8 @@ import groupBRoutes from "./Financepages/Routes/groupBRoutes.js";
 import groupCRoutes from "./Financepages/Routes/groupCRoutes.js";
 import groupDRoutes from "./Financepages/Routes/groupDRoutes.js";
 import teacherRoutes from "./Financepages/Routes/teacherRoutes.js";
+import logoRoutes from "./utils/logoRoutes.js";
+import { requireAuth } from "./middlewares/auth.middleware.js"; 
 
 dotenv.config();
 
@@ -34,5 +36,5 @@ finance.use("/api/groupc", groupCRoutes);
 finance.use("/api/groupd/salary", groupDRoutes);
 
 finance.use("/api/teachers", teacherRoutes);
-
+finance.use("/api", logoRoutes(requireAuth));
 export default finance;

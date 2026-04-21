@@ -15,7 +15,8 @@ import dashboardRoutes  from "./parent/routes/Dashboardroutes.js";
 import profileRoutes    from "./parent/routes/Profileroutes.js";
 import certificatesRoutes  from "./parent/routes/Certificatesroutes.js";
 import syllabusProgressRoutes from "./parent/routes/SyllabusProgressRoutes.js";
-
+import logoRoutes from "./utils/logoRoutes.js";
+import { requireAuth } from "./middlewares/auth.middleware.js"; 
 
 
 dotenv.config();           
@@ -42,6 +43,8 @@ parent.use("/dashboard",   dashboardRoutes);
 parent.use("/profile",     profileRoutes);
 parent.use("/certificates", certificatesRoutes);
 parent.use("/syllabus-progress", syllabusProgressRoutes);
+parent.use("/api", logoRoutes(requireAuth));
+
 
 
 export default parent;
