@@ -1,6 +1,6 @@
 // server/src/parent.js
 import express from "express";
-// import cors from "cors";
+import cors from "cors";
 import dotenv from "dotenv";
 
 
@@ -23,12 +23,12 @@ dotenv.config();
 
 const parent = express();
 
-// parent.use(  
-//   cors({
-//     origin: process.env.CLIENT_ORIGIN,
-//     credentials: true,
-//   })
-// );
+parent.use(  
+  cors({
+    origin: process.env.CLIENT_ORIGIN,
+    credentials: true,
+  })
+);
 
 parent.use(express.json());
 

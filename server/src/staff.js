@@ -1,6 +1,6 @@
 // server/src/staff.js
 import express from "express";
-// import cors from "cors";
+import cors from "cors";
 import dotenv from "dotenv";
 import studentsRoutes from "./staffRoutes/studentsRoutes.js";
 import teachersRoutes from "./staffRoutes/teachersRoutes.js";
@@ -42,6 +42,8 @@ import resultRoutes from "./staffRoutes/resultRoutes.js";
 import teacherAssignmentRoute from "./staffRoutes/teacherAssignmentRoute.js";
 
 import chatRoutes from "../src/chatbox/chat.routes.js";
+import staffNotificationRoutes from "./staffRoutes/staffNotificationRoutes.js";
+
 import logoRoutes from "./utils/logoRoutes.js";
 import { requireAuth } from "./middlewares/auth.middleware.js";
 
@@ -52,12 +54,12 @@ dotenv.config();
 const staff = express();
 
 // Middlewares
-// staff.use(
-//   cors({
-//     origin: process.env.CLIENT_ORIGIN,
-//     credentials: true,
-//   }),
-// );
+staff.use(
+  cors({
+    origin: process.env.CLIENT_ORIGIN,
+    credentials: true,
+  }),
+);
 
 staff.use(express.json());
 //super admin
@@ -102,6 +104,7 @@ staff.use("/api/teacher/certificates", teacherCertificateRoutes);
 staff.use("/api/teacher/assignments", teacherAssignmentRoute);
 staff.use("/api/admin/transport", adminTransportRoute);
 staff.use("/api/superadmin/profile", superAdminProfileRoutes);
+staff.use("/api/notifications", staffNotificationRoutes);
 
 
 staff.use("/api/chat", chatRoutes);

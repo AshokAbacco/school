@@ -1,6 +1,6 @@
 // server/src/finance.js
 import express from "express";
-// import cors from "cors";
+import cors from "cors";
 import dotenv from "dotenv";
 import studentFinanceRoutes from "./Financepages/Routes/studentFinance.routes.js";
 import expenseRoutes from "./Financepages/Routes/expenseRoutes.js";
@@ -16,12 +16,12 @@ dotenv.config();
 const finance = express();
 
 // Middlewares
-// finance.use(
-//   cors({
-//     origin: process.env.CLIENT_ORIGIN,
-//     credentials: true,
-//   })
-// );
+finance.use(
+  cors({
+    origin: process.env.CLIENT_ORIGIN,
+    credentials: true,
+  })
+);
 
 finance.use(express.json());
 

@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import express from "express";
-// import cors from "cors";
+import cors from "cors";
 
 import authRoutes from "./modules/auth/auth.routes.js";
 import { globalLimiter } from "./middlewares/rateLimiter.js";
@@ -24,12 +24,12 @@ const app = express();
 
 
 // middlewares
-// app.use(
-//   cors({
-//     origin: process.env.CLIENT_ORIGIN,
-//     credentials: true,
-//   }),
-// );
+app.use(
+  cors({
+    origin: process.env.CLIENT_ORIGIN,
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 // routes
