@@ -1,7 +1,7 @@
 // client/src/finance/components/Sidebar.jsx
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, GraduationCap, Wallet, X,MessageCircle } from "lucide-react";
+import { LayoutDashboard, GraduationCap, Wallet, X,MessageCircle,CalendarDays } from "lucide-react";
 import { useSchoolLogo } from "../../hooks/useSchoolLogo";
 
 const NAV = [
@@ -10,6 +10,8 @@ const NAV = [
   { icon: Wallet, label: "Staff", to: "/finance/teachersfinance" },
   { icon: Wallet, label: "Expenses", to: "/finance/expenses" },
   { icon: MessageCircle, label: "Chat", to: "/finance/chat" },
+  { icon: CalendarDays, label: "Holidays", to: "/finance/holidays" }
+
 ];
 
 const initials = (name = "AU") =>

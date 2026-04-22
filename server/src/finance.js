@@ -1,4 +1,4 @@
-// server/src/finance.js
+// server/src/finance.js  (UPDATED — added shared read-only holiday route)
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -9,13 +9,17 @@ import groupCRoutes from "./Financepages/Routes/groupCRoutes.js";
 import groupDRoutes from "./Financepages/Routes/groupDRoutes.js";
 import teacherRoutes from "./Financepages/Routes/teacherRoutes.js";
 import logoRoutes from "./utils/logoRoutes.js";
-import { requireAuth } from "./middlewares/auth.middleware.js"; 
+import { requireAuth } from "./middlewares/auth.middleware.js";
+
+// ── NEW: shared read-only holiday route ───────────────────────────────────────
+import makeHolidayRouter from "./sharedRoutes/holidayRoute.js";
+// Finance server uses requireAuth (from auth.middleware.js) — pass it directly
+// ─────────────────────────────────────────────────────────────────────────────
 
 dotenv.config();
 
 const finance = express();
 
-// Middlewares
 finance.use(
   cors({
     origin: process.env.CLIENT_ORIGIN,
@@ -25,16 +29,18 @@ finance.use(
 
 finance.use(express.json());
 
-// Routes
+// existing routes
 finance.use("/api/finance", expenseRoutes);
-
 finance.use("/api/finance", studentFinanceRoutes);
-
 finance.use("/api/groupb", groupBRoutes);
 finance.use("/api/groupc", groupCRoutes);
-
 finance.use("/api/groupd/salary", groupDRoutes);
-
 finance.use("/api/teachers", teacherRoutes);
+
+// ── Finance read-only holidays  (GET / and GET /check) ───────────────────────
+finance.use("/api/holidays", makeHolidayRouter(requireAuth));
+// ─────────────────────────────────────────────────────────────────────────────
+
 finance.use("/api", logoRoutes(requireAuth));
+
 export default finance;

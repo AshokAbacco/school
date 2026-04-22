@@ -15,12 +15,14 @@ import {
   X,
   Video,
   BookOpen,
+  CalendarDays
 } from "lucide-react";
 
 const NAV = [
   { icon: Home,          label: "Dashboard",      to: "/student/dashboard" },
   { icon: User,          label: "Profile",         to: "/student/profile" },
   { icon: CalendarCheck, label: "Attendance",      to: "/student/attendance" },
+  { icon: CalendarDays, label: "Holidays", to: "/student/holidays" },
   { icon: BarChart3,     label: "Marks & Results", to: "/student/marks" },
   { icon: Clock,         label: "Time Table",      to: "/student/time-table" },
   { icon: BookOpen,      label: "Homework",        to: "/student/homework" }, 
