@@ -42,6 +42,8 @@ import resultRoutes from "./staffRoutes/resultRoutes.js";
 import teacherAssignmentRoute from "./staffRoutes/teacherAssignmentRoute.js";
 
 import chatRoutes from "../src/chatbox/chat.routes.js";
+import staffNotificationRoutes from "./staffRoutes/staffNotificationRoutes.js";
+
 import logoRoutes from "./utils/logoRoutes.js";
 import { requireAuth } from "./middlewares/auth.middleware.js";
 
@@ -102,6 +104,7 @@ staff.use("/api/teacher/certificates", teacherCertificateRoutes);
 staff.use("/api/teacher/assignments", teacherAssignmentRoute);
 staff.use("/api/admin/transport", adminTransportRoute);
 staff.use("/api/superadmin/profile", superAdminProfileRoutes);
+staff.use("/api/notifications", staffNotificationRoutes);
 
 
 staff.use("/api/chat", chatRoutes);

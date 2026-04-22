@@ -14,6 +14,7 @@ import certificateRoutes from "./student/routes/certificateRoutes.js";
 import onlineClassesRouter from "./student/routes/onlineClasses.routes.js";
 import studentCertificateRoutes from "./student/routes/studentCertificateRoutes.js";
 import homeworkRoutes from "./student/routes/homework.routes.js";
+import notificationsRouter from "./student/routes/notifications.routes.js";
 import logoRoutes from "./utils/logoRoutes.js";
 import { requireAuth } from "./middlewares/auth.middleware.js"; 
 
@@ -44,6 +45,7 @@ student.use("/activities", activitiesRoute);
 student.use("/certificates", certificateRoutes);
 student.use("/online-classes", onlineClassesRouter);
 student.use("/api/student/certificates", studentCertificateRoutes);
+student.use("/notifications", notificationsRouter);
 student.use("/api/student/homework", homeworkRoutes)
 student.use("/api", logoRoutes(requireAuth));
 
