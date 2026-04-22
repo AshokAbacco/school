@@ -11,6 +11,8 @@ import GroupCSalary from "./pages/Teachersfinance/GroupCSalary";
 import GroupDSalary from "./pages/Teachersfinance/GroupDSalary";
 import Expense from "./pages/Expense/Expense";
 import FinanceChat from "./pages/chat/FinanceChat";
+import FinanceHolidayPage from "./pages/holidays/HolidayPage";
+
  
 const FinanceRoutes = () => {
   return (
@@ -24,9 +26,9 @@ const FinanceRoutes = () => {
     <Route path="group-b"         element={<GroupBSalary />} />
     <Route path="group-c"         element={<GroupCSalary />} />
     <Route path="group-d"         element={<GroupDSalary />} />
-    <Route path="/expenses"         element={<Expense />} />
-    <Route path="/chat"         element={<FinanceChat />} />
-    
+    <Route path="/expenses"       element={<Expense />} />
+    <Route path="/chat"           element={<FinanceChat />} />
+    <Route path="holidays"        element={<FinanceHolidayPage />} />
     <Route path="*"               element={<Navigate to="dashboard" replace />} />
   </Routes>
 </PageLayout>

@@ -22,6 +22,7 @@ const NAV = [
   { icon: Home,        label: "Dashboard",     to: "/teacher/dashboard" },
   { icon: CalendarDays,label: "Time Table",     to: "/teacher/timetable" },
   { icon: User,        label: "Attendance",     to: "/teacher/attendance" },
+  { icon: CalendarDays, label: "Holidays", to: "/teacher/holidays" },
   { icon: Video,       label: "Online Classes", to: "/teacher/online-classes" },
   { icon: BookOpen,    label: "Curriculum",     to: "/teacher/curriculum" },
   { icon: BookOpenCheck, label: "Assignments", to: "/teacher/assignments" },

@@ -14,6 +14,7 @@ import Result from "./pages/result/Result"
 import CertificatesUploadPage from "./pages/Certificates/CertificatesUploadPage";
 import AssignmentsPage from "./pages/assignments/AssignmentsPage";
 import TeacherChatPage from "./pages/chat/TeacherChatPage";
+import TeacherHolidayPage from "./pages/holidays/HolidayPage";
 
 function TeacherRoutes() {
   return (
@@ -23,6 +24,7 @@ function TeacherRoutes() {
         <Route path="dashboard"      element={<Dashboard />} />
         <Route path="attendance"     element={<Attendance />} />
         <Route path="curriculum"     element={<CurriculumPage />} />
+        <Route path="holidays" element={<TeacherHolidayPage />} />
         <Route path="activities"     element={<ActivitiesAndEvents />} />
         <Route path="awards"         element={<AwardsPage />} />
         <Route path="online-classes" element={<OnlineClassesPage />} />

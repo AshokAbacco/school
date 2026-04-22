@@ -11,6 +11,8 @@ import Timetable from "./pages/Timetable/Timetable";
 import Activities from "./pages/Activities/Activities";
 import Certificates from "./pages/Certificates/Certificates";
 import ParentChatPage from "./pages/chat/ParentChatPage";
+import ParentHolidayPage from "./pages/holidays/HolidayPage";
+
 // import CertificatesUploadPage from "../teacher/pages/Certificates/CertificatesUploadPage";
 
 import FeesAndPayments from "./pages/FeesAndPayments/FeesAndPayments";
@@ -34,7 +36,7 @@ const ParentRoutes = () => {
 
         <Route path="fees-payments" element={<FeesAndPayments />} />
         <Route path="chat" element={<ParentChatPage />} />
-
+        <Route path="holidays" element={<ParentHolidayPage />} />
         <Route path="*" element={<Navigate to="dashboard" replace />} />
 
       </Route>
