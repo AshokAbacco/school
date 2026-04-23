@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { getToken } from "../../../auth/storage";
 import DocumentViewer from "./components/DocumentViewer";
+import SignedProfileImage from "./components/SignedProfileImage";
+
 
 const API_URL = import.meta.env.VITE_API_URL;
 const authHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
@@ -541,22 +543,21 @@ export default function StudentView() {
         >
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
             {/* Avatar */}
-            <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-md shrink-0 overflow-hidden"
-              style={{
-                background: "linear-gradient(135deg, #6A89A7, #384959)",
-              }}
-            >
-              {pi?.profileImage ? (
-                <img
-                  src={pi.profileImage}
-                  alt={fullName}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </div>
+           <div
+            className="w-20 h-20 rounded-2xl shrink-0 overflow-hidden"
+            style={{ background: "linear-gradient(135deg, #6A89A7, #384959)" }}
+          >
+            {pi?.profileImage ? (
+              <SignedProfileImage
+                studentId={id}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">
+                {initials}
+              </div>
+            )}
+          </div>
 
             {/* Info */}
             <div className="flex-1 min-w-0">

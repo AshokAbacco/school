@@ -1,9 +1,10 @@
 // client/src/superAdmin/components/Sidebar.jsx
-import React, { useState } from "react";
+import React, {useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { getToken } from "../../auth/storage";
 import {
   LayoutDashboard, Building2, UserCog, Users, ShieldCheck,
-  CreditCard, BarChart3, Settings, X, GraduationCap, Wallet,
+  CreditCard, BarChart3, X, GraduationCap, Wallet,
   MessageCircle,
 } from "lucide-react";
 
@@ -15,10 +16,8 @@ const NAV = [
   { icon: Users,           label: "Users Management",    to: "/superadmin/users-management" },
   { icon: ShieldCheck,     label: "Roles & Permissions", to: "/superadmin/roles-permissions" },
   { icon: Building2,       label: "Fees",                to: "/superadmin/fees" },
-  // { icon: CalendarCheck,   label: "Meetings",            to: "/superadmin/mettings" },
   { icon: BarChart3,       label: "Analytics",           to: "/superadmin/analytics" },
   { icon: CreditCard,      label: "Subscription Plans",  to: "/superadmin/subscription-Plans" },
-  // { icon: Settings,        label: "Global Settings",     to: "/superadmin/settings" },
   { icon: MessageCircle,   label: "Chat",                to: "/superadmin/chat" },
 ];
 
@@ -27,6 +26,7 @@ const initials = (name = "SA") =>
 
 export default function Sidebar({ isOpen, onClose, user }) {
   const { pathname } = useLocation();
+  const [logoUrl, setLogoUrl] = useState(null);
   const [hovered, setHovered] = useState(false);
 
   const isActive = (to) => pathname === to || pathname.startsWith(to + "/");
@@ -38,6 +38,22 @@ export default function Sidebar({ isOpen, onClose, user }) {
   const displayEmail = user?.email || "";
 
   const expanded = hovered;
+
+  useEffect(() => {
+    const fetchLogo = async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/superadmin/profile/logo`,
+          { headers: { Authorization: `Bearer ${getToken()}` } }
+        );
+        const data = await res.json();
+        if (data?.logoUrl) setLogoUrl(data.logoUrl);
+      } catch (err) {
+        console.error("Logo fetch error:", err);
+      }
+    };
+    fetchLogo();
+  }, []);
 
   return (
     <>
@@ -65,51 +81,87 @@ export default function Sidebar({ isOpen, onClose, user }) {
           overflow: "hidden",
         }}
       >
-        {/* Logo */}
+        {/* ── Logo row ── */}
         <div
-          className="flex items-center justify-between px-3.5 h-16 flex-shrink-0"
-          style={{ borderBottom: "1px solid rgba(136,189,242,0.12)" }}
+          className="flex items-center h-16 flex-shrink-0"
+          style={{
+            borderBottom: "1px solid rgba(136,189,242,0.12)",
+            // Always 12px padding so the circle stays centred inside 64px
+            paddingLeft: "12px",
+            paddingRight: "12px",
+          }}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "linear-gradient(135deg, #88BDF2, #6A89A7)" }}
-            >
-              <GraduationCap size={18} color="#fff" />
-            </div>
-
-            <div
-              className="leading-tight min-w-0"
-              style={{
-                opacity: expanded ? 1 : 0,
-                transform: expanded ? "translateX(0)" : "translateX(-6px)",
-                transition: "opacity 200ms ease, transform 200ms ease",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-              }}
-            >
-              <p className="font-bold text-sm" style={{ color: "#fff" }}>
-                SchoolHub
-              </p>
-              <p
-                className="text-[10px] font-semibold uppercase tracking-[0.12em]"
-                style={{ color: "rgb(200,200,200)" }}
-              >
-                Super Admin Panel
-              </p>
-            </div>
+          {/*
+            The circle is always 40px wide.
+            Collapsed sidebar = 64px wide, padding 12+12 = 24px, leaving 40px → perfect fit.
+            We let the text label grow into the remaining space when expanded.
+          */}
+          <div
+            className="flex items-center justify-center overflow-hidden flex-shrink-0"
+            style={{
+              width: "40px",
+              height: "40px",
+              minWidth: "40px",
+              borderRadius: "50%",
+              background: logoUrl
+                ? "transparent"
+                : "linear-gradient(135deg, #88BDF2, #6A89A7)",
+            }}
+          >
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="School Logo"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <GraduationCap size={20} color="#fff" />
+            )}
           </div>
 
+          {/* Text fades in alongside the sidebar expansion */}
+          <div
+            className="leading-tight min-w-0 ml-2"
+            style={{
+              opacity: expanded ? 1 : 0,
+              // Slide the text in from the left; when collapsed it sits behind the circle
+              transform: expanded ? "translateX(0)" : "translateX(-6px)",
+              transition: "opacity 180ms ease, transform 180ms ease",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              // Prevent collapsed text from pushing layout — visibility:hidden would also work
+              pointerEvents: expanded ? "auto" : "none",
+            }}
+          >
+            <p className="font-bold text-sm" style={{ color: "#fff" }}>
+              SchoolHub
+            </p>
+            <p
+              className="text-[10px] font-semibold uppercase tracking-[0.12em]"
+              style={{ color: "rgb(200,200,200)" }}
+            >
+              Super Admin Panel
+            </p>
+          </div>
+
+          {/* Mobile close button — only shown when drawer is open */}
           <button
             onClick={onClose}
-            className="md:hidden rounded-lg p-1 transition-opacity hover:opacity-60"
-            style={{ color: "#6A89A7", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}
+            className="md:hidden rounded-lg p-1 transition-opacity hover:opacity-60 ml-auto flex-shrink-0"
+            style={{
+              color: "#6A89A7",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              // Keep it in flow so it doesn't interfere with centering on desktop
+              display: expanded ? "block" : "none",
+            }}
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Nav items */}
+        {/* ── Nav items ── */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 space-y-0.5">
           {NAV.map(({ icon: Icon, label, to }) => {
             const active = isActive(to);
@@ -143,6 +195,7 @@ export default function Sidebar({ isOpen, onClose, user }) {
                     style={{
                       color: active ? "#88BDF2" : "#6A89A7",
                       flexShrink: 0,
+                      // Keep icon centred in the 40px icon zone (64px - 2×12px padding)
                       marginLeft: expanded ? "2px" : "auto",
                       marginRight: expanded ? "0" : "auto",
                       transition: "margin 280ms cubic-bezier(0.4,0,0.2,1)",
@@ -181,7 +234,7 @@ export default function Sidebar({ isOpen, onClose, user }) {
           })}
         </nav>
 
-        {/* User card */}
+        {/* ── User card ── */}
         <div
           className="px-2 py-3 flex-shrink-0"
           style={{ borderTop: "1px solid rgba(136,189,242,0.12)" }}

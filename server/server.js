@@ -1,59 +1,73 @@
-// // server/server.js
-// server/server.js
 import "dotenv/config";
-
 import { createServer } from "http";
 import { Server } from "socket.io";
+import cors from "cors";
 
 import "./src/utils/redis.js";
-import app from "./src/app.js";   // login related
+
+import app from "./src/app.js";
 import staff from "./src/staff.js";
 import finance from "./src/finance.js";
 import student from "./src/student.js";
 import parent from "./src/parent.js";
 import gpsRoutes from "./src/gps-ingestion/gps.routes.js";
 import paymentRoutes from "./src/payment/payment.routes.js";
-import cors from "cors";
+import whatsappRoutes from "./src/whatsapp/whatsapp.routes.js";
+import "./src/whatsapp/birthdayCron.js";
 
 const PORT = process.env.PORT || 5000;
 
-// ✅ CORS (simple + correct)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://eduabaccotech.com",
+  "https://www.eduabaccotech.com",
+  "https://school-crm.onrender.com"
+];
+// CORS
 app.use(cors({
-  origin: true,
+  origin: allowedOrigins,
   credentials: true
 }));
 
-// ✅ IMPORTANT: manually ensure headers (fixes Render/browser edge cases)
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+app.get("/api/image-proxy", async (req, res) => {
+  try {
+    const url = req.query.url;
 
-  // handle preflight quickly
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
+    if (!url) return res.status(400).send("Missing URL");
 
-  next();
+    const response = await fetch(url);
+    if (!response.ok) {
+      return res.status(400).send("Failed to fetch image");
+    }
+
+    const buffer = await response.arrayBuffer();
+
+    res.set("Access-Control-Allow-Origin", "*"); // 🔥 important
+    res.set("Content-Type", response.headers.get("content-type") || "image/jpeg");
+
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error("Proxy error:", err);
+    res.status(500).send("Proxy failed");
+  }
 });
-
+// Routes
 app.use(staff);
 app.use(student);
-app.use(finance);  
-app.use("/api/parent", parent); 
+app.use(finance);
+app.use("/api/parent", parent);
 app.use("/api/device", gpsRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
 
 const server = createServer(app);
 
+// Socket
 const io = new Server(server, {
   cors: {
-    origin: "*",
-  },
+    origin: allowedOrigins,
+    credentials: true
+  }
 });
 
 global.io = io;
@@ -64,71 +78,11 @@ io.on("connection", (socket) => {
   if (userId) {
     socket.join(String(userId));
   }
+
+  console.log("Socket connected:", userId);
 });
 
+// Start server
 server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
-// import "dotenv/config";
-
-// import { createServer } from "http";
-// import { Server } from "socket.io";
-
-// import "./src/utils/redis.js";
-// import app from "./src/app.js";   // login related
-// import staff from "./src/staff.js";
-// import finance from "./src/finance.js";
-// import student from "./src/student.js";
-// import parent from "./src/parent.js";
-// import gpsRoutes from "./src/gps-ingestion/gps.routes.js";
-// import paymentRoutes from "./src/payment/payment.routes.js";
-// import cors from "cors";
-
-// const PORT = process.env.PORT || 5000;
-
-// app.use(cors({
-//   origin: [
-//     "http://localhost:3000",
-//     "https://school-crm-r5dq.onrender.com",
-//     "https://www.eduabaccotech.com",  // ✅ correct one
-//     "https://eduabaccotech.com"       // ✅ add non-www too
-//   ],
-//   credentials: true
-// }));
-
-// app.use(staff);
-// app.use(student);
-// app.use(finance);  
-// app.use("/api/parent",parent); 
-// app.use("/api/device", gpsRoutes);
-
-// app.use("/api/payment", paymentRoutes);
-
-// const server = createServer(app);
-
-// const io = new Server(server, {
-//   cors: {
-//     origin: "*",
-//   },
-// });
-
-
-
-// // 
-// global.io = io;
-
-// io.on("connection", (socket) => {
-//   const userId = socket.handshake.auth?.userId;
-
-//   if (userId) {
-//     socket.join(String(userId));
-//   }
-// });
-
-// server.listen(PORT, () => {
-//   console.log(`Server running at http://localhost:${PORT}`);
-// });
