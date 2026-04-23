@@ -14,7 +14,7 @@ import activitiesRoutes from "./parent/routes/activities.routes.js";
 import dashboardRoutes  from "./parent/routes/Dashboardroutes.js";
 import profileRoutes    from "./parent/routes/Profileroutes.js";
 import certificatesRoutes  from "./parent/routes/Certificatesroutes.js";
-
+import feesRoutes from "./parent/routes/fees.routes.js";
 
 
 dotenv.config();           
@@ -40,6 +40,6 @@ parent.use("/activities", activitiesRoutes);
 parent.use("/dashboard",   dashboardRoutes);
 parent.use("/profile",     profileRoutes);
 parent.use("/certificates", certificatesRoutes);
-
+parent.use("/fees", feesRoutes);
 
 export default parent;

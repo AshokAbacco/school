@@ -194,9 +194,9 @@ export default function PricingPage() {
           {plans.map((plan) => {
             const Icon = plan.icon;
             const isGold = plan.id === "gold";
-            
+
             return (
-              <div 
+              <div
                 key={plan.id}
                 className={`relative rounded-2xl transition-all duration-300 overflow-hidden
                   ${isGold ? "shadow-xl scale-[1.03]" : "shadow-md hover:shadow-lg hover:-translate-y-1"}
@@ -230,15 +230,15 @@ export default function PricingPage() {
 
                   <button
                     className={`w-full py-2.5 rounded-xl text-sm font-bold tracking-wide transition-colors cursor-pointer
-                      ${isGold || plan.id === "premium" 
-                        ? "bg-gray-800 text-white hover:bg-gray-900" 
+                      ${isGold || plan.id === "premium"
+                        ? "bg-gray-800 text-white hover:bg-gray-900"
                         : "bg-blue-100 text-[#6cabf3] border border-blue-300 hover:bg-[#88BDF2] hover:text-white"
                       }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedPlan(plan.id);        // ✅ MUST come first
-                        setIsPaymentModalOpen(true);
-                      }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPlan(plan.id);        // ✅ MUST come first
+                      setIsPaymentModalOpen(true);
+                    }}
                   >
                     Get Started
                   </button>
@@ -282,7 +282,7 @@ export default function PricingPage() {
 
           {/* Rows */}
           {visibleFeatures.map((feature, i) => (
-            <div 
+            <div
               key={feature}
               className={`grid grid-cols-4 px-6 py-3 items-center text-sm border-b border-blue-100 ${i % 2 === 0 ? 'bg-white' : 'bg-blue-50'}`}
             >
@@ -326,9 +326,9 @@ export default function PricingPage() {
         <PaymentModal
           isOpen={isPaymentModalOpen}
           onClose={() => {
-                setIsPaymentModalOpen(false);
-                setSelectedPlan(null); // ✅ ADD THIS
-            }}
+            setIsPaymentModalOpen(false);
+            setSelectedPlan(null); // ✅ ADD THIS
+          }}
           selectedPlanId={selectedPlan}
         />
       </div>

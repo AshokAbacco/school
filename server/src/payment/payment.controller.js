@@ -40,6 +40,7 @@ export const createOrder = async (req, res) => {
     ]);
 
     // ✅ Save in DB
+    const userId = req.user?.id;
     const payment = await prisma.payment.create({
       data: {
         fullName,
@@ -51,6 +52,7 @@ export const createOrder = async (req, res) => {
         userCount,
         amount,
         razorpayOrderId: order.id,
+        userId,
       },
     });
 
@@ -89,10 +91,10 @@ export const verifyPayment = async (req, res) => {
     if (!isValid) {
       await prisma.payment.update({
         where: { id: paymentId },
-        data: { status: "failed" },
+        data: { status: "FAILED" },
       });
 
-      return res.status(400).json({ status: "failed" });
+      return res.status(400).json({ status: "FAILED" });
     }
 
     // ✅ Update DB
@@ -101,7 +103,7 @@ export const verifyPayment = async (req, res) => {
       data: {
         razorpayPaymentId: razorpay_payment_id,
         razorpaySignature: razorpay_signature,
-        status: "success",
+        status: "SUCCESS",
         phone,
       },
     });
@@ -114,3 +116,62 @@ export const verifyPayment = async (req, res) => {
   }
 };
 
+export const getLatestPayment = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1️⃣ Try to get last payment
+    const payment = await prisma.payment.findFirst({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (payment) {
+      return res.json(payment);
+    }
+
+    // 2️⃣ Fallback → Super Admin data
+    const user = await prisma.superAdmin.findUnique({
+      where: { id: userId },
+    });
+
+    return res.json({
+      fullName: user?.name || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+      schoolName: "",
+      address: "",
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch details" });
+  }
+};
+export const razorpayWebhook = async (req, res) => {
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+  const shasum = crypto.createHmac("sha256", secret);
+  shasum.update(JSON.stringify(req.body));
+  const digest = shasum.digest("hex");
+
+  if (digest !== req.headers["x-razorpay-signature"]) {
+    return res.status(400).json({ error: "Invalid webhook" });
+  }
+
+  const event = req.body.event;
+
+  if (event === "payment.captured") {
+    const payment = req.body.payload.payment.entity;
+
+    await prisma.payment.updateMany({
+      where: { razorpayOrderId: payment.order_id },
+      data: {
+        status: "SUCCESS",
+        razorpayPaymentId: payment.id,
+      },
+    });
+  }
+
+  res.json({ status: "ok" });
+};

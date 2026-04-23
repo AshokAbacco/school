@@ -6,9 +6,11 @@ import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
+import { getUser } from "../../auth/storage";
 
 function PageLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const user = getUser();
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "#EDF3FA" }}>
@@ -21,7 +23,10 @@ function PageLayout() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Navbar */}
-        <Navbar onMenuClick={() => setSidebarOpen(true)} />
+        <Navbar
+          onMenuClick={() => setSidebarOpen(true)}
+          user={user}
+        />
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto">
