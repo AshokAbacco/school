@@ -124,15 +124,26 @@ function BellPanel({ bdayData, bdayLoading, bdayError, chatNotifs, onClose, onCh
                 {/* Text block */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{
-                    fontSize: 13, fontWeight: 600, color: "#384959",
-                    wordBreak: "break-word", marginBottom: 2, lineHeight: 1.4,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#384959",
+                    wordBreak: "break-word",
+                    marginBottom: 2,
+                    lineHeight: 1.4,
                   }}>
-                    Your student {s.name} is celebrating today! 🎉
+                    {s.type === "TEACHER"
+                      ? `Happy Birthday ${s.name}! 🎉`
+                      : `Your student ${s.name} is celebrating today! 🎉`}
                   </p>
+
                   <p style={{
-                    fontSize: 11, color: "#6A89A7", lineHeight: 1.4,
+                    fontSize: 11,
+                    color: "#6A89A7",
+                    lineHeight: 1.4,
                   }}>
-                    A birthday wish from their teacher will make their day ✨
+                    {s.type === "TEACHER"
+                      ? "Wishing you a wonderful year ahead ✨"
+                      : "A birthday wish from their teacher will make their day ✨"}
                   </p>
                 </div>
               </div>

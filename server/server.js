@@ -27,6 +27,28 @@ app.use(cors({
   credentials: true
 }));
 
+app.get("/api/image-proxy", async (req, res) => {
+  try {
+    const url = req.query.url;
+
+    if (!url) return res.status(400).send("Missing URL");
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      return res.status(400).send("Failed to fetch image");
+    }
+
+    const buffer = await response.arrayBuffer();
+
+    res.set("Access-Control-Allow-Origin", "*"); // 🔥 important
+    res.set("Content-Type", response.headers.get("content-type") || "image/jpeg");
+
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error("Proxy error:", err);
+    res.status(500).send("Proxy failed");
+  }
+});
 // Routes
 app.use(staff);
 app.use(student);

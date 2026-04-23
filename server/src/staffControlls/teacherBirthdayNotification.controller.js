@@ -26,7 +26,11 @@ export async function getStaffBirthdayNotifications(req, res) {
     const schoolId = req.user?.schoolId;
     const role     = req.user?.role;
 
+    console.log("\n🎯 [Birthday API HIT]");
+    console.log("👤 userId:", userId, "| role:", role, "| schoolId:", schoolId);
+
     if (!userId || !schoolId) {
+      console.log("❌ Missing userId or schoolId");
       return res.status(401).json({ success: false, message: "Unauthorised" });
     }
 
@@ -35,50 +39,82 @@ export async function getStaffBirthdayNotifications(req, res) {
     const todayDay   = now.getUTCDate();
     const dateStr    = `${String(todayDay).padStart(2, "0")}/${String(todayMonth).padStart(2, "0")}/${now.getUTCFullYear()}`;
 
-    // ── For TEACHER: only students in their assigned classes ──────────────────
-    // ── For ADMIN / others: all students in the school ────────────────────────
-    let studentIds = null; // null = no filter (admin sees all)
+    console.log("📅 Today:", todayDay, "/", todayMonth);
 
+    let studentIds = null;
+
+    // ── TEACHER SELF BIRTHDAY ─────────────────────────────
     if (role === "TEACHER") {
+      console.log("👨‍🏫 Checking teacher birthday...");
+
       const teacher = await prisma.teacherProfile.findUnique({
-        where:  { userId },
-        select: { id: true },
+        where: { userId },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          dateOfBirth: true,
+          profileImage: true,
+        },
       });
 
-      if (teacher) {
-        // Get active academic year
-        const activeYear = await prisma.academicYear.findFirst({
-          where:   { schoolId, isActive: true },
-          select:  { id: true },
-        });
+      console.log("📌 Teacher data:", teacher);
 
-        if (activeYear) {
-          // Get all class sections this teacher is assigned to
-          const assignments = await prisma.teacherAssignment.findMany({
-            where:  { teacherId: teacher.id, academicYearId: activeYear.id },
-            select: { classSectionId: true },
+      if (teacher?.dateOfBirth) {
+        const dob = new Date(teacher.dateOfBirth);
+
+        console.log(
+          "🎂 Teacher DOB:",
+          dob.getUTCDate(),
+          "/",
+          dob.getUTCMonth() + 1
+        );
+
+        const isToday =
+          dob.getUTCMonth() + 1 === todayMonth &&
+          dob.getUTCDate() === todayDay;
+
+        console.log("✅ Is Teacher Birthday Today?", isToday);
+
+        if (isToday) {
+          console.log("🎉 RETURNING TEACHER BIRTHDAY");
+
+          return res.json({
+            success: true,
+            data: {
+              count: 1,
+              birthdayStudents: [
+                {
+                  id: teacher.id,
+                  name: `${teacher.firstName} ${teacher.lastName}`,
+                  profilePic: teacher.profileImage ?? null,
+                  type: "TEACHER",
+                },
+              ],
+              date: dateStr,
+              wish: pickRandomWish(),
+            },
           });
-
-          const classSectionIds = assignments.map((a) => a.classSectionId);
-
-          if (classSectionIds.length > 0) {
-            // Get student IDs enrolled in those sections
-            const enrollments = await prisma.studentEnrollment.findMany({
-              where: {
-                classSectionId: { in: classSectionIds },
-                academicYearId: activeYear.id,
-                status: "ACTIVE",
-              },
-              select: { studentId: true, classSectionId: true },
-            });
-
-            studentIds = enrollments.map((e) => e.studentId);
-          }
         }
+      } else {
+        console.log("⚠️ Teacher DOB not found");
       }
+
+      console.log("❌ Not teacher birthday → returning empty");
+
+      return res.json({
+        success: true,
+        data: {
+          count: 0,
+          birthdayStudents: [],
+          date: dateStr,
+        },
+      });
     }
 
-    // ── Fetch students with their personalInfo ─────────────────────────────────
+    // ── STUDENT BIRTHDAYS ─────────────────────────────────
+    console.log("🎓 Fetching student birthdays...");
+
     const students = await prisma.student.findMany({
       where: {
         schoolId,
@@ -96,14 +132,22 @@ export async function getStaffBirthdayNotifications(req, res) {
       },
     });
 
-    // ── Filter to today's birthdays ────────────────────────────────────────────
+    console.log("📊 Total students fetched:", students.length);
+
     const birthdayStudents = students.filter((s) => {
       const raw = s.personalInfo?.dateOfBirth;
       if (!raw) return false;
+
       const d = new Date(raw);
       if (isNaN(d.getTime())) return false;
-      return (d.getUTCMonth() + 1) === todayMonth && d.getUTCDate() === todayDay;
+
+      return (
+        d.getUTCMonth() + 1 === todayMonth &&
+        d.getUTCDate() === todayDay
+      );
     });
+
+    console.log("🎂 Students with birthday today:", birthdayStudents.length);
 
     const birthdayList = birthdayStudents.map((s) => ({
       id:         s.id,
@@ -122,7 +166,11 @@ export async function getStaffBirthdayNotifications(req, res) {
     });
 
   } catch (err) {
-    console.error("[getStaffBirthdayNotifications]", err);
-    return res.status(500).json({ success: false, message: "Internal server error", error: err.message });
+    console.error("🔥 [getStaffBirthdayNotifications ERROR]", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    });
   }
 }
