@@ -5,7 +5,7 @@ import * as THREE from "three";
 
 function Model() {
   const group = useRef();
-  const { scene, animations } = useGLTF("/avatars/animation1.glb");
+  const { scene, animations } = useGLTF("/avatars/model (6).glb");
 
   const mixer = useRef();
 
@@ -45,7 +45,7 @@ function Model() {
 
 export default function Avatar3D() {
   return (
-    <div style={{ width: "100%", height: 320 }}>
+    <div style={{ width: "100%", height: 420 }}>
       <Canvas
         camera={{ position: [0, 1.2, 4], fov: 40 }}
       >
