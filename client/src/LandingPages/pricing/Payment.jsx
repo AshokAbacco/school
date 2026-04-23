@@ -73,6 +73,7 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
   };
 
   const handlePayment = async () => {
+    if (loading) return;
     const newErrors = validate();
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -115,7 +116,6 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
             body: JSON.stringify({
               ...response,
               paymentId: data.paymentId,
-              phone: form.phone,
             }),
           });
 
@@ -153,8 +153,19 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
 
       const rzp = new window.Razorpay(options);
 
-      rzp.on("payment.failed", function (response) {
+      rzp.on("payment.failed", async function (response) {
         console.error("Payment Failed:", response.error);
+
+        // ✅ OPTIONAL: notify backend
+        await fetch(`${API_URL}/api/payment/verify-payment`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            paymentId: data.paymentId,
+            status: "FAILED"
+          }),
+        });
+
         alert(
           "❌ Payment Failed: " +
           response.error.description +
@@ -540,7 +551,7 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
 
           /* Show only the active step */
           .pm-left  { display: ${step === "summary" ? "flex" : "none"}; border-radius: 24px 24px 0 0; }
-          .pm-right { display: ${step === "form"    ? "flex" : "none"}; border-radius: 24px 24px 0 0; }
+          .pm-right { display: ${step === "form" ? "flex" : "none"}; border-radius: 24px 24px 0 0; }
 
           .pm-mobile-next { display: flex !important; }
           .pm-mobile-back { display: flex !important; }
