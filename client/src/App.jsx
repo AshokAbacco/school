@@ -1,6 +1,6 @@
 // app.jsx
 import "./App.css";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { connectSocket } from "./socket";
@@ -25,17 +25,19 @@ import Contact from "./LandingPages/ContactUs";
 import ScrollToTop from "./components/ScrollToTop";
 
 function App() {
-  const auth = getAuth();
-  useEffect(() => {
-    const userId = auth?.user?.id; // 🔥 FIX HERE
+  const [auth] = useState(getAuth());
 
-    if (userId) {
-      console.log("🚀 Connecting socket with:", userId);
-      connectSocket(userId);
-    } else {
-      console.log("❌ No user id found in auth");
-    }
-  }, [auth]);
+  useEffect(() => {
+    const userId = auth?.user?.id;
+
+    if (!userId) return;
+
+    const socket = connectSocket(userId);
+
+    return () => {
+      socket?.disconnect();
+    };
+  }, []);
   return (
     <> 
     <Toaster position="top-right" reverseOrder={false} />

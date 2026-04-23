@@ -29,6 +29,8 @@ import { COLORS, InputField } from "./components/FormFields";
 import StudentFormSidebar from "./components/StudentFormSidebar";
 import DocumentUploadSection from "./components/DocumentUploadSection";
 import { useInstitutionConfig } from "../classes/hooks/useInstitutionConfig";
+import SignedProfileImage from "./components/SignedProfileImage";
+
 
 const API = import.meta.env.VITE_API_URL;
 const auth = () => ({ Authorization: `Bearer ${getToken()}` });
@@ -343,14 +345,24 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           }
         }
 
-        if (pi.profileImage) setPhotoUrl(pi.profileImage);
+        if (pi.profileImage) {
+        try {
+          const imgRes = await fetch(`${API}/api/students/${rid}/profile-image`, {
+            headers: auth(),
+          });
+          const imgData = await imgRes.json();
+          if (imgRes.ok) setPhotoUrl(imgData.url);
+        } catch {
+          // no photo, ignore
+        }
+      }
       } catch (e) {
         setErr({ _g: e.message });
       } finally {
         setLoading(false);
       }
     })();
-  }, [rid]);
+ }, [rid, schoolType]);
 
   // ── Cascade derived data ──────────────────────────────────────────────────
   const schoolGrades = useMemo(() => {
