@@ -311,6 +311,8 @@ model School {
   transportStops        TransportStop[]
   StudentTransport      StudentTransport[]
   ClassFee              ClassFee[]
+  TransportFeePlan      TransportFeePlan[]
+  Subscription          Subscription[]
 
   @@index([universityId])
   @@index([type])
@@ -2662,4 +2664,93 @@ model Message {
   @@index([createdAt])
   // ⚠️ match DB table
   @@map("Message")
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 👤 User Details
+  fullName   String
+  schoolName String
+  email      String
+  phone      String
+  address    String
+
+  // 📦 Plan Info
+  planId    String?
+  userCount Int?
+
+  // 💰 Payment Info
+  amount Float
+
+  // 🔗 Razorpay Details
+  razorpayOrderId   String
+  razorpayPaymentId String?
+  razorpaySignature String?
+
+  // 📊 Status
+  status       PaymentStatus  @default(PENDING)
+  Subscription Subscription[]
+
+  @@index([email])
+  @@index([razorpayOrderId])
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model Plan {
+  id         String @id @default(uuid())
+  name       String // Silver, Gold, Premium
+  price      Float
+  maxUsers   Int?
+  maxSchools Int?
+
+  features Json? // store all features (flexible)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id String @id @default(uuid())
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  paymentId String?
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  startDate DateTime @default(now())
+  endDate   DateTime
+
+  status SubscriptionStatus @default(ACTIVE)
+
+  userCount Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([schoolId])
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
 }

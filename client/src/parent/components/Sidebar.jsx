@@ -12,9 +12,8 @@ import {
   GraduationCap,
   X,
   CreditCard,
-  MessageCircle,
-  BookOpen,
-  CalendarDays
+  Library,
+  MessageCircle
 } from "lucide-react";
 import { getAuth } from "../../auth/storage";
 
@@ -32,16 +31,15 @@ function Sidebar({ isOpen, onClose }) {
     name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 
   const menuItems = [
-    { icon: LayoutDashboard, label: "Dashboard",       href: `${base}/dashboard` },
-    { icon: User,            label: "My Child Profile", href: `${base}/profile` },
-    { icon: ClipboardCheck,  label: "Attendance",      href: `${base}/attendance` },
-    { icon: CalendarDays, label: "Holidays", to: "/parent/holidays"  },
-    { icon: BookOpen,        label: "Syllabus Progress", href: `${base}/syllabus-progress`},
-    { icon: BarChart2,       label: "Results",         href: `${base}/marks` },
-    { icon: Calendar,        label: "Time Table",      href: `${base}/timetable` },
-    { icon: Award,           label: "Certificates",    href: `${base}/certificates` },
-    { icon: CreditCard,      label: "Fees & Payments",    href: `${base}/fees-payments` },
-    { icon: MessageCircle,   label: "Chat",    href: `${base}/chat` },
+    { icon: LayoutDashboard, label: "Dashboard", href: `${base}/dashboard` },
+    { icon: User, label: "My Child Profile", href: `${base}/profile` },
+    { icon: ClipboardCheck, label: "Attendance", href: `${base}/attendance` },
+    { icon: BarChart2, label: "Results", href: `${base}/marks` },
+    { icon: Calendar, label: "Time Table", href: `${base}/timetable` },
+    { icon: Award, label: "Certificates", href: `${base}/certificates` },
+    { icon: Library, label: "curriculums", href: `${base}/certificates` },
+    { icon: CreditCard, label: "Fees & Payments", href: `${base}/fees-payments` },
+    { icon: MessageCircle, label: "Chat", href: `${base}/chat` },
   ];
 
   const isActive = (href) =>

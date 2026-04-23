@@ -167,45 +167,45 @@ const Addstudent = ({ open, handleClose, addStudentData, editData }) => {
   }, [open, editData]);
 
   // ── Class change → fetch students ─────────────────────────────────────────
-const handleClassChange = async (e) => {
-  const classId = e.target.value;
+  const handleClassChange = async (e) => {
+    const classId = e.target.value;
 
-  setSelectedClass(classId);
-  setSelectedStudentId("");
-  setStudents([]);
-  setAutoFilled(false);
-
-  if (!classId) return;
-
-  try {
-    // ✅ 1. Fetch students
-    const res = await fetch(`${API_URL}/api/finance/studentsByClass?classSectionId=${classId}`);
-    const data = await res.json();
-    setStudents(Array.isArray(data) ? data : []);
-
-    // ✅ 2. Fetch class fee
-    const feeRes = await fetch(`${API_URL}/api/finance/classFee?classSectionId=${classId}`);
-    const feeData = await feeRes.json();
-
-    if (feeData) {
-      // 🔥 distribute total fee into your fee rows
-      const total = Number(feeData.feeAmount || 0);
-
-      setFeeRows(prev =>
-        prev.map(row => {
-          if (row.id === "college") {
-            return { ...row, amount: total ? String(total) : "", enabled: true };
-          }
-          return { ...row, amount: "", enabled: row.required };
-        })
-      );
-    }
-
-  } catch (err) {
-    console.error(err);
+    setSelectedClass(classId);
+    setSelectedStudentId("");
     setStudents([]);
-  }
-};
+    setAutoFilled(false);
+
+    if (!classId) return;
+
+    try {
+      // ✅ 1. Fetch students
+      const res = await fetch(`${API_URL}/api/finance/studentsByClass?classSectionId=${classId}`);
+      const data = await res.json();
+      setStudents(Array.isArray(data) ? data : []);
+
+      // ✅ 2. Fetch class fee
+      const feeRes = await fetch(`${API_URL}/api/finance/classFee?classSectionId=${classId}`);
+      const feeData = await feeRes.json();
+
+      if (feeData) {
+        // 🔥 distribute total fee into your fee rows
+        const total = Number(feeData.feeAmount || 0);
+
+        setFeeRows(prev =>
+          prev.map(row => {
+            if (row.id === "college") {
+              return { ...row, amount: total ? String(total) : "", enabled: true };
+            }
+            return { ...row, amount: "", enabled: row.required };
+          })
+        );
+      }
+
+    } catch (err) {
+      console.error(err);
+      setStudents([]);
+    }
+  };
 
   // ── Student change → auto-fill ─────────────────────────────────────────────
   const handleStudentChange = (e) => {
@@ -245,6 +245,7 @@ const handleClassChange = async (e) => {
     try {
       const feeMap = Object.fromEntries(feeRows.map(r => [r.id + "Fee", r.enabled ? Number(r.amount || 0) : 0]));
       const payload = {
+        studentId: studentInfo.studentId,
         name: studentInfo.name, email: studentInfo.email,
         phone: studentInfo.phone, course: studentInfo.course,
         fees: grandTotal, address: "",
@@ -253,17 +254,17 @@ const handleClassChange = async (e) => {
       };
       const url = editData ? `${API_URL}/api/finance/updateStudentFinance/${editData.id}` : `${API_URL}/api/finance/addStudentFinance`;
       const method = editData ? "PUT" : "POST";
-       const auth = JSON.parse(localStorage.getItem("auth"));
-        const token = auth?.token;
+      const auth = JSON.parse(localStorage.getItem("auth"));
+      const token = auth?.token;
 
-        const res = await fetch(url, {
-          method,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify(payload)
-        });
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
       if (!res.ok) throw new Error(await res.text());
       const result = await res.json();
       addStudentData(result);

@@ -34,6 +34,7 @@ router.post("/addStudentFinance", authMiddleware, async (req, res) => {
 
     const student = await prisma.studentList.create({
       data: {
+        studentId,
         name,
         email,
         phone,
@@ -88,6 +89,7 @@ router.put("/updateStudentFinance/:id", authMiddleware, async (req, res) => {
 
     const id = parseInt(req.params.id);
     const {
+      studentId,
       name, email, phone, course, fees,
       collegeFee, tuitionFee, examFee, transportFee, booksFee, labFee, miscFee, customFees,
       paidAmount, paymentStatus, paymentMode, paymentDate
@@ -285,5 +287,33 @@ router.get("/classFee", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: error.message });
+  }
+});
+
+// ── Parent: Get children fees ─────────────────────────────
+router.get("/parentFees", authMiddleware, async (req, res) => {
+  try {
+    const parentId = req.user.id;
+
+    // 1. Get children of parent
+    const children = await prisma.studentParent.findMany({
+      where: { parentId },
+      select: { studentId: true }
+    });
+
+    const studentIds = children.map(c => c.studentId);
+
+    // 2. Get finance data
+    const fees = await prisma.studentList.findMany({
+      where: {
+        studentId: { in: studentIds }
+      }
+    });
+
+    res.json(fees);
+
+  } catch (err) {
+    console.error("parentFees error:", err);
+    res.status(500).json({ message: err.message });
   }
 });

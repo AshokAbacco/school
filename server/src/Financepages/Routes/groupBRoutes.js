@@ -14,7 +14,7 @@ import {
 const router = Router();
 import authMiddleware from "../../middlewares/authMiddleware.js";
 // ── Staff list (from StaffProfile, groupType = "Group B") ──────────────────
-router.get("/staff/:schoolId", getGroupBStaff);
+router.get("/staff/:schoolId", authMiddleware, getGroupBStaff);
 
 // ── Salary CRUD ───────────────────────────────────────────────────────────
 router.post("/salary/create", authMiddleware, createGroupBSalary);

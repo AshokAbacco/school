@@ -2,9 +2,11 @@ import React, { useState, useMemo } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
+import { getUser } from "../../auth/storage";
 
 function PageLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const user = getUser();
 
   // ✅ SAME AS ADMIN
   const navbarUser = useMemo(() => {
