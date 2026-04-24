@@ -3,9 +3,10 @@ import { useGLTF, OrbitControls } from "@react-three/drei";
 import { useRef, useEffect, useMemo } from "react";
 import * as THREE from "three";
 
-function Model() {
-  const group = useRef();
-  const { scene, animations } = useGLTF("/avatars/girl-1.glb");
+const MODELS = [
+  "/avatars/model1.glb",
+  "/avatars/model2.glb",
+];
 
 function Model({ url }) {
   const group = useRef();
@@ -66,6 +67,7 @@ export default function Avatar3D() {
           autoRotate={false} // ❌ stop rotation
         />
       </Canvas>
+      
     </div>
   );
 }
