@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 // import  from "../../components/";
 import Addstudent from "./Addstudent";
-
+import { PayModal } from "../../../finance/pages/Studentfinance/PayModal";
 const API_URL = import.meta.env.VITE_API_URL;
 
 // ─────────────────────────────────────────────────────────────────────────────
