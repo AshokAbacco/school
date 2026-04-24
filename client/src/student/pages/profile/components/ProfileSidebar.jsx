@@ -18,12 +18,12 @@ const BOY_IMAGES = [
 ];
 
 const GIRL_IMAGES = [
-  "/student-avatars/girls/girl1.jpg",
-  "/student-avatars/girls/girl2.jpg",
-  "/student-avatars/girls/girl3.jpg",
-  "/student-avatars/girls/girl4.jpg",
-  "/student-avatars/girls/girl5.jpg",
-  "/student-avatars/girls/girl6.jpg",
+  "/student-avatars/girls/girl1.png",
+  "/student-avatars/girls/girl2.png",
+  "/student-avatars/girls/girl3.png",
+  "/student-avatars/girls/girl4.png",
+  "/student-avatars/girls/girl5.png",
+  "/student-avatars/girls/girl6.png",
 ];
 
 export default function ProfileSidebar({ profileData, enrollment, parents, loading }) {
@@ -105,7 +105,7 @@ export default function ProfileSidebar({ profileData, enrollment, parents, loadi
             }}
           />
         ) : (
-          <div style={{ height: 280, width: "100%" }}>
+          <div style={{ height: 380, width: "100%" }}>
             <Avatar3D gender={gender} studentId={profileData?.id} />
           </div>
         )}

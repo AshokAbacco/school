@@ -49,37 +49,49 @@ function Model({ url }) {
   const group = useRef();
   const mixer = useRef(null);
   const { scene, animations } = useGLTF(url);
-  useEffect(() => {
-    if (!scene) return;
- 
-    const box = new THREE.Box3().setFromObject(scene);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3());
 
-    scene.position.set(-center.x, -center.y, -center.z);
+useEffect(() => {
+  if (!scene) return;
 
-    // ✅ Force horizontal center — fixes GLB skeleton offset
-    scene.position.x = 0;
+  scene.updateMatrixWorld(true);
 
-    const scale = 3.2 / size.y;
-    scene.scale.setScalar(scale);
+  const box = new THREE.Box3();
 
-    // push model slightly up so feet are visible
-    scene.position.y += size.y * 0.1;
-
-    if (animations?.length > 0) {
-      mixer.current = new THREE.AnimationMixer(scene);
-      const action = mixer.current.clipAction(animations[0]);
-      action.reset().fadeIn(0.3).play();
-      action.timeScale = 0.8;
+  scene.traverse((child) => {
+    if (child.isMesh) {
+      child.geometry.computeBoundingBox();
+      const childBox = child.geometry.boundingBox.clone();
+      childBox.applyMatrix4(child.matrixWorld);
+      box.union(childBox);
     }
+  });
 
-    return () => {
-      mixer.current?.stopAllAction();
-      mixer.current?.uncacheRoot(scene);
-      mixer.current = null;
-    };
-  }, [scene, animations]);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+
+  scene.position.sub(center);
+
+  const targetHeight = 2.8;
+  const scale = targetHeight / size.y;
+
+  scene.scale.setScalar(scale);
+
+  scene.position.x = 0;
+  scene.position.y = -1.35;
+
+  if (animations?.length > 0) {
+    mixer.current = new THREE.AnimationMixer(scene);
+    const action = mixer.current.clipAction(animations[0]);
+    action.reset().fadeIn(0.3).play();
+    action.timeScale = 0.8;
+  }
+
+  return () => {
+    mixer.current?.stopAllAction();
+    mixer.current?.uncacheRoot(scene);
+    mixer.current = null;
+  };
+}, [scene, animations]);
  
   useFrame((_, delta) => {
     mixer.current?.update(delta);
