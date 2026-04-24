@@ -5,7 +5,7 @@ import * as THREE from "three";
 
 function Model() {
   const group = useRef();
-  const { scene, animations } = useGLTF("/avatars/model (6).glb");
+  const { scene, animations } = useGLTF("/avatars/girl-1.glb");
 
   const mixer = useRef();
 
