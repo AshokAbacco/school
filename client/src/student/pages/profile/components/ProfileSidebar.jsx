@@ -20,6 +20,10 @@ const BOY_IMAGES = [
 const GIRL_IMAGES = [
   "/student-avatars/girls/girl1.jpg",
   "/student-avatars/girls/girl2.jpg",
+  "/student-avatars/girls/girl3.jpg",
+  "/student-avatars/girls/girl4.jpg",
+  "/student-avatars/girls/girl5.jpg",
+  "/student-avatars/girls/girl6.jpg",
 ];
 
 export default function ProfileSidebar({ profileData, enrollment, parents, loading }) {
