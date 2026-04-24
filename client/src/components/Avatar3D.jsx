@@ -8,13 +8,20 @@ const BOY_MODELS = [
   "/avatars/boys/Boy1.glb",
   "/avatars/boys/boy2.glb",
   "/avatars/boys/boy4.glb",
+  "/avatars/boys/boy5.glb",
+  "/avatars/boys/boy6.glb",
   "/avatars/boys/model1.glb",
   "/avatars/boys/model2.glb",
 ];
 
 const GIRL_MODELS = [
   "/avatars/girls/girl.glb",
-  "/avatars/girls/girl-1.glb",
+  "/avatars/girls/girl1.glb",
+  "/avatars/girls/girl2.glb",
+  "/avatars/girls/girl3.glb",
+  "/avatars/girls/girl4.glb",
+  "/avatars/girls/girl5.glb",
+  "/avatars/girls/girl6.glb",
 ];
 
 class CanvasErrorBoundary extends Component {
