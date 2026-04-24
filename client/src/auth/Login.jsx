@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginRequest, loginSuperAdmin } from "./api";
 import { saveAuth } from "./storage";
-import Avatar3D from "../components/Avatar3D";
 import {
   GraduationCap, Users, ShieldCheck, Building2,
   Mail, Lock, Eye, EyeOff, ChevronRight, BookOpen,
@@ -383,19 +382,12 @@ export default function Login({ onSwitchToRegister }) {
           <span className="login-logo-text">UniPortal</span>
         </div>
 
+        {/* Shown only on mobile, hidden on desktop via CSS */}
         <MobileBannerText />
 
         <h1>Welcome to our Education Hub</h1>
-        <p>
-          One platform for staff, students, parents and administrators to manage university life seamlessly.
-        </p>
+        <p>One platform for staff, students, parents and administrators to manage university life seamlessly.</p>
 
-        {/* ✅ ADD HERE */}
-        <div style={{ width: "100%", height: 460, marginBottom: 20 }}>
-          <Avatar3D />
-        </div>
-
-        {/* Existing features */}
         <div className="login-features">
           {[
             { icon: Users, text: "Staff & Faculty Management" },
