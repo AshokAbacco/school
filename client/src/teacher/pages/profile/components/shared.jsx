@@ -30,6 +30,7 @@ export const PROFILE_CSS = `
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-thumb { background: ${C.pale}; border-radius: 99px; }
 
+  /* ── Page wrapper ─────────────────────────────────────────────────────────── */
   .pf-page {
     min-height: 100vh;
     background: ${C.bg};
@@ -37,16 +38,17 @@ export const PROFILE_CSS = `
     background-image:
       radial-gradient(ellipse 70% 50% at 5% 0%,   rgba(136,189,242,0.20) 0%, transparent 55%),
       radial-gradient(ellipse 50% 40% at 95% 100%, rgba(189,221,252,0.14) 0%, transparent 50%);
-    padding: 14px 12px 48px;
-    padding-left:  max(12px, env(safe-area-inset-left));
-    padding-right: max(12px, env(safe-area-inset-right));
-    padding-bottom: max(48px, env(safe-area-inset-bottom));
+    padding: 12px 10px 60px;
+    padding-left:  max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+    padding-bottom: max(60px, env(safe-area-inset-bottom));
   }
-  @media (min-width: 480px)  { .pf-page { padding: 18px 18px 52px; } }
-  @media (min-width: 768px)  { .pf-page { padding: 22px 26px 56px; } }
-  @media (min-width: 1024px) { .pf-page { padding: 28px 32px 60px; } }
+  @media (min-width: 480px)  { .pf-page { padding: 16px 16px 56px; } }
+  @media (min-width: 768px)  { .pf-page { padding: 20px 24px 56px; } }
+  @media (min-width: 1024px) { .pf-page { padding: 26px 30px 60px; } }
+  @media (min-width: 1280px) { .pf-page { padding: 30px 40px 64px; } }
 
-  /* Glass card */
+  /* ── Glass card ───────────────────────────────────────────────────────────── */
   .pf-card {
     background: linear-gradient(150deg, rgba(255,255,255,0.90) 0%, rgba(237,243,250,0.78) 100%);
     backdrop-filter: blur(18px);
@@ -57,44 +59,49 @@ export const PROFILE_CSS = `
     box-shadow: 0 2px 18px rgba(56,73,89,0.08);
   }
 
-  /* Info card hover */
-  .pf-info-card {
-    background: rgba(248,251,255,0.95);
-    border: 1.5px solid ${C.pale};
-    border-radius: 14px;
-    padding: 11px 13px;
+  /* ── Header row (title + tabs) ────────────────────────────────────────────── */
+  .pf-header-row {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 14px;
   }
-  .pf-info-card:hover {
-    border-color: rgba(136,189,242,0.55);
-    box-shadow: 0 4px 14px rgba(136,189,242,0.14);
-    transform: translateY(-1px);
+  @media (min-width: 640px) {
+    .pf-header-row {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
   }
-  @media (max-width: 767px) { .pf-info-card:hover { transform: none; } }
 
-  /* Skeleton shimmer */
-  .pf-sk {
-    background: linear-gradient(90deg,
-      rgba(189,221,252,0.28) 25%,
-      rgba(189,221,252,0.50) 50%,
-      rgba(189,221,252,0.28) 75%);
-    background-size: 400px 100%;
-    animation: shimmer 1.5s ease-in-out infinite;
-    border-radius: 8px;
+  /* ── Tab bar ──────────────────────────────────────────────────────────────── */
+  .pf-tabs-wrap {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 15px;
+    background: rgba(255,255,255,.75);
+    border: 1px solid rgba(136,189,242,.22);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-shrink: 0;
   }
+  .pf-tabs-wrap::-webkit-scrollbar { display: none; }
 
   /* Tab button */
   .pf-tab {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 7px 15px; border-radius: 13px; border: none;
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 11px; border-radius: 11px; border: none;
     font-family: 'Inter', sans-serif;
-    font-size: 12px; font-weight: 600;
+    font-size: 11px; font-weight: 600;
     cursor: pointer; transition: all 0.16s; white-space: nowrap;
     flex-shrink: 0;
+  }
+  @media (min-width: 480px) {
+    .pf-tab { padding: 7px 14px; font-size: 12px; border-radius: 13px; }
   }
   .pf-tab.active {
     background: ${C.dark}; color: ${C.white};
@@ -105,79 +112,154 @@ export const PROFILE_CSS = `
   }
   .pf-tab:not(.active):hover { background: rgba(136,189,242,0.13); color: ${C.dark}; }
 
-  /* Section heading */
+  /* ── Info card ────────────────────────────────────────────────────────────── */
+  .pf-info-card {
+    background: rgba(248,251,255,0.95);
+    border: 1.5px solid ${C.pale};
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+  }
+  @media (min-width: 480px) { .pf-info-card { padding: 11px 13px; } }
+  .pf-info-card:hover {
+    border-color: rgba(136,189,242,0.55);
+    box-shadow: 0 4px 14px rgba(136,189,242,0.14);
+    transform: translateY(-1px);
+  }
+  @media (max-width: 767px) { .pf-info-card:hover { transform: none; } }
+
+  /* ── Skeleton shimmer ─────────────────────────────────────────────────────── */
+  .pf-sk {
+    background: linear-gradient(90deg,
+      rgba(189,221,252,0.28) 25%,
+      rgba(189,221,252,0.50) 50%,
+      rgba(189,221,252,0.28) 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 8px;
+  }
+
+  /* ── Section heading ──────────────────────────────────────────────────────── */
   .pf-section-heading {
     display: flex; align-items: center; gap: 8px;
-    font-size: 14px; font-weight: 800; color: ${C.dark};
+    font-size: 13px; font-weight: 800; color: ${C.dark};
     border-bottom: 2px solid rgba(136,189,242,0.30);
     padding-bottom: 9px; margin-bottom: 14px;
     font-family: 'Inter', sans-serif;
   }
+  @media (min-width: 480px) { .pf-section-heading { font-size: 14px; } }
 
-  /* Info grid - responsive via CSS grid */
+  /* ── Info grid ────────────────────────────────────────────────────────────── */
   .pf-info-grid {
     display: grid;
     gap: 8px;
     grid-template-columns: 1fr;
   }
-  @media (min-width: 640px)  { .pf-info-grid { grid-template-columns: repeat(2, 1fr); gap: 9px; } }
+  @media (min-width: 500px)  { .pf-info-grid { grid-template-columns: repeat(2, 1fr); gap: 9px; } }
   @media (min-width: 1024px) { .pf-info-grid { gap: 10px; } }
 
-  /* Main layout: sidebar + content */
+  /* ── Main layout: sidebar + content ──────────────────────────────────────── */
   .pf-layout {
     display: grid;
     grid-template-columns: 1fr;
     border-radius: 18px;
     overflow: hidden;
   }
-  @media (min-width: 900px) {
-    .pf-layout { grid-template-columns: 220px 1fr; }
+  @media (min-width: 860px) {
+    .pf-layout { grid-template-columns: 210px 1fr; }
   }
-  @media (min-width: 1100px) {
-    .pf-layout { grid-template-columns: 268px 1fr; }
+  @media (min-width: 1080px) {
+    .pf-layout { grid-template-columns: 252px 1fr; }
+  }
+  @media (min-width: 1280px) {
+    .pf-layout { grid-template-columns: 280px 1fr; }
   }
 
-  /* Sidebar scroll area */
+  /* ── Sidebar ──────────────────────────────────────────────────────────────── */
   .pf-sidebar {
     border-bottom: 1.5px solid ${C.pale};
-    padding: 20px 18px;
+    padding: 16px 14px;
     font-family: 'Inter', sans-serif;
   }
-  @media (min-width: 900px) {
+  /* Mobile: horizontal strip */
+  .pf-sidebar-inner {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  @media (min-width: 860px) {
     .pf-sidebar {
       border-bottom: none;
       border-right: 1.5px solid ${C.pale};
-      padding: 26px 20px;
+      padding: 24px 18px;
       overflow-y: auto;
-      max-height: calc(100vh - 160px);
+      max-height: calc(100vh - 140px);
+    }
+    .pf-sidebar-inner {
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
     }
   }
 
-  /* Content area */
+  /* Avatar wrapper — shrinks on mobile */
+  .pf-avatar-wrap {
+    width: 100px;
+    height: 100px;
+    flex-shrink: 0;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  @media (min-width: 480px) { .pf-avatar-wrap { width: 130px; height: 130px; } }
+  @media (min-width: 860px) { .pf-avatar-wrap { width: 100%; height: 220px; border-radius: 0; } }
+  @media (min-width: 1080px) { .pf-avatar-wrap { height: 280px; } }
+
+  /* Sidebar text block */
+  .pf-sidebar-text {
+    flex: 1;
+    min-width: 0;
+  }
+  @media (min-width: 860px) {
+    .pf-sidebar-text {
+      width: 100%;
+      padding-top: 12px;
+      text-align: center;
+    }
+  }
+
+  /* ── Content area ─────────────────────────────────────────────────────────── */
   .pf-content {
-    padding: 16px;
+    padding: 14px 12px;
     overflow-y: auto;
   }
-  @media (min-width: 480px)  { .pf-content { padding: 20px; } }
-  @media (min-width: 900px)  { .pf-content { padding: 24px; max-height: calc(100vh - 160px); } }
-  @media (min-width: 1100px) { .pf-content { padding: 28px; } }
+  @media (min-width: 480px)  { .pf-content { padding: 18px 16px; } }
+  @media (min-width: 860px)  { .pf-content { padding: 22px 20px; max-height: calc(100vh - 140px); } }
+  @media (min-width: 1080px) { .pf-content { padding: 26px 24px; } }
+  @media (min-width: 1280px) { .pf-content { padding: 30px 28px; } }
 
-  /* Health / doc grid */
-  .pf-health-grid {
-    display: grid; gap: 8px;
-    grid-template-columns: 1fr;
-  }
-  @media (min-width: 640px)  { .pf-health-grid { grid-template-columns: repeat(2, 1fr); gap: 9px; } }
-  @media (min-width: 1024px) { .pf-health-grid { gap: 10px; } }
-
+  /* ── Doc grid ─────────────────────────────────────────────────────────────── */
   .pf-doc-grid {
     display: grid; gap: 9px;
     grid-template-columns: 1fr;
   }
-  @media (min-width: 640px)  { .pf-doc-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (min-width: 1200px) { .pf-doc-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 500px)  { .pf-doc-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1100px) { .pf-doc-grid { grid-template-columns: repeat(3, 1fr); } }
 
-  /* Pill badge */
+  /* ── Health grid ──────────────────────────────────────────────────────────── */
+  .pf-health-grid {
+    display: grid; gap: 8px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 500px)  { .pf-health-grid { grid-template-columns: repeat(2, 1fr); gap: 9px; } }
+  @media (min-width: 1024px) { .pf-health-grid { gap: 10px; } }
+
+  /* ── Pill badge ───────────────────────────────────────────────────────────── */
   .pf-badge {
     display: inline-flex; align-items: center; gap: 4px;
     padding: 3px 9px; border-radius: 20px;
@@ -185,26 +267,7 @@ export const PROFILE_CSS = `
     font-family: 'Inter', sans-serif; white-space: nowrap;
   }
 
-  /* Sidebar mobile strip: horizontal layout */
-  .pf-sidebar-mobile {
-    display: flex; align-items: center; gap: 14px;
-  }
-  @media (min-width: 900px) {
-    .pf-sidebar-mobile {
-      flex-direction: column; align-items: center; gap: 0;
-    }
-  }
-
-  /* Sidebar quick-stats grid */
-  .pf-stat-grid {
-    display: grid; grid-template-columns: repeat(4,1fr); gap: 6px;
-    width: 100%;
-  }
-  @media (min-width: 900px) {
-    .pf-stat-grid { grid-template-columns: repeat(2,1fr); gap: 7px; }
-  }
-
-  /* View doc button */
+  /* ── View doc button ──────────────────────────────────────────────────────── */
   .pf-view-btn {
     display: flex; align-items: center; justify-content: center; gap: 6px;
     width: 100%; padding: 8px 0; border-radius: 10px;
@@ -218,7 +281,7 @@ export const PROFILE_CSS = `
     background: ${C.dark}; color: #fff; border-color: ${C.dark};
   }
 
-  /* Animations */
+  /* ── Animations ───────────────────────────────────────────────────────────── */
   .a1 { animation: fadeUp .38s ease both .04s; }
   .a2 { animation: fadeUp .38s ease both .10s; }
   .a3 { animation: fadeUp .38s ease both .17s; }
@@ -245,11 +308,11 @@ export function InfoCard({ icon: Icon, label, value, wide, accent }) {
       style={{ gridColumn: wide ? "1 / -1" : undefined }}
     >
       <div style={{
-        width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+        width: 30, height: 30, borderRadius: 9, flexShrink: 0,
         background: grad,
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
-        <Icon size={14} color={C.white} />
+        <Icon size={13} color={C.white} />
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{
@@ -301,7 +364,7 @@ export function Sk({ h = 14, w = "100%", r = 8 }) {
 }
 
 // ─── Loading spinner ──────────────────────────────────────────────────────────
-export function Loading({ height = 200 }) {
+export function Loading({ height = 180 }) {
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "center",
@@ -345,7 +408,7 @@ export function ErrorMsg({ msg, onRetry }) {
 export function Empty({ message }) {
   return (
     <div style={{
-      textAlign: "center", padding: "44px 20px",
+      textAlign: "center", padding: "40px 20px",
       color: C.mid, fontSize: 13, fontFamily: "'Inter', sans-serif",
     }}>
       {message}

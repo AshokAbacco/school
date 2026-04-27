@@ -17,20 +17,13 @@ import {
   fmtDate,
 } from "./shared.jsx";
 
-export default function ProfessionalInfo({
-  teacher,
-  loading,
-  error,
-}) {
+export default function ProfessionalInfo({ teacher, loading, error }) {
   if (loading) return <Loading />;
   if (error) return <ErrorMsg msg={error} />;
 
   return (
     <div>
-      <SectionHeading
-        icon={Briefcase}
-        title="Professional Information"
-      />
+      <SectionHeading icon={Briefcase} title="Professional Information" />
 
       <InfoGrid>
         <InfoCard

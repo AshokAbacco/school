@@ -1,7 +1,8 @@
 // server/src/modules/auth/auth.service.js
-import bcrypt from "bcryptjs";
-import { prisma } from "../../config/db.js";
+
 import { generateToken } from "./auth.utils.js";
+import prisma from "../../lib/prisma.js";
+import bcrypt from "bcrypt";
 
 // ── Super Admin ────────────────────────────────────────────────────────────
 
@@ -385,12 +386,20 @@ export async function loginFinanceService({ email, password }) {
     throw { status: 400, message: "Email and password required" };
   }
 
-  const user = await prisma.user.findFirst({
-    where: {
-      email,
-      role: "FINANCE",
+const user = await prisma.user.findFirst({
+  where: {
+    email,
+    role: "FINANCE",
+  },
+  include: {
+    school: {
+      select: {
+        id: true,
+        name: true,
+      },
     },
-  });
+  },
+});
 
   if (!user) {
     const student = await prisma.student.findFirst({ where: { email } });
@@ -424,7 +433,76 @@ export async function loginFinanceService({ email, password }) {
       email: user.email,
       role: user.role,
       userType: "staff",
-      schoolId: user.schoolId,
+     school: user.school,
     },
   };
 }
+
+
+export const sendOtp = async (identifier) => {
+  const user =
+    await prisma.user.findFirst({ where: { email: identifier } }) ||
+    await prisma.student.findFirst({ where: { email: identifier } }) ||
+    await prisma.parent.findFirst({ where: { email: identifier } }) ||
+    await prisma.superAdmin.findFirst({ where: { email: identifier } });
+
+  if (!user) throw new Error("User not found");
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  await prisma.otp.create({
+    data: {
+      identifier,
+      otp,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000)
+    }
+  });
+
+  console.log("OTP:", otp);
+
+  return { message: "OTP sent successfully" };
+};
+
+export const verifyOtp = async (identifier, otp) => {
+  const record = await prisma.otp.findFirst({
+    where: { identifier, otp }
+  });
+
+  if (!record) throw new Error("Invalid OTP");
+
+  if (record.expiresAt < new Date()) {
+    throw new Error("OTP expired");
+  }
+
+  // ✅ DELETE OTP after verification
+  await prisma.otp.delete({
+    where: { id: record.id }
+  });
+
+  return { message: "OTP verified" };
+};
+
+
+export const resetPassword = async (identifier, newPassword) => {
+  // ✅ find user (email or phone)
+const user = await prisma.user.findFirst({
+  where: {
+    email: identifier
+  }
+});
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  // 🔐 hash password
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  // ✅ update password
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password: hashedPassword }
+  });
+
+  return { message: "Password reset successful" };
+};

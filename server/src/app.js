@@ -13,6 +13,8 @@ import { startBackupScheduler } from "./backup/scheduler.js";
 import { cleanCloud } from "./backup/cleanupCloud.js";
 import logoRoutes from "./utils/logoRoutes.js";
 import { requireAuth } from "./middlewares/auth.middleware.js";
+import parent from "./parent.js";
+
 
 
 
@@ -37,7 +39,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api", logoRoutes(requireAuth));
 app.use(globalLimiter);
 app.use(errorHandler);
-
+app.use("/api/parent", parent);
 startBackupScheduler();
 setInterval(cleanCloud, 24 * 60 * 60 * 1000);
 

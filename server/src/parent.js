@@ -17,6 +17,8 @@ import { requireAuth } from "./middlewares/auth.middleware.js";
 // ── NEW: shared read-only holiday route ───────────────────────────────────────
 import makeHolidayRouter from "./sharedRoutes/holidayRoute.js";
 // ─────────────────────────────────────────────────────────────────────────────
+import feesRoutes from "./parent/routes/fees.routes.js";
+
 
 dotenv.config();
 
@@ -48,5 +50,5 @@ parent.use("/holidays", makeHolidayRouter(requireAuth));
 // ─────────────────────────────────────────────────────────────────────────────
 
 parent.use("/api", logoRoutes(requireAuth));
-
+parent.use("/fees", feesRoutes);
 export default parent;

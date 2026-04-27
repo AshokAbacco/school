@@ -26,29 +26,31 @@ class TeacherSalaryController {
   // =====================================================
   // 🔥 FETCH TEACHERS BY SCHOOL (for dropdown)
   // =====================================================
- async getTeachersBySchool(req,res){
-  try{
-    const schoolId = req.user.schoolId;
-
-    const teachers = await prisma.teacherProfile.findMany({
-      where:{ schoolId },
-      select:{
-        id:true,
-        firstName:true,
-        lastName:true,
-        salary:true,
-        department:true,
-        designation:true,
-        user:{ select:{ email:true } }
+  async getTeachersBySchool(req, res) {
+    try {
+      const { schoolId } = req.params;
+      if (req.user.schoolId !== schoolId && req.user.role !== "SUPER_ADMIN") {
+        return res.status(403).json({ message: "Access denied" });
       }
-    });
-
-    res.json(teachers);
-
-  }catch(err){
-    res.status(500).json({message:err.message});
+      const teachers = await prisma.teacherProfile.findMany({
+        where: { schoolId },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          department: true,
+          designation: true,
+          qualification: true,
+          salary: true,
+          user: { select: { email: true } }
+        }
+      });
+ 
+      res.json(teachers);
+    } catch (e) {
+      res.status(400).json({ message: e.message });
+    }
   }
-}
 
   // =====================================================
   // 🔥 CREATE MONTHLY SALARY
@@ -361,8 +363,8 @@ class TeacherSalaryController {
       res.status(400).json({ message: e.message });
     }
   }
-
   // =====================================================
+
   // 🔥 DELETE SALARY
   // =====================================================
   async deleteTeacherSalary(req, res) {

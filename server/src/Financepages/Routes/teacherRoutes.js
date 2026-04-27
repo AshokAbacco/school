@@ -54,8 +54,8 @@ router.patch(
   salaryController.paySalary
 )
 router.get(
-  "/salary/list/:schoolId",
-  salaryController.getTeachersSalaryList
+ "/salary/list/:schoolId",
+ salaryController.getTeachersSalaryList
 )
 router.get(
   "/salary/history-by-school/:schoolId",

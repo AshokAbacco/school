@@ -57,53 +57,59 @@ function Model({ url }) {
   const mixer = useRef(null);
   const { scene, animations } = useGLTF(url);
 
-useEffect(() => {
-  if (!scene) return;
+  useEffect(() => {
+    if (!scene) return;
 
-  scene.updateMatrixWorld(true);
+    scene.updateMatrixWorld(true);
 
-  const box = new THREE.Box3();
+    // Compute tight bounding box from all meshes
+    const box = new THREE.Box3();
+    scene.traverse((child) => {
+      if (child.isMesh) {
+        child.geometry.computeBoundingBox();
+        const childBox = child.geometry.boundingBox.clone();
+        childBox.applyMatrix4(child.matrixWorld);
+        box.union(childBox);
+      }
+    });
 
-  scene.traverse((child) => {
-    if (child.isMesh) {
-      child.geometry.computeBoundingBox();
-      const childBox = child.geometry.boundingBox.clone();
-      childBox.applyMatrix4(child.matrixWorld);
-      box.union(childBox);
+    const center = box.getCenter(new THREE.Vector3());
+    const size   = box.getSize(new THREE.Vector3());
+
+    // Normalise scale so the model is always ~2.2 units tall
+    const targetHeight = 2.2;
+    const scale = targetHeight / size.y;
+    scene.scale.setScalar(scale);
+
+    // After scaling, recompute the box to get correct world-space bounds
+    scene.updateMatrixWorld(true);
+    const scaledBox = new THREE.Box3().setFromObject(scene);
+    const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+    const scaledSize   = scaledBox.getSize(new THREE.Vector3());
+
+    // Centre the model horizontally; vertically place feet at y=0
+    scene.position.x -= scaledCenter.x;
+    scene.position.y -= scaledBox.min.y; // feet on the ground plane (y=0)
+
+    // Animations
+    if (animations?.length > 0) {
+      mixer.current = new THREE.AnimationMixer(scene);
+      const action = mixer.current.clipAction(animations[0]);
+      action.reset().fadeIn(0.3).play();
+      action.timeScale = 0.8;
     }
-  });
 
-  const center = box.getCenter(new THREE.Vector3());
-  const size = box.getSize(new THREE.Vector3());
+    return () => {
+      mixer.current?.stopAllAction();
+      mixer.current?.uncacheRoot(scene);
+      mixer.current = null;
+    };
+  }, [scene, animations]);
 
-  scene.position.sub(center);
-
-  const targetHeight = 2.8;
-  const scale = targetHeight / size.y;
-
-  scene.scale.setScalar(scale);
-
-  scene.position.x = 0;
-  scene.position.y = -1.35;
-
-  if (animations?.length > 0) {
-    mixer.current = new THREE.AnimationMixer(scene);
-    const action = mixer.current.clipAction(animations[0]);
-    action.reset().fadeIn(0.3).play();
-    action.timeScale = 0.8;
-  }
-
-  return () => {
-    mixer.current?.stopAllAction();
-    mixer.current?.uncacheRoot(scene);
-    mixer.current = null;
-  };
-}, [scene, animations]);
- 
   useFrame((_, delta) => {
     mixer.current?.update(delta);
   });
- 
+
   return <primitive ref={group} object={scene} />;
 }
 
@@ -128,7 +134,11 @@ function ContextWatcher({ onLost, onRestored }) {
 function AvatarCanvas({ modelPath, onLost, onRestored }) {
   return (
     <Canvas
-      camera={{ position: [0, 1.4, 4.5], fov: 36 }}
+      // Camera sits in front of the model at mid-chest height.
+      // With feet at y=0 and model ~2.2 units tall, the head is near y=2.2.
+      // We aim the camera at y=1.1 (mid-body) and pull back enough to show
+      // the full figure with a bit of breathing room at top and bottom.
+      camera={{ position: [0, 1.1, 4.2], fov: 38 }}
       gl={{
         powerPreference: "low-power",
         antialias: false,
@@ -150,7 +160,8 @@ function AvatarCanvas({ modelPath, onLost, onRestored }) {
       <directionalLight position={[3, 3, 3]} intensity={1.2} />
       <Model url={modelPath} />
       <OrbitControls
-        target={[0, 1.0, 0]}
+        // Target the vertical centre of the model (~half of 2.2 = 1.1)
+        target={[0, 1.1, 0]}
         makeDefault
         enableZoom={false}
         enablePan={false}

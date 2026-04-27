@@ -80,3 +80,28 @@ coverage/
 # Optional: TypeScript Build Info
 # ============================
 *.tsbuildinfo
+
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+
+# Capacitor
+android/capacitor-cordova-android-plugins/
+
+# Node
+node_modules/
+
+# Build
+dist/
+build/
+
+# Env
+.env
+
+# Logs
+logs
+*.log

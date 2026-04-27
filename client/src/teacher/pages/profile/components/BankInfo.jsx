@@ -1,11 +1,7 @@
 // components/BankInfo.jsx
 
 import React from "react";
-import {
-  CreditCard,
-  Landmark,
-  Hash,
-} from "lucide-react";
+import { CreditCard, Landmark, Hash } from "lucide-react";
 
 import {
   InfoGrid,
@@ -15,20 +11,13 @@ import {
   ErrorMsg,
 } from "./shared.jsx";
 
-export default function BankInfo({
-  teacher,
-  loading,
-  error,
-}) {
+export default function BankInfo({ teacher, loading, error }) {
   if (loading) return <Loading />;
   if (error) return <ErrorMsg msg={error} />;
 
   return (
     <div>
-      <SectionHeading
-        icon={CreditCard}
-        title="Bank Information"
-      />
+      <SectionHeading icon={CreditCard} title="Bank Information" />
 
       <InfoGrid>
         <InfoCard

@@ -15,7 +15,7 @@ const calcLeaveDeduction = (monthlySalary, leaveDays) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const getGroupBStaff = async (req, res) => {
   try {
-    const schoolId = req.user.schoolId;
+    const { schoolId } = req.params;
     if (req.user.schoolId !== schoolId && req.user.role !== "SUPER_ADMIN") {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -116,7 +116,7 @@ export const createGroupBSalary = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const getGroupBSalaryList = async (req, res) => {
   try {
-    const schoolId = req.user.schoolId;
+    const { schoolId } = req.params;
      if (req.user.schoolId !== schoolId && req.user.role !== "SUPER_ADMIN") {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -174,7 +174,7 @@ export const getGroupBSalaryList = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const getGroupBSalaryHistoryBySchool = async (req, res) => {
   try {
-    const schoolId = req.user.schoolId;
+   const { schoolId } = req.params;
     if (req.user.schoolId !== schoolId && req.user.role !== "SUPER_ADMIN") {
       return res.status(403).json({ message: "Access denied" });
     }
