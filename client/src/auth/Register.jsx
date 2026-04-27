@@ -25,8 +25,8 @@ const getErrors = (s, form) => {
       errs.push({ field: "adminName", msg: "Full name is required" });
     if (!/\S+@\S+\.\S+/.test(form.adminEmail))
       errs.push({ field: "adminEmail", msg: "Valid email is required" });
-    if (form.adminPassword.length < 8)
-      errs.push({ field: "adminPassword", msg: "Password must be at least 8 characters" });
+    if (form.adminPassword.length < 6)
+      errs.push({ field: "adminPassword", msg: "Password must be at least 6 characters" });
     if (form.adminPassword !== form.adminConfirmPassword)
       errs.push({ field: "adminConfirmPassword", msg: "Passwords do not match" });
   }
@@ -169,7 +169,7 @@ export default function Register() {
   /* ── step completion status ─────────────────── */
   const stepDone = (s) => getErrors(s, form).length === 0 && (
     s === 1 ? (form.universityName.trim() && form.universityCode.length >= 2) :
-    s === 2 ? (form.adminName.trim() && /\S+@\S+\.\S+/.test(form.adminEmail) && form.adminPassword.length >= 8 && form.adminPassword === form.adminConfirmPassword) :
+    s === 2 ? (form.adminName.trim() && /\S+@\S+\.\S+/.test(form.adminEmail) && form.adminPassword.length >= 6 && form.adminPassword === form.adminConfirmPassword) :
     false
   );
 
@@ -346,7 +346,7 @@ export default function Register() {
                   error={fieldErrors.adminEmail} />
                 <div className="grid grid-cols-2 gap-4">
                   <Input label="Password" required type="password"
-                    placeholder="••••••••" hint="Min. 8 characters"
+                    placeholder="••••••••" hint="Min. 6 characters"
                     value={form.adminPassword} onChange={set("adminPassword")}
                     error={fieldErrors.adminPassword} />
                   <Input label="Confirm Password" required type="password"

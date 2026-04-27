@@ -364,7 +364,7 @@ export default function About() {
 
         <div className="container text-center" style={{ position: "relative", zIndex: 1 }}>
           <div className="label fade-up" style={{ display: "inline-flex" }}>
-            <Star style={{ width: 12, height: 12 }} /> About  Education Management CRM
+            <Star style={{ width: 12, height: 12 }} /> About  Education Management Software
           </div>
 
           <h1 className="hero-title fade-up d1" style={{ fontSize: "clamp(38px,5.5vw,64px)", color: "var(--navy)", marginBottom: 24, maxWidth: 760, margin: "0 auto 24px" }}>
@@ -414,7 +414,7 @@ export default function About() {
                 Schools Should Focus on <span className="hl">Education</span>, Not Admin
               </h2>
               <p style={{ fontSize: 16, color: "var(--gray)", marginBottom: 28, lineHeight: 1.8 }}>
-                We built  Education Management CRM to make school management simple, efficient, and accessible for institutions of all sizes. Every feature exists to reclaim hours lost to manual processes.
+                We built  Education Management Software to make school management simple, efficient, and accessible for institutions of all sizes. Every feature exists to reclaim hours lost to manual processes.
               </p>
               {["Role-based access for every stakeholder", "Paperless record-keeping and reporting", "Works for schools of all sizes"].map((t, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -499,7 +499,7 @@ export default function About() {
         <div className="container">
           <div className="feature-row">
             <div>
-              <SectionHeader label="Why  Education Management CRM" title={<>Built for Modern <span className="hl">Educational</span> Institutions</>} center={false} />
+              <SectionHeader label="Why  Education Management Software" title={<>Built for Modern <span className="hl">Educational</span> Institutions</>} center={false} />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28 }}>
                 {whyItems.map((w, i) => (
                   <div key={i} className="why-item">

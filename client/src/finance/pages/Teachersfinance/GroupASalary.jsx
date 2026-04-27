@@ -614,78 +614,7 @@ export default function GroupASalary() {
                 </div>
             </div>
 
-            {/* ── Salary History Table ── */}
-            <div className="bg-white/85 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden border border-white/60">
-                <div className="bg-gradient-to-r from-[#27435B] to-[#1C3044] px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                        <ClipboardList size={14} color="#fff" />
-                        <span className="text-white font-bold text-[13px] sm:text-[14px]">Salary History — All Months</span>
-                        <span className="ml-1 sm:ml-2 text-[9px] sm:text-[10px] text-white/50 font-medium">(Paid &amp; Hold)</span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex rounded-xl overflow-hidden border border-white/20">
-                            {["ALL", "PAID", "HOLD"].map(opt => (
-                                <button
-                                    key={opt}
-                                    onClick={() => setHistoryStatusFilter(opt)}
-                                    className={`px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-[11.5px] font-bold transition-all
-                                        ${historyStatusFilter === opt
-                                            ? "bg-white/25 text-white"
-                                            : "text-white/55 hover:text-white hover:bg-white/10"}`}
-                                >
-                                    {opt}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="relative">
-                            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#4A6B80]" />
-                            <input
-                                className="pl-7 sm:pl-8 pr-3 py-1.5 sm:py-2 rounded-xl border border-[#C8DCEC] bg-white/95 text-[11px] sm:text-[12.5px] w-40 sm:w-52 outline-none"
-                                placeholder="Search name or email..."
-                                value={historySearch}
-                                onChange={e => setHistorySearch(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-[12px] sm:text-[13px] min-w-[700px]">
-                        <thead>
-                            <tr className="bg-[#EAF1F6] border-b border-[#C8DCEC]">
-                                {["Name", "Department", "Month / Year", "Basic Salary", "Bonus", "Leave Days", "Deductions", "Net Salary", "Status", "Payment Date"].map(h => (
-                                    <th key={h} className="px-3 sm:px-4 py-2.5 sm:py-3 text-left text-[10px] sm:text-[11px] font-bold text-[#27435B] uppercase tracking-wide whitespace-nowrap">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredHistory.length === 0 ? (
-                                <tr><td colSpan={10} className="text-center py-8 text-[#4A6B80]">No salary history found</td></tr>
-                            ) : filteredHistory.map((t, idx) => (
-                                <tr key={t.id || idx} className="border-b border-[#EAF1F6] hover:bg-[#F5FAFE] transition-colors">
-                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 font-semibold text-[#1A2E3D]">{t.teacher?.firstName} {t.teacher?.lastName}</td>
-                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3"><span className="bg-[#EAF1F6] text-[#27435B] text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-full">{t.teacher?.department || "—"}</span></td>
-                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 font-semibold text-[#27435B]">{monthName(t.month)} {t.year}</td>
-                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-[#27435B] font-semibold">₹{Number(t.basicSalary || 0).toLocaleString("en-IN")}</td>
-                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-[#1E7E4E] font-semibold">₹{Number(t.bonus || 0).toLocaleString("en-IN")}</td>
-                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-[#4A6B80]">{t.leaveDays ?? 0} days</td>
-                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-[#B83232] font-semibold">₹{Number(t.deductions || 0).toLocaleString("en-IN")}</td>
-                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 font-bold text-[#1A2E3D]">₹{Number(t.netSalary || 0).toLocaleString("en-IN")}</td>
-                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3">
-                                        <span className={`text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-full ${statusStyle(t.status)}`}>
-                                            {t.status === "PAID" ? "✓ Paid" : t.status === "HOLD" ? "⏸ Hold" : t.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-[#4A6B80] text-[11px] sm:text-[12px]">
-                                        {t.paymentDate
-                                            ? new Date(t.paymentDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-                                            : "—"}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            
 
             {/* ── All Modals (unchanged from original, already mobile-friendly with p-4 and max-w) ── */}
 

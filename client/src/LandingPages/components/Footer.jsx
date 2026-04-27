@@ -73,7 +73,7 @@ const FAQ_ITEMS = [
 const TERMS_SECTIONS = [
   {
     title: "1. Acceptance of Terms",
-    body: "By accessing or using Education Management CRM, you agree to be bound by these Terms & Conditions and our Privacy Policy. If you do not agree, please discontinue use immediately.",
+    body: "By accessing or using Education Management Software, you agree to be bound by these Terms & Conditions and our Privacy Policy. If you do not agree, please discontinue use immediately.",
   },
   {
     title: "2. Service Agreement",
@@ -109,7 +109,7 @@ const TERMS_SECTIONS = [
   },
   {
     title: "10. Limitation of Liability",
-    body: "Education Management CRM shall not be liable for any indirect, incidental, or consequential damages, including data loss or business interruption arising from system usage.",
+    body: "Education Management Software shall not be liable for any indirect, incidental, or consequential damages, including data loss or business interruption arising from system usage.",
   },
   {
     title: "11. Updates & Modifications",
@@ -120,7 +120,7 @@ const SOCIAL = [
   { Icon: Twitter, href: "#", label: "Twitter" },
   { Icon: Facebook, href: "#", label: "Facebook" },
   { Icon: Linkedin, href: "#", label: "LinkedIn" },
-  { Icon: Youtube, href: "#", label: "YouTube" },
+  { Icon: Youtube, href: "http://youtube.com/@EducationManagementCRM", label: "YouTube" },
 ];
 
 /* ── Modal ── */
@@ -286,7 +286,7 @@ export default function Footer({ onScrollTo }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                <a href="/">
               <span className="font-display" style={{ fontSize: 19, fontWeight: 900, color: "#1a2533" }}>
-                <img src="/Logo/logo-trans.png" alt="" className="w-full h-20" />
+                <img src="/Logo/logo_sch.png" alt="" className="w-full h-14" />
               </span>
               </a>
             </div>
@@ -337,12 +337,12 @@ export default function Footer({ onScrollTo }) {
          <div style={{ borderTop: "1px solid #f0f6fb", padding: "18px 0 24px" }}>
             <div className="footer-bottom">
                 <span style={{ fontSize: 12, color: "#506979" }}>
-                © {new Date().getFullYear()} Education Management CRM. All rights reserved.
+                © {new Date().getFullYear()} Education Management Software. All rights reserved.
                 </span>
 
-                <span style={{ fontSize: 12, color: "#506979" }}>
+                {/* <span style={{ fontSize: 12, color: "#506979" }}>
                 ISO 27001 · FERPA Compliant · GDPR Ready
-                </span>
+                </span> */}
             </div>
             </div>
 
@@ -363,7 +363,7 @@ export default function Footer({ onScrollTo }) {
       {modal === "terms" && (
         <Modal title="Terms & Conditions" onClose={() => setModal(null)}>
           <p style={{ fontSize: 13, color: "#9db8cc", marginBottom: 24 }}>
-            Last updated: January {new Date().getFullYear()} · Please read these terms carefully before using Education Management CRM.
+            Last updated: January {new Date().getFullYear()} · Please read these terms carefully before using Education Management Software.
             </p>
           {TERMS_SECTIONS.map(({ title, body }, i) => (
             <div key={i} style={{ marginBottom: 22 }}>
@@ -379,8 +379,8 @@ export default function Footer({ onScrollTo }) {
             fontSize: 12.5, color: "#7a9db8", lineHeight: 1.6,
           }}>
             For questions about these terms, contact us at{" "}
-            <a href="mailto:legal@Education Management CRM.io" style={{ color: "#6A89A7", fontWeight: 600 }}>
-              legal@Education Management CRM.io
+            <a href="mailto:legal@Education Management Software.io" style={{ color: "#6A89A7", fontWeight: 600 }}>
+              legal@Education Management Software.io
             </a>
           </div>
         </Modal>
