@@ -101,17 +101,31 @@ const ParentChatList = ({ selectedChat, onSelectChat, onChatCreated, studentId }
   // Confirm delete modal
   const [confirmDelete, setConfirmDelete] = useState(null); // { ids: [], label: string }
 
-  const fetchChats = useCallback(async () => {
+  const fetchChats = async () => {
     try {
       const res = await fetch(`${API_URL}/api/chat/list`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
+
       const data = await res.json();
-      setChatList(data.data || []);
+
+      const sortedChats = (data.data || []).sort((a, b) => {
+        const aTime = a.messages?.[0]?.createdAt
+          ? new Date(a.messages[0].createdAt).getTime()
+          : 0;
+
+        const bTime = b.messages?.[0]?.createdAt
+          ? new Date(b.messages[0].createdAt).getTime()
+          : 0;
+
+        return bTime - aTime;
+      });
+
+      setChatList(sortedChats);
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  };
 
   const fetchUsersByRole = async (role) => {
     try {

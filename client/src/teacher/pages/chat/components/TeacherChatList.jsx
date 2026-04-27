@@ -102,17 +102,31 @@ const TeacherChatList = ({ selectedChat, onSelectChat, onChatCreated }) => {
   // Confirm delete modal
   const [confirmDelete, setConfirmDelete] = useState(null); // { ids: [], label: string }
 
-  const fetchChats = useCallback(async () => {
+  const fetchChats = async () => {
     try {
       const res = await fetch(`${API_URL}/api/chat/list`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
+
       const data = await res.json();
-      setChatList(data.data || []);
+
+      const sortedChats = (data.data || []).sort((a, b) => {
+        const aTime = a.messages?.[0]?.createdAt
+          ? new Date(a.messages[0].createdAt).getTime()
+          : 0;
+
+        const bTime = b.messages?.[0]?.createdAt
+          ? new Date(b.messages[0].createdAt).getTime()
+          : 0;
+
+        return bTime - aTime;
+      });
+
+      setChatList(sortedChats);
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  };
 
   const fetchUsersByRole = async (role) => {
     try {
@@ -445,7 +459,7 @@ const TeacherChatList = ({ selectedChat, onSelectChat, onChatCreated }) => {
 
                       <div className="flex items-center gap-2">
                         {chat.unreadCount > 0 && (
-                          <span className="min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center">
+                          <span className="min-w-[20px] h-5 px-1 rounded-full bg-blue-500 text-white text-[11px] font-bold flex items-center justify-center">
                             {chat.unreadCount}
                           </span>
                         )}

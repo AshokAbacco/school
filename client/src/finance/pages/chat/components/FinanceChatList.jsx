@@ -261,7 +261,7 @@ const FinanceChatList = ({
 
                       <div className="flex items-center gap-2">
                         {chat.unreadCount > 0 && (
-                          <span className="min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center">
+                          <span className="min-w-[20px] h-5 px-1 rounded-full bg-blue-500 text-white text-[11px] font-bold flex items-center justify-center">
                             {chat.unreadCount}
                           </span>
                         )}

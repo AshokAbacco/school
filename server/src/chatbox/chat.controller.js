@@ -89,59 +89,75 @@ export const getUsersByRole = async (req, res) => {
       });
     }
 
-    // PARENT
-      if (role === "PARENT" && req.user.role === "TEACHER") {
+     
+      // PARENT
+      if (role === "PARENT") {
 
-        // 1. Find teacher classes
-        const entries = await prisma.timetableEntry.findMany({
-          where: {
-            teacher: {
-              userId: req.user.id,
+        // TEACHER sees only own class parents
+        if (req.user.role === "TEACHER") {
+          const entries = await prisma.timetableEntry.findMany({
+            where: {
+              teacher: {
+                userId: req.user.id,
+              },
             },
-          },
-          select: {
-            classSectionId: true,
-            academicYearId: true,
-          },
-        });
-
-        const classIds = entries.map(e => e.classSectionId);
-
-        // 2. Find students in those classes
-        const students = await prisma.studentEnrollment.findMany({
-          where: {
-            classSectionId: { in: classIds },
-            status: "ACTIVE",
-          },
-          select: { studentId: true },
-        });
-
-        const studentIds = students.map(s => s.studentId);
-
-        // 3. Get parents of those students
-        const parents = await prisma.studentParent.findMany({
-          where: {
-            studentId: { in: studentIds },
-          },
-          include: {
-            parent: {
-              select: { id: true, name: true, email: true },
+            select: {
+              classSectionId: true,
             },
-          },
-        });
+          });
 
-        // 4. Unique parents
-        const map = new Map();
-        parents.forEach(p => {
-          if (p.parent) {
-            map.set(p.parent.id, {
-              ...p.parent,
-              role: "PARENT",
-            });
-          }
-        });
+          const classIds = entries.map(e => e.classSectionId);
 
-        users = Array.from(map.values());
+          const students = await prisma.studentEnrollment.findMany({
+            where: {
+              classSectionId: { in: classIds },
+              status: "ACTIVE",
+            },
+            select: { studentId: true },
+          });
+
+          const studentIds = students.map(s => s.studentId);
+
+          const parents = await prisma.studentParent.findMany({
+            where: {
+              studentId: { in: studentIds },
+            },
+            include: {
+              parent: {
+                select: { id: true, name: true, email: true },
+              },
+            },
+          });
+
+          const map = new Map();
+
+          parents.forEach((p) => {
+            if (p.parent) {
+              map.set(p.parent.id, {
+                ...p.parent,
+                role: "PARENT",
+              });
+            }
+          });
+
+          users = Array.from(map.values());
+        }
+
+        // ADMIN / SUPER_ADMIN / FINANCE sees all parents
+        else {
+          users = await prisma.parent.findMany({
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          });
+
+          users = users.map((u) => ({
+            ...u,
+            role: "PARENT",
+          }));
+        }
       }
 
     // STUDENT
