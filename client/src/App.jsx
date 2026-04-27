@@ -15,7 +15,7 @@ import TeacherRoutes from "./teacher/Routes";
 import ParentRoutes from "./parent/Routes";
 import FinanceRoutes from "./finance/Routes";
 import LandingPage from "./pages/LandingPage";
-
+   
 
 import PublicLayout from "./LandingPages/components/PublicLayout";
 import Home from "./LandingPages/Home";
