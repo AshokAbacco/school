@@ -176,13 +176,13 @@ export default function Home() {
                                 Access Dashboard <ArrowRight size={16} />
                             </button>
                             <button
-                            onClick={() => window.open("/Demo/Education.mp4", "_blank")}
+                            onClick={() => window.open("https://youtu.be/ozxbGKDpR14", "_blank")}
                             className="relative overflow-hidden flex items-center gap-2 px-8 py-3.5 rounded-xl font-bold cursor-pointer text-sm text-white transition-all hover:-translate-y-0.5 active:scale-95"
                             style={{
                                 background: "linear-gradient(135deg, #384959 0%, #6A89A7 50%, #88BDF2 100%)",
                                 boxShadow: "0 8px 32px rgba(106,137,167,0.35)",
                             }}
-                            >
+                            > 
                             Watch Demo <ArrowRight size={16} />
                             </button>
                            
