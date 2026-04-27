@@ -1,4 +1,4 @@
-package com.school.app;
+package com.abacco.schoolapp;
 
 import com.getcapacitor.BridgeActivity;
 
