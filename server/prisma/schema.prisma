@@ -2411,6 +2411,8 @@ model TransportFeePlan {
   isActive      Boolean               @default(true)
 
   studentTransports StudentTransport[]
+  School            School?            @relation(fields: [schoolId], references: [id])
+  schoolId          String?
 
   @@unique([routeId, stopId, academicYearId]) // ✅ FIXED: confirmed unique constraint
   @@index([routeId])
@@ -2753,4 +2755,13 @@ enum SubscriptionStatus {
   ACTIVE
   EXPIRED
   CANCELLED
+}
+
+model Otp {
+  id         String   @id @default(uuid())
+  identifier String // email or phone
+  otp        String
+  expiresAt  DateTime
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
 }

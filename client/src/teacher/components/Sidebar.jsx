@@ -19,18 +19,18 @@ import {
 } from "lucide-react";
 
 const NAV = [
-  { icon: Home,        label: "Dashboard",     to: "/teacher/dashboard" },
-  { icon: CalendarDays,label: "Time Table",     to: "/teacher/timetable" },
-  { icon: User,        label: "Attendance",     to: "/teacher/attendance" },
+  { icon: Home, label: "Dashboard", to: "/teacher/dashboard" },
+  { icon: CalendarDays, label: "Time Table", to: "/teacher/timetable" },
+  { icon: User, label: "Attendance", to: "/teacher/attendance" },
   { icon: CalendarDays, label: "Holidays", to: "/teacher/holidays" },
-  { icon: Video,       label: "Online Classes", to: "/teacher/online-classes" },
-  { icon: BookOpen,    label: "Curriculum",     to: "/teacher/curriculum" },
+  { icon: Video, label: "Online Classes", to: "/teacher/online-classes" },
+  { icon: BookOpen, label: "Curriculum", to: "/teacher/curriculum" },
   { icon: BookOpenCheck, label: "Assignments", to: "/teacher/assignments" },
-   { icon: Award,        label: "Results",        to: "/teacher/results" },
-  { icon: Medal,       label: "Certificates", to: "/teacher/certificates" },
-  { icon: Zap,         label: "Activities",     to: "/teacher/activities" },
-  { icon: Trophy,      label: "Awards",         to: "/teacher/awards" },
-  { icon: MessageCircle,      label: "Chat",           to: "/teacher/chat" },
+  { icon: Award, label: "Results", to: "/teacher/results" },
+  { icon: Medal, label: "Certificates", to: "/teacher/certificates" },
+  { icon: Zap, label: "Activities", to: "/teacher/activities" },
+  { icon: Trophy, label: "Awards", to: "/teacher/awards" },
+  { icon: MessageCircle, label: "Chat", to: "/teacher/chat" },
 ];
 
 const initials = (name = "AU") =>
@@ -75,7 +75,7 @@ export default function Sidebar({ isOpen, onClose, user }) {
         }}
       >
         {/* Logo */}
-         <div
+        <div
           className="flex items-center h-16 flex-shrink-0"
           style={{
             borderBottom: "1px solid rgba(136,189,242,0.12)",
@@ -125,7 +125,7 @@ export default function Sidebar({ isOpen, onClose, user }) {
               className="text-[10px] font-semibold uppercase tracking-[0.12em]"
               style={{ color: "rgb(200,200,200)" }}
             >
-              Finance Panel
+              Teacher Panel
             </p>
           </div>
 

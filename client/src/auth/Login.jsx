@@ -408,7 +408,7 @@ export default function Login({ onSwitchToRegister }) {
       <div className="login-right">
         <div className="login-form-container">
 
-          <h2 style={ {paddingTop:"50px"}} className="login-title">Sign In</h2>
+          <h2 style={{ paddingTop: "50px" }} className="login-title">Sign In</h2>
           <p className="login-subtitle">Select your role and enter your credentials</p>
 
           {/* Top Role Tabs */}
@@ -505,7 +505,19 @@ export default function Login({ onSwitchToRegister }) {
               </button>
             </div>
           </div>
-
+          <div style={{ textAlign: "right", marginTop: "-12px", marginBottom: "18px" }}>
+            <span
+              style={{
+                fontSize: "13px",
+                color: "#6A89A7",
+                cursor: "pointer",
+                fontWeight: "600"
+              }}
+              onClick={() => navigate("/forgot-password")}
+            >
+              Forgot Password?
+            </span>
+          </div>
           {/* Login Button */}
           <button
             className="login-submit-btn"

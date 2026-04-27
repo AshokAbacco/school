@@ -72,30 +72,61 @@ export function PayModal({ student, onClose, onPaymentDone }) {
 
     // ── EMI instalment pay ──────────────────────────────────────────────────
     const handleConfirmEmi = async (emi) => {
-        setLoading(true); setError("");
-        const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-        const updated = emiList.map(e => e.id === emi.id ? { ...e, status: "paid", date: today, mode: modeInput } : e);
-        const nowPaid = alreadyPaid + updated.filter(e => e.status === "paid").reduce((a, e) => a + e.amount, 0);
+        setLoading(true);
+        setError("");
+
+        const auth = JSON.parse(localStorage.getItem("auth"));
+        const token = auth?.token;
+
+        const today = new Date().toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric"
+        });
+
+        const updated = emiList.map(e =>
+            e.id === emi.id
+                ? { ...e, status: "paid", date: today, mode: modeInput }
+                : e
+        );
+
+        const nowPaid =
+            alreadyPaid +
+            updated.filter(e => e.status === "paid")
+                .reduce((a, e) => a + e.amount, 0);
+
         const allPaid = updated.every(e => e.status === "paid");
+
         try {
-            const res = await fetch(`${API_URL}/api/finance/updateStudentFinance/${student.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({
-                    ...student,
-                    paidAmount: nowPaid,
-                    paymentStatus: allPaid ? "PAID" : "PARTIAL",
-                    paymentMode: modeInput,
-                    paymentDate: new Date().toISOString(),
-                }),
-            });
+            const res = await fetch(
+                `${API_URL}/api/finance/updateStudentFinance/${student.id}`,
+                {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}` // ✅ FIX
+                    },
+                    body: JSON.stringify({
+                        ...student,
+                        paidAmount: nowPaid,
+                        paymentStatus: allPaid ? "PAID" : "PARTIAL",
+                        paymentMode: modeInput,
+                        paymentDate: new Date().toISOString(),
+                    }),
+                }
+            );
+
             if (!res.ok) throw new Error(await res.text());
+
             setEmiList(updated);
             setConfirmId(null);
             onPaymentDone(student.id, nowPaid, allPaid ? "PAID" : "PARTIAL");
-        } catch (e) { setError(e.message || "Payment failed. Try again."); }
-        finally { setLoading(false); }
+
+        } catch (e) {
+            setError(e.message || "Payment failed. Try again.");
+        } finally {
+            setLoading(false);
+        }
     };
     const handleCustomPay = async () => {
         const amount = Number(customAmount);
