@@ -6,6 +6,9 @@ import {
   loginStudentService,
   loginParentService,
   loginFinanceService,   // ✅ ADD THIS
+  sendOtp,
+  verifyOtp as verifyOtpService,
+  resetPassword as resetPasswordService
 } from "./auth.service.js";
 
 const handle = (serviceFn) => async (req, res) => {
@@ -38,3 +41,33 @@ export const loginParent = handle(loginParentService);
 
 // ✅ NEW: POST /api/auth/finance/login
 export const loginFinance = handle(loginFinanceService);
+
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { identifier } = req.body;
+    const result = await sendOtp(identifier);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { identifier, otp } = req.body;
+    const result = await verifyOtpService(identifier, otp);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+export const resetPassword = async (req, res) => {
+  try {
+    const { identifier, newPassword } = req.body;
+    const result = await resetPasswordService(identifier, newPassword);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

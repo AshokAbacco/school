@@ -19,7 +19,7 @@ import { getAuth } from "../../auth/storage";
 
 function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
-  const logoUrl = useSchoolLogo();  
+  const logoUrl = useSchoolLogo();
   const [hovered, setHovered] = useState(false);
 
   const base = "/parent";
@@ -134,7 +134,7 @@ function Sidebar({ isOpen, onClose }) {
               className="text-[10px] font-semibold uppercase tracking-[0.12em]"
               style={{ color: "rgb(200,200,200)" }}
             >
-              Finance Panel
+              parent Panel
             </p>
           </div>
 

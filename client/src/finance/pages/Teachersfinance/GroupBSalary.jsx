@@ -67,15 +67,15 @@ export default function GroupBSalary() {
     const pdfRef = useRef();
     const dropdownRef = useRef();
     const tok = () => {
-  try {
-    const raw = localStorage.getItem("auth");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed.token;
-  } catch {
-    return null;
-  }
-};
+        try {
+            const raw = localStorage.getItem("auth");
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            return parsed.token;
+        } catch {
+            return null;
+        }
+    };
 
     useEffect(() => {
         const school = getAuthSchool();

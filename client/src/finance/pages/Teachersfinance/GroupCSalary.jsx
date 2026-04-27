@@ -65,17 +65,16 @@ export default function GroupCSalary() {
     const [loading, setLoading] = useState(false);
     const pdfRef = useRef();
     const dropdownRef = useRef();
-   const tok = () => {
-  try {
-    const raw = localStorage.getItem("auth");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed.token;
-  } catch {
-    return null;
-  }
-};
-
+    const tok = () => {
+        try {
+            const raw = localStorage.getItem("auth");
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            return parsed.token;
+        } catch {
+            return null;
+        }
+    };
     useEffect(() => {
         const school = getAuthSchool();
         setAuthSchool(school);
