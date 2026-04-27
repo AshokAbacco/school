@@ -26,9 +26,20 @@ const parent = express();
 
 parent.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN,
+    origin: (origin, callback) => {
+      const allowedOrigins = process.env.CLIENT_ORIGIN.split(",");
+
+      // allow requests without origin (mobile apps, Postman)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS blocked: " + origin));
+    },
     credentials: true,
-  })
+  }),
 );
 
 parent.use(express.json());
