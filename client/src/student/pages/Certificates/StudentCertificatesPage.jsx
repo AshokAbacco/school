@@ -541,9 +541,6 @@ export default function StudentCertificatesPage() {
   const [catFilter, setCatFilter] = useState("ALL");
   const [viewingCert, setViewingCert] = useState(null);
 
-  const isMobile = useMediaQuery("(max-width: 639px)");
-  const isTablet = useMediaQuery("(min-width: 640px) and (max-width: 1023px)");
-
   const fetchCerts = useCallback(async () => {
     setLoading(true);
     setError("");

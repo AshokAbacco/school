@@ -59,11 +59,11 @@ async function apiFetch(path, retries = 3, delayMs = 600) {
 }
 
 const TABS = [
-  { key: "personal", label: "Personal", icon: User },
-  { key: "professional", label: "Professional", icon: Briefcase },
-  { key: "assignments", label: "Assignments", icon: BookOpen },
-  { key: "documents", label: "Documents", icon: FileText },
-  { key: "bank", label: "Bank", icon: CreditCard },
+  { key: "personal",      label: "Personal",      icon: User },
+  { key: "professional",  label: "Professional",  icon: Briefcase },
+  { key: "assignments",   label: "Assignments",   icon: BookOpen },
+  { key: "documents",     label: "Documents",     icon: FileText },
+  { key: "bank",          label: "Bank",          icon: CreditCard },
 ];
 
 function ErrorBanner({ message, onRetry }) {
@@ -74,13 +74,13 @@ function ErrorBanner({ message, onRetry }) {
         justifyContent: "space-between",
         gap: 10,
         flexWrap: "wrap",
-        padding: "12px 15px",
+        padding: "11px 14px",
         borderRadius: 14,
         background: "#fef2f2",
         border: "1px solid #fca5a5",
         color: "#b91c1c",
         fontSize: 12,
-        marginBottom: 15,
+        marginBottom: 12,
       }}
     >
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -93,7 +93,7 @@ function ErrorBanner({ message, onRetry }) {
         style={{
           border: "none",
           borderRadius: 20,
-          padding: "6px 14px",
+          padding: "5px 13px",
           background: "#b91c1c",
           color: "#fff",
           fontWeight: 700,
@@ -101,6 +101,7 @@ function ErrorBanner({ message, onRetry }) {
           display: "flex",
           gap: 5,
           alignItems: "center",
+          fontSize: 11,
         }}
       >
         <RefreshCw size={11} />
@@ -143,75 +144,56 @@ export default function TeacherProfile() {
       <style>{PROFILE_CSS}</style>
 
       <div className="pf-page">
-        <div className="a1" style={{ marginBottom: 18 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ display: "flex", gap: 10 }}>
-              <div
-                style={{
-                  width: 4,
-                  height: 30,
-                  borderRadius: 99,
-                  background: `linear-gradient(180deg, ${C.light}, ${C.dark})`,
-                }}
-              />
 
-              <div>
-                <h1
-                  style={{
-                    margin: 0,
-                    fontSize: "clamp(18px,4vw,25px)",
-                    fontWeight: 900,
-                    color: C.dark,
-                  }}
-                >
-                  {loading ? "Loading..." : fullName}
-                </h1>
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <div className="pf-header-row a1" style={{ marginBottom: 14 }}>
 
-                <p
-                  style={{
-                    margin: "3px 0 0",
-                    fontSize: 11,
-                    color: C.mid,
-                  }}
-                >
-                  {teacher?.designation || "Teacher"} ·{" "}
-                  {teacher?.employeeCode || "--"}
-                </p>
-              </div>
-            </div>
-
+          {/* Title block */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <div
               style={{
-                display: "flex",
-                gap: 4,
-                padding: 4,
-                borderRadius: 15,
-                background: "rgba(255,255,255,.75)",
-                border: "1px solid rgba(136,189,242,.22)",
-                overflowX: "auto",
+                width: 4,
+                height: 30,
+                borderRadius: 99,
+                background: `linear-gradient(180deg, ${C.light}, ${C.dark})`,
+                flexShrink: 0,
               }}
-            >
-              {TABS.map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  className={`pf-tab ${tab === key ? "active" : ""}`}
-                  onClick={() => setTab(key)}
-                >
-                  <Icon size={12} />
-                  {label}
-                </button>
-              ))}
+            />
+            <div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: "clamp(16px, 4vw, 24px)",
+                  fontWeight: 900,
+                  color: C.dark,
+                  lineHeight: 1.2,
+                }}
+              >
+                {loading ? "Loading..." : fullName}
+              </h1>
+              <p style={{ margin: "3px 0 0", fontSize: 11, color: C.mid }}>
+                {teacher?.designation || "Teacher"} ·{" "}
+                {teacher?.employeeCode || "--"}
+              </p>
             </div>
+          </div>
+
+          {/* Tab bar */}
+          <div className="pf-tabs-wrap">
+            {TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                className={`pf-tab ${tab === key ? "active" : ""}`}
+                onClick={() => setTab(key)}
+              >
+                <Icon size={11} />
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 
+        {/* ── Error banner ────────────────────────────────────────────────── */}
         {err && !loading && (
           <ErrorBanner
             message={err}
@@ -219,34 +201,20 @@ export default function TeacherProfile() {
           />
         )}
 
+        {/* ── Main card ───────────────────────────────────────────────────── */}
         <div className="pf-card pf-layout a2">
           <TeacherSidebar teacher={teacher} loading={loading} />
 
           <div className="pf-content">
             {tab === "personal" && (
-              <PersonalInfo
-                teacher={teacher}
-                loading={loading}
-                error={err}
-              />
+              <PersonalInfo teacher={teacher} loading={loading} error={err} />
             )}
-
             {tab === "professional" && (
-              <ProfessionalInfo
-                teacher={teacher}
-                loading={loading}
-                error={err}
-              />
+              <ProfessionalInfo teacher={teacher} loading={loading} error={err} />
             )}
-
             {tab === "assignments" && (
-              <AssignmentInfo
-                teacher={teacher}
-                loading={loading}
-                error={err}
-              />
+              <AssignmentInfo teacher={teacher} loading={loading} error={err} />
             )}
-
             {tab === "documents" && (
               <DocumentsInfo
                 docs={teacher?.documents || []}
@@ -254,13 +222,8 @@ export default function TeacherProfile() {
                 error={err}
               />
             )}
-
             {tab === "bank" && (
-              <BankInfo
-                teacher={teacher}
-                loading={loading}
-                error={err}
-              />
+              <BankInfo teacher={teacher} loading={loading} error={err} />
             )}
           </div>
         </div>

@@ -19,11 +19,7 @@ import {
   fmtDate,
 } from "./shared.jsx";
 
-export default function PersonalInfo({
-  teacher,
-  loading,
-  error,
-}) {
+export default function PersonalInfo({ teacher, loading, error }) {
   if (loading) return <Loading />;
   if (error) return <ErrorMsg msg={error} />;
 
@@ -38,10 +34,7 @@ export default function PersonalInfo({
 
   return (
     <div>
-      <SectionHeading
-        icon={User}
-        title="Personal Information"
-      />
+      <SectionHeading icon={User} title="Personal Information" />
 
       <InfoGrid>
         <InfoCard

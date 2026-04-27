@@ -850,10 +850,9 @@ export default function StudentDashboard() {
               border: `2px solid rgba(136,189,242,0.35)`,
               overflow: "hidden",
             }}>
-              {d?.student?.profileImage
-                ? <img src={d.student.profileImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                : (d?.student?.firstName?.charAt(0) ?? "S")
-              }
+            <span>
+              {(d?.student?.firstName?.charAt(0) || "S").toUpperCase()}
+            </span>
             </div>
           </div>
         </div>
