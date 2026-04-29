@@ -1,7 +1,7 @@
 // prisma/seed.js
 // ═══════════════════════════════════════════════════════════════════════════════
-//  SPRINGFIELD MULTI-INSTITUTION SEED  —  Schema-Compatible v2
-//  Compatible with the updated Prisma schema (connect-based relations)
+//  SPRINGFIELD SEED  —  Schema-Compatible v3
+//  Fully compatible with schema.prisma (no unknown fields, no computed fields)
 //  Password for all accounts: 123456
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -12,12 +12,17 @@ const prisma = new PrismaClient();
 const SALT_ROUNDS = 10;
 const DEFAULT_PASSWORD = "123456";
 
-// ── Global counters so emails never collide ───────────────────────────────────
+// ── Dev dataset size ─────────────────────────────────────────────────────────
+const STUDENTS_PER_SECTION = 5;   // keep small for fast seeding
+const MAX_SECTIONS          = 2;   // only 2 sections per school
+const MAX_SUBJECTS          = 2;   // only 2 subjects for assessments / marks
+
+// ── Global counters so emails never collide ──────────────────────────────────
 let TEACHER_CTR = 1;
 let STUDENT_CTR = 1;
 let PARENT_CTR  = 1;
 
-// ── Name pools ────────────────────────────────────────────────────────────────
+// ── Name pools ───────────────────────────────────────────────────────────────
 const MALE_NAMES   = ["Aarav","Rohan","KiranKumar","Amit","Vijay","Ravi","Mohan","Sanjay","Arjun","Nikhil","Pranav","Harsh","Dev","Raj","Vikram","Arun","Deepak","Kartik","Ankit","Rahul"];
 const FEMALE_NAMES = ["Priya","Anjali","Pooja","Divya","Sunita","Rekha","Meena","Kavitha","Nisha","Anita","Sneha","Deepa","Ritu","Neha","Swati","Lakshmi","Savitha","Nalini","Vidya","Hema"];
 const LAST_NAMES   = ["Allapalli","Kavadimatti","Hosamani","Kammar","Doddamani","Kambale","Murgod","Hadapad","Chougule","Angadi","Mugali","Patil","Nandikol","Walikar","Benakatti","Aralikatti","Lamani","Gudadinni","Tirlapur","Negalur"];
@@ -35,43 +40,23 @@ const NUMBERS = "0123456789";
 
 function generateStudentCode() {
   let code = "";
-
-  // 6 numbers
-  for (let i = 0; i < 6; i++) {
-    code += NUMBERS.charAt(
-      Math.floor(Math.random() * NUMBERS.length)
-    );
-  }
-
-  // 4 alphabets
-  for (let i = 0; i < 4; i++) {
-    code += LETTERS.charAt(
-      Math.floor(Math.random() * LETTERS.length)
-    );
-  }
-
+  for (let i = 0; i < 6; i++) code += NUMBERS.charAt(Math.floor(Math.random() * NUMBERS.length));
+  for (let i = 0; i < 4; i++) code += LETTERS.charAt(Math.floor(Math.random() * LETTERS.length));
   return code;
 }
 
 async function createUniqueStudentCode() {
   let studentCode;
   let exists = true;
-
   while (exists) {
     studentCode = generateStudentCode();
-
-    const student = await prisma.student.findUnique({
-      where: { studentCode },
-      select: { id: true },
-    });
-
+    const student = await prisma.student.findUnique({ where: { studentCode }, select: { id: true } });
     exists = !!student;
   }
-
   return studentCode;
 }
 
-// ── Date helpers ──────────────────────────────────────────────────────────────
+// ── Date helpers ─────────────────────────────────────────────────────────────
 function studentDOB(idx, baseAge = 8) {
   const y = new Date().getFullYear() - (baseAge + (idx % 5));
   const m = ((idx * 3) % 12) + 1;
@@ -80,53 +65,48 @@ function studentDOB(idx, baseAge = 8) {
 }
 function admDate(idx) { return new Date(`${2021 + (idx % 4)}-06-01`); }
 
-// ── Grade calculator ──────────────────────────────────────────────────────────
-function calcGrade(pct) {
-  if (pct == null) return null;
-  if (pct >= 90) return "A+";
-  if (pct >= 80) return "A";
-  if (pct >= 70) return "B+";
-  if (pct >= 60) return "B";
-  if (pct >= 50) return "C";
-  if (pct >= 35) return "D";
-  return "F";
-}
-
 // ── Realistic marks generator ─────────────────────────────────────────────────
+// Returns only fields that exist on the Marks model: marksObtained, isAbsent, remarks
 function genMarks(stuIdx, schIdx, maxMarks, passingMarks) {
   const seed = ((stuIdx * 17) + (schIdx * 31)) % 100;
-  if (seed < 8) return { isAbsent: true, marksObtained: null };
+  if (seed < 8) return { isAbsent: true, marksObtained: null, remarks: "Absent" };
   if (seed < 18) {
     const fail = Math.floor(((seed - 8) / 10) * (passingMarks - 1));
-    return { isAbsent: false, marksObtained: Math.max(0, fail) };
+    return { isAbsent: false, marksObtained: Math.max(0, fail), remarks: null };
   }
   const range    = maxMarks - passingMarks;
   const obtained = passingMarks + Math.floor(((seed - 18) / 82) * range);
-  return { isAbsent: false, marksObtained: Math.min(obtained, maxMarks) };
+  return { isAbsent: false, marksObtained: Math.min(obtained, maxMarks), remarks: null };
 }
 
 // ── Period helpers ────────────────────────────────────────────────────────────
-function t2m(t) { const [h,m] = t.split(":").map(Number); return h*60+m; }
-function m2t(m) { return `${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`; }
+function t2m(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+function m2t(m) { return `${String(Math.floor(m / 60)).padStart(2,"0")}:${String(m % 60).padStart(2,"0")}`; }
 
 function buildPeriodDefinitionData(cfg, dayType) {
   const defs = []; let order = 1; let cur = t2m(cfg.startTime);
-  const bm = {}; (cfg.breaks||[]).forEach(b => bm[b.afterPeriod] = b);
+  const bm = {}; (cfg.breaks || []).forEach(b => bm[b.afterPeriod] = b);
   for (let i = 1; i <= cfg.totalPeriods; i++) {
     defs.push({
       periodNumber: i,
-      label: dayType === "SATURDAY" ? `Sat Period ${i}` : `Period ${i}`,
-      slotType: "PERIOD", dayType,
-      startTime: m2t(cur), endTime: m2t(cur + cfg.periodDuration), order: order++,
+      label:        dayType === "SATURDAY" ? `Sat Period ${i}` : `Period ${i}`,
+      slotType:     "PERIOD",
+      dayType,
+      startTime:    m2t(cur),
+      endTime:      m2t(cur + cfg.periodDuration),
+      order:        order++,
     });
     cur += cfg.periodDuration;
     if (bm[i]) {
       const b = bm[i];
       defs.push({
         periodNumber: 100 + i,
-        label: dayType === "SATURDAY" ? `Sat ${b.label}` : b.label,
-        slotType: b.type || "SHORT_BREAK", dayType,
-        startTime: m2t(cur), endTime: m2t(cur + b.duration), order: order++,
+        label:        dayType === "SATURDAY" ? `Sat ${b.label}` : b.label,
+        slotType:     b.type || "SHORT_BREAK",
+        dayType,
+        startTime:    m2t(cur),
+        endTime:      m2t(cur + b.duration),
+        order:        order++,
       });
       cur += b.duration;
     }
@@ -182,7 +162,7 @@ function buildTimetables(wdDefs, satDefs, subjects, tBySubject, sections) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  TEACHER FACTORY — uses `connect` for all relations
+//  TEACHER FACTORY
 // ═══════════════════════════════════════════════════════════════════════════════
 async function createTeachers(school, password, teacherDefs) {
   const allProfiles = [];
@@ -193,7 +173,6 @@ async function createTeachers(school, password, teacherDefs) {
     const n     = TEACHER_CTR++;
     const email = `teacher${n}@gmail.com`;
 
-    // 1. User
     let user = await prisma.user.findUnique({
       where: { email_schoolId: { email, schoolId: school.id } },
     });
@@ -209,33 +188,32 @@ async function createTeachers(school, password, teacherDefs) {
       });
     }
 
-    // 2. TeacherProfile
     let prof = await prisma.teacherProfile.findUnique({ where: { userId: user.id } });
     if (!prof) {
       const idx = def.n - 1;
       prof = await prisma.teacherProfile.create({
         data: {
-          user:           { connect: { id: user.id } },
-          school:         { connect: { id: school.id } },
-          employeeCode:   `${school.code.slice(0,3)}-T${String(n).padStart(3,"0")}`,
-          firstName:      def.fn,
-          lastName:       def.ln,
-          dateOfBirth:    new Date(`${1970 + (idx % 25)}-${String((idx % 9) + 1).padStart(2,"0")}-15`),
-          gender:         idx % 2 === 0 ? "MALE" : "FEMALE",
-          phone:          `98${String(10000000 + idx * 1111111).slice(0,8)}`,
-          address:        `${100 + idx}, Teacher Colony, Sector ${(idx % 10) + 1}`,
-          city:           pick(CITIES, idx),
-          state:          pick(STATES, idx),
-          zipCode:        pick(ZIPS, idx),
-          department:     def.dept,
-          designation:    idx < teacherDefs.subjectDefs.length ? "Senior Teacher" : "Teacher",
-          qualification:  "M.Sc, B.Ed",
+          user:            { connect: { id: user.id } },
+          school:          { connect: { id: school.id } },
+          employeeCode:    `${school.code.slice(0,3)}-T${String(n).padStart(3,"0")}`,
+          firstName:       def.fn,
+          lastName:        def.ln,
+          dateOfBirth:     new Date(`${1970 + (idx % 25)}-${String((idx % 9) + 1).padStart(2,"0")}-15`),
+          gender:          idx % 2 === 0 ? "MALE" : "FEMALE",
+          phone:           `98${String(10000000 + idx * 1111111).slice(0,8)}`,
+          address:         `${100 + idx}, Teacher Colony, Sector ${(idx % 10) + 1}`,
+          city:            pick(CITIES, idx),
+          state:           pick(STATES, idx),
+          zipCode:         pick(ZIPS, idx),
+          department:      def.dept,
+          designation:     idx < teacherDefs.subjectDefs.length ? "Senior Teacher" : "Teacher",
+          qualification:   "M.Sc, B.Ed",
           experienceYears: 2 + (idx % 18),
-          joiningDate:    new Date(`${2010 + (idx % 12)}-07-01`),
-          employmentType: "FULL_TIME",
-          salary:         28000 + idx * 1200,
-          panNumber:      `ABCDE${1000 + idx}F`,
-          aadhaarNumber:  String(200000000000 + idx * 11111111111),
+          joiningDate:     new Date(`${2010 + (idx % 12)}-07-01`),
+          employmentType:  "FULL_TIME",
+          salary:          28000 + idx * 1200,
+          panNumber:       `ABCDE${1000 + idx}F`,
+          aadhaarNumber:   String(200000000000 + idx * 11111111111),
         },
       });
     }
@@ -312,18 +290,18 @@ async function writeTimetable(school, ay, subjects, tBySubject, allSections, wdD
   for (const cs of allSections) {
     const entries = ttMap.get(cs.id) || [];
     if (entries.length) {
-      // createMany with raw FK fields (no relation nesting needed for createMany)
       await prisma.timetableEntry.createMany({
         data: entries.map(e => ({
-          schoolId:          school.id,
-          academicYearId:    ay.id,
-          classSectionId:    cs.id,
-          day:               e.day,
+          schoolId:           school.id,
+          academicYearId:     ay.id,
+          classSectionId:     cs.id,
+          day:                e.day,
           periodDefinitionId: e.periodDefinitionId,
-          subjectId:         e.subjectId,
-          teacherId:         e.teacherId,
+          subjectId:          e.subjectId,
+          teacherId:          e.teacherId,
           configId,
         })),
+        skipDuplicates: true,
       });
     }
     total += entries.length;
@@ -332,90 +310,91 @@ async function writeTimetable(school, ay, subjects, tBySubject, allSections, wdD
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  STUDENTS + PARENTS
+//  seedStudents
 // ═══════════════════════════════════════════════════════════════════════════════
 async function seedStudents({ school, ay, cs, count, baseAge, password }) {
   const enrollments = [];
   for (let s = 1; s <= count; s++) {
-    const sn  = STUDENT_CTR++;
-    const pn  = PARENT_CTR++;
-    const ci  = sn % CITIES.length;
-    const g   = pick(GENDERS, sn);
-    const fn  = g === "MALE" ? pick(MALE_NAMES, sn) : pick(FEMALE_NAMES, sn);
-    const ln  = pick(LAST_NAMES, sn);
+    const sn    = STUDENT_CTR++;
+    const pn    = PARENT_CTR++;
+    const ci    = sn % CITIES.length;
+    const g     = pick(GENDERS, sn);
+    const fn    = g === "MALE" ? pick(MALE_NAMES, sn) : pick(FEMALE_NAMES, sn);
+    const ln    = pick(LAST_NAMES, sn);
     const email = `student${sn}@gmail.com`;
     const rn    = `${cs.grade.replace(/\s/g,"")}${cs.section || ""}${String(s).padStart(3,"0")}`;
     const an    = `ADM${String(sn).padStart(6,"0")}`;
 
-    let stu = await prisma.student.findFirst({ where:{ email, schoolId: school.id } });
-if (!stu) {
-  const studentCode = await createUniqueStudentCode();
+    // ── Student ──────────────────────────────────────────────────────────────
+    let stu = await prisma.student.findFirst({ where: { email, schoolId: school.id } });
+    if (!stu) {
+      const studentCode = await createUniqueStudentCode();
+      stu = await prisma.student.create({
+        data: {
+          studentCode,
+          name:     `${fn} ${ln}`,
+          email,
+          password,
+          schoolId: school.id,
+        },
+      });
+    }
 
-  stu = await prisma.student.create({
-    data: {
-      studentCode,
-      name: `${fn} ${ln}`,
-      email,
-      password,
-      schoolId: school.id,
-    },
-  });
-}
+    // ── Personal info ─────────────────────────────────────────────────────────
     await prisma.studentPersonalInfo.upsert({
       where:  { studentId: stu.id },
       update: {},
       create: {
-        student:     { connect: { id: stu.id } },
-        firstName:   fn,
-        lastName:    ln,
-        dateOfBirth: studentDOB(sn, baseAge),
-        gender:      g,
-        phone:       `9${String(800000000 + sn).slice(0,9)}`,
-        address:     `${sn}, ${fn} Nagar, Block ${(sn % 10) + 1}`,
-        city:        CITIES[ci],
-        state:       STATES[ci],
-        zipCode:     ZIPS[ci],
-        bloodGroup:  pick(BLOOD_GROUPS, sn),
-        parentName:  `${pick(PARENT_NAMES, sn + 11)} ${pick(LAST_NAMES, sn + 7)}`,
-        parentEmail: `parent${pn}@gmail.com`,
-        parentPhone: `9${String(700000000 + sn).slice(0,9)}`,
+        student:          { connect: { id: stu.id } },
+        firstName:        fn,
+        lastName:         ln,
+        dateOfBirth:      studentDOB(sn, baseAge),
+        gender:           g,
+        phone:            `9${String(800000000 + sn).slice(0,9)}`,
+        address:          `${sn}, ${fn} Nagar, Block ${(sn % 10) + 1}`,
+        city:             CITIES[ci],
+        state:            STATES[ci],
+        zipCode:          ZIPS[ci],
+        bloodGroup:       pick(BLOOD_GROUPS, sn),
+        parentName:       `${pick(PARENT_NAMES, sn + 11)} ${pick(LAST_NAMES, sn + 7)}`,
+        parentEmail:      `parent${pn}@gmail.com`,
+        parentPhone:      `9${String(700000000 + sn).slice(0,9)}`,
         emergencyContact: `9${String(600000000 + sn).slice(0,9)}`,
       },
     });
 
-    // Enrollment
+    // ── Enrollment ────────────────────────────────────────────────────────────
     const enr = await prisma.studentEnrollment.upsert({
       where:  { studentId_academicYearId: { studentId: stu.id, academicYearId: ay.id } },
       update: {},
       create: {
         admissionNumber: an,
         admissionDate:   admDate(sn),
-        student:      { connect: { id: stu.id } },
-        classSection: { connect: { id: cs.id } },
-        academicYear: { connect: { id: ay.id } },
-        rollNumber:   rn,
-        status:       "ACTIVE",
+        student:         { connect: { id: stu.id } },
+        classSection:    { connect: { id: cs.id } },
+        academicYear:    { connect: { id: ay.id } },
+        rollNumber:      rn,
+        status:          "ACTIVE",
       },
     });
     enrollments.push({ studentId: stu.id, classSectionId: cs.id, enrollmentId: enr.id });
 
-    // Parent
+    // ── Parent ────────────────────────────────────────────────────────────────
     const pe  = `parent${pn}@gmail.com`;
-    let par = await prisma.parent.findUnique({ where: { email_schoolId: { email: pe, schoolId: school.id } } });
-    if (!par) {
-      par = await prisma.parent.create({
-        data: {
-          name:       `${pick(PARENT_NAMES, sn + 7)} ${pick(LAST_NAMES, pn + 5)}`,
-          email:      pe,
-          password,
-          phone:      `9${String(700000000 + sn).slice(0,9)}`,
-          occupation: pick(OCCS, sn),
-          school:     { connect: { id: school.id } },
-        },
-      });
-    }
+    const par = await prisma.parent.upsert({
+      where:  { email_schoolId: { email: pe, schoolId: school.id } },
+      update: {},
+      create: {
+        name:       `${pick(PARENT_NAMES, sn + 7)} ${pick(LAST_NAMES, pn + 5)}`,
+        email:      pe,
+        password,
+        phone:      `9${String(700000000 + sn).slice(0,9)}`,
+        occupation: pick(OCCS, sn),
+        school:     { connect: { id: school.id } },
+      },
+    });
 
-    // StudentParent link
+    // ── StudentParent link ────────────────────────────────────────────────────
     const spExisting = await prisma.studentParent.findUnique({
       where: { studentId_relation: { studentId: stu.id, relation: "FATHER" } },
     });
@@ -435,15 +414,14 @@ if (!stu) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  ASSESSMENT SEEDER
+//  seedAssessments
 // ═══════════════════════════════════════════════════════════════════════════════
 async function seedAssessments({ school, ay, allSections, subjects, allEnrollments }) {
   console.log(`\n   📝  Seeding assessments for ${school.name}…`);
 
+  // ── 1. Terms ──────────────────────────────────────────────────────────────
   const TERM_DEFS = [
     { name: "Term 1", order: 1 },
-    { name: "Term 2", order: 2 },
-    { name: "Annual", order: 3 },
   ];
   const terms = [];
   for (const td of TERM_DEFS) {
@@ -463,12 +441,10 @@ async function seedAssessments({ school, ay, allSections, subjects, allEnrollmen
     terms.push(term);
   }
 
+  // ── 2. Assessment groups ──────────────────────────────────────────────────
   const GROUP_DEFS = [
-    { name: "Unit Test 1", termIdx: 0, weightage: 10,  maxMarks: 20,  passingMarks: 7,  startDate: "2025-07-15", isLocked: true, isPublished: true },
-    { name: "Mid Term",    termIdx: 0, weightage: 40,  maxMarks: 100, passingMarks: 35, startDate: "2025-09-01", isLocked: true, isPublished: true },
-    { name: "Unit Test 2", termIdx: 1, weightage: 10,  maxMarks: 20,  passingMarks: 7,  startDate: "2025-11-10", isLocked: true, isPublished: true },
-    { name: "Final Exam",  termIdx: 1, weightage: 40,  maxMarks: 100, passingMarks: 35, startDate: "2026-01-15", isLocked: true, isPublished: true },
-    { name: "Annual Exam", termIdx: 2, weightage: 100, maxMarks: 100, passingMarks: 35, startDate: "2026-03-01", isLocked: true, isPublished: true },
+    { name: "Unit Test",  termIdx: 0, weightage: 20, maxMarks: 20,  passingMarks: 7,  startDate: "2025-07-15", isLocked: true, isPublished: true },
+    { name: "Final Exam", termIdx: 0, weightage: 80, maxMarks: 100, passingMarks: 35, startDate: "2026-01-15", isLocked: true, isPublished: true },
   ];
   const groups = [];
   for (const gd of GROUP_DEFS) {
@@ -492,14 +468,18 @@ async function seedAssessments({ school, ay, allSections, subjects, allEnrollmen
   }
   console.log(`      ✅  ${terms.length} terms, ${groups.length} assessment groups`);
 
-  const allSchedules = [];
-  let totalSchedules = 0;
+  // ── 3. Schedules ──────────────────────────────────────────────────────────
+  const limitedSections = allSections.slice(0, MAX_SECTIONS);
+  const limitedSubjects = subjects.slice(0, MAX_SUBJECTS);
+
+  const allSchedules   = [];
+  let   totalSchedules = 0;
 
   for (const grp of groups) {
-    for (const cs of allSections) {
-      for (let subIdx = 0; subIdx < subjects.length; subIdx++) {
-        const subj = subjects[subIdx];
-        const base = new Date(`${grp._startDate}T00:00:00.000Z`);
+    for (const cs of limitedSections) {
+      for (let subIdx = 0; subIdx < limitedSubjects.length; subIdx++) {
+        const subj    = limitedSubjects[subIdx];
+        const base    = new Date(`${grp._startDate}T00:00:00.000Z`);
         base.setUTCDate(base.getUTCDate() + subIdx);
         const dateStr = base.toISOString().split("T")[0];
 
@@ -514,10 +494,10 @@ async function seedAssessments({ school, ay, allSections, subjects, allEnrollmen
               subject:         { connect: { id: subj.id } },
               maxMarks:        grp._maxMarks,
               passingMarks:    grp._passingMarks,
-              examDate:  new Date(`${dateStr}T12:00:00.000Z`),
-              startTime: new Date(`${dateStr}T09:00:00.000Z`),
-              endTime:   new Date(`${dateStr}T12:00:00.000Z`),
-              venue:     `Hall ${(allSections.indexOf(cs) % 5) + 1}`,
+              examDate:        new Date(`${dateStr}T12:00:00.000Z`),
+              startTime:       new Date(`${dateStr}T09:00:00.000Z`),
+              endTime:         new Date(`${dateStr}T12:00:00.000Z`),
+              venue:           `Hall ${(limitedSections.indexOf(cs) % 5) + 1}`,
             },
           });
           totalSchedules++;
@@ -528,7 +508,7 @@ async function seedAssessments({ school, ay, allSections, subjects, allEnrollmen
   }
   console.log(`      ✅  ${totalSchedules} exam schedules`);
 
-  // Build section → studentId map
+  // ── 4. Marks (only fields that exist in the Marks model) ──────────────────
   const sectionStudents = {};
   for (const { studentId, classSectionId } of allEnrollments) {
     if (!sectionStudents[classSectionId]) sectionStudents[classSectionId] = [];
@@ -537,93 +517,42 @@ async function seedAssessments({ school, ay, allSections, subjects, allEnrollmen
 
   let totalMarksInserted = 0;
 
-  for (const cs of allSections) {
-    const studentIds      = sectionStudents[cs.id] || [];
+  for (const cs of limitedSections) {
+    const studentIds      = (sectionStudents[cs.id] || []).slice(0, STUDENTS_PER_SECTION);
     if (!studentIds.length) continue;
 
     const sectionSchedules = allSchedules.filter(s => s.classSectionId === cs.id);
-    const resultAccum      = {};
+    const toCreate         = [];
 
     for (let schIdx = 0; schIdx < sectionSchedules.length; schIdx++) {
       const { sched, maxMarks, passingMarks } = sectionSchedules[schIdx];
 
-      const existing = await prisma.marks.findMany({
-        where:  { scheduleId: sched.id },
-        select: { studentId: true, marksObtained: true, isAbsent: true },
-      });
-      const existingMap = {};
-      for (const m of existing) existingMap[m.studentId] = m;
-
-      const toCreate = [];
       for (let stuIdx = 0; stuIdx < studentIds.length; stuIdx++) {
         const studentId = studentIds[stuIdx];
-        const key = `${studentId}::${sched.assessmentGroupId}`;
-        if (!resultAccum[key]) resultAccum[key] = { groupId: sched.assessmentGroupId, total: 0, max: 0 };
+        const { isAbsent, marksObtained, remarks } = genMarks(stuIdx, schIdx, maxMarks, passingMarks);
 
-        if (existingMap[studentId]) {
-          const em = existingMap[studentId];
-          if (!em.isAbsent) resultAccum[key].total += em.marksObtained ?? 0;
-          resultAccum[key].max += maxMarks;
-        } else {
-          const m = genMarks(stuIdx, schIdx, maxMarks, passingMarks);
-          toCreate.push({
-            scheduleId:    sched.id,
-            studentId,
-            marksObtained: m.marksObtained,
-            isAbsent:      m.isAbsent,
-          });
-          if (!m.isAbsent) resultAccum[key].total += m.marksObtained ?? 0;
-          resultAccum[key].max += maxMarks;
-        }
-      }
-
-      if (toCreate.length) {
-        await prisma.marks.createMany({ data: toCreate, skipDuplicates: true });
-        totalMarksInserted += toCreate.length;
+        // ✅ STRICT SCHEMA MATCH — Marks model fields only:
+        //    id, scheduleId, studentId, marksObtained, isAbsent, remarks, createdAt, updatedAt
+        toCreate.push({
+          studentId,
+          scheduleId:    sched.id,
+          marksObtained: isAbsent ? null : marksObtained,
+          isAbsent,
+          remarks,
+        });
       }
     }
 
-    const resultOps = [];
-    for (const [key, data] of Object.entries(resultAccum)) {
-      const [studentId, groupId] = key.split("::");
-      const grp = groups.find(g => g.id === groupId);
-      if (!grp) continue;
-      const pct = data.max > 0 ? parseFloat(((data.total / data.max) * 100).toFixed(2)) : 0;
-
-      resultOps.push(
-        prisma.resultSummary.upsert({
-          where: {
-            studentId_academicYearId_termId_assessmentGroupId: {
-              studentId,
-              academicYearId:    ay.id,
-              termId:            grp.termId ?? null,
-              assessmentGroupId: groupId,
-            },
-          },
-          update: { totalMarks: data.total, maxMarks: data.max, percentage: pct, grade: calcGrade(pct) },
-          create: {
-            student:         { connect: { id: studentId } },
-            academicYear:    { connect: { id: ay.id } },
-            term:            grp.termId ? { connect: { id: grp.termId } } : undefined,
-            assessmentGroup: { connect: { id: groupId } },
-            totalMarks:      data.total,
-            maxMarks:        data.max,
-            percentage:      pct,
-            grade:           calcGrade(pct),
-            isPublished:     grp.isPublished,
-          },
-        })
-      );
-    }
-    for (let i = 0; i < resultOps.length; i += 50) {
-      await prisma.$transaction(resultOps.slice(i, i + 50));
+    if (toCreate.length) {
+      await prisma.marks.createMany({ data: toCreate, skipDuplicates: true });
+      totalMarksInserted += toCreate.length;
     }
   }
-  console.log(`      ✅  ${totalMarksInserted} mark entries, result summaries upserted`);
+  console.log(`      ✅  ${totalMarksInserted} mark entries`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  ATTENDANCE SEEDER
+//  seedAttendance
 // ═══════════════════════════════════════════════════════════════════════════════
 async function seedAttendance({ school, ay, allSections, allEnrollments, adminUser }) {
   console.log(`\n   📅  Seeding attendance for ${school.name}…`);
@@ -658,27 +587,18 @@ async function seedAttendance({ school, ay, allSections, allEnrollments, adminUs
     const studentIds = sectionStudents[cs.id] || [];
     if (!studentIds.length) continue;
 
+    // Process in batches of 30 days
     for (let di = 0; di < schoolDays.length; di += 30) {
       const dayBatch = schoolDays.slice(di, di + 30);
       const toCreate = [];
 
       for (const date of dayBatch) {
         const dateStr = date.toISOString().split("T")[0];
-        const existing = await prisma.attendanceRecord.findMany({
-          where: {
-            classSectionId: cs.id, academicYearId: ay.id,
-            date: { gte: new Date(`${dateStr}T00:00:00.000Z`), lt: new Date(`${dateStr}T23:59:59.000Z`) },
-          },
-          select: { studentId: true },
-        });
-        const existingSet = new Set(existing.map(e => e.studentId));
-
         for (let stuIdx = 0; stuIdx < studentIds.length; stuIdx++) {
           const studentId = studentIds[stuIdx];
-          if (existingSet.has(studentId)) continue;
-          const seed   = (stuIdx * 13 + di * 7 + date.getUTCDate() * 3) % STATUSES.length;
-          const status = STATUSES[seed];
-          // createMany uses raw FKs — this is intentional and correct for bulk ops
+          const seed      = (stuIdx * 13 + di * 7 + date.getUTCDate() * 3) % STATUSES.length;
+          const status    = STATUSES[seed];
+
           toCreate.push({
             date:           new Date(`${dateStr}T07:30:00.000Z`),
             status,
@@ -700,7 +620,7 @@ async function seedAttendance({ school, ay, allSections, allEnrollments, adminUs
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  TEACHER ATTENDANCE SEEDER
+//  seedTeacherAttendance
 // ═══════════════════════════════════════════════════════════════════════════════
 async function seedTeacherAttendance({ school, ay, allTeachers, adminUser }) {
   console.log(`\n   👨‍🏫  Seeding teacher attendance for ${school.name}…`);
@@ -724,33 +644,51 @@ async function seedTeacherAttendance({ school, ay, allTeachers, adminUser }) {
   const T_STATUSES = ["PRESENT","PRESENT","PRESENT","PRESENT","PRESENT","PRESENT","PRESENT","PRESENT","PRESENT","PRESENT","ABSENT","LATE","HALF_DAY","ON_LEAVE"];
   let totalInserted = 0;
 
+  // Process in batches of 30 days; batch-fetch existing records per batch
   for (let di = 0; di < schoolDays.length; di += 30) {
     const dayBatch = schoolDays.slice(di, di + 30);
-    const toCreate = [];
+    if (!dayBatch.length) continue;
 
-    for (const date of dayBatch) {
-      const dateStr = date.toISOString().split("T")[0];
-      const existing = await prisma.teacherAttendance.findMany({
-        where: {
-          schoolId: school.id, academicYearId: ay.id,
-          date: { gte: new Date(`${dateStr}T00:00:00.000Z`), lt: new Date(`${dateStr}T23:59:59.000Z`) },
+    // Batch fetch existing records for the whole window (no per-day DB calls)
+    const existingRecords = await prisma.teacherAttendance.findMany({
+      where: {
+        schoolId:      school.id,
+        academicYearId: ay.id,
+        date: {
+          gte: dayBatch[0],
+          lt:  new Date(dayBatch[dayBatch.length - 1].getTime() + 86400000),
         },
-        select: { teacherId: true },
-      });
-      const existingSet = new Set(existing.map(e => e.teacherId));
+      },
+      select: { teacherId: true, date: true },
+    });
+
+    // Build Map<dateStr, Set<teacherId>>
+    const existingMap = new Map();
+    for (const rec of existingRecords) {
+      const d = rec.date.toISOString().split("T")[0];
+      if (!existingMap.has(d)) existingMap.set(d, new Set());
+      existingMap.get(d).add(rec.teacherId);
+    }
+
+    const toCreate = [];
+    for (const date of dayBatch) {
+      const dateStr    = date.toISOString().split("T")[0];
+      const existingSet = existingMap.get(dateStr) || new Set();
 
       for (let ti = 0; ti < allTeachers.length; ti++) {
         const teacher = allTeachers[ti];
         if (existingSet.has(teacher.id)) continue;
+
         const seed   = (ti * 11 + di * 5 + date.getUTCDate() * 7) % T_STATUSES.length;
         const status = T_STATUSES[seed];
+
         toCreate.push({
-          date:          new Date(`${dateStr}T08:00:00.000Z`),
+          date:           new Date(`${dateStr}T08:00:00.000Z`),
           status,
-          teacherId:     teacher.id,
-          schoolId:      school.id,
+          teacherId:      teacher.id,
+          schoolId:       school.id,
           academicYearId: ay.id,
-          markedById:    adminUser.id,
+          markedById:     adminUser.id,
         });
       }
     }
@@ -764,7 +702,7 @@ async function seedTeacherAttendance({ school, ay, allTeachers, adminUser }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  HOLIDAYS SEEDER
+//  seedHolidays
 // ═══════════════════════════════════════════════════════════════════════════════
 async function seedHolidays({ school, ay, adminUser }) {
   console.log(`\n   🗓️  Seeding holidays for ${school.name}…`);
@@ -779,14 +717,19 @@ async function seedHolidays({ school, ay, adminUser }) {
   ];
 
   for (const h of GOVT_HOLIDAYS) {
-    const existing = await prisma.schoolHoliday.findFirst({ where: { schoolId: school.id, month: h.month, day: h.day } });
+    const existing = await prisma.schoolHoliday.findFirst({
+      where: { schoolId: school.id, month: h.month, day: h.day },
+    });
     if (!existing) {
       await prisma.schoolHoliday.create({
         data: {
-          title: h.title, description: h.description,
-          type: "GOVERNMENT", month: h.month, day: h.day,
-          school:    { connect: { id: school.id } },
-          createdBy: { connect: { id: adminUser.id } },
+          title:       h.title,
+          description: h.description,
+          type:        "GOVERNMENT",
+          month:       h.month,
+          day:         h.day,
+          school:      { connect: { id: school.id } },
+          createdBy:   { connect: { id: adminUser.id } },
         },
       });
     }
@@ -803,13 +746,17 @@ async function seedHolidays({ school, ay, adminUser }) {
   ];
 
   for (const h of SCHOOL_HOLIDAYS) {
-    const existing = await prisma.schoolHoliday.findFirst({ where: { schoolId: school.id, title: h.title, academicYearId: ay.id } });
+    const existing = await prisma.schoolHoliday.findFirst({
+      where: { schoolId: school.id, title: h.title, academicYearId: ay.id },
+    });
     if (!existing) {
       await prisma.schoolHoliday.create({
         data: {
-          title: h.title, description: h.description, type: "SCHOOL",
-          startDate: new Date(`${h.startDate}T00:00:00.000Z`),
-          endDate:   new Date(`${h.endDate}T23:59:59.000Z`),
+          title:        h.title,
+          description:  h.description,
+          type:         "SCHOOL",
+          startDate:    new Date(`${h.startDate}T00:00:00.000Z`),
+          endDate:      new Date(`${h.endDate}T23:59:59.000Z`),
           school:       { connect: { id: school.id } },
           academicYear: { connect: { id: ay.id } },
           createdBy:    { connect: { id: adminUser.id } },
@@ -817,14 +764,13 @@ async function seedHolidays({ school, ay, adminUser }) {
       });
     }
   }
-
   console.log(`      ✅  ${GOVT_HOLIDAYS.length} government + ${SCHOOL_HOLIDAYS.length} school holidays`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  GALLERY SEEDER
+//  seedGallery
 // ═══════════════════════════════════════════════════════════════════════════════
-async function seedGallery({ school, ay, adminUser }) {
+async function seedGallery({ school, adminUser }) {
   console.log(`\n   🖼️  Seeding gallery for ${school.name}…`);
 
   const ALBUMS = [
@@ -837,7 +783,7 @@ async function seedGallery({ school, ay, adminUser }) {
   ];
 
   for (let ai = 0; ai < ALBUMS.length; ai++) {
-    const alb = ALBUMS[ai];
+    const alb      = ALBUMS[ai];
     const existing = await prisma.galleryAlbum.findFirst({ where: { schoolId: school.id, title: alb.title } });
     if (existing) continue;
 
@@ -868,12 +814,11 @@ async function seedGallery({ school, ay, adminUser }) {
     }
     await prisma.galleryImage.createMany({ data: images });
   }
-
   console.log(`      ✅  ${ALBUMS.length} albums with images`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  ACTIVITIES & EVENTS SEEDER
+//  seedActivities
 // ═══════════════════════════════════════════════════════════════════════════════
 async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments, adminUser }) {
   console.log(`\n   🏆  Seeding activities & events for ${school.name}…`);
@@ -884,17 +829,12 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
     sectionStudents[classSectionId].push(studentId);
   }
 
-  // ── 1. ACTIVITIES ─────────────────────────────────────────────────────────
+  // ── Activities ─────────────────────────────────────────────────────────────
   const ACTIVITY_DEFS = [
     { name: "Cricket Club",       category: "SPORTS",   participationType: "TEAM",       description: "School cricket team training" },
-    { name: "Football Club",      category: "SPORTS",   participationType: "TEAM",       description: "Football coaching and matches" },
     { name: "Chess Club",         category: "SPORTS",   participationType: "INDIVIDUAL", description: "Chess training and competitions" },
     { name: "Debate Club",        category: "ACADEMIC", participationType: "INDIVIDUAL", description: "Public speaking and debate" },
-    { name: "Science Club",       category: "ACADEMIC", participationType: "INDIVIDUAL", description: "Scientific experiments and projects" },
-    { name: "Math Olympiad Club", category: "ACADEMIC", participationType: "INDIVIDUAL", description: "Math olympiad preparation" },
     { name: "Drama Club",         category: "CULTURAL", participationType: "TEAM",       description: "Theatre and drama" },
-    { name: "Music Club",         category: "CULTURAL", participationType: "INDIVIDUAL", description: "Vocal and instrumental music" },
-    { name: "Dance Club",         category: "CULTURAL", participationType: "TEAM",       description: "Classical and contemporary dance" },
     { name: "Eco Warriors Club",  category: "OTHER",    participationType: "TEAM",       description: "Environmental awareness" },
   ];
 
@@ -922,7 +862,7 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
 
   // Link activities to class sections
   for (const activity of activities) {
-    const sectionSubset = allSections.slice(0, Math.min(4, allSections.length));
+    const sectionSubset = allSections.slice(0, Math.min(MAX_SECTIONS, allSections.length));
     for (const cs of sectionSubset) {
       const exists = await prisma.activityClass.findUnique({
         where: { activityId_classSectionId: { activityId: activity.id, classSectionId: cs.id } },
@@ -938,38 +878,34 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
     }
   }
 
-  // Enroll students in activities
+  // Enroll students
   let enrollCount = 0;
-  for (const cs of allSections.slice(0, 4)) {
-    const studentIds = (sectionStudents[cs.id] || []).slice(0, 20);
+  for (const cs of allSections.slice(0, MAX_SECTIONS)) {
+    const studentIds = (sectionStudents[cs.id] || []).slice(0, STUDENTS_PER_SECTION);
     for (let si = 0; si < studentIds.length; si++) {
       const studentId = studentIds[si];
-      const actIdx1   = si % activities.length;
-      const actIdx2   = (si + 3) % activities.length;
-
-      for (const actIdx of [actIdx1, actIdx2]) {
-        const activity = activities[actIdx];
-        const exists   = await prisma.studentActivityEnrollment.findUnique({
-          where: { studentId_activityId_academicYearId: { studentId, activityId: activity.id, academicYearId: ay.id } },
+      const actIdx    = si % activities.length;
+      const activity  = activities[actIdx];
+      const exists    = await prisma.studentActivityEnrollment.findUnique({
+        where: { studentId_activityId_academicYearId: { studentId, activityId: activity.id, academicYearId: ay.id } },
+      });
+      if (!exists) {
+        await prisma.studentActivityEnrollment.create({
+          data: {
+            student:      { connect: { id: studentId } },
+            activity:     { connect: { id: activity.id } },
+            academicYear: { connect: { id: ay.id } },
+            status:       "ACTIVE",
+            enrolledAt:   new Date("2025-07-01T00:00:00.000Z"),
+          },
         });
-        if (!exists) {
-          await prisma.studentActivityEnrollment.create({
-            data: {
-              student:      { connect: { id: studentId } },
-              activity:     { connect: { id: activity.id } },
-              academicYear: { connect: { id: ay.id } },
-              status:       "ACTIVE",
-              enrolledAt:   new Date("2025-07-01T00:00:00.000Z"),
-            },
-          });
-          enrollCount++;
-        }
+        enrollCount++;
       }
     }
   }
   console.log(`      ✅  ${activities.length} activities, ${enrollCount} student enrollments`);
 
-  // ── 2. STANDALONE EVENTS ──────────────────────────────────────────────────
+  // ── Events ─────────────────────────────────────────────────────────────────
   const EVENT_DEFS = [
     {
       name: "Annual Sports Meet 2025", description: "Inter-class sports competition",
@@ -988,24 +924,6 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
       eventType: "CULTURAL", participationMode: "BOTH", status: "COMPLETED",
       eventDate: "2025-12-15", venue: "School Auditorium",
       maxTeamsPerClass: 3, maxStudentsPerClass: 30,
-    },
-    {
-      name: "Math Quiz Championship", description: "Inter-class math quiz",
-      eventType: "COMPETITION", participationMode: "TEAM", status: "COMPLETED",
-      eventDate: "2025-09-15", venue: "Main Hall",
-      maxTeamsPerClass: 2, maxStudentsPerClass: null,
-    },
-    {
-      name: "Republic Day Cultural Program", description: "Patriotic performances",
-      eventType: "CULTURAL", participationMode: "BOTH", status: "COMPLETED",
-      eventDate: "2026-01-26", venue: "School Ground",
-      maxTeamsPerClass: null, maxStudentsPerClass: 15,
-    },
-    {
-      name: "Inter-School Debate 2026", description: "Public speaking competition",
-      eventType: "COMPETITION", participationMode: "INDIVIDUAL", status: "PUBLISHED",
-      eventDate: "2026-02-20", venue: "Conference Hall",
-      maxTeamsPerClass: null, maxStudentsPerClass: 5,
     },
   ];
 
@@ -1028,7 +946,6 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
           venue:               def.venue,
           maxTeamsPerClass:    def.maxTeamsPerClass,
           maxStudentsPerClass: def.maxStudentsPerClass,
-          // activityId intentionally null — standalone event
           school:              { connect: { id: school.id } },
           academicYear:        { connect: { id: ay.id } },
           createdBy:           { connect: { id: adminUser.id } },
@@ -1040,7 +957,7 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
 
   // Link events to class sections
   for (const event of events) {
-    const sectionSubset = allSections.slice(0, Math.min(4, allSections.length));
+    const sectionSubset = allSections.slice(0, Math.min(MAX_SECTIONS, allSections.length));
     for (const cs of sectionSubset) {
       const exists = await prisma.eventClass.findUnique({
         where: { eventId_classSectionId: { eventId: event.id, classSectionId: cs.id } },
@@ -1056,15 +973,15 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
     }
   }
 
-  // ── 3. TEAMS for TEAM / BOTH events ───────────────────────────────────────
-  const TEAM_COLORS  = ["#E53E3E","#3182CE","#38A169","#D69E2E","#805AD5","#DD6B20"];
-  const teamEvents   = events.filter(e => e.participationMode === "TEAM" || e.participationMode === "BOTH");
+  // Teams for TEAM / BOTH events
+  const TEAM_COLORS = ["#E53E3E","#3182CE","#38A169","#D69E2E","#805AD5","#DD6B20"];
+  const teamEvents  = events.filter(e => e.participationMode === "TEAM" || e.participationMode === "BOTH");
 
   for (const event of teamEvents) {
-    const sectionSubset = allSections.slice(0, Math.min(4, allSections.length));
+    const sectionSubset = allSections.slice(0, Math.min(MAX_SECTIONS, allSections.length));
     for (let si = 0; si < sectionSubset.length; si++) {
       const cs         = sectionSubset[si];
-      const studentIds = sectionStudents[cs.id] || [];
+      const studentIds = (sectionStudents[cs.id] || []).slice(0, STUDENTS_PER_SECTION);
       if (!studentIds.length) continue;
 
       const teamName = `${cs.name} Team`;
@@ -1080,9 +997,7 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
         });
       }
 
-      // Add 5 members
-      const members = studentIds.slice(0, Math.min(5, studentIds.length));
-      for (const studentId of members) {
+      for (const studentId of studentIds) {
         const exists = await prisma.eventTeamMember.findUnique({
           where: { teamId_studentId: { teamId: team.id, studentId } },
         });
@@ -1097,7 +1012,6 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
         }
       }
 
-      // Team results for completed events
       if (event.status === "COMPLETED") {
         const existsResult = await prisma.eventResult.findUnique({
           where: { eventId_teamId: { eventId: event.id, teamId: team.id } },
@@ -1120,22 +1034,22 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
     }
   }
 
-  // ── 4. INDIVIDUAL PARTICIPANTS & RESULTS ──────────────────────────────────
+  // Individual participants & results
   const indivEvents = events.filter(e => e.participationMode === "INDIVIDUAL" || e.participationMode === "BOTH");
   for (const event of indivEvents) {
-    const sectionSubset = allSections.slice(0, Math.min(4, allSections.length));
+    const sectionSubset = allSections.slice(0, Math.min(MAX_SECTIONS, allSections.length));
     for (const cs of sectionSubset) {
-      const studentIds = (sectionStudents[cs.id] || []).slice(0, 5);
+      const studentIds = (sectionStudents[cs.id] || []).slice(0, STUDENTS_PER_SECTION);
       for (let pi = 0; pi < studentIds.length; pi++) {
-        const studentId = studentIds[pi];
-        const existsPart = await prisma.eventParticipant.findUnique({
+        const studentId   = studentIds[pi];
+        const existsPart  = await prisma.eventParticipant.findUnique({
           where: { eventId_studentId: { eventId: event.id, studentId } },
         });
         if (!existsPart) {
           await prisma.eventParticipant.create({
             data: {
-              event:       { connect: { id: event.id } },
-              student:     { connect: { id: studentId } },
+              event:        { connect: { id: event.id } },
+              student:      { connect: { id: studentId } },
               participated: true,
               score:        60 + pi * 5,
               remarks:      "Good performance",
@@ -1165,10 +1079,9 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
     }
   }
 
-  // ── 5. CERTIFICATES ────────────────────────────────────────────────────────
+  // Certificates for completed events
   const completedEvents = events.filter(e => e.status === "COMPLETED");
   let certCount = 0;
-
   for (const event of completedEvents) {
     const results = await prisma.eventResult.findMany({
       where:   { eventId: event.id },
@@ -1177,7 +1090,6 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
         team:    { include: { members: { include: { student: { include: { personalInfo: true } } } } } },
       },
     });
-
     for (const result of results) {
       if (result.studentId) {
         const exists = await prisma.certificate.findUnique({
@@ -1231,7 +1143,7 @@ async function seedActivitiesAndEvents({ school, ay, allSections, allEnrollments
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  AWARDS SEEDER
+//  seedAwards
 // ═══════════════════════════════════════════════════════════════════════════════
 async function seedAwards({ school, ay, allSections, allEnrollments, adminUser }) {
   console.log(`\n   🏅  Seeding awards for ${school.name}…`);
@@ -1243,19 +1155,19 @@ async function seedAwards({ school, ay, allSections, allEnrollments, adminUser }
   }
 
   const AWARD_DEFS = [
-    { name: "Best Student Award",        category: "ACADEMIC",    description: "Top performing student" },
-    { name: "Perfect Attendance Award",  category: "ATTENDANCE",  description: "100% attendance throughout the year" },
-    { name: "Sports Champion",           category: "SPORTS",      description: "Best sports performer" },
-    { name: "Cultural Star Award",       category: "CULTURAL",    description: "Outstanding cultural performance" },
-    { name: "Discipline Award",          category: "DISCIPLINE",  description: "Model of discipline and conduct" },
-    { name: "Leadership Award",          category: "LEADERSHIP",  description: "Exemplary leadership qualities" },
-    { name: "Science Excellence Award",  category: "ACADEMIC",    description: "Best science project or performance" },
-    { name: "Special Achievement Award", category: "SPECIAL",     description: "Extraordinary achievement" },
+    { name: "Best Student Award",       category: "ACADEMIC",   description: "Top performing student" },
+    { name: "Perfect Attendance Award", category: "ATTENDANCE", description: "100% attendance throughout the year" },
+    { name: "Sports Champion",          category: "SPORTS",     description: "Best sports performer" },
+    { name: "Cultural Star Award",      category: "CULTURAL",   description: "Outstanding cultural performance" },
+    { name: "Discipline Award",         category: "DISCIPLINE", description: "Model of discipline and conduct" },
+    { name: "Leadership Award",         category: "LEADERSHIP", description: "Exemplary leadership qualities" },
   ];
 
   const awards = [];
   for (const def of AWARD_DEFS) {
-    let award = await prisma.award.findUnique({ where: { schoolId_name: { schoolId: school.id, name: def.name } } });
+    let award = await prisma.award.findUnique({
+      where: { schoolId_name: { schoolId: school.id, name: def.name } },
+    });
     if (!award) {
       award = await prisma.award.create({
         data: {
@@ -1270,12 +1182,12 @@ async function seedAwards({ school, ay, allSections, allEnrollments, adminUser }
   }
 
   let awardCount = 0;
-  for (let si = 0; si < Math.min(allSections.length, 4); si++) {
+  for (let si = 0; si < Math.min(allSections.length, MAX_SECTIONS); si++) {
     const cs         = allSections[si];
     const studentIds = sectionStudents[cs.id] || [];
     if (!studentIds.length) continue;
 
-    const awardsToGive = awards.slice(0, 4);
+    const awardsToGive = awards.slice(0, 3);
     for (let ai = 0; ai < awardsToGive.length; ai++) {
       const award     = awardsToGive[ai];
       const studentId = studentIds[ai % studentIds.length];
@@ -1297,9 +1209,8 @@ async function seedAwards({ school, ay, allSections, allEnrollments, adminUser }
       });
       awardCount++;
 
-      // Certificate for award
-      const student = await prisma.student.findUnique({ where: { id: studentId }, include: { personalInfo: true } });
-      const pi      = student?.personalInfo;
+      const student    = await prisma.student.findUnique({ where: { id: studentId }, include: { personalInfo: true } });
+      const pi         = student?.personalInfo;
       const certExists = await prisma.certificate.findUnique({
         where: { studentId_studentAwardId: { studentId, studentAwardId: studentAward.id } },
       });
@@ -1323,17 +1234,17 @@ async function seedAwards({ school, ay, allSections, allEnrollments, adminUser }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  STAFF PROFILES + SALARIES
+//  seedStaffAndSalaries
 // ═══════════════════════════════════════════════════════════════════════════════
-async function seedStaffAndSalaries({ school, adminUser }) {
+async function seedStaffAndSalaries({ school }) {
   console.log(`\n   👷  Seeding staff profiles & salaries for ${school.name}…`);
 
   const STAFF_DEFS = [
-    { firstName: "Ramu",     lastName: "Naik",    role: "Watchman",       groupType: "Group B", basicSalary: 18000 },
-    { firstName: "Srinivas", lastName: "Hegde",   role: "Plumber",        groupType: "Group B", basicSalary: 17000 },
-    { firstName: "Basanna",  lastName: "Kamble",  role: "Peon",           groupType: "Group C", basicSalary: 12000 },
-    { firstName: "Geetha",   lastName: "Lamani",  role: "Sweeper",        groupType: "Group C", basicSalary: 11000 },
-    { firstName: "Kariappa", lastName: "Nayak",   role: "Security Guard", groupType: "Group B", basicSalary: 19000 },
+    { firstName: "Ramu",     lastName: "Naik",   role: "Watchman",       groupType: "Group B", basicSalary: 18000 },
+    { firstName: "Srinivas", lastName: "Hegde",  role: "Plumber",        groupType: "Group B", basicSalary: 17000 },
+    { firstName: "Basanna",  lastName: "Kamble", role: "Peon",           groupType: "Group C", basicSalary: 12000 },
+    { firstName: "Geetha",   lastName: "Lamani", role: "Sweeper",        groupType: "Group C", basicSalary: 11000 },
+    { firstName: "Kariappa", lastName: "Nayak",  role: "Security Guard", groupType: "Group B", basicSalary: 19000 },
   ];
 
   const staffList = [];
@@ -1361,10 +1272,10 @@ async function seedStaffAndSalaries({ school, adminUser }) {
   }
 
   const SALARY_MONTHS = [
-    { month: 6, year: 2025 }, { month: 7, year: 2025 }, { month: 8,  year: 2025 },
-    { month: 9, year: 2025 }, { month: 10,year: 2025 }, { month: 11, year: 2025 },
-    { month: 12,year: 2025 }, { month: 1, year: 2026 }, { month: 2,  year: 2026 },
-    { month: 3, year: 2026 },
+    { month: 6,  year: 2025 }, { month: 7,  year: 2025 }, { month: 8,  year: 2025 },
+    { month: 9,  year: 2025 }, { month: 10, year: 2025 }, { month: 11, year: 2025 },
+    { month: 12, year: 2025 }, { month: 1,  year: 2026 }, { month: 2,  year: 2026 },
+    { month: 3,  year: 2026 },
   ];
 
   const CURRENT_MONTH = 3;
@@ -1437,16 +1348,16 @@ async function seedStaffAndSalaries({ school, adminUser }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  TEACHER MONTHLY SALARY SEEDER
+//  seedTeacherSalaries
 // ═══════════════════════════════════════════════════════════════════════════════
 async function seedTeacherSalaries({ school, allTeachers }) {
   console.log(`\n   💰  Seeding teacher salaries for ${school.name}…`);
 
   const SALARY_MONTHS = [
-    { month: 6, year: 2025 }, { month: 7, year: 2025 }, { month: 8,  year: 2025 },
-    { month: 9, year: 2025 }, { month: 10,year: 2025 }, { month: 11, year: 2025 },
-    { month: 12,year: 2025 }, { month: 1, year: 2026 }, { month: 2,  year: 2026 },
-    { month: 3, year: 2026 },
+    { month: 6,  year: 2025 }, { month: 7,  year: 2025 }, { month: 8,  year: 2025 },
+    { month: 9,  year: 2025 }, { month: 10, year: 2025 }, { month: 11, year: 2025 },
+    { month: 12, year: 2025 }, { month: 1,  year: 2026 }, { month: 2,  year: 2026 },
+    { month: 3,  year: 2026 },
   ];
 
   const CURRENT_MONTH = 3;
@@ -1495,7 +1406,7 @@ async function seedTeacherSalaries({ school, allTeachers }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  EXPENSES SEEDER
+//  seedExpenses
 // ═══════════════════════════════════════════════════════════════════════════════
 async function seedExpenses({ school }) {
   console.log(`\n   💸  Seeding expenses & categories…`);
@@ -1516,12 +1427,7 @@ async function seedExpenses({ school }) {
     let cat = await prisma.expenseCategory.findFirst({ where: { name: def.name } });
     if (!cat) {
       cat = await prisma.expenseCategory.create({
-        data: {
-          name:    def.name,
-          icon:    def.icon,
-          color:   def.color,
-          schoolId: school.id,
-        },
+        data: { name: def.name, icon: def.icon, color: def.color, schoolId: school.id },
       });
     }
     categories.push(cat);
@@ -1530,22 +1436,14 @@ async function seedExpenses({ school }) {
   const EXPENSE_DEFS = [
     { label: "Classroom whiteboard replacement",  amount: 15000,  catIdx: 0 },
     { label: "Plumbing repairs – Block B",        amount: 8500,   catIdx: 0 },
-    { label: "Painting – Admin block",            amount: 25000,  catIdx: 0 },
     { label: "Electricity bill – June 2025",      amount: 32000,  catIdx: 1 },
     { label: "Electricity bill – September 2025", amount: 28000,  catIdx: 1 },
-    { label: "Electricity bill – December 2025",  amount: 35000,  catIdx: 1 },
     { label: "Notebooks & pens – Term 1",         amount: 12000,  catIdx: 2 },
-    { label: "Printer cartridges",                amount: 4500,   catIdx: 2 },
     { label: "School bus fuel – Q1",              amount: 45000,  catIdx: 3 },
-    { label: "School bus fuel – Q2",              amount: 42000,  catIdx: 3 },
     { label: "Teacher salaries – June 2025",      amount: 850000, catIdx: 4 },
-    { label: "Support staff salaries – Q1",       amount: 120000, catIdx: 4 },
     { label: "Annual Day event expenses",         amount: 75000,  catIdx: 5 },
-    { label: "Sports Day equipment",              amount: 35000,  catIdx: 5 },
     { label: "Projector installation",            amount: 55000,  catIdx: 6 },
-    { label: "Library book purchase",             amount: 40000,  catIdx: 6 },
     { label: "Cleaning supplies – Term 1",        amount: 8000,   catIdx: 7 },
-    { label: "Cleaning supplies – Term 2",        amount: 7500,   catIdx: 7 },
   ];
 
   let expenseCount = 0;
@@ -1564,7 +1462,6 @@ async function seedExpenses({ school }) {
     });
     expenseCount++;
   }
-
   console.log(`      ✅  ${categories.length} categories, ${expenseCount} expenses`);
 }
 
@@ -1576,7 +1473,7 @@ async function seedSchool(university, password) {
   console.log("║   🏫  Springfield High School        ║");
   console.log("╚══════════════════════════════════════╝");
 
-  // ── School ────────────────────────────────────────────────────────────────
+  // ── School ─────────────────────────────────────────────────────────────────
   const school = await prisma.school.upsert({
     where:  { code: "SPRINGFIELD_HIGH" },
     update: {},
@@ -1715,9 +1612,9 @@ async function seedSchool(university, password) {
   // ── Timetable config ───────────────────────────────────────────────────────
   const { configId, wdDefs, satDefs } = await createTimetableConfig(school, ay);
 
-  // ── Class sections ─────────────────────────────────────────────────────────
+  // ── Class sections (only MAX_SECTIONS per grade for dev speed) ────────────
   const GRADES   = ["1","2","3","4","5","6","8","9","10"];   // 7 is in skipGrades
-  const SECTIONS = ["A","B"];
+  const SECTIONS = ["A","B"].slice(0, MAX_SECTIONS);
   const allSections = []; let ctIdx = 0;
 
   for (let gi = 0; gi < GRADES.length; gi++) {
@@ -1755,15 +1652,14 @@ async function seedSchool(university, password) {
   const totalTT = await writeTimetable(school, ay, subjects, tBySubject, allSections, wdDefs, satDefs, configId);
   console.log(`   ✅  ${totalTT} timetable entries`);
 
-  // ── Students ───────────────────────────────────────────────────────────────
-  const COUNT    = 20;
-  const stuStart = STUDENT_CTR;
-  console.log(`   👨‍🎓  Seeding ${COUNT} students × ${allSections.length} sections…`);
+  // ── Students (STUDENTS_PER_SECTION per section) ───────────────────────────
+  const stuStart       = STUDENT_CTR;
   const allEnrollments = [];
+  console.log(`   👨‍🎓  Seeding ${STUDENTS_PER_SECTION} students × ${allSections.length} sections…`);
   for (const cs of allSections) {
-    const enrs = await seedStudents({ school, ay, cs, count: COUNT, baseAge: 6, password });
+    const enrs = await seedStudents({ school, ay, cs, count: STUDENTS_PER_SECTION, baseAge: 6, password });
     allEnrollments.push(...enrs);
-    process.stdout.write(`      ✅  ${cs.name}  (${COUNT} students)\n`);
+    process.stdout.write(`      ✅  ${cs.name}  (${STUDENTS_PER_SECTION} students)\n`);
   }
 
   // ── Assessments ────────────────────────────────────────────────────────────
@@ -1779,7 +1675,7 @@ async function seedSchool(university, password) {
   await seedHolidays({ school, ay, adminUser });
 
   // ── Gallery ────────────────────────────────────────────────────────────────
-  await seedGallery({ school, ay, adminUser });
+  await seedGallery({ school, adminUser });
 
   // ── Activities & Events ────────────────────────────────────────────────────
   await seedActivitiesAndEvents({ school, ay, allSections, allEnrollments, adminUser });
@@ -1788,7 +1684,7 @@ async function seedSchool(university, password) {
   await seedAwards({ school, ay, allSections, allEnrollments, adminUser });
 
   // ── Staff salaries ─────────────────────────────────────────────────────────
-  await seedStaffAndSalaries({ school, adminUser });
+  await seedStaffAndSalaries({ school });
 
   // ── Teacher salaries ───────────────────────────────────────────────────────
   await seedTeacherSalaries({ school, allTeachers: allProfiles });
@@ -1826,11 +1722,11 @@ async function main() {
   });
   console.log("📚  Springfield University ready");
 
-  // ── Seed the school first so we have a schoolId for SuperAdmin ────────────
+  // Seed school first (SuperAdmin needs a schoolId)
   const schoolResult = await seedSchool(university, password);
   const { school } = schoolResult;
 
-  // ── SuperAdmin (requires both university AND school) ──────────────────────
+  // ── SuperAdmin ─────────────────────────────────────────────────────────────
   let sa = await prisma.superAdmin.findUnique({ where: { email: "superadmin@gmail.com" } });
   if (!sa) {
     sa = await prisma.superAdmin.create({
@@ -1870,16 +1766,14 @@ async function main() {
 ║  FINANCE ADMIN          →  finance1@gmail.com                     ║
 ╠═══════════════════════════════════════════════════════════════════╣
 ║  🏫  HIGH SCHOOL                                                  ║
-║      ${String(schoolResult.totalSections).padEnd(2)} sections × ${COUNT} students = ${String(S).padEnd(5)} students          ║
-║      📝 5 exam groups with marks + results                        ║
+║      ${String(schoolResult.totalSections).padEnd(2)} sections × ${STUDENTS_PER_SECTION} students = ${String(S).padEnd(5)} students          ║
+║      📝 ${MAX_SUBJECTS} subjects × ${MAX_SECTIONS} sections = assessment marks               ║
 ║      📅 Full-year attendance (Jun 2025 – Mar 2026)               ║
 ║      🏆 Activities + Events + Awards + Gallery                    ║
 ║      💰 Teacher & staff salary records                            ║
 ╚═══════════════════════════════════════════════════════════════════╝
 `);
 }
-
-const COUNT = 20; // referenced in main summary
 
 main()
   .catch(e => { console.error("❌  Seed failed:", e); process.exit(1); })

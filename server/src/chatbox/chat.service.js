@@ -78,11 +78,17 @@ export const sendMessageService = async (sender, chatRoomId, content) => {
 
   let senderName = "User";
 
-  const userData = await prisma.user.findUnique({
-    where: { id: sender.id },
-    select: { name: true },
-  });
+let userData = null;
 
+if (sender.role === "SUPER_ADMIN") {
+  userData = await prisma.superAdmin.findUnique({ where: { id: sender.id }, select: { name: true } });
+} else if (sender.role === "PARENT") {
+  userData = await prisma.parent.findUnique({ where: { id: sender.id }, select: { name: true } });
+} else {
+  userData = await prisma.user.findUnique({ where: { id: sender.id }, select: { name: true } });
+}
+ 
+ 
   senderName = userData?.name || "User";
 
   // ✅ emit ONLY to receiver

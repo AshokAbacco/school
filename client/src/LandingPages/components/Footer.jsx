@@ -61,7 +61,7 @@ export default function Footer({ onScrollTo }) {
       <footer className="footer-root" style={{
         borderTop: "1.5px solid #e8f2fb",
         background: "linear-gradient(180deg, #fafcff 0%, #ffffff 100%)",
-        padding: "5px 0 0",
+        padding: "15px 0 0",
       }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px" }}>
 

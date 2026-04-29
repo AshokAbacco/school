@@ -240,8 +240,8 @@ model SuperAdmin {
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
 
   schoolAccess SuperAdminSchoolAccess[]
-  schoolId     String
-  school       School                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId     String?
+  school       School?                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@index([universityId])
   @@map("super_admins")
@@ -535,8 +535,8 @@ model User {
 }
 
 model Student {
-  id          String @id @default(uuid())
-  studentCode String @unique @db.VarChar(10)
+  id          String  @id @default(uuid())
+  studentCode String? @unique @db.VarChar(10)
 
   name      String
   email     String
@@ -2711,15 +2711,19 @@ model Payment {
   amount Float
 
   // 🔗 Razorpay Details
-  razorpayOrderId   String
+  razorpayOrderId   String  @unique
   razorpayPaymentId String?
   razorpaySignature String?
 
   // 📊 Status
-  status       PaymentStatus  @default(PENDING)
+  status PaymentStatus @default(PENDING)
+
+  // 🔗 Relation (NOW OPTIONAL ✅)
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // 📦 Subscription relation
   Subscription Subscription[]
-  schoolId     String
-  school       School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@index([email])
   @@index([razorpayOrderId])

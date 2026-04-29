@@ -1,3 +1,4 @@
+// server.js
 import "dotenv/config";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -15,6 +16,7 @@ import trackingRoutes from "./src/gpsTracking/tracking.routes.js";
 import paymentRoutes from "./src/payment/payment.routes.js";
 import whatsappRoutes from "./src/whatsapp/whatsapp.routes.js";
 import "./src/whatsapp/birthdayCron.js";
+import contactRoutes from "./src/contactUs/contact.route.js";
 
 
 import dotenv from "dotenv";
@@ -22,14 +24,27 @@ dotenv.config();
 const PORT = process.env.PORT || 5000;
 
 const allowedOrigins = [
+  "http://localhost:5173",
   "https://eduabaccotech.com",
   "https://www.eduabaccotech.com",
   "https://school-crm.onrender.com",
   "https://cqw6v494-5173.inc1.devtunnels.ms",
-  "capacitor://localhost",
-  "http://localhost",
-  "https://localhost", // ✅ ADD THIS
 ];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // mobile/postman
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS not allowed: " + origin));
+    },
+    credentials: true,
+  })
+);
 
 // CORS
 // app.use(cors({
@@ -97,7 +112,7 @@ app.use("/api/device", gpsRoutes);
 app.use("/api/tracking", trackingRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
-
+app.use("/api/contact", contactRoutes);
 const server = createServer(app);
 
 // Socket

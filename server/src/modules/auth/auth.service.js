@@ -38,6 +38,7 @@ export const registerSuperAdminService = async ({
   const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
   const result = await prisma.$transaction(async (tx) => {
+    // 1️⃣ Create University
     const university = await tx.university.create({
       data: {
         name: universityName,
@@ -50,15 +51,22 @@ export const registerSuperAdminService = async ({
         website: universityWebsite || null,
       },
     });
+
+ 
+    // 3️⃣ Create Super Admin (FIXED)
     const superAdmin = await tx.superAdmin.create({
       data: {
         name: adminName,
         email: adminEmail,
         password: hashedPassword,
         phone: adminPhone || null,
-        universityId: university.id,
+
+        university: {
+          connect: { id: university.id },
+        },
       },
     });
+
     return { university, superAdmin };
   });
 

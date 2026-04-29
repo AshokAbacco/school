@@ -343,3 +343,78 @@ export const getTeachersBySubject = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+export const groupSendMessage = async (req, res) => {
+  try {
+    const { classSectionIds, message, type } = req.body;
+
+    if (!classSectionIds?.length || !message) {
+      return res.status(400).json({
+        success: false,
+        message: "classSectionIds and message required",
+      });
+    }
+
+    // 🔥 get students
+    const students = await prisma.studentEnrollment.findMany({
+      where: {
+        classSectionId: { in: classSectionIds },
+        status: "ACTIVE",
+      },
+      select: {
+        studentId: true,
+      },
+    });
+
+    const studentIds = [...new Set(students.map(s => s.studentId))];
+
+    // 🔥 create chat + message for each student
+    for (const studentId of studentIds) {
+      let chat = await prisma.chatRoom.findFirst({
+        where: {
+          type: "NOTIFICATION",
+          participants: {
+            some: { userId: req.user.id },
+          },
+          AND: {
+            participants: {
+              some: { userId: studentId },
+            },
+          },
+        },
+      });
+
+      if (!chat) {
+        chat = await prisma.chatRoom.create({
+          data: {
+            type: "NOTIFICATION",
+            participants: {
+              create: [
+                { userId: req.user.id, role: req.user.role },
+                { userId: studentId, role: "STUDENT" },
+              ],
+            },
+          },
+        });
+      }
+
+      await prisma.message.create({
+        data: {
+          chatRoomId: chat.id,
+          senderId: req.user.id,
+          senderRole: req.user.role,
+          content: message,
+          type: "NOTIFICATION",
+        },
+      });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("GROUP SEND ERROR:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};

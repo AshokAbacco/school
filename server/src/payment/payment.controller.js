@@ -1,11 +1,16 @@
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { prisma } from "../config/db.js";
+import { sendInvoiceEmail } from "../utils/invoiceMailer.js"; // ✅ import mailer
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY,
   key_secret: process.env.RAZORPAY_SECRET,
 });
+
+const generateSchoolCode = () => {
+  return "SCH" + Math.floor(100000 + Math.random() * 900000);
+};
 
 // ✅ Create Order
 export const createOrder = async (req, res) => {
@@ -26,7 +31,6 @@ export const createOrder = async (req, res) => {
       return res.status(400).json({ error: "All fields are required" });
     }
 
-    // ✅ Create Razorpay Order
     // ✅ Create Razorpay Order
     const order = await Promise.race([
       razorpay.orders.create({
@@ -52,7 +56,7 @@ export const createOrder = async (req, res) => {
         userCount,
         amount,
         razorpayOrderId: order.id,
-        userId,
+        userId, // keep if optional in schema
       },
     });
 
@@ -98,7 +102,7 @@ export const verifyPayment = async (req, res) => {
     }
 
     // ✅ Update DB
-    await prisma.payment.update({
+    const updatedPayment = await prisma.payment.update({
       where: { id: paymentId },
       data: {
         razorpayPaymentId: razorpay_payment_id,
@@ -107,6 +111,20 @@ export const verifyPayment = async (req, res) => {
         phone,
       },
     });
+
+    // ✅ Send invoice email (non-blocking — don't let email failure break payment)
+    sendInvoiceEmail({
+      email:              updatedPayment.email,
+      fullName:           updatedPayment.fullName,
+      schoolName:         updatedPayment.schoolName,
+      phone:              updatedPayment.phone,
+      address:            updatedPayment.address,
+      planId:             updatedPayment.planId,
+      userCount:          updatedPayment.userCount,
+      amount:             updatedPayment.amount,
+      razorpayPaymentId:  razorpay_payment_id,
+      razorpayOrderId:    razorpay_order_id,
+    }).catch((err) => console.error("❌ Invoice email failed:", err));
 
     res.json({ status: "verified" });
 
@@ -120,7 +138,6 @@ export const getLatestPayment = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 1️⃣ Try to get last payment
     const payment = await prisma.payment.findFirst({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -130,17 +147,16 @@ export const getLatestPayment = async (req, res) => {
       return res.json(payment);
     }
 
-    // 2️⃣ Fallback → Super Admin data
     const user = await prisma.superAdmin.findUnique({
       where: { id: userId },
     });
 
     return res.json({
-      fullName: user?.name || "",
-      email: user?.email || "",
-      phone: user?.phone || "",
+      fullName:   user?.name  || "",
+      email:      user?.email || "",
+      phone:      user?.phone || "",
       schoolName: "",
-      address: "",
+      address:    "",
     });
 
   } catch (err) {
@@ -148,6 +164,7 @@ export const getLatestPayment = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch details" });
   }
 };
+
 export const razorpayWebhook = async (req, res) => {
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
@@ -162,15 +179,37 @@ export const razorpayWebhook = async (req, res) => {
   const event = req.body.event;
 
   if (event === "payment.captured") {
-    const payment = req.body.payload.payment.entity;
+    const razorpayPayment = req.body.payload.payment.entity;
 
-    await prisma.payment.updateMany({
-      where: { razorpayOrderId: payment.order_id },
+    const updated = await prisma.payment.updateMany({
+      where: { razorpayOrderId: razorpayPayment.order_id },
       data: {
-        status: "SUCCESS",
-        razorpayPaymentId: payment.id,
+        status:            "SUCCESS",
+        razorpayPaymentId: razorpayPayment.id,
       },
     });
+
+    // ✅ Also send invoice via webhook (fallback path)
+    if (updated.count > 0) {
+      const payment = await prisma.payment.findFirst({
+        where: { razorpayOrderId: razorpayPayment.order_id },
+      });
+
+      if (payment && payment.status === "SUCCESS") {
+        sendInvoiceEmail({
+          email:             payment.email,
+          fullName:          payment.fullName,
+          schoolName:        payment.schoolName,
+          phone:             payment.phone,
+          address:           payment.address,
+          planId:            payment.planId,
+          userCount:         payment.userCount,
+          amount:            payment.amount,
+          razorpayPaymentId: razorpayPayment.id,
+          razorpayOrderId:   razorpayPayment.order_id,
+        }).catch((err) => console.error("❌ Webhook invoice email failed:", err));
+      }
+    }
   }
 
   res.json({ status: "ok" });

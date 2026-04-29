@@ -29,11 +29,11 @@ export const getProfile = async (req, res) => {
 // ─────────────────────────────────────────
 export const updateProfile = async (req, res) => {
   try {
-    const { name, phone } = req.body;
+    const { name, phone, email } = req.body;
 
     const updated = await prisma.superAdmin.update({
       where: { id: req.user.id },
-      data: { name, phone },
+      data: { name, phone, email },
     });
 
     res.json(updated);

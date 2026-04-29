@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Search, Bell, Mail, Menu, ChevronDown,
-  User, LogOut, Cake, X,
+  User, LogOut, Cake, X, MessageSquare,
 } from "lucide-react";
 import LogoutButton from "../../components/LogoutButton";
 
@@ -11,13 +11,16 @@ const font = { fontFamily: "'Inter', sans-serif" };
 const initials = (name = "AU") =>
   name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 
-// ── API base (works for both dev :5000 and same-origin prod) ─────────────────
+// ── API base ──────────────────────────────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-async function fetchBirthdayNotifications() {
-  const auth  = JSON.parse(localStorage.getItem("auth") || "{}");
-  const token = auth?.token;
+function getAuthToken() {
+  const auth = JSON.parse(localStorage.getItem("auth") || "{}");
+  return auth?.token;
+}
 
+async function fetchBirthdayNotifications() {
+  const token = getAuthToken();
   const res = await fetch(`${API_BASE}/notifications/birthday`, {
     headers: {
       "Content-Type": "application/json",
@@ -25,14 +28,27 @@ async function fetchBirthdayNotifications() {
     },
     credentials: "include",
   });
-
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`${res.status}: ${text}`);
   }
-
   const json = await res.json();
   return json.data;
+}
+
+// ── Fetch unread chat messages for student ────────────────────────────────────
+async function fetchChatNotifications() {
+  const token = getAuthToken();
+  if (!token) return [];
+
+  const res = await fetch(`${API_BASE}/api/chat/list`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return [];
+  const json = await res.json();
+
+  // Return chats that have unread messages (from others)
+  return (json.data || []).filter((c) => c.unreadCount > 0);
 }
 
 // ── Small avatar ──────────────────────────────────────────────────────────────
@@ -55,19 +71,15 @@ function Avatar({ name, pic, size = 32 }) {
 // ── Bell / Notification panel ─────────────────────────────────────────────────
 function BellPanel({ data, loading, error, onClose }) {
   return (
-      <div style={{
-        position: "fixed",
-        top: 64,
-        right: 8,
-        left: 8,
-        width: "auto",
-        maxWidth: 380,
-        marginLeft: "auto",
-        background: "#fff",
-        border: "1.5px solid #BDDDFC", borderRadius: 16,
-        boxShadow: "0 12px 40px rgba(56,73,89,0.16)",
-        zIndex: 70, overflow: "hidden", ...font,
-      }}>
+    <div style={{
+      position: "fixed",
+      top: 64, right: 8, left: 8,
+      width: "auto", maxWidth: 380, marginLeft: "auto",
+      background: "#fff",
+      border: "1.5px solid #BDDDFC", borderRadius: 16,
+      boxShadow: "0 12px 40px rgba(56,73,89,0.16)",
+      zIndex: 70, overflow: "hidden", ...font,
+    }}>
       {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -158,22 +170,19 @@ function BellPanel({ data, loading, error, onClose }) {
   );
 }
 
-// ── Mail panel ────────────────────────────────────────────────────────────────
-function MailPanel({ onClose }) {
+// ── Mail / Chat panel ─────────────────────────────────────────────────────────
+function MailPanel({ chatNotifs, chatLoading, onClose }) {
   return (
-      <div style={{
-        position: "fixed",
-        top: 64,
-        right: 8,
-        left: 8,
-        width: "auto",
-        maxWidth: 380,
-        marginLeft: "auto",
-        background: "#fff",
-        border: "1.5px solid #BDDDFC", borderRadius: 16,
-        boxShadow: "0 12px 40px rgba(56,73,89,0.16)",
-        zIndex: 70, overflow: "hidden", ...font,
-      }}>
+    <div style={{
+      position: "fixed",
+      top: 64, right: 8, left: 8,
+      width: "auto", maxWidth: 380, marginLeft: "auto",
+      background: "#fff",
+      border: "1.5px solid #BDDDFC", borderRadius: 16,
+      boxShadow: "0 12px 40px rgba(56,73,89,0.16)",
+      zIndex: 70, overflow: "hidden", ...font,
+    }}>
+      {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "14px 16px 10px", borderBottom: "1px solid #f1f5f9",
@@ -184,9 +193,100 @@ function MailPanel({ onClose }) {
           <X size={15} />
         </button>
       </div>
-      <div style={{ padding: "36px 16px", textAlign: "center" }}>
-        <Mail size={28} style={{ color: "#BDDDFC", margin: "0 auto 8px", display: "block" }} />
-        <p style={{ color: "#6A89A7", fontSize: 13 }}>No new messages</p>
+
+      {/* Body */}
+      <div style={{ maxHeight: 420, overflowY: "auto" }}>
+        {chatLoading && (
+          <div style={{ padding: "32px 16px", textAlign: "center", color: "#6A89A7", fontSize: 13 }}>
+            Loading…
+          </div>
+        )}
+
+        {!chatLoading && chatNotifs.length === 0 && (
+          <div style={{ padding: "36px 16px", textAlign: "center" }}>
+            <Mail size={28} style={{ color: "#BDDDFC", margin: "0 auto 8px", display: "block" }} />
+            <p style={{ color: "#6A89A7", fontSize: 13 }}>No new messages</p>
+          </div>
+        )}
+
+        {!chatLoading && chatNotifs.length > 0 && (
+          <div style={{ padding: "8px 0" }}>
+            {chatNotifs.map((chat) => {
+              const sender = chat.otherUser;
+              const lastMsg = chat.messages?.[0];
+              return (
+                <div
+                  key={chat.id}
+                  style={{
+                    display: "flex", alignItems: "flex-start", gap: 10,
+                    padding: "10px 16px",
+                    borderBottom: "1px solid #f1f5f9",
+                    background: "rgba(136,189,242,0.06)",
+                  }}
+                >
+                  {/* Avatar */}
+                  <div style={{
+                    width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                    background: "linear-gradient(135deg, #88BDF2, #6A89A7)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "#fff", fontSize: 13, fontWeight: 700,
+                  }}>
+                    {initials(sender?.name || "?")}
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#384959" }}>
+                        {sender?.name || "Unknown"}
+                      </span>
+                      {chat.unreadCount > 0 && (
+                        <span style={{
+                          minWidth: 18, height: 18, borderRadius: 9,
+                          background: "#3b82f6", color: "#fff",
+                          fontSize: 10, fontWeight: 700,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          padding: "0 4px",
+                        }}>
+                          {chat.unreadCount}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Role badge */}
+                    <span style={{
+                      fontSize: 10, fontWeight: 600,
+                      background: "#BDDDFC", color: "#384959",
+                      borderRadius: 20, padding: "1px 7px",
+                      display: "inline-block", marginTop: 2, marginBottom: 3,
+                    }}>
+                      {(sender?.role || "").replace("_", " ")}
+                    </span>
+
+                    {/* Last message preview */}
+                    <p style={{
+                      fontSize: 12, color: "#6A89A7",
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                      margin: 0,
+                    }}>
+                      {lastMsg?.content || "New message"}
+                    </p>
+
+                    {/* Time */}
+                    {lastMsg?.createdAt && (
+                      <p style={{ fontSize: 10, color: "#88BDF2", marginTop: 2 }}>
+                        {new Date(lastMsg.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </p>
+                    )}
+                  </div>
+
+                  <MessageSquare size={14} style={{ color: "#88BDF2", flexShrink: 0, marginTop: 4 }} />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -203,6 +303,11 @@ export default function Navbar({ onMenuClick, user }) {
   const [notifData,    setNotifData]    = useState(null);
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifError,   setNotifError]   = useState(null);
+
+  // ── Chat notification state ───────────────────────────────────────────────
+  const [chatNotifs,    setChatNotifs]    = useState([]);
+  const [chatLoading,   setChatLoading]   = useState(false);
+  const totalUnreadChat = chatNotifs.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
   const dropdownRef = useRef(null);
   const bellRef     = useRef(null);
@@ -232,6 +337,36 @@ export default function Navbar({ onMenuClick, user }) {
       .catch((err)  => { if (!cancelled) { setNotifError(err.message); console.error("[Navbar notif]", err); } })
       .finally(()   => { if (!cancelled) setNotifLoading(false); });
     return () => { cancelled = true; };
+  }, []);
+
+  // ── Fetch chat notifications (poll every 10s) ──────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setChatLoading(true);
+      try {
+        const chats = await fetchChatNotifications();
+        if (!cancelled) setChatNotifs(chats);
+      } catch {
+        // silent fail
+      } finally {
+        if (!cancelled) setChatLoading(false);
+      }
+    };
+
+    load();
+    const interval = setInterval(load, 10000);
+
+    // Also refresh when a chat is opened (dispatched from ChatPage)
+    const onChatOpened = () => load();
+    window.addEventListener("chat_opened", onChatOpened);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener("chat_opened", onChatOpened);
+    };
   }, []);
 
   const handleBell = useCallback(() => { setMailOpen(false); setDropdownOpen(false); setBellOpen((o) => !o); }, []);
@@ -272,17 +407,38 @@ export default function Navbar({ onMenuClick, user }) {
             <Search size={18} />
           </button>
 
-          {/* ── Mail ──────────────────────────────────────────────────────── */}
+          {/* ── Mail (Chat notifications) ──────────────────────────────────── */}
           <div className="relative" ref={mailRef}>
             <button onClick={handleMail} className="relative p-2 rounded-xl transition-colors"
               style={{ color: "#6A89A7", background: "none", border: "none", cursor: "pointer" }}
               onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f8fd")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
               <Mail size={19} />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-white"
-                style={{ background: "#88BDF2" }} />
+
+              {/* Badge: show count if unread chat messages */}
+              {totalUnreadChat > 0 ? (
+                <span style={{
+                  position: "absolute", top: 4, right: 4,
+                  minWidth: 16, height: 16, borderRadius: 8,
+                  background: "#3b82f6", border: "2px solid #fff",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 9, fontWeight: 700, color: "#fff", padding: "0 3px",
+                }}>
+                  {totalUnreadChat > 9 ? "9+" : totalUnreadChat}
+                </span>
+              ) : (
+                <span className="absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-white"
+                  style={{ background: "#88BDF2" }} />
+              )}
             </button>
-            {mailOpen && <MailPanel onClose={() => setMailOpen(false)} />}
+
+            {mailOpen && (
+              <MailPanel
+                chatNotifs={chatNotifs}
+                chatLoading={chatLoading}
+                onClose={() => setMailOpen(false)}
+              />
+            )}
           </div>
 
           {/* ── Bell ──────────────────────────────────────────────────────── */}
@@ -292,7 +448,6 @@ export default function Navbar({ onMenuClick, user }) {
               onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f8fd")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
 
-              {/* Animated bell when there are birthdays */}
               <Bell size={19} style={hasBirthday ? { animation: "bellRing 1.4s ease infinite" } : {}} />
               <style>{`
                 @keyframes bellRing {
@@ -306,7 +461,6 @@ export default function Navbar({ onMenuClick, user }) {
                 }
               `}</style>
 
-              {/* Badge */}
               {hasBirthday ? (
                 <span style={{
                   position: "absolute", top: 4, right: 4,

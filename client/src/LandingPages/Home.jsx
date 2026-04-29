@@ -666,7 +666,7 @@ export default function Home() {
                         </ul>
                         <button
                             onClick={() => (window.location.href = "/login")}
-                            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl font-bold text-sm text-white transition-all hover:-translate-y-0.5"
+                            className="inline-flex items-center gap-2 px-8 py-3.5 cursor-pointer rounded-xl font-bold text-sm text-white transition-all hover:-translate-y-0.5"
                             style={{
                                 background: "linear-gradient(135deg, #384959 0%, #6A89A7 50%, #88BDF2 100%)",
                                 boxShadow: "0 8px 28px rgba(106,137,167,0.3)",
@@ -863,7 +863,7 @@ export default function Home() {
                         
                         <button
                             onClick={() => (window.location.href = "/login")}
-                            className="inline-flex items-center gap-2 border border-white/35 bg-white/10 text-white px-10 py-4 rounded-2xl text-base font-medium transition-all hover:bg-white/20"
+                            className="inline-flex items-center gap-2 border border-white/35 cursor-pointer bg-white/10 text-white px-10 py-4 rounded-2xl text-base font-medium transition-all hover:bg-white/20"
                         >
                             <ArrowRight size={16} /> Sign In
                         </button>

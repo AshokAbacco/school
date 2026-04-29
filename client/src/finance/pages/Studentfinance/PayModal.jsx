@@ -159,7 +159,7 @@ export function PayModal({ student, onClose, onPaymentDone }) {
     };
     const handleCustomPay = async () => {
         const amount = Number(customAmount);
-        if (!amount || amount <= 0 || amount > remaining - emiPaid) {
+        if (!amount || amount <= 0 || amount > remaining) {
             setError("Enter a valid amount not exceeding the remaining balance."); return;
         }
         setLoading(true); setError("");
@@ -286,14 +286,39 @@ export function PayModal({ student, onClose, onPaymentDone }) {
                                         </select>
                                     </div>
                                 </div>
-                                <button onClick={handleFullPay} disabled={loading}
+                                {/* Custom Amount Input */}
+                                <div style={{ marginBottom: 16 }}>
+                                <label style={{ fontSize: 12, color: "#4A6B80", fontWeight: 600 }}>
+                                    Or enter custom amount
+                                </label>
+
+                                <input
+                                    type="number"
+                                    placeholder="Enter amount"
+                                    value={customAmount}
+                                    onChange={(e) => setCustomAmount(e.target.value)}
+                                    style={{
+                                    width: "100%",
+                                    marginTop: 6,
+                                    border: "1.5px solid #A0C0D4",
+                                    borderRadius: 8,
+                                    padding: "8px 10px",
+                                    fontSize: 13,
+                                    outline: "none",
+                                    }}
+                                />
+                                </div>
+                                <button onClick={() => {if (customAmount) {handleCustomPay();} else {handleFullPay();}}} disabled={loading}
                                     style={{ width: "100%", background: "linear-gradient(135deg,#27435B,#1C3044)", border: "none", color: "#fff", borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontFamily: "'DM Sans',sans-serif", opacity: loading ? .7 : 1 }}>
                                     {loading ? "Processing…" : `Confirm Full Payment — ₹${remaining.toLocaleString("en-IN")}`}
                                 </button>
                                 {error && <div style={{ marginTop: 10, color: "#a33030", fontSize: 12 }}>{error}</div>}
                             </div>
                         </div>
+                        
                     )}
+
+                    
 
                     {/* Full pay success */}
                     {useEmi === false && fullDone && (
@@ -369,45 +394,7 @@ export function PayModal({ student, onClose, onPaymentDone }) {
                                                 </td>
                                             </tr>
                                         ))}
-                                        {/* Custom instalment row */}
-                                        <tr style={{ background: "#f0f7fc", borderBottom: "1px solid #e8f2f8" }}>
-                                            <td style={{ padding: "11px 13px", fontWeight: 600, color: "#27435B", fontStyle: "italic" }}>+ Custom amount</td>
-                                            <td style={{ padding: "11px 13px", color: "#4A6B80", fontSize: 12 }}>Any amount</td>
-                                            <td style={{ padding: "11px 13px", color: "#A0B8C8", fontSize: 12 }}>—</td>
-                                            <td style={{ padding: "11px 13px" }}>
-                                                {customConfirm
-                                                    ? <select value={modeInput} onChange={e => setModeInput(e.target.value)}
-                                                        style={{ fontSize: 12, border: "1.5px solid #A0C0D4", borderRadius: 6, padding: "5px 8px", color: "#1C3044", fontFamily: "'DM Sans',sans-serif", outline: "none", background: "#fff" }}>
-                                                        {["UPI", "Net Banking", "Cash", "Card", "Cheque"].map(m => <option key={m}>{m}</option>)}
-                                                    </select>
-                                                    : <span style={{ color: "#A0B8C8", fontSize: 12 }}>—</span>}
-                                            </td>
-                                            <td style={{ padding: "11px 13px" }}>
-                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fdf0f0", color: "#a33030", borderRadius: 20, padding: "3px 10px", fontSize: 11.5, fontWeight: 600 }}>
-                                                    <Clock size={11} /> Pending
-                                                </span>
-                                            </td>
-                                            <td style={{ padding: "11px 13px" }}>
-                                                {!customConfirm
-                                                    ? <button onClick={() => setCustomConfirm(true)}
-                                                        style={{ background: "rgba(39,67,91,.13)", border: "1.5px dashed #27435B", color: "#27435B", borderRadius: 7, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
-                                                        Pay custom
-                                                    </button>
-                                                    : <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                                        <input
-                                                            type="number"
-                                                            placeholder="Amount"
-                                                            value={customAmount}
-                                                            onChange={e => setCustomAmount(e.target.value)}
-                                                            style={{ fontSize: 13, border: "1.5px solid #A0C0D4", borderRadius: 6, padding: "5px 8px", color: "#1C3044", fontFamily: "'DM Sans',sans-serif", outline: "none", background: "#fff", width: 90 }}
-                                                        />
-                                                        <button onClick={handleCustomPay} disabled={loading}
-                                                            style={{ background: "#1a6e3e", border: "none", color: "#fff", borderRadius: 6, padding: "5px 11px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>✓</button>
-                                                        <button onClick={() => { setCustomConfirm(false); setCustomAmount(""); }}
-                                                            style={{ background: "rgba(39,67,91,.13)", border: "none", color: "#27435B", borderRadius: 6, padding: "5px 9px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>✕</button>
-                                                    </div>}
-                                            </td>
-                                        </tr>
+                                       
                                     </tbody>
                                     <tfoot>
                                         <tr style={{ background: "#e8f2f8", borderTop: "2px solid #C0D8E8" }}>
