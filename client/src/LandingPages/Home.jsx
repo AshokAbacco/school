@@ -397,24 +397,37 @@ export default function Home() {
                         ))}
                     </div>
 
-                    <div className="mt-16 rounded-3xl overflow-hidden relative h-64 shadow-xl">
-                        <img
-                            src="https://images.unsplash.com/photo-1571260899304-425eee4c7efc?w=1600&q=80&auto=format&fit=crop"
-                            alt="Teacher helping students"
-                            className="w-full h-full object-cover object-[center_30%]"
-                        />
-                        <div
-                            className="absolute inset-0 flex items-center px-12"
-                            style={{ background: "linear-gradient(to right, rgba(56,73,89,0.82) 0%, rgba(56,73,89,0.3) 60%, transparent 100%)" }}
-                        >
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "#BDDDFC" }}>Real Impact</p>
-                                <p className="text-2xl font-black text-white max-w-md leading-snug" style={{ fontFamily: "Georgia, serif" }}>
-                                    Empowering teachers to focus on what matters most teaching.
-                                </p>
-                            </div>
+                <div className="mt-16 rounded-3xl overflow-hidden relative h-64 shadow-xl">
+                    <img
+                        src="/homeImage1.avif"
+                        alt="Teacher helping students"
+                        className="w-full h-full object-cover object-[center_30%]"
+                    />
+
+                    <div
+                        className="absolute inset-0 flex items-center px-12"
+                        style={{
+                            background:
+                                "linear-gradient(to right, rgba(56,73,89,0.82) 0%, rgba(56,73,89,0.3) 60%, transparent 100%)"
+                        }}
+                    >
+                        <div>
+                            <p
+                                className="text-xs font-semibold uppercase tracking-widest mb-2"
+                                style={{ color: "#BDDDFC" }}
+                            >
+                                Real Impact
+                            </p>
+
+                            <p
+                                className="text-2xl font-black text-white max-w-md leading-snug"
+                                style={{ fontFamily: "Georgia, serif" }}
+                            >
+                                Empowering teachers to focus on what matters most teaching.
+                            </p>
                         </div>
                     </div>
+                </div>
                 </div>
             </section>
 
