@@ -26,6 +26,12 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [confirmationText, setConfirmationText] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
 useEffect(() => {
   fetchProfile();
   fetchLogo(); // 👈 ADD THIS
@@ -135,34 +141,112 @@ useEffect(() => {
     setSaving(false);
   };
 
-  const handleDeleteAccount = async () => {
-    const input = prompt("Type DELETE to confirm account deletion");
-    if (input !== "DELETE") return showToast("Type DELETE correctly", "error");
-
-    setDeleting(true);
+    const handleSendOtp = async () => {
+    setSendingOtp(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/superadmin/delete-account`, {
-        method: "DELETE",
-        headers: {
-          ...authHeaders(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ confirm: "DELETE" }),
-      });
+      const res = await fetch(
+        `${API_URL}/api/superadmin/delete-account/send-otp`,
+        {
+          method: "POST",
+          headers: authHeaders(),
+        }
+      );
 
       if (!res.ok) throw new Error();
 
-      alert("Account deleted successfully");
+      setOtpSent(true);
 
-      localStorage.clear();
-      navigate("/login");
+      showToast("OTP sent to your registered email");
+
     } catch {
-      showToast("Failed to delete account", "error");
+      showToast("Failed to send OTP", "error");
     }
 
-    setDeleting(false);
+    setSendingOtp(false);
   };
+    const handleResendOtp = async () => {
+    setSendingOtp(true);
+    try {
+      const res = await fetch(
+        `${API_URL}/api/superadmin/delete-account/send-otp`,
+        {
+          method: "POST",
+          headers: authHeaders(),
+        }
+      );
+
+      if (!res.ok) throw new Error();
+
+      showToast("OTP resent to your registered email");
+      setOtp(""); // clear old OTP input
+
+      // Start 30s cooldown so user can't spam
+      setResendCooldown(30);
+      const interval = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+    } catch {
+      showToast("Failed to resend OTP", "error");
+    }
+    setSendingOtp(false);
+  };
+
+    const handleDeleteAccount = async () => {
+      if (confirmationText !== "DELETE MY SCHOOL ACCOUNT") {
+        return showToast(
+          "Please type the confirmation sentence correctly",
+          "error"
+        );
+      }
+
+      if (!otp) {
+        return showToast("Please enter OTP", "error");
+      }
+
+      setDeleting(true);
+
+      try {
+        const res = await fetch(
+          `${API_URL}/api/superadmin/delete-account`,
+          {
+            method: "DELETE",
+            headers: {
+              ...authHeaders(),
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              otp,
+              confirmationText,
+            }),
+          }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.message);
+        }
+
+        alert("Account deleted successfully");
+
+        localStorage.clear();
+
+        navigate("/login");
+
+      } catch (err) {
+        showToast(err.message || "Failed to delete account", "error");
+      }
+
+      setDeleting(false);
+    };
 
   const initials = form.name
     ? form.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
@@ -378,26 +462,97 @@ useEffect(() => {
 
           {activeTab === "delete" && (
             <div className="bg-white border border-red-100 rounded-xl shadow-sm p-5">
+
               <div className="border-b border-red-100 pb-4 mb-5">
-                <h2 className="text-sm font-semibold text-red-600">Delete Account</h2>
+                <h2 className="text-sm font-semibold text-red-600">
+                  Delete Account
+                </h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  This action will permanently delete your account and ALL school data.
+                  Permanently delete your account and all associated school data.
                 </p>
               </div>
 
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">
-                ⚠️ Warning: This action cannot be undone. All students, staff, payments, chats, etc. will be deleted.
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-red-700 mb-2">Warning</p>
+                <ul className="text-xs text-red-600 space-y-1 list-disc ml-4">
+                  <li>All students and staff data will be removed</li>
+                  <li>Payments and financial records will be deleted</li>
+                  <li>Chats, assignments, exams and reports will be deleted</li>
+                  <li>This action cannot be reversed</li>
+                </ul>
               </div>
 
-              <div className="mt-5 flex justify-end">
-                <button
-                  onClick={handleDeleteAccount}
-                  disabled={deleting}
-                  className="px-5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
-                >
-                  {deleting ? "Deleting..." : "Delete My Account"}
-                </button>
-              </div>
+              {!otpSent ? (
+                <div className="mt-5">
+                  <button
+                    onClick={handleSendOtp}
+                    disabled={sendingOtp}
+                    className="px-5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {sendingOtp ? "Sending OTP..." : "Send Verification OTP"}
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-5 space-y-4">
+
+                  {/* OTP sent notice + resend */}
+                  <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
+                    <p className="text-xs text-green-700">
+                      OTP sent to your registered email.
+                    </p>
+                    <button
+                      onClick={handleResendOtp}
+                      disabled={sendingOtp || resendCooldown > 0}
+                      className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed ml-4 whitespace-nowrap"
+                    >
+                      {sendingOtp
+                        ? "Sending..."
+                        : resendCooldown > 0
+                        ? `Resend in ${resendCooldown}s`
+                        : "Resend OTP"}
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">
+                      Enter OTP
+                    </label>
+                    <input
+                      type="text"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      placeholder="Enter 6-digit OTP"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">
+                      Type:{" "}
+                      <span className="font-semibold text-red-600">
+                        DELETE MY SCHOOL ACCOUNT
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={confirmationText}
+                      onChange={(e) => setConfirmationText(e.target.value)}
+                      placeholder="Type confirmation text"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
+                    />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={deleting}
+                      className="px-5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {deleting ? "Deleting Account..." : "Permanently Delete Account"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

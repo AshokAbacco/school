@@ -2803,8 +2803,6 @@ model Otp {
   createdAt  DateTime @default(now())
 }
 
-// ── Assignment Questions & Submissions ─────────────────────────
-
 enum QuestionType {
   MCQ
   WRITTEN
