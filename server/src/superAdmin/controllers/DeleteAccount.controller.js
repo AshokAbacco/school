@@ -2,31 +2,35 @@ import crypto from "crypto";
 import { prisma } from "../../config/db.js";
 import { sendDeleteOtp } from "../../utils/sendDeleteOtp.js";
 
-/*
-|--------------------------------------------------------------------------
-| SEND OTP
-|--------------------------------------------------------------------------
-*/
+// ── SEND OTP ──────────────────────────────────────────────────────────────
 export const sendDeleteAccountOtp = async (req, res) => {
   try {
-    const superAdminId = req.user.id; // authMiddleware sets req.user
+    const superAdminId = req.user.id;
 
     const superAdmin = await prisma.superAdmin.findUnique({
       where: { id: superAdminId },
     });
 
     if (!superAdmin) {
-      return res.status(404).json({ message: "SuperAdmin not found" });
+      return res.status(404).json({
+        message: "SuperAdmin not found",
+      });
     }
 
     const otp = crypto.randomInt(100000, 999999).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Use DB-backed OTP store (your Otp model) instead of in-memory Map
+    const expiresAt = new Date(
+      Date.now() + 10 * 60 * 1000
+    );
+
+    // Remove old OTPs
     await prisma.otp.deleteMany({
-      where: { identifier: superAdmin.email },
+      where: {
+        identifier: superAdmin.email,
+      },
     });
 
+    // Create new OTP
     await prisma.otp.create({
       data: {
         identifier: superAdmin.email,
@@ -35,123 +39,155 @@ export const sendDeleteAccountOtp = async (req, res) => {
       },
     });
 
-    await sendDeleteOtp(superAdmin.email, otp);
+    // Send OTP email
+    await sendDeleteOtp(superAdmin.email, otp, {
+      message60Days: true,
+      supportEmail: "support@eduabaccotech.com",
+    });
 
-    return res.json({ success: true, message: "OTP sent successfully" });
-
+    return res.status(200).json({
+      success: true,
+      message: "OTP sent successfully",
+    });
   } catch (error) {
     console.error("SEND DELETE OTP ERROR:", error);
-    return res.status(500).json({ message: "Failed to send OTP" });
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send OTP",
+    });
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| DELETE ACCOUNT
-|--------------------------------------------------------------------------
-*/
+// ── DEACTIVATE UNIVERSITY ACCOUNT ─────────────────────────────────────────
 export const deleteAccount = async (req, res) => {
   try {
     const superAdminId = req.user.id;
+
     const { otp, confirmationText } = req.body;
 
-    if (confirmationText !== "DELETE MY SCHOOL ACCOUNT") {
-      return res.status(400).json({ message: "Confirmation text mismatch" });
+    // ✅ Updated confirmation text
+    if (confirmationText !== "DELETE MY UNIVERSITY ACCOUNT") {
+      return res.status(400).json({
+        success: false,
+        message: "Confirmation text mismatch",
+      });
     }
 
+    // Get SuperAdmin
     const superAdmin = await prisma.superAdmin.findUnique({
-      where: { id: superAdminId },
+      where: {
+        id: superAdminId,
+      },
+      include: {
+        university: true,
+      },
     });
 
     if (!superAdmin) {
-      return res.status(404).json({ message: "SuperAdmin not found" });
+      return res.status(404).json({
+        success: false,
+        message: "SuperAdmin not found",
+      });
+    }
+
+    // University check
+    if (!superAdmin.university) {
+      return res.status(404).json({
+        success: false,
+        message: "University not found",
+      });
+    }
+
+    // Already deactivated
+    if (superAdmin.university.isDeactivated) {
+      return res.status(400).json({
+        success: false,
+        message: "University already deactivated",
+      });
     }
 
     // Validate OTP
     const storedOtp = await prisma.otp.findFirst({
-      where: { identifier: superAdmin.email, verified: false },
-      orderBy: { createdAt: "desc" },
+      where: {
+        identifier: superAdmin.email,
+        verified: false,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
 
     if (!storedOtp) {
-      return res.status(400).json({ message: "OTP not found. Please request a new one." });
+      return res.status(400).json({
+        success: false,
+        message: "OTP not found. Please request a new one.",
+      });
     }
 
+    // OTP expired
     if (new Date() > storedOtp.expiresAt) {
-      await prisma.otp.delete({ where: { id: storedOtp.id } });
-      return res.status(400).json({ message: "OTP expired. Please request a new one." });
+      await prisma.otp.delete({
+        where: {
+          id: storedOtp.id,
+        },
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: "OTP expired. Please request a new one.",
+      });
     }
 
+    // Invalid OTP
     if (storedOtp.otp !== otp) {
-      return res.status(400).json({ message: "Invalid OTP" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP",
+      });
     }
 
-    await prisma.otp.delete({ where: { id: storedOtp.id } });
+    // Transaction
+    await prisma.$transaction([
+      // Delete OTP
+      prisma.otp.delete({
+        where: {
+          id: storedOtp.id,
+        },
+      }),
 
-    const schoolId = superAdmin.schoolId;
+      // Deactivate University
+      prisma.university.update({
+        where: {
+          id: superAdmin.universityId,
+        },
+        data: {
+          isDeactivated: true,
+          deactivatedAt: new Date(),
+        },
+      }),
 
-    if (schoolId) {
-      // Delete in dependency order — children before parents
-      // These are the models that have RESTRICT or no onDelete set
+      // Disable SuperAdmin
+      prisma.superAdmin.update({
+        where: {
+          id: superAdminId,
+        },
+        data: {
+          isActive: false,
+        },
+      }),
+    ]);
 
-      await prisma.teacherTutorialProfile.deleteMany({ where: { schoolId } });
-
-      await prisma.studentTutorialRecommendation.deleteMany({
-        where: { student: { schoolId } },
-      });
-
-      // Submissions → Responses
-      await prisma.assignmentResponse.deleteMany({
-        where: { submission: { assignment: { schoolId } } },
-      });
-      await prisma.assignmentSubmission.deleteMany({
-        where: { assignment: { schoolId } },
-      });
-      await prisma.assignmentQuestion.deleteMany({
-        where: { assignment: { schoolId } },
-      });
-
-      // Chat
-      await prisma.message.deleteMany({
-        where: { chatRoom: { participants: { some: {} } } }, // handled by ChatRoom cascade if set
-      });
-
-      // Transport fee entries
-      await prisma.transportFeeEntry.deleteMany({
-        where: { studentTransport: { schoolId } },
-      });
-
-      // Device locations
-      await prisma.deviceLocation.deleteMany({
-        where: { device: { student: { schoolId } } },
-      });
-
-      // Certificates
-      await prisma.certificate.deleteMany({
-        where: { student: { schoolId } },
-      });
-
-      // Result summaries
-      await prisma.resultSummary.deleteMany({
-        where: { student: { schoolId } },
-      });
-
-      // Marks
-      await prisma.marks.deleteMany({
-        where: { student: { schoolId } },
-      });
-
-      // Now delete the school — Cascade handles the rest
-      await prisma.school.delete({ where: { id: schoolId } });
-
-    } else {
-      await prisma.superAdmin.delete({ where: { id: superAdminId } });
-    }
-
-    return res.json({ success: true, message: "Account deleted successfully" });
-
+    return res.status(200).json({
+      success: true,
+      message: "University account deactivated successfully",
+    });
   } catch (error) {
-    console.error("DELETE ACCOUNT ERROR:", error);
-    return res.status(500).json({ message: "Failed to delete account" });
+    console.error("DEACTIVATE UNIVERSITY ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to deactivate university account",
+    });
   }
 };

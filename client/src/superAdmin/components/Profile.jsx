@@ -10,7 +10,7 @@ const NAV_ITEMS = [
   { key: "basic",    label: "Basic information", icon: User  },
   { key: "password", label: "Change password",   icon: Lock  },
   { key: "logo",     label: "School logo",        icon: ImageIcon },
-  { key: "delete",   label: "Delete Account", icon: ChevronRight },
+  { key: "delete",   label: "Delete Account",     icon: ChevronRight },
 ];
 
 export default function Profile() {
@@ -32,50 +32,43 @@ export default function Profile() {
   const [sendingOtp, setSendingOtp] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-useEffect(() => {
-  fetchProfile();
-  fetchLogo(); // 👈 ADD THIS
-}, []);
+  useEffect(() => {
+    fetchProfile();
+    fetchLogo();
+  }, []);
 
-useEffect(() => {
-  if (logoUrl) {
-    setDisplayLogo(`${logoUrl}?t=${Date.now()}`);
-  }
-}, [logoUrl]);
+  useEffect(() => {
+    if (logoUrl) {
+      setDisplayLogo(`${logoUrl}?t=${Date.now()}`);
+    }
+  }, [logoUrl]);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
-    const fetchLogo = async () => {
-      try {
-        const res = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/superadmin/profile/logo`,
-          {
-            headers: {
-              Authorization: `Bearer ${getToken()}`, // ✅ SAME AS SIDEBAR
-            },
-          }
-        );
 
-        const data = await res.json();
-
-        console.log("PROFILE LOGO RESPONSE:", data); // 🔥 debug
-
-        if (data?.logoUrl) {
-          setLogoUrl(data.logoUrl);
-        }
-      } catch (err) {
-        console.error("Logo fetch error:", err);
-      }
-    };
+  const fetchLogo = async () => {
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/superadmin/profile/logo`,
+        { headers: { Authorization: `Bearer ${getToken()}` } }
+      );
+      const data = await res.json();
+      if (data?.logoUrl) setLogoUrl(data.logoUrl);
+    } catch (err) {
+      console.error("Logo fetch error:", err);
+    }
+  };
 
   const fetchProfile = async () => {
     try {
       const res = await fetch(`${API_URL}/api/superadmin/profile`, { headers: authHeaders() });
       const data = await res.json();
       setForm({ name: data.name || "", email: data.email || "", phone: data.phone || "" });
-    } catch { showToast("Failed to load profile", "error"); }
+    } catch {
+      showToast("Failed to load profile", "error");
+    }
   };
 
   const handleUpdateProfile = async () => {
@@ -84,11 +77,13 @@ useEffect(() => {
       const res = await fetch(`${API_URL}/api/superadmin/profile`, {
         method: "PUT",
         headers: { ...authHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, phone: form.phone, email: form.email }), // ✅ INCLUDE EMAIL
+        body: JSON.stringify({ name: form.name, phone: form.phone, email: form.email }),
       });
       if (!res.ok) throw new Error();
       showToast("Profile updated successfully");
-    } catch { showToast("Failed to update profile", "error"); }
+    } catch {
+      showToast("Failed to update profile", "error");
+    }
     setSaving(false);
   };
 
@@ -107,146 +102,99 @@ useEffect(() => {
       if (!res.ok) throw new Error();
       showToast("Password updated successfully");
       setPasswords({ newPassword: "", confirmPassword: "" });
-    } catch { showToast("Failed to update password", "error"); }
+    } catch {
+      showToast("Failed to update password", "error");
+    }
     setSaving(false);
   };
 
   const handleLogoUpload = async () => {
     if (!logo) return showToast("Please select a file", "error");
-
     setSaving(true);
-
     try {
       const formData = new FormData();
       formData.append("logo", logo);
-
       const res = await fetch(`${API_URL}/api/superadmin/profile/upload-logo`, {
         method: "PUT",
         headers: authHeaders(),
         body: formData,
       });
-
       if (!res.ok) throw new Error();
-
       showToast("Logo uploaded successfully");
-
-      await fetchLogo();      // ✅ refresh from backend
-      setPreview(null);       // ✅ remove preview
-      setLogo(null);          // ✅ clear selected file
-
+      await fetchLogo();
+      setPreview(null);
+      setLogo(null);
     } catch {
       showToast("Failed to upload logo", "error");
     }
-
     setSaving(false);
   };
 
-    const handleSendOtp = async () => {
+  const handleSendOtp = async () => {
     setSendingOtp(true);
-
     try {
-      const res = await fetch(
-        `${API_URL}/api/superadmin/delete-account/send-otp`,
-        {
-          method: "POST",
-          headers: authHeaders(),
-        }
-      );
-
+      const res = await fetch(`${API_URL}/api/superadmin/delete-account/send-otp`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error();
-
       setOtpSent(true);
-
       showToast("OTP sent to your registered email");
-
     } catch {
       showToast("Failed to send OTP", "error");
     }
-
     setSendingOtp(false);
   };
-    const handleResendOtp = async () => {
+
+  const handleResendOtp = async () => {
     setSendingOtp(true);
     try {
-      const res = await fetch(
-        `${API_URL}/api/superadmin/delete-account/send-otp`,
-        {
-          method: "POST",
-          headers: authHeaders(),
-        }
-      );
-
+      const res = await fetch(`${API_URL}/api/superadmin/delete-account/send-otp`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
       if (!res.ok) throw new Error();
-
       showToast("OTP resent to your registered email");
-      setOtp(""); // clear old OTP input
-
-      // Start 30s cooldown so user can't spam
+      setOtp("");
       setResendCooldown(30);
       const interval = setInterval(() => {
         setResendCooldown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
+          if (prev <= 1) { clearInterval(interval); return 0; }
           return prev - 1;
         });
       }, 1000);
-
     } catch {
       showToast("Failed to resend OTP", "error");
     }
     setSendingOtp(false);
   };
 
-    const handleDeleteAccount = async () => {
-      if (confirmationText !== "DELETE MY SCHOOL ACCOUNT") {
-        return showToast(
-          "Please type the confirmation sentence correctly",
-          "error"
-        );
-      }
+  const handleDeleteAccount = async () => {
+    if (confirmationText !== "DELETE MY UNIVERSITY ACCOUNT"){
+      return showToast("Please type the confirmation sentence correctly", "error");
+    }
+    if (!otp) {
+      return showToast("Please enter OTP", "error");
+    }
 
-      if (!otp) {
-        return showToast("Please enter OTP", "error");
-      }
+    setDeleting(true);
+    try {
+      const res = await fetch(`${API_URL}/api/superadmin/delete-account`, {
+        method: "DELETE",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ otp, confirmationText }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
 
-      setDeleting(true);
-
-      try {
-        const res = await fetch(
-          `${API_URL}/api/superadmin/delete-account`,
-          {
-            method: "DELETE",
-            headers: {
-              ...authHeaders(),
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              otp,
-              confirmationText,
-            }),
-          }
-        );
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.message);
-        }
-
-        alert("Account deleted successfully");
-
-        localStorage.clear();
-
-        navigate("/login");
-
-      } catch (err) {
-        showToast(err.message || "Failed to delete account", "error");
-      }
-
-      setDeleting(false);
-    };
+      // ✅ Clear session and redirect immediately
+      localStorage.clear();
+      navigate("/login");
+    } catch (err) {
+      showToast(err.message || "Failed to deactivate account", "error");
+    }
+    setDeleting(false);
+  };
 
   const initials = form.name
     ? form.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
@@ -258,19 +206,24 @@ useEffect(() => {
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow text-sm font-medium
-          ${toast.type === "error" ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"}`}>
+          ${toast.type === "error"
+            ? "bg-red-50 text-red-700 border border-red-200"
+            : "bg-green-50 text-green-700 border border-green-200"}`}>
           {toast.msg}
         </div>
       )}
 
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate(-1)} className="w-9 h-9 flex items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+        <button
+          onClick={() => navigate(-1)}
+          className="w-9 h-9 flex items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+        >
           <ArrowLeft size={16} />
         </button>
         <div>
           <h1 className="text-lg font-semibold text-gray-800">My Profile</h1>
-          <p className="text-sm text-gray-500">Manage your account and school settings</p>
+          <p className="text-sm text-gray-500">Manage your account and university settings</p>
         </div>
       </div>
 
@@ -416,23 +369,15 @@ useEffect(() => {
                 <p className="text-xs text-gray-500 mt-1">Upload your school's logo — displayed across the portal</p>
               </div>
               <div className="flex items-start gap-5">
-              <div className="w-24 h-24 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {preview ? (
-                  <img
-                    src={preview}
-                    alt="logo preview"
-                    className="w-full h-full object-contain"
-                  />
-                ) : logoUrl ? (
-                  <img
-                    src={logoUrl}
-                    alt="logo"
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <ImageIcon size={28} className="text-gray-300" />
-                )}
-              </div>
+                <div className="w-24 h-24 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {preview ? (
+                    <img src={preview} alt="logo preview" className="w-full h-full object-contain" />
+                  ) : logoUrl ? (
+                    <img src={logoUrl} alt="logo" className="w-full h-full object-contain" />
+                  ) : (
+                    <ImageIcon size={28} className="text-gray-300" />
+                  )}
+                </div>
                 <div className="flex-1">
                   <p className="text-xs text-gray-500 mb-3">PNG, JPG or SVG. Recommended size 256×256px.</p>
                   <input
@@ -460,30 +405,42 @@ useEffect(() => {
             </div>
           )}
 
+          {/* Deactivate Account */}
           {activeTab === "delete" && (
             <div className="bg-white border border-red-100 rounded-xl shadow-sm p-5">
 
               <div className="border-b border-red-100 pb-4 mb-5">
-                <h2 className="text-sm font-semibold text-red-600">
-                  Delete Account
-                </h2>
+                <h2 className="text-sm font-semibold text-red-600">Deactivate Account</h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  Permanently delete your account and all associated school data.
+                  Immediately suspends all university logins. Your data is preserved for 60 days.
                 </p>
               </div>
 
+              {/* ✅ Updated warning block */}
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-sm font-semibold text-red-700 mb-2">Warning</p>
-                <ul className="text-xs text-red-600 space-y-1 list-disc ml-4">
-                  <li>All students and staff data will be removed</li>
-                  <li>Payments and financial records will be deleted</li>
-                  <li>Chats, assignments, exams and reports will be deleted</li>
-                  <li>This action cannot be reversed</li>
+                <p className="text-sm font-semibold text-red-700 mb-2">⚠️ Before you proceed</p>
+                <ul className="text-xs text-red-600 space-y-1.5 list-disc ml-4">
+                  <li>All logins across your university— staff, students and parents — will be <strong>immediately suspended</strong></li>
+                  <li>Your data will <strong>NOT</strong> be deleted right away; it is safely preserved for <strong>60 days</strong></li>
+                  <li>After 60 days, all data will be <strong>permanently and automatically deleted</strong></li>
+                  <li>
+                    To restore access within 60 days, contact{" "}
+                    <a
+                      href="mailto:support@eduabaccotech.com"
+                      className="underline font-medium"
+                    >
+                      support@eduabaccotech.com
+                    </a>
+                  </li>
+                  <li>You will be <strong>logged out immediately</strong> after confirmation</li>
                 </ul>
               </div>
 
               {!otpSent ? (
                 <div className="mt-5">
+                  <p className="text-xs text-gray-500 mb-3">
+                    We will send a one-time password to your registered email address. The email will include a reminder about the 60-day grace period.
+                  </p>
                   <button
                     onClick={handleSendOtp}
                     disabled={sendingOtp}
@@ -496,14 +453,17 @@ useEffect(() => {
                 <div className="mt-5 space-y-4">
 
                   {/* OTP sent notice + resend */}
-                  <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
-                    <p className="text-xs text-green-700">
-                      OTP sent to your registered email.
+                  <div className="flex items-start justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 gap-3">
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      OTP sent to your registered email. Your account will enter a <strong>60-day grace period</strong> before any permanent deletion. To cancel, contact{" "}
+                      <a href="mailto:support@eduabaccotech.com" className="underline font-medium">
+                        support@eduabaccotech.com
+                      </a>
                     </p>
                     <button
                       onClick={handleResendOtp}
                       disabled={sendingOtp || resendCooldown > 0}
-                      className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed ml-4 whitespace-nowrap"
+                      className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
                     >
                       {sendingOtp
                         ? "Sending..."
@@ -514,31 +474,27 @@ useEffect(() => {
                   </div>
 
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      Enter OTP
-                    </label>
+                    <label className="block text-xs text-gray-500 mb-1">Enter OTP</label>
                     <input
                       type="text"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value)}
                       placeholder="Enter 6-digit OTP"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400 transition"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">
-                      Type:{" "}
-                      <span className="font-semibold text-red-600">
-                        DELETE MY SCHOOL ACCOUNT
-                      </span>
+                      Type exactly:{" "}
+                      <span className="font-semibold text-red-600">DELETE MY UNIVERSITY ACCOUNT</span>
                     </label>
                     <input
                       type="text"
                       value={confirmationText}
                       onChange={(e) => setConfirmationText(e.target.value)}
                       placeholder="Type confirmation text"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400 transition"
                     />
                   </div>
 
@@ -546,9 +502,9 @@ useEffect(() => {
                     <button
                       onClick={handleDeleteAccount}
                       disabled={deleting}
-                      className="px-5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+                      className="px-5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition"
                     >
-                      {deleting ? "Deleting Account..." : "Permanently Delete Account"}
+                      {deleting ? "Deactivating..." : "Deactivate & Logout"}
                     </button>
                   </div>
                 </div>
