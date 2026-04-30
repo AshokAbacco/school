@@ -1,3 +1,4 @@
+// utils/mail.js
 import nodemailer from "nodemailer";
 
 export const sendEmail = async (to, otp) => {

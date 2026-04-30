@@ -8,7 +8,7 @@ const plans = [
   {
     id: "silver",
     name: "Silver",
-    price: 10,
+    price: 300,
     icon: Shield,
     color: "#6A89A7",
     features: ["Up to 50 students", "Basic reports", "Email support"],

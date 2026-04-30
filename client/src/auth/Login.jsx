@@ -31,294 +31,19 @@ const TOP_TABS = [
   { label: "Super Admin", value: "superAdmin", icon: ShieldCheck },
 ];
 
-const styles = `
-  * { box-sizing: border-box; }
-
-  .login-root {
-    min-height: 100vh;
-    display: flex;
-    background: #f0f6ff;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-  }
-
-  /* ── LEFT PANEL ── */
-  .login-left {
-    flex: 0 0 45%;
-    background: linear-gradient(145deg, #384959 0%, #4a6278 60%, #6A89A7 100%);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    padding: 60px 56px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .login-left-blob1 {
-    position: absolute; top: -80px; right: -80px;
-    width: 320px; height: 320px; border-radius: 50%;
-    background: rgba(136,189,242,0.12); pointer-events: none;
-  }
-  .login-left-blob2 {
-    position: absolute; bottom: -60px; left: -60px;
-    width: 240px; height: 240px; border-radius: 50%;
-    background: rgba(189,221,252,0.10); pointer-events: none;
-  }
-
-  .login-logo {
-    display: flex; align-items: center; gap: 12px; margin-bottom: 48px;
-  }
-  .login-logo-icon {
-    width: 44px; height: 44px; border-radius: 12px;
-    background: #88BDF2; display: flex; align-items: center; justify-content: center;
-  }
-  .login-logo-text {
-    color: #BDDDFC; font-weight: 700; font-size: 18px; letter-spacing: 0.5px;
-  }
-
-  .login-left h1 {
-    color: #fff; font-size: 38px; font-weight: 800;
-    line-height: 1.2; margin: 0 0 18px; max-width: 340px;
-  }
-  .login-left p {
-    color: #BDDDFC; font-size: 15px; line-height: 1.7;
-    max-width: 340px; margin: 0 0 48px;
-  }
-
-  .login-features {
-    display: flex; flex-direction: column; gap: 16px;
-    width: 100%; max-width: 320px;
-  }
-  .login-feature-item {
-    display: flex; align-items: center; gap: 12px;
-  }
-  .login-feature-icon {
-    width: 36px; height: 36px; border-radius: 10px;
-    background: rgba(136,189,242,0.18);
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  }
-  .login-feature-text {
-    color: #BDDDFC; font-size: 14px; font-weight: 500;
-  }
-
-  /* ── RIGHT PANEL ── */
-  .login-right {
-    flex: 1;
-    display: flex; align-items: center; justify-content: center;
-    padding: 40px 32px;
-  }
-  .login-form-container {
-    width: 100%; max-width: 440px;
-  }
-
-  .login-title {
-    color: #384959; font-size: 26px; font-weight: 800; margin: 0 0 6px; 
-  }
-  .login-subtitle {
-    color: #6A89A7; font-size: 14px; margin: 0 0 28px;
-  }
-
-  /* Role Tabs */
-  .login-tabs {
-    display: flex; gap: 6px;
-    background: #eaf3fc; border-radius: 12px; padding: 5px;
-  }
-  .login-tab {
-    flex: 1; padding: 8px 4px; border-radius: 8px; border: none; cursor: pointer;
-    font-weight: 600; font-size: 12px;
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    transition: all 0.2s;
-  }
-  .login-tab.active {
-    background: #384959; color: #fff;
-    box-shadow: 0 2px 8px rgba(56,73,89,0.18);
-  }
-  .login-tab.inactive {
-    background: transparent; color: #6A89A7;
-  }
-
-  /* Staff sub-roles */
-  .login-staff-roles {
-    display: flex; gap: 8px; margin-bottom: 24px;
-  }
-  .login-staff-role-btn {
-    flex: 1; padding: 10px 8px; border-radius: 10px; cursor: pointer; text-align: left;
-    transition: all 0.2s;
-  }
-  .login-staff-role-btn.active {
-    border: 2px solid #6A89A7; background: #eaf3fc;
-  }
-  .login-staff-role-btn.inactive {
-    border: 2px solid #dde8f5; background: #fff;
-  }
-  .login-staff-role-header {
-    display: flex; align-items: center; gap: 6px; margin-bottom: 3px;
-  }
-  .login-staff-role-label {
-    font-size: 12px; font-weight: 700;
-  }
-  .login-staff-role-desc {
-    font-size: 10px; color: #88BDF2; margin: 0; line-height: 1.4;
-  }
-
-  /* Badge */
-  .login-badge {
-    display: flex; align-items: center; gap: 8px;
-    margin-bottom: 20px; padding: 8px 14px;
-    background: #BDDDFC; border-radius: 8px;
-  }
-  .login-badge span {
-    font-size: 12px; color: #384959; font-weight: 600;
-  }
-
-  /* Error */
-  .login-error {
-    background: #fff0f0; border: 1px solid #fcc; border-radius: 8px;
-    padding: 10px 14px; margin-bottom: 18px;
-    color: #c0392b; font-size: 13px; font-weight: 500;
-  }
-
-  /* Input */
-  .login-input-group { margin-bottom: 16px; }
-  .login-input-label {
-    display: block; font-size: 13px; font-weight: 600;
-    color: #384959; margin-bottom: 6px;
-  }
-  .login-input-wrap { position: relative; }
-  .login-input-icon {
-    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
-  }
-  .login-input {
-    width: 100%; padding: 11px 14px 11px 40px;
-    border: 1.5px solid #dde8f5; border-radius: 10px;
-    font-size: 14px; font-weight: 500; color: #384959;
-    outline: none; background: #fff; transition: border 0.2s;
-  }
-  .login-input:focus { border-color: #6A89A7; }
-  .login-input-password { padding-right: 44px !important; }
-  .login-eye-btn {
-    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-    background: none; border: none; cursor: pointer; padding: 2px;
-  }
-
-  /* Buttons */
-  .login-submit-btn {
-    width: 100%; padding: 13px; border-radius: 10px; border: none;
-    color: #fff; font-weight: 700; font-size: 15px;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    box-shadow: 0 4px 14px rgba(56,73,89,0.22);
-    transition: all 0.2s; margin-bottom: 14px;
-  }
-  .login-submit-btn:disabled { cursor: not-allowed; background: #6A89A7; opacity: 0.75; }
-  .login-submit-btn:not(:disabled) { cursor: pointer; background: #384959; }
-  .login-submit-btn:not(:disabled):hover { background: #2c3a47; }
-
-  .login-divider {
-    display: flex; align-items: center; gap: 12px; margin: 4px 0 14px;
-  }
-  .login-divider-line { flex: 1; height: 1px; background: #dde8f5; }
-  .login-divider-text {
-    font-size: 11px; color: #88BDF2; font-weight: 700;
-    letter-spacing: 1px; text-transform: uppercase;
-  }
-
-  .login-register-btn {
-    width: 100%; padding: 12px; border-radius: 10px;
-    border: 2px solid #88BDF2; background: #fff;
-    color: #384959; font-weight: 700; font-size: 14px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    transition: all 0.2s;
-  }
-  .login-register-btn:hover { background: #eaf3fc; }
-
-  /* ── TABLET (max 900px) ── */
-  @media (max-width: 900px) {
-    .login-left {
-      flex: 0 0 38%;
-      padding: 40px 36px;
-    }
-    .login-left h1 { font-size: 28px; }
-    .login-left p { font-size: 13px; }
-  }
-
-  /* ── MOBILE (max 680px): stack vertically, hide left panel ── */
-  @media (max-width: 680px) {
-    .login-root {
-      flex-direction: column;
-    }
-
-    /* Compact header banner replacing the left panel */
-    .login-left {
-      flex: none;
-      padding: 20px 20px 16px;
-      flex-direction: row;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 16px;
-    }
-    .login-left-blob1,
-    .login-left-blob2 { display: none; }
-    .login-logo { margin-bottom: 0; }
-    .login-left h1,
-    .login-left p,
-    .login-features { display: none; }
-
-    /* Mobile banner title */
-    .login-mobile-banner-text {
-      display: flex !important;
-      flex-direction: column;
-    }
-
-    .login-right {
-      flex: 1;
-      padding: 24px 16px 32px;
-      align-items: flex-start;
-    }
-
-    .login-form-container { max-width: 100%; }
-
-    .login-title { font-size: 22px; }
-
-    /* Tabs: 2×2 grid on very small screens */
-    .login-tabs {
-      flex-wrap: wrap;
-    }
-    .login-tab {
-      flex: 1 1 calc(50% - 6px);
-      min-width: 0;
-    }
-
-    .login-staff-roles {
-      flex-direction: column;
-    }
-    .login-staff-role-btn {
-      display: flex; align-items: center; gap: 12px;
-      padding: 12px;
-    }
-    .login-staff-role-header { margin-bottom: 0; }
-    .login-staff-role-desc { display: none; }
-  }
-
-  /* ── SMALL PHONES (max 360px) ── */
-  @media (max-width: 360px) {
-    .login-right { padding: 16px 12px 24px; }
-    .login-title { font-size: 20px; }
-    .login-tab { font-size: 11px; padding: 7px 2px; }
-  }
-`;
-
 /* Small helper shown only on mobile alongside logo */
 function MobileBannerText() {
   return (
-    <div className="login-mobile-banner-text" style={{ display: "none" }}>
-      <span style={{ color: "#fff", fontWeight: 800, fontSize: 16, lineHeight: 1.2 }}>UniPortal</span>
-      <span style={{ color: "#BDDDFC", fontSize: 12, fontWeight: 500 }}>Campus management platform</span>
+    <div className="hidden max-[680px]:flex flex-col">
+      <span className="text-white font-extrabold text-base leading-tight">UniPortal</span>
+      <span className="text-[#BDDDFC] text-xs font-medium">Campus management platform</span>
     </div>
   );
 }
 
 export default function Login({ onSwitchToRegister }) {
   const navigate = useNavigate();
+
   const [type, setType] = useState("staff");
   const [staffRole, setStaffRole] = useState("admin");
   const [email, setEmail] = useState("");
@@ -326,21 +51,6 @@ export default function Login({ onSwitchToRegister }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-
-  // Inject styles once
-  useEffect(() => {
-    const id = "login-responsive-styles";
-    if (!document.getElementById(id)) {
-      const tag = document.createElement("style");
-      tag.id = id;
-      tag.textContent = styles;
-      document.head.appendChild(tag);
-    }
-    return () => {
-      // Keep styles around; remove if you prefer cleanup:
-      // document.getElementById(id)?.remove();
-    };
-  }, []);
 
   const handleLogin = async () => {
     setError("");
@@ -368,57 +78,84 @@ export default function Login({ onSwitchToRegister }) {
   const activeTab = TOP_TABS.find(t => t.value === type);
 
   return (
-    <div className="login-root ">
+    // Root
+    <div className="min-h-screen flex bg-[#f0f6ff] font-[Segoe_UI,system-ui,sans-serif] max-[680px]:flex-col">
+        <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-[rgba(136,189,242,0.12)] pointer-events-none max-[680px]:hidden" />
 
       {/* ── LEFT PANEL ── */}
-      <div className="login-left">
-        <div className="login-left-blob1" />
-        <div className="login-left-blob2" />
+      <div className="
+        flex-[0_0_45%] relative overflow-hidden
+        flex flex-col justify-center items-start
+        px-14 py-[60px]
+        max-[900px]:flex-[0_0_38%] max-[900px]:px-9 max-[900px]:py-10
+        max-[680px]:flex-none max-[680px]:px-5 max-[680px]:py-5
+        max-[680px]:flex-row max-[680px]:items-center max-[680px]:justify-start max-[680px]:gap-4
+        ml-10
+      ">
+        {/* Blobs */}
+        <div className="absolute -bottom-16 -left-16 w-60 h-60 rounded-full bg-[rgba(136,189,242,0.12)] pointer-events-none max-[680px]:hidden" />
 
-        <div className="login-logo">
-          <div className="login-logo-icon">
+        {/* Logo */}
+        <div className="flex items-center gap-3 mb-12 max-[680px]:mb-0 ml-20">
+          <div className="w-11 h-11 rounded-xl bg-[#88BDF2] flex items-center justify-center">
             <GraduationCap size={24} color="#384959" />
           </div>
-          <span className="login-logo-text">UniPortal</span>
+          <span className="text-[#384959] font-bold text-lg tracking-wide">UniPortal</span>
         </div>
 
-        {/* Shown only on mobile, hidden on desktop via CSS */}
+        {/* Shown only on mobile */}
         <MobileBannerText />
 
-        <h1>Welcome to our Education Hub</h1>
-        <p>One platform for staff, students, parents and administrators to manage university life seamlessly.</p>
+        <h1 className="ml-20 text-[#6A89A7] text-[38px] font-extrabold mb-[18px]">
+          Welcome to our Education Hub
+        </h1>
+        <p className=" ml-20 text-[#6A89A7] text-[15px] leading-relaxed max-w-[340px] mb-12 max-[900px]:text-[13px] max-[680px]:hidden">
+          One platform for staff, students, parents and administrators to manage university life seamlessly.
+        </p>
 
-        <div className="login-features">
+        <div className=" ml-20 flex flex-col gap-4 w-full max-w-[320px] max-[680px]:hidden">
           {[
             { icon: Users, text: "Staff & Faculty Management" },
             { icon: GraduationCap, text: "Student Academic Portal" },
             { icon: BarChart3, text: "Finance & Fee Tracking" },
           ].map(({ icon: Icon, text }) => (
-            <div key={text} className="login-feature-item">
-              <div className="login-feature-icon">
+            <div key={text} className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-[10px] bg-[rgba(136,189,242,0.18)] flex items-center justify-center flex-shrink-0">
                 <Icon size={17} color="#88BDF2" />
               </div>
-              <span className="login-feature-text">{text}</span>
+              <span className="text-[#6A89A7] text-sm font-medium">{text}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* ── RIGHT PANEL ── */}
-      <div className="login-right">
-        <div className="login-form-container">
+      <div className="flex-1 flex items-center justify-center mt-10 px-8 py-10 max-[680px]:items-start max-[680px]:px-4 max-[680px]:py-6 max-[360px]:px-3 max-[360px]:py-4">
+        <div className="w-full max-w-[440px] max-[680px]:max-w-full">
 
-          <h2 style={{ paddingTop: "50px" }} className="login-title">Sign In</h2>
-          <p className="login-subtitle">Select your role and enter your credentials</p>
+          <h2 className="text-[#384959] text-[26px] font-extrabold mb-1.5 pt-[50px] max-[680px]:text-[22px] max-[360px]:text-xl">
+            Sign In
+          </h2>
+          <p className="text-[#6A89A7] text-sm mb-7">Select your role and enter your credentials</p>
 
           {/* Top Role Tabs */}
-          <div className="login-tabs" style={{ marginBottom: type === "staff" ? 16 : 24 }}>
+          <div
+            className={`flex gap-1.5 bg-[#eaf3fc] rounded-xl p-1.5 flex-wrap ${type === "staff" ? "mb-4" : "mb-6"}`}
+          >
             {TOP_TABS.map((tab) => {
               const Icon = tab.icon;
+              const isActive = type === tab.value;
               return (
                 <button
                   key={tab.value}
-                  className={`login-tab ${type === tab.value ? "active" : "inactive"}`}
+                  className={`
+                    flex-1 py-2 px-1 rounded-lg border-none cursor-pointer font-semibold text-xs
+                    flex flex-col items-center gap-1 transition-all duration-200
+                    max-[680px]:flex-[1_1_calc(50%-6px)] min-w-0 max-[360px]:text-[11px] max-[360px]:py-1.5 max-[360px]:px-0.5
+                    ${isActive
+                      ? "bg-[#384959] text-white shadow-[0_2px_8px_rgba(56,73,89,0.18)]"
+                      : "bg-transparent text-[#6A89A7]"}
+                  `}
                   onClick={() => { setType(tab.value); setError(""); }}
                 >
                   <Icon size={15} />
@@ -430,32 +167,41 @@ export default function Login({ onSwitchToRegister }) {
 
           {/* Staff Sub-roles */}
           {type === "staff" && (
-            <div className="login-staff-roles">
-              {STAFF_ROLES.map(({ label, value, icon: Icon, desc }) => (
-                <button
-                  key={value}
-                  className={`login-staff-role-btn ${staffRole === value ? "active" : "inactive"}`}
-                  onClick={() => { setStaffRole(value); setError(""); }}
-                >
-                  <div className="login-staff-role-header">
-                    <Icon size={14} color={staffRole === value ? "#384959" : "#6A89A7"} />
-                    <span
-                      className="login-staff-role-label"
-                      style={{ color: staffRole === value ? "#384959" : "#6A89A7" }}
-                    >
-                      {label}
-                    </span>
-                  </div>
-                  <p className="login-staff-role-desc">{desc}</p>
-                </button>
-              ))}
+            <div className="flex gap-2 mb-6 max-[680px]:flex-col">
+              {STAFF_ROLES.map(({ label, value, icon: Icon, desc }) => {
+                const isActive = staffRole === value;
+                return (
+                  <button
+                    key={value}
+                    className={`
+                      flex-1 p-2.5 rounded-[10px] cursor-pointer text-left transition-all duration-200
+                      max-[680px]:flex max-[680px]:items-center max-[680px]:gap-3 max-[680px]:p-3
+                      ${isActive
+                        ? "border-2 border-[#6A89A7] bg-[#eaf3fc]"
+                        : "border-2 border-[#dde8f5] bg-white"}
+                    `}
+                    onClick={() => { setStaffRole(value); setError(""); }}
+                  >
+                    <div className="flex items-center gap-1.5 mb-0.5 max-[680px]:mb-0">
+                      <Icon size={14} color={isActive ? "#384959" : "#6A89A7"} />
+                      <span
+                        className="text-xs font-bold"
+                        style={{ color: isActive ? "#384959" : "#6A89A7" }}
+                      >
+                        {label}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-[#88BDF2] m-0 leading-snug max-[680px]:hidden">{desc}</p>
+                  </button>
+                );
+              })}
             </div>
           )}
 
           {/* Active role badge */}
-          <div className="login-badge">
+          <div className="flex items-center gap-2 mb-5 px-3.5 py-2 bg-[#BDDDFC] rounded-lg">
             {activeTab && <activeTab.icon size={14} color="#384959" />}
-            <span>
+            <span className="text-xs text-[#384959] font-semibold">
               Logging in as:{" "}
               {type === "staff"
                 ? `${STAFF_ROLES.find(r => r.value === staffRole)?.label} (Staff)`
@@ -463,18 +209,29 @@ export default function Login({ onSwitchToRegister }) {
             </span>
           </div>
 
-          {error && <div className="login-error">{error}</div>}
+          {/* Error */}
+          {error && (
+            <div className="bg-[#fff0f0] border border-[#fcc] rounded-lg px-3.5 py-2.5 mb-[18px] text-[#c0392b] text-[13px] font-medium">
+              {error}
+            </div>
+          )}
 
           {/* Email */}
-          <div className="login-input-group">
-            <label className="login-input-label">Email Address</label>
-            <div className="login-input-wrap">
-              <Mail size={16} color="#88BDF2" className="login-input-icon" />
+          <div className="mb-4">
+            <label className="block text-[13px] font-semibold text-[#384959] mb-1.5">
+              Email Address
+            </label>
+            <div className="relative">
+              <Mail size={16} color="#88BDF2" className="absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="email"
                 placeholder="name@university.edu"
                 value={email}
-                className="login-input"
+                className="
+                  w-full py-[11px] pr-3.5 pl-10 border-[1.5px] border-[#dde8f5] rounded-[10px]
+                  text-sm font-medium text-[#384959] outline-none bg-white transition-colors duration-200
+                  focus:border-[#6A89A7]
+                "
                 onChange={e => setEmail(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleLogin()}
               />
@@ -482,21 +239,27 @@ export default function Login({ onSwitchToRegister }) {
           </div>
 
           {/* Password */}
-          <div className="login-input-group" style={{ marginBottom: 26 }}>
-            <label className="login-input-label">Password</label>
-            <div className="login-input-wrap">
-              <Lock size={16} color="#88BDF2" className="login-input-icon" />
+          <div className="mb-[26px]">
+            <label className="block text-[13px] font-semibold text-[#384959] mb-1.5">
+              Password
+            </label>
+            <div className="relative">
+              <Lock size={16} color="#88BDF2" className="absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
-                className="login-input login-input-password"
+                className="
+                  w-full py-[11px] pl-10 pr-11 border-[1.5px] border-[#dde8f5] rounded-[10px]
+                  text-sm font-medium text-[#384959] outline-none bg-white transition-colors duration-200
+                  focus:border-[#6A89A7]
+                "
                 onChange={e => setPassword(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleLogin()}
               />
               <button
                 type="button"
-                className="login-eye-btn"
+                className="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer p-0.5"
                 onClick={() => setShowPassword(s => !s)}
               >
                 {showPassword
@@ -505,22 +268,27 @@ export default function Login({ onSwitchToRegister }) {
               </button>
             </div>
           </div>
-          <div style={{ textAlign: "right", marginTop: "-12px", marginBottom: "18px" }}>
+
+          {/* Forgot Password */}
+          <div className="text-right -mt-3 mb-[18px]">
             <span
-              style={{
-                fontSize: "13px",
-                color: "#6A89A7",
-                cursor: "pointer",
-                fontWeight: "600"
-              }}
+              className="text-[13px] text-[#6A89A7] cursor-pointer font-semibold"
               onClick={() => navigate("/forgot-password")}
             >
               Forgot Password?
             </span>
           </div>
+
           {/* Login Button */}
           <button
-            className="login-submit-btn"
+            className={`
+              w-full py-[13px] rounded-[10px] border-none text-white font-bold text-[15px]
+              flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(56,73,89,0.22)]
+              transition-all duration-200 mb-3.5
+              ${loading
+                ? "cursor-not-allowed bg-[#6A89A7] opacity-75"
+                : "cursor-pointer bg-[#384959] hover:bg-[#2c3a47]"}
+            `}
             onClick={handleLogin}
             disabled={loading}
           >
@@ -530,15 +298,20 @@ export default function Login({ onSwitchToRegister }) {
           </button>
 
           {/* Divider */}
-          <div className="login-divider">
-            <div className="login-divider-line" />
-            <span className="login-divider-text">or</span>
-            <div className="login-divider-line" />
+          <div className="flex items-center gap-3 my-1 mb-3.5">
+            <div className="flex-1 h-px bg-[#dde8f5]" />
+            <span className="text-[11px] text-[#88BDF2] font-bold tracking-widest uppercase">or</span>
+            <div className="flex-1 h-px bg-[#dde8f5]" />
           </div>
 
           {/* Register */}
           <button
-            className="login-register-btn"
+            className="
+              w-full py-3 rounded-[10px] border-2 border-[#88BDF2] bg-white
+              text-[#384959] font-bold text-sm cursor-pointer
+              flex items-center justify-center gap-2 transition-all duration-200
+              hover:bg-[#eaf3fc]
+            "
             onClick={() => navigate("/register")}
           >
             <Building2 size={16} color="#6A89A7" />

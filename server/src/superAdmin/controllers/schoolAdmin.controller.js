@@ -26,7 +26,7 @@ export async function getSchoolAdmins(req, res) {
 
     const admins = await prisma.user.findMany({
       where: {
-        role: { in: ["ADMIN", "FINANCE"] },
+        role: { in: ["ADMIN"] },
         school: { universityId },
       },
       orderBy: { createdAt: "desc" },

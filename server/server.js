@@ -141,6 +141,13 @@ io.on("connection", (socket) => {
   console.log("Socket connected:", userId);
 });
 
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
+
 // Start server
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

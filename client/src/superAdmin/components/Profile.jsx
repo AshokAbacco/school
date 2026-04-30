@@ -78,7 +78,7 @@ useEffect(() => {
       const res = await fetch(`${API_URL}/api/superadmin/profile`, {
         method: "PUT",
         headers: { ...authHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, phone: form.phone }),
+        body: JSON.stringify({ name: form.name, phone: form.phone, email: form.email }), // ✅ INCLUDE EMAIL
       });
       if (!res.ok) throw new Error();
       showToast("Profile updated successfully");
