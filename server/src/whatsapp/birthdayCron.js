@@ -14,6 +14,13 @@ cron.schedule("30 3 * * *", async () => {
     const students = await prisma.studentPersonalInfo.findMany({
       where: {
         dateOfBirth: { not: null }
+      },
+      include: {
+        student: {
+          include: {
+            school: true
+          }
+        }
       }
     });
 
@@ -30,7 +37,7 @@ cron.schedule("30 3 * * *", async () => {
         const name =
           `${item.firstName || ""} ${item.lastName || ""}`.trim();
 
-        const schoolName = "Sri Vignan School";
+        const schoolName = item.student?.school?.name || "Your School";
 
         let cleanPhone = phone?.replace(/\D/g, "");
 
