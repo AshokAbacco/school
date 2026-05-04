@@ -49,6 +49,7 @@ function buildParticipants({
   }
 
   for (const [uid, sectionIds] of coordMap) {
+     if (!uid) continue;
     const sectionArr = [...sectionIds];
     rows.push({
       type: "USER",
@@ -65,9 +66,16 @@ function buildParticipants({
 
   // ── 2. Regular attendees ─────────────────────────────────────
   const coordUserIds = new Set(coordMap.keys());
+
   for (const uid of participantUserIds) {
-    if (!uid || coordUserIds.has(uid)) continue; // skip if already coordinator
-    rows.push({ type: "USER", userId: uid, isCoordinator: false });
+    if (!uid) continue; // ✅ skip invalid
+    if (coordUserIds.has(uid)) continue; // ✅ skip if already coordinator
+
+    rows.push({
+      type: "USER",
+      userId: uid,
+      isCoordinator: false,
+    });
   }
 
   // ── 3. External participants ─────────────────────────────────
@@ -389,7 +397,7 @@ export const createMeeting = async (req, res) => {
       coordinatorUserId,
       participantUserIds,
       externalParticipants,
-    });
+    }).filter(p => !p.userId || typeof p.userId === "string");
 
     // ── Auto-invite parents (PARENTS meeting type or flag) ────────────────
     const shouldInviteParents = autoInviteParents || type === "PARENTS";
