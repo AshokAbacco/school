@@ -7,7 +7,7 @@ const plans = [
   {
     id: "silver",
     name: "Silver",
-    price: 300,
+    price: 1,
     tagline: "Best for single school setup",
     icon: Shield,
     badge: null,
@@ -157,6 +157,7 @@ const allFeatureKeys = [
   "Certificates Generation",
   "Role-based Permissions",
   "Complete Financial Reporting",
+  "Whatsapp & SMS Notifications",
   "Automated Fee Reminders",
   "Backup & Security",
   "API Integrations",

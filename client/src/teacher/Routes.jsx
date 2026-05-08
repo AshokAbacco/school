@@ -16,6 +16,7 @@ import AssignmentsPage from "./pages/assignments/AssignmentsPage";
 import TeacherChatPage from "./pages/chat/TeacherChatPage";
 import TeacherHolidayPage from "./pages/holidays/HolidayPage";
 import TeacherProfilePage from "./pages/profile/profile.jsx";
+import SubmissionsViewPage from "./pages/assignments/SubmissionsViewPage";
 function TeacherRoutes() {
   return (
     <PageLayout>
@@ -34,6 +35,7 @@ function TeacherRoutes() {
         <Route path="assignments" element={<AssignmentsPage />} />
         <Route path="chat" element={<TeacherChatPage />} />
         <Route path="profile" element={<TeacherProfilePage />} />
+        <Route path="assignments/:assignmentId/submissions" element={<SubmissionsViewPage />} />
         <Route path="*"              element={<Navigate to="dashboard" replace />} />
       </Routes>
     </PageLayout>

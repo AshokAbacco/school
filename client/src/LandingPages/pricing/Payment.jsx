@@ -8,7 +8,7 @@ const plans = [
   {
     id: "silver",
     name: "Silver",
-    price: 300,
+    price: 1,
     icon: Shield,
     color: "#6A89A7",
     features: ["Up to 50 students", "Basic reports", "Email support"],
@@ -32,7 +32,8 @@ const plans = [
 ];
 
 export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
-  const [userCount, setUserCount] = useState(1);
+  // ✅ FIX: Default is 0, not 1
+  const [userCount, setUserCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState("summary");
   const [errors, setErrors] = useState({});
@@ -50,8 +51,8 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
   if (!isOpen || !selectedPlan) return null;
 
   const PlanIcon = selectedPlan.icon;
-  const basePrice = selectedPlan.price * userCount;
-  const taxAmount = Math.round(basePrice * 0.12);
+  const basePrice  = selectedPlan.price * userCount;
+  const taxAmount  = Math.round(basePrice * 0.12);
   const totalPrice = basePrice + taxAmount;
 
   const handleChange = (e) => {
@@ -63,12 +64,14 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
 
   const validate = () => {
     const newErrors = {};
-    if (!form.fullName.trim()) newErrors.fullName = "Full name is required";
-    if (!form.email.trim()) newErrors.email = "Email is required";
+    if (!form.fullName.trim())   newErrors.fullName   = "Full name is required";
+    if (!form.email.trim())      newErrors.email      = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = "Enter a valid email";
     if (!form.schoolName.trim()) newErrors.schoolName = "School name is required";
-    if (!form.phone.trim()) newErrors.phone = "Phone number is required";
-    if (!form.address.trim()) newErrors.address = "City / Address is required";
+    if (!form.phone.trim())      newErrors.phone      = "Phone number is required";
+    if (!form.address.trim())    newErrors.address    = "City / Address is required";
+    // ✅ FIX: Validate user count is at least 1 before paying
+    if (!userCount || userCount < 1) newErrors.userCount = "Please add at least 1 user";
     return newErrors;
   };
 
@@ -77,6 +80,8 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
     const newErrors = validate();
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      // ✅ If userCount error, switch back to summary step so they can see it
+      if (newErrors.userCount) setStep("summary");
       return;
     }
 
@@ -102,12 +107,12 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
       }
 
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY,
-        amount: data.amount,
-        currency: "INR",
-        name: "School CRM",
+        key:         import.meta.env.VITE_RAZORPAY_KEY,
+        amount:      data.amount,
+        currency:    "INR",
+        name:        "School CRM",
         description: `${selectedPlan.name} Plan`,
-        order_id: data.orderId,
+        order_id:    data.orderId,
 
         handler: async (response) => {
           const verifyRes = await fetch(`${API_URL}/api/payment/verify-payment`, {
@@ -116,6 +121,8 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
             body: JSON.stringify({
               ...response,
               paymentId: data.paymentId,
+              // ✅ FIX: send phone so backend can update it correctly
+              phone: form.phone,
             }),
           });
 
@@ -123,12 +130,17 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
 
           if (verifyData.status === "verified") {
             alert("✅ Payment Successful");
+            localStorage.setItem("tempUserId", data.tempUserId);
             onClose();
             navigate("/register", {
               state: {
+                fullName: form.fullName,
+                schoolName: form.schoolName,
                 email: form.email,
                 phone: form.phone,
+                address: form.address,
                 plan: selectedPlan.id,
+                tempUserId: data.tempUserId,
               },
             });
           } else {
@@ -143,8 +155,8 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
         },
 
         prefill: {
-          name: form.fullName,
-          email: form.email,
+          name:    form.fullName,
+          email:   form.email,
           contact: form.phone,
         },
 
@@ -156,13 +168,12 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
       rzp.on("payment.failed", async function (response) {
         console.error("Payment Failed:", response.error);
 
-        // ✅ OPTIONAL: notify backend
         await fetch(`${API_URL}/api/payment/verify-payment`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             paymentId: data.paymentId,
-            status: "FAILED"
+            status:    "FAILED",
           }),
         });
 
@@ -226,332 +237,245 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
           max-height: 96vh;
         }
 
-        /* ══════════════════════════════
-           LEFT PANEL
-        ══════════════════════════════ */
+        /* ── LEFT ── */
         .pm-left {
-          background: linear-gradient(160deg, #1e2d3d 0%, #2d4255 45%, #3d5a72 100%);
-          padding: 36px 32px;
+          background: linear-gradient(160deg, #384959 0%, #4a6880 60%, #6A89A7 100%);
+          padding: 40px 36px 36px;
           display: flex;
           flex-direction: column;
-          gap: 0;
-          position: relative;
-          overflow: hidden;
-          color: white;
+          overflow-y: auto;
+          scrollbar-width: none;
         }
-        .pm-left::before {
-          content: '';
-          position: absolute; inset: 0;
-          background:
-            radial-gradient(ellipse at 90% 10%, rgba(136,189,242,0.22) 0%, transparent 55%),
-            radial-gradient(ellipse at 5% 85%, rgba(189,221,252,0.12) 0%, transparent 50%);
-          pointer-events: none;
-        }
-        .pm-left-inner { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100%; }
+        .pm-left::-webkit-scrollbar { display: none; }
+        .pm-left-inner { display: flex; flex-direction: column; gap: 0; }
 
         .pm-plan-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: rgba(255,255,255,0.1);
-          border: 1px solid rgba(255,255,255,0.18);
-          border-radius: 100px;
-          padding: 5px 13px;
-          font-size: 12px;
-          font-weight: 500;
-          letter-spacing: 0.03em;
-          width: fit-content;
-          margin-bottom: 24px;
-          backdrop-filter: blur(8px);
+          display: inline-flex; align-items: center; gap: 6px;
+          background: rgba(136,189,242,0.18);
+          border: 1px solid rgba(136,189,242,0.3);
+          color: #BDDDFC;
+          font-size: 11px; font-weight: 600;
+          letter-spacing: 1px; text-transform: uppercase;
+          padding: 5px 12px; border-radius: 20px;
+          width: fit-content; margin-bottom: 20px;
         }
 
         .pm-plan-title {
           font-family: 'Sora', sans-serif;
-          font-size: 38px;
-          font-weight: 700;
-          line-height: 1.1;
-          margin-bottom: 6px;
-          letter-spacing: -0.02em;
+          font-size: 34px; font-weight: 700;
+          color: #fff; line-height: 1.15;
+          margin-bottom: 8px;
         }
+
         .pm-plan-sub {
-          font-size: 14px;
-          opacity: 0.65;
-          margin-bottom: 28px;
+          font-size: 13px; color: rgba(189,221,252,0.7);
+          margin-bottom: 24px;
         }
 
         .pm-features {
-          list-style: none;
-          padding: 0; margin: 0 0 28px;
-          display: flex; flex-direction: column; gap: 10px;
+          list-style: none; display: flex; flex-direction: column; gap: 10px;
+          margin-bottom: 28px;
         }
         .pm-features li {
           display: flex; align-items: center; gap: 10px;
-          font-size: 14px; opacity: 0.88;
+          font-size: 13px; color: rgba(255,255,255,0.85);
         }
-        .pm-features li svg { flex-shrink: 0; color: #88BDF2; }
+        .pm-features li svg { color: #88BDF2; flex-shrink: 0; }
 
         .pm-divider {
           height: 1px;
-          background: rgba(255,255,255,0.13);
-          margin: 4px 0 24px;
+          background: linear-gradient(90deg, rgba(136,189,242,0.4), transparent);
+          margin-bottom: 24px;
         }
 
-        /* User counter */
-        .pm-user-control {
-          background: rgba(255,255,255,0.08);
-          border: 1px solid rgba(255,255,255,0.15);
-          border-radius: 16px;
-          padding: 14px 16px;
-          margin-bottom: 16px;
-          width: 100%;
-          overflow: hidden;
-        }
+        /* ── User control ── */
+        .pm-user-control { margin-bottom: 20px; }
         .pm-user-label {
-          font-size: 11px;
-          opacity: 0.55;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
+          display: flex; align-items: center; gap: 6px;
+          font-size: 11px; font-weight: 600;
+          color: rgba(189,221,252,0.7);
+          letter-spacing: 0.8px; text-transform: uppercase;
           margin-bottom: 10px;
-          display: flex; align-items: center; gap: 5px;
         }
-        .pm-user-row {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          width: 100%;
-        }
+        .pm-user-row { display: flex; align-items: center; gap: 8px; }
         .pm-user-btn {
-          width: 36px; height: 36px;
-          min-width: 36px;
+          width: 34px; height: 34px;
           border-radius: 10px;
-          background: rgba(255,255,255,0.15);
-          border: 1px solid rgba(255,255,255,0.22);
-          color: white; font-size: 20px; line-height: 1;
-          display: flex; align-items: center; justify-content: center;
-          cursor: pointer; transition: background 0.15s, transform 0.1s;
-          flex-shrink: 0; user-select: none;
+          border: 1px solid rgba(136,189,242,0.35);
+          background: rgba(136,189,242,0.12);
+          color: #BDDDFC;
+          font-size: 18px; font-weight: 300;
+          cursor: pointer; display: flex; align-items: center; justify-content: center;
+          transition: background 0.15s, border-color 0.15s;
+          line-height: 1;
         }
-        .pm-user-btn:hover { background: rgba(255,255,255,0.25); }
-        .pm-user-btn:active { transform: scale(0.93); }
+        .pm-user-btn:hover { background: rgba(136,189,242,0.22); border-color: rgba(136,189,242,0.55); }
+
+        /* ✅ FIX: user input is editable */
         .pm-user-input {
-          flex: 1;
-          min-width: 0;
-          background: transparent; border: none; outline: none;
-          color: white; font-size: 20px; font-weight: 700;
-          font-family: 'Sora', sans-serif; text-align: center;
+          width: 72px; height: 34px;
+          border-radius: 10px;
+          border: 1px solid rgba(136,189,242,0.35);
+          background: rgba(255,255,255,0.08);
+          color: #fff;
+          font-size: 15px; font-weight: 600;
+          text-align: center;
+          outline: none;
+          transition: border-color 0.15s, background 0.15s;
+          /* ✅ Allow manual typing */
           -moz-appearance: textfield;
         }
-        .pm-user-input::-webkit-outer-spin-button,
-        .pm-user-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+        .pm-user-input::-webkit-inner-spin-button,
+        .pm-user-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+        .pm-user-input:focus {
+          border-color: rgba(136,189,242,0.7);
+          background: rgba(255,255,255,0.12);
+        }
+        .pm-user-input.pm-input-error {
+          border-color: #ff6b6b !important;
+        }
 
-        /* Price breakdown */
+        .pm-user-error {
+          font-size: 11px; color: #ff9999;
+          margin-top: 6px; display: block;
+        }
+
+        /* ── Price card ── */
         .pm-price-card {
-          background: rgba(255,255,255,0.08);
-          border: 1px solid rgba(255,255,255,0.18);
-          border-radius: 16px;
-          padding: 18px 18px;
-          margin-top: auto;
+          background: rgba(255,255,255,0.07);
+          border: 1px solid rgba(136,189,242,0.2);
+          border-radius: 14px; padding: 18px 20px;
+          display: flex; flex-direction: column; gap: 10px;
         }
         .pm-price-row {
           display: flex; justify-content: space-between; align-items: center;
-          font-size: 13px; padding: 5px 0;
         }
-        .pm-price-label { opacity: 0.65; }
-        .pm-price-value { font-weight: 600; opacity: 0.9; }
+        .pm-price-label { font-size: 13px; color: rgba(189,221,252,0.75); }
+        .pm-price-value { font-size: 13px; color: #fff; font-weight: 500; }
         .pm-price-row.total {
-          padding-top: 14px;
-          margin-top: 6px;
-          border-top: 1px solid rgba(255,255,255,0.18);
+          border-top: 1px solid rgba(136,189,242,0.2);
+          padding-top: 10px; margin-top: 2px;
         }
         .pm-price-total-val {
+          font-size: 22px; font-weight: 700; color: #fff;
           font-family: 'Sora', sans-serif;
-          font-size: 26px; font-weight: 700;
-          color: #BDDDFC;
         }
 
-        /* Mobile: continue button on left */
+        /* ── Mobile next ── */
         .pm-mobile-next {
           display: none;
-          margin-top: 20px;
-          width: 100%; padding: 14px;
-          border: none; border-radius: 14px; cursor: pointer;
-          background: rgba(255,255,255,0.15);
-          border: 1px solid rgba(255,255,255,0.25);
-          color: white; font-size: 15px; font-weight: 600;
-          font-family: 'Sora', sans-serif;
           align-items: center; justify-content: center; gap: 6px;
-          transition: background 0.15s;
+          margin-top: 24px;
+          background: rgba(136,189,242,0.15);
+          border: 1px solid rgba(136,189,242,0.3);
+          color: #BDDDFC; font-size: 13px; font-weight: 600;
+          padding: 12px 20px; border-radius: 12px; cursor: pointer;
+          width: 100%; transition: background 0.15s;
         }
-        .pm-mobile-next:hover { background: rgba(255,255,255,0.22); }
+        .pm-mobile-next:hover { background: rgba(136,189,242,0.25); }
 
-        /* ══════════════════════════════
-           RIGHT PANEL
-        ══════════════════════════════ */
+        /* ── RIGHT ── */
         .pm-right {
-          padding: 36px 36px 32px;
-          display: flex;
-          flex-direction: column;
+          display: flex; flex-direction: column;
+          padding: 36px 36px 28px;
           overflow-y: auto;
-          background: #fff;
+          scrollbar-width: thin;
+          scrollbar-color: #e0e9f3 transparent;
+        }
+        .pm-right::-webkit-scrollbar { width: 4px; }
+        .pm-right::-webkit-scrollbar-thumb { background: #e0e9f3; border-radius: 4px; }
+
+        .pm-right-header {
+          display: flex; align-items: flex-start; gap: 16px;
+          margin-bottom: 28px;
         }
 
-        /* Header */
-        .pm-right-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 28px;
-          gap: 12px;
-        }
         .pm-mobile-back {
           display: none;
-          align-items: center; gap: 5px;
-          background: none; border: none;
-          cursor: pointer; color: #6A89A7;
-          font-size: 13px; font-weight: 500;
-          font-family: 'DM Sans', sans-serif;
-          padding: 0; margin-bottom: 10px;
-          transition: color 0.15s;
+          align-items: center; gap: 6px;
+          font-size: 12px; color: #6A89A7; font-weight: 500;
+          background: none; border: none; cursor: pointer; padding: 0;
+          margin-bottom: 6px;
         }
-        .pm-mobile-back:hover { color: #384959; }
+
         .pm-right-title {
           font-family: 'Sora', sans-serif;
-          font-size: 22px; font-weight: 700;
-          color: #1a2b3c;
-          letter-spacing: -0.01em;
+          font-size: 22px; font-weight: 700; color: #384959;
+          margin-bottom: 4px;
         }
-        .pm-right-sub {
-          font-size: 13px; color: #8a9fb5;
-          margin-top: 3px; line-height: 1.5;
-        }
-        .pm-close {
-          width: 36px; height: 36px;
-          border-radius: 10px;
-          background: #f2f6fb; border: none;
-          cursor: pointer; flex-shrink: 0;
-          display: flex; align-items: center; justify-content: center;
-          color: #7a94ad; transition: all 0.15s;
-        }
-        .pm-close:hover { background: #e4edf7; color: #2d4255; }
+        .pm-right-sub { font-size: 13px; color: #88a0b5; }
 
-        /* Form fields */
-        .pm-field-group {
-          display: flex; flex-direction: column; gap: 16px;
-          flex: 1;
+        .pm-close {
+          width: 34px; height: 34px; border-radius: 10px;
+          border: 1.5px solid #e8eff6; background: #f7fafd;
+          color: #6A89A7; cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+          transition: background 0.15s, color 0.15s;
         }
-        .pm-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 14px;
-        }
+        .pm-close:hover { background: #eef4fb; color: #384959; }
+
+        /* ── Form ── */
+        .pm-field-group { display: flex; flex-direction: column; gap: 18px; flex: 1; }
+        .pm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .pm-field { display: flex; flex-direction: column; gap: 6px; }
-        .pm-label {
-          font-size: 11px; font-weight: 600;
-          color: #7a94ad;
-          text-transform: uppercase;
-          letter-spacing: 0.09em;
-        }
-        .pm-input-wrap { position: relative; }
+        .pm-label { font-size: 12px; font-weight: 600; color: #384959; letter-spacing: 0.3px; }
         .pm-input {
-          width: 100%;
-          padding: 12px 14px;
-          border: 1.5px solid #dde8f4;
-          border-radius: 12px;
-          font-size: 14px; color: #1a2b3c;
+          height: 44px; border-radius: 12px;
+          border: 1.5px solid #dde7f0;
+          padding: 0 14px; font-size: 14px; color: #384959;
+          background: #fafcfe; outline: none;
+          transition: border-color 0.15s, box-shadow 0.15s;
           font-family: 'DM Sans', sans-serif;
-          background: #f8fbff;
-          outline: none;
-          transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
-          -webkit-appearance: none;
         }
+        .pm-input::placeholder { color: #b0c4d8; }
         .pm-input:focus {
           border-color: #88BDF2;
-          background: #fff;
-          box-shadow: 0 0 0 4px rgba(136,189,242,0.14);
+          box-shadow: 0 0 0 3px rgba(136,189,242,0.15);
         }
-        .pm-input::placeholder { color: #b4c8db; }
-        .pm-input.pm-error {
-          border-color: #f87171;
-          background: #fff8f8;
-        }
-        .pm-input.pm-error:focus {
-          box-shadow: 0 0 0 4px rgba(248,113,113,0.12);
-        }
-        .pm-err-msg {
-          font-size: 11px;
-          color: #ef4444;
-          margin-top: 3px;
-          display: flex; align-items: center; gap: 4px;
-        }
+        .pm-input.pm-error { border-color: #f87171; box-shadow: 0 0 0 3px rgba(248,113,113,0.1); }
+        .pm-err-msg { font-size: 11px; color: #ef4444; }
 
-        /* Pay button */
+        /* ── Pay button ── */
         .pm-pay-btn {
           margin-top: 24px;
-          width: 100%; padding: 15px 20px;
-          border: none; border-radius: 14px; cursor: pointer;
-          background: linear-gradient(135deg, #1e2d3d 0%, #3d5a72 100%);
-          color: white; font-size: 15px; font-weight: 600;
-          font-family: 'Sora', sans-serif;
+          height: 52px; border-radius: 14px;
+          background: linear-gradient(135deg, #384959 0%, #5a7a96 100%);
+          color: #fff; border: none; cursor: pointer;
+          font-size: 15px; font-weight: 600;
           display: flex; align-items: center; justify-content: center; gap: 8px;
-          box-shadow: 0 8px 24px rgba(30,45,61,0.25);
-          transition: all 0.2s;
-          position: relative; overflow: hidden;
-          letter-spacing: 0.01em;
+          font-family: 'DM Sans', sans-serif;
+          transition: opacity 0.15s, transform 0.15s;
+          box-shadow: 0 4px 16px rgba(56,73,89,0.25);
         }
-        .pm-pay-btn::after {
-          content: '';
-          position: absolute; inset: 0;
-          background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.07) 100%);
-        }
-        .pm-pay-btn:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 12px 32px rgba(30,45,61,0.32);
-        }
-        .pm-pay-btn:active:not(:disabled) { transform: translateY(0); }
-        .pm-pay-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+        .pm-pay-btn:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+        .pm-pay-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
         .pm-spinner {
-          width: 18px; height: 18px;
-          border: 2.5px solid rgba(255,255,255,0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: pm-spin 0.65s linear infinite;
+          width: 18px; height: 18px; border-radius: 50%;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-top-color: #fff;
+          animation: pm-spin 0.7s linear infinite;
         }
 
         .pm-secure-note {
-          display: flex; align-items: center; justify-content: center; gap: 5px;
-          font-size: 12px; color: #a0b4c5;
-          margin-top: 10px;
+          margin-top: 12px;
+          display: flex; align-items: center; justify-content: center; gap: 6px;
+          font-size: 11px; color: #a0b5c8;
         }
 
         /* ══════════════════════════════
-           RESPONSIVE — TABLET
+           RESPONSIVE — TABLET / MOBILE
         ══════════════════════════════ */
-        @media (max-width: 820px) {
-          .pm-card {
-            grid-template-columns: 1fr 1fr;
-            max-width: 100%;
-          }
-          .pm-left { padding: 28px 24px; }
-          .pm-right { padding: 28px 24px 24px; }
-          .pm-plan-title { font-size: 30px; }
-        }
-
-        /* ══════════════════════════════
-           RESPONSIVE — MOBILE (≤ 640px)
-        ══════════════════════════════ */
-        @media (max-width: 640px) {
-          .pm-overlay { padding: 0; align-items: flex-end; }
+        @media (max-width: 720px) {
           .pm-card {
             grid-template-columns: 1fr;
-            border-radius: 24px 24px 0 0;
-            max-height: 96vh;
-            overflow-y: auto;
+            max-height: 92vh;
+            border-radius: 20px;
           }
 
-          /* Show only the active step */
-          .pm-left  { display: ${step === "summary" ? "flex" : "none"}; border-radius: 24px 24px 0 0; }
-          .pm-right { display: ${step === "form" ? "flex" : "none"}; border-radius: 24px 24px 0 0; }
+          .pm-left  { display: ${step === "summary" ? "flex" : "none"}; border-radius: 20px 20px 0 0; }
+          .pm-right { display: ${step === "form" ? "flex" : "none"}; border-radius: 20px 20px 0 0; }
 
           .pm-mobile-next { display: flex !important; }
           .pm-mobile-back { display: flex !important; }
@@ -600,38 +524,56 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
 
               <div className="pm-divider" />
 
-              {/* User Count */}
+              {/* ✅ FIX: User Count — default 0, min 0, fully manual */}
               <div className="pm-user-control">
                 <div className="pm-user-label">
                   <Users size={11} />
-                  Number of Users
+                  Number of Users (Students &amp; Teachers)
                 </div>
                 <div className="pm-user-row">
                   <button
                     className="pm-user-btn"
-                    onClick={() => setUserCount((n) => Math.max(1, n - 1))}
+                    onClick={() => {
+                      setUserCount((n) => Math.max(0, n - 1));
+                      if (errors.userCount) setErrors({ ...errors, userCount: "" });
+                    }}
                     aria-label="Decrease users"
                   >−</button>
+
                   <input
-                    className="pm-user-input"
+                    className={`pm-user-input${errors.userCount ? " pm-input-error" : ""}`}
                     type="number"
-                    min="1"
+                    min="0"
                     value={userCount}
-                    onChange={(e) => setUserCount(Math.max(1, Number(e.target.value)))}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setUserCount(isNaN(val) || val < 0 ? 0 : val);
+                      if (errors.userCount) setErrors({ ...errors, userCount: "" });
+                    }}
                     aria-label="User count"
                   />
+
                   <button
                     className="pm-user-btn"
-                    onClick={() => setUserCount((n) => n + 1)}
+                    onClick={() => {
+                      setUserCount((n) => n + 1);
+                      if (errors.userCount) setErrors({ ...errors, userCount: "" });
+                    }}
                     aria-label="Increase users"
                   >+</button>
                 </div>
+                {/* ✅ Show error if 0 users and user tried to pay */}
+                {errors.userCount && (
+                  <span className="pm-user-error">⚠ {errors.userCount}</span>
+                )}
               </div>
 
               {/* Price Breakdown */}
               <div className="pm-price-card">
                 <div className="pm-price-row">
-                  <span className="pm-price-label">Subtotal ({userCount} user{userCount > 1 ? "s" : ""})</span>
+                  <span className="pm-price-label">
+                    Subtotal ({userCount} user{userCount !== 1 ? "s" : ""})
+                  </span>
                   <span className="pm-price-value">₹{basePrice.toLocaleString()}</span>
                 </div>
                 <div className="pm-price-row">
@@ -759,7 +701,9 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
                 </>
               ) : (
                 <>
-                  Pay ₹{totalPrice.toLocaleString()}
+                  {userCount > 0
+                    ? `Pay ₹${totalPrice.toLocaleString()}`
+                    : "Add users to continue"}
                   <ChevronRight size={16} />
                 </>
               )}

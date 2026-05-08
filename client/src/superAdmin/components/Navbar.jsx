@@ -1,5 +1,7 @@
 // client/src/superadmin/components/Navbar.jsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { getToken } from "../../auth/storage";
+import { CheckCheck, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -37,7 +39,10 @@ export default function Navbar({ onMenuClick, user }) {
   const dropdownRef = useRef(null);
   const notifRef = useRef(null); // ✅ FIX 3: ref for notification panel
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const unreadCount = notifications.reduce(
+    (sum, n) => sum + n.unreadCount,
+    0
+  );
   const [notifOpen, setNotifOpen] = useState(false);
   const socketRef = useRef(null);
   const displayName = user?.name || "Admin User";
@@ -51,19 +56,11 @@ export default function Navbar({ onMenuClick, user }) {
     const attachSocket = () => {
       const socket = getSocket();
 
-      if (!socket) {
-        console.log("⏳ Waiting for socket...");
-        return;
-      }
-
-      console.log("✅ SuperAdmin Navbar connected");
+      if (!socket) return;
 
       socket.off("new_message");
 
       socket.on("new_message", (msg) => {
-        console.log("🔥 NAVBAR RECEIVED:", msg);
-
-        setNotifOpen(true);
         notificationSound.play().catch(() => {});
 
         setNotifications((prev) => {
@@ -72,7 +69,11 @@ export default function Navbar({ onMenuClick, user }) {
           if (existing) {
             return prev.map((n) =>
               n.id === msg.chatRoomId
-                ? { ...n, unreadCount: n.unreadCount + 1 }
+                ? {
+                    ...n,
+                    unreadCount: n.unreadCount + 1,
+                    lastMessage: msg.content,
+                  }
                 : n
             );
           }
@@ -84,15 +85,14 @@ export default function Navbar({ onMenuClick, user }) {
               otherUser: {
                 name: msg.senderName || "User",
               },
+              lastMessage: msg.content,
             },
             ...prev,
           ];
         });
 
-        setUnreadCount((c) => c + 1);
+        setNotifOpen(true);
       });
-
-      clearInterval(interval);
     };
 
     attachSocket();
@@ -108,38 +108,125 @@ export default function Navbar({ onMenuClick, user }) {
     console.log("User role:", user?.role);
   }, [user]);
 
-  // ✅ FIX 3: Combined outside-click handler for both dropdowns
-  useEffect(() => {
-    const h = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
-        setDropdownOpen(false);
-      if (notifRef.current && !notifRef.current.contains(e.target))
-        setNotifOpen(false);
+    // ✅ FIX 3: Combined outside-click handler for both dropdowns
+    useEffect(() => {
+      const h = (e) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(e.target))
+          setDropdownOpen(false);
+        if (notifRef.current && !notifRef.current.contains(e.target))
+          setNotifOpen(false);
+      };
+      document.addEventListener("mousedown", h);
+      return () => document.removeEventListener("mousedown", h);
+    }, []);
+
+
+    useEffect(() => {
+    const handleChatOpened = (e) => {
+      const chatId = e.detail.chatRoomId;
+
+      setNotifications((prev) =>
+        prev.filter((n) => n.id !== chatId)
+      );
+
+      setNotifications((prev) =>
+        prev.filter((n) => n.id !== chatId)
+      );
     };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
 
+    window.addEventListener("chat_opened", handleChatOpened);
 
-  useEffect(() => {
-  const handleChatOpened = (e) => {
-    const chatId = e.detail.chatRoomId;
-
-    setNotifications((prev) =>
-      prev.filter((n) => n.id !== chatId)
-    );
-
-    setUnreadCount((c) => Math.max(c - 1, 0));
-  };
-
-  window.addEventListener("chat_opened", handleChatOpened);
-
-  return () =>
-    window.removeEventListener("chat_opened", handleChatOpened);
-}, []);
+    return () =>
+      window.removeEventListener("chat_opened", handleChatOpened);
+    }, []);
  
+    const fetchUnreadSummary = useCallback(async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/chat/list`, {
+          headers: {
+            Authorization: `Bearer ${getToken()}`,
+          },
+        });
 
+        const data = await res.json();
+        const chats = data.data || [];
+
+        setNotifications((prev) => {
+          const next = chats
+            .filter((c) => c.unreadCount > 0)
+            .map((c) => ({
+              id: c.id,
+              unreadCount: c.unreadCount,
+              otherUser: c.otherUser,
+              lastMessage: c.messages?.[0]?.content || "",
+            }));
+
+          return next;
+        });
+      } catch (err) {
+        console.log(err);
+      }
+    }, []);
+
+    useEffect(() => {
+      fetchUnreadSummary();
+
+      const interval = setInterval(fetchUnreadSummary, 30000);
+
+      return () => clearInterval(interval);
+    }, [fetchUnreadSummary]);
  
+    const markOneAsRead = async (chatId) => {
+      try {
+        await fetch(`${API_URL}/api/chat/mark-seen`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify({
+            chatRoomId: chatId,
+          }),
+        });
+      } catch (err) {}
+
+      setNotifications((prev) =>
+        prev.filter((n) => n.id !== chatId)
+      );
+
+      window.dispatchEvent(
+        new CustomEvent("chat_opened", {
+          detail: { chatRoomId: chatId },
+        })
+      );
+    };
+
+    const markAllAsRead = async () => {
+      await Promise.all(
+        notifications.map((n) =>
+          fetch(`${API_URL}/api/chat/mark-seen`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${getToken()}`,
+            },
+            body: JSON.stringify({
+              chatRoomId: n.id,
+            }),
+          }).catch(() => {})
+        )
+      );
+
+      notifications.forEach((n) => {
+        window.dispatchEvent(
+          new CustomEvent("chat_opened", {
+            detail: { chatRoomId: n.id },
+          })
+        );
+      });
+
+      setNotifications([]);
+    };
 
   return (
     <>
@@ -267,33 +354,134 @@ export default function Navbar({ onMenuClick, user }) {
             </button>
 
             {/* 📩 Popup */}
-            {notifOpen && (
-              <div className="absolute right-0 mt-2 w-72 bg-white border rounded-xl shadow-lg z-50">
-                <div className="p-3 font-semibold border-b">Notifications</div>
+           {notifOpen && (
+            <div
+              className="absolute right-0 mt-2 bg-white border rounded-xl shadow-xl z-50 overflow-hidden"
+              style={{
+                width: 320,
+                border: "1.5px solid #BDDDFC",
+                fontFamily: "DM Sans, sans-serif",
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-blue-100">
+                <span className="font-semibold text-sm text-slate-700">
+                  Notifications
 
+                  {unreadCount > 0 && (
+                    <span className="ml-2 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">
+                      {unreadCount}
+                    </span>
+                  )}
+                </span>
+
+                {notifications.length > 0 && (
+                  <button
+                    onClick={markAllAsRead}
+                    className="text-xs text-blue-600 font-medium"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✓✓ Mark all read
+                  </button>
+                )}
+              </div>
+
+              {/* List */}
+              <div style={{ maxHeight: 340, overflowY: "auto" }}>
                 {notifications.length === 0 ? (
-                  <div className="p-3 text-sm text-gray-500">
-                    No new messages
+                  <div className="flex flex-col items-center justify-center py-10 gap-2">
+                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-xl">
+                      🔔
+                    </div>
+                    <p className="text-sm text-gray-400 font-medium">
+                      All caught up!
+                    </p>
                   </div>
                 ) : (
                   notifications.map((n) => (
                     <div
                       key={n.id}
-                      className="p-3 border-b hover:bg-gray-50 cursor-pointer"
-                      onClick={() => {
-                        setNotifOpen(false);
-                        window.location.href = "/superadmin/chat";
-                      }}
+                      className="flex items-start gap-3 px-4 py-3 border-b border-gray-50 hover:bg-blue-50 cursor-pointer transition-colors group"
+                      onClick={() => openChat(n)}
                     >
-                      <p className="text-sm font-medium">{n.otherUser.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {n.unreadCount} new message{n.unreadCount > 1 ? "s" : ""}
-                      </p>
+                      {/* Avatar */}
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                        style={{
+                          background:
+                            "linear-gradient(135deg,#88BDF2,#6A89A7)",
+                        }}
+                      >
+                        {initials(n.otherUser?.name || "U")}
+                      </div>
+
+                      {/* Text */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-sm font-semibold text-slate-700 truncate">
+                            {n.otherUser?.name}
+                          </span>
+
+                          <span className="min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                            {n.unreadCount}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-gray-500 truncate mt-0.5">
+                          {n.lastMessage || "New message"}
+                        </p>
+
+                        <p className="text-xs text-blue-500 mt-0.5">
+                          {n.unreadCount} unread message
+                          {n.unreadCount > 1 ? "s" : ""}
+                        </p>
+                      </div>
+
+                      {/* Read Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markOneAsRead(n.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-blue-600"
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✓
+                      </button>
                     </div>
                   ))
                 )}
               </div>
-            )}
+
+              {/* Footer */}
+              {notifications.length > 0 && (
+                <div className="px-4 py-2.5 border-t border-blue-100">
+                  <button
+                    onClick={() => {
+                      setNotifOpen(false);
+                      navigate("/superadmin/chat");
+                    }}
+                    className="w-full text-center text-xs text-blue-600 font-medium"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Open Messages →
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           </div>
 
           {/* Divider */}

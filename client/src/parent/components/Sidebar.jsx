@@ -13,7 +13,8 @@ import {
   X,
   CreditCard,
   Library,
-  MessageCircle
+  MessageCircle,
+  BookOpen 
 } from "lucide-react";
 import { getAuth } from "../../auth/storage";
 
@@ -36,6 +37,7 @@ function Sidebar({ isOpen, onClose }) {
     { icon: ClipboardCheck, label: "Attendance", href: `${base}/attendance` },
     { icon: BarChart2, label: "Results", href: `${base}/marks` },
     { icon: Calendar, label: "Time Table", href: `${base}/timetable` },
+    { icon: BookOpen, label: "Tutorial Help", href: `${base}/tutorial-recommendations` },
     { icon: Award, label: "Certificates", href: `${base}/certificates` },
     { icon: Library, label: "curriculums", href: `${base}/syllabus-progress` },
     { icon: CreditCard, label: "Fees & Payments", href: `${base}/fees-payments` },

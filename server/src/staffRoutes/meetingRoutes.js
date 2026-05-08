@@ -14,6 +14,7 @@ import {
   markStudentAttendance,
   updateMeetingNotes,
   getTeachersByClassSection,
+  getMeetingStaff,
 } from "../staffControlls/meetingController.js";
 
 const router = express.Router();
@@ -32,6 +33,7 @@ router.get(
   authMiddleware,
   getTeachersByClassSection,
 );
+router.get("/staff", authMiddleware, getMeetingStaff);
 
 // List meetings (with filters + pagination)
 router.get("/", authMiddleware, getMeetings);

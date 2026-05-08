@@ -10,14 +10,6 @@ const authHeaders = (isJson = false) => {
   return headers;
 };
 
-const toQuery = (params = {}) => {
-  const s = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== "" && v != null) s.set(k, v);
-  });
-  return s.toString();
-};
-
 const handle = async (r) => {
   const j = await r.json();
   if (!r.ok) throw new Error(j.message || j.error || `HTTP ${r.status}`);
@@ -89,16 +81,32 @@ export const lockGroup = (id) =>
   }).then(handle);
 
 // ── SCHEDULES ──────────────────────────────────────────────────────────────
+
+/**
+ * ✅ ADMIN route — fetches ALL schedules for a group without section filtering.
+ * Use this in admin ViewExams / EditExams modals.
+ * GET /api/exams/schedules/admin/:groupId
+ */
+export const fetchSchedulesAdmin = (groupId) =>
+  fetch(`${BASE}/schedules/admin/${groupId}`, {
+    headers: authHeaders(),
+  }).then(handle);
+
+/**
+ * Student route — filtered by classSectionId from JWT token.
+ * Use this in student-facing exam timetable views.
+ * GET /api/exams/schedules/:groupId
+ */
+export const fetchSchedules = (groupId) =>
+  fetch(`${BASE}/schedules/${groupId}`, {
+    headers: authHeaders(),
+  }).then(handle);
+
 export const createSchedule = (data) =>
   fetch(`${BASE}/schedules`, {
     method: "POST",
     headers: authHeaders(true),
     body: JSON.stringify(data),
-  }).then(handle);
-
-export const fetchSchedules = (groupId) =>
-  fetch(`${BASE}/schedules/${groupId}`, {
-    headers: authHeaders(),
   }).then(handle);
 
 export const deleteSchedule = (id) =>
@@ -108,10 +116,6 @@ export const deleteSchedule = (id) =>
   }).then(handle);
 
 // ── MARKS ──────────────────────────────────────────────────────────────────
-/**
- * POST /api/exams/marks/bulk
- * body: { scheduleId, marks: [{ studentId, marksObtained, isAbsent }] }
- */
 export const bulkMarksEntry = (data) =>
   fetch(`${BASE}/marks/bulk`, {
     method: "POST",
@@ -125,27 +129,18 @@ export const fetchMarksBySchedule = (scheduleId) =>
   }).then(handle);
 
 // ── RESULTS ────────────────────────────────────────────────────────────────
-/**
- * POST /api/exams/results/calculate/:groupId
- * Triggers server-side result calculation for the group
- */
 export const calculateResults = (groupId) =>
   fetch(`${BASE}/results/calculate/${groupId}`, {
     method: "POST",
     headers: authHeaders(),
   }).then(handle);
 
-/**
- * GET /api/exams/results/student/:studentId/:academicYearId
- * Returns all result summaries for a student in a given academic year
- */
 export const fetchStudentResult = (studentId, academicYearId) =>
   fetch(`${BASE}/results/student/${studentId}/${academicYearId}`, {
     headers: authHeaders(),
   }).then(handle);
 
-
-  // ── CLASS SECTIONS ─────────────────────────────────────────────────────────
+// ── CLASS SECTIONS ─────────────────────────────────────────────────────────
 export const fetchClassSections = () =>
   fetch(`${API_URL}/api/class-sections`, {
     headers: authHeaders(),

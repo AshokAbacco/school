@@ -323,7 +323,7 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
   const [file, setFile] = useState(null);
   const [rows, setRows] = useState([]);        // parsed + validated rows
   const [importing, setImporting] = useState(false);
-  const [results, setResults] = useState([]);        // per-row import results
+  // const [results, setResults] = useState([]);        // per-row import results
   const [done, setDone] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [expandedRow, setExpandedRow] = useState(null);
@@ -406,6 +406,12 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
       const data = await response.json();
       console.log("BULK IMPORT RESPONSE:", data);
 
+      if (!Array.isArray(data.results)) {
+        throw new Error(
+          data.message || "Invalid server response"
+        );
+      }
+
       // Map server results back to rows
       const updatedRows = [...rows];
 
@@ -420,7 +426,14 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
           updatedRows[idx] = {
             ...updatedRows[idx],
             status: result.success ? "success" : "error",
-            serverError: result.error || null,
+            serverError: result.success
+              ? null
+              : (
+                  result.error ||
+                  result.detail ||
+                  result.message ||
+                  "Unknown error"
+                ),
           };
         });
       } else {
@@ -431,8 +444,19 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
           if (idx !== -1)
             updatedRows[idx] = { ...updatedRows[idx], status: "error", serverError: errorMsg };
         });
+          }
+    updatedRows.forEach((row, index) => {
+      if (
+        row.status === "pending" &&
+        row.errors.length === 0
+      ) {
+        updatedRows[index] = {
+          ...row,
+          status: "error",
+          serverError: "No response received from server",
+        };
       }
-
+});
       setRows(updatedRows);
     } catch (err) {
       // Network error — mark all valid rows as error
@@ -446,7 +470,14 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
 
     setImporting(false);
     setStep("done");
-    onSuccess?.();
+
+    const hasSuccess = rows.some(
+      (r) => r.status === "success"
+    );
+
+    if (hasSuccess) {
+      onSuccess?.();
+}
   };
 
   const validCount = rows.filter((r) => r.errors.length === 0).length;

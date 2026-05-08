@@ -15,21 +15,22 @@ import {
   X,
   Video,
   BookOpen,
-  CalendarDays
+  CalendarDays,
+  ClipboardList,   // ← NEW: for Exam Timetable
 } from "lucide-react";
 
 const NAV = [
-  { icon: Home, label: "Dashboard", to: "/student/dashboard" },
-  { icon: User, label: "Profile", to: "/student/profile" },
-  { icon: CalendarCheck, label: "Attendance", to: "/student/attendance" },
-  { icon: CalendarDays, label: "Holidays", to: "/student/holidays" },
-  { icon: BarChart3, label: "Marks & Results", to: "/student/marks" },
-  { icon: Clock, label: "Time Table", to: "/student/time-table" },
-  { icon: BookOpen, label: "Homework", to: "/student/homework" },
-  { icon: Activity, label: "Activities", to: "/student/activites" },
-  // { icon: Award,         label: "Certificates",    to: "/student/certicates" },
-  { icon: Award, label: "Certificates", to: "/student/my-certificates" },
-  { icon: Video, label: "Online Classes", to: "/student/online-classes" },
+  { icon: Home,          label: "Dashboard",      to: "/student/dashboard" },
+  { icon: User,          label: "Profile",         to: "/student/profile" },
+  { icon: CalendarCheck, label: "Attendance",      to: "/student/attendance" },
+  { icon: CalendarDays,  label: "Holidays",        to: "/student/holidays" },
+  { icon: BarChart3,     label: "Marks & Results", to: "/student/marks" },
+  { icon: ClipboardList, label: "Exam Timetable",  to: "/student/exam-timetable" }, // ← NEW
+  { icon: Clock,         label: "Time Table",      to: "/student/time-table" },
+  { icon: BookOpen,      label: "Homework",        to: "/student/homework" },
+  { icon: Activity,      label: "Activities",      to: "/student/activites" },
+  { icon: Award,         label: "Certificates",    to: "/student/my-certificates" },
+  { icon: Video,         label: "Online Classes",  to: "/student/online-classes" },
 ];
 
 const initials = (name = "AU") =>
@@ -82,7 +83,6 @@ export default function Sidebar({ isOpen, onClose, user }) {
             paddingRight: "12px",
           }}
         >
-          {/* Logo circle */}
           <div
             className="flex items-center justify-center overflow-hidden flex-shrink-0"
             style={{
@@ -106,7 +106,6 @@ export default function Sidebar({ isOpen, onClose, user }) {
             )}
           </div>
 
-          {/* Text */}
           <div
             className="leading-tight min-w-0 ml-2"
             style={{
@@ -128,11 +127,7 @@ export default function Sidebar({ isOpen, onClose, user }) {
             </p>
           </div>
 
-          {/* Mobile close */}
-          <button
-            onClick={onClose}
-            className="md:hidden ml-auto"
-          >
+          <button onClick={onClose} className="md:hidden ml-auto">
             <X size={18} />
           </button>
         </div>

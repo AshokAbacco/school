@@ -505,60 +505,7 @@ export default function GroupBSalary() {
                 </div>
             </div>
 
-            {/* ── HISTORY TABLE ── */}
-            <div className="bg-white/85 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden border border-white/60">
-                <div className="bg-gradient-to-r from-[#27435B] to-[#1C3044] px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                        <ClipboardList size={15} color="#fff" />
-                        <span className="text-white font-bold text-[14px]">Salary History — All Months</span>
-                        <span className="ml-2 text-[10px] text-white/50">(Paid &amp; Hold)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="flex rounded-xl overflow-hidden border border-white/20">
-                            {["ALL", "PAID", "HOLD"].map(opt => (
-                                <button key={opt} onClick={() => setHistoryStatusFilter(opt)}
-                                    className={`px-3 py-1.5 text-[11.5px] font-bold transition-all ${historyStatusFilter === opt ? "bg-white/25 text-white" : "text-white/55 hover:text-white hover:bg-white/10"}`}>{opt}</button>
-                            ))}
-                        </div>
-                        <div className="relative">
-                            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4A6B80]" />
-                            <input className="pl-8 pr-3 py-2 rounded-xl border border-[#C8DCEC] bg-white/95 text-[12.5px] w-52 outline-none"
-                                placeholder="Search name or email..." value={historySearch} onChange={e => setHistorySearch(e.target.value)} />
-                        </div>
-                    </div>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-[12px] sm:text-[13px] min-w-[700px]">
-                        <thead>
-                            <tr className="bg-[#EAF1F6] border-b border-[#C8DCEC]">
-                                {["Name", "Role", "Month / Year", "Basic Salary", "Bonus", "Leave Days", "Deductions", "Net Salary", "Status", "Payment Date"].map(h => (
-                                    <th key={h} className="px-3 sm:px-4 py-2.5 sm:py-3 text-left text-[10px] sm:text-[11px] font-bold text-[#27435B] uppercase tracking-wide whitespace-nowrap">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredHistory.length === 0 ? (
-                                <tr><td colSpan={10} className="text-center py-10 text-[#4A6B80]">
-                                    <div className="flex flex-col items-center gap-2"><ClipboardList size={22} color="#8AAFC4" /><p className="text-[13px] font-semibold">No history records</p></div>
-                                </td></tr>
-                            ) : filteredHistory.map((r, idx) => (
-                                <tr key={r.id || idx} className="border-b border-[#EAF1F6] hover:bg-[#F5FAFE] transition-colors">
-                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 font-semibold text-[#1A2E3D]">{rowName(r)}</td>
-                                    <td className="px-4 py-3 text-[#4A6B80] text-[12px]">{rowRole(r)}</td>
-                                    <td className="px-4 py-3 text-[#4A6B80] font-medium">{monthName(r.month)} {r.year}</td>
-                                    <td className="px-4 py-3 font-semibold text-[#27435B]">₹{Number(r.basicSalary || 0).toLocaleString("en-IN")}</td>
-                                    <td className="px-4 py-3 text-[#1E7E4E] font-semibold">₹{Number(r.bonus || 0).toLocaleString("en-IN")}</td>
-                                    <td className="px-4 py-3 text-[#4A6B80]">{r.leaveDays ?? 0} days</td>
-                                    <td className="px-4 py-3 text-[#B83232] font-semibold">₹{Number(r.deductions || 0).toLocaleString("en-IN")}</td>
-                                    <td className="px-4 py-3 font-bold text-[#1A2E3D]">₹{Number(r.netSalary || 0).toLocaleString("en-IN")}</td>
-                                    <td className="px-4 py-3"><span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${statusStyle(r.status)}`}>{r.status === "PAID" ? "✓ Paid" : r.status === "HOLD" ? "⏸ Hold" : r.status}</span></td>
-                                    <td className="px-4 py-3 text-[#4A6B80] text-[12px]">{r.paymentDate ? new Date(r.paymentDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            
 
             {/* ── PAY CONFIRM MODAL ── */}
             {payConfirmModal && (

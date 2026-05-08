@@ -379,7 +379,7 @@ export default function SubjectsPage() {
                 <Plus size={14} /> Add Subject
               </button>
               <button
-                onClick={() => navigate("/classes/timetable")}
+                onClick={() => navigate("/admin/classes/timetable")}
                 className="flex items-center gap-2 rounded-xl text-sm font-semibold"
                 style={{
                   padding: "9px 14px",

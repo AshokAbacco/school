@@ -493,7 +493,7 @@ export default function StudentFeesPage() {
                                         const status = student.paymentStatus || (remaining === 0 && totalFee > 0 ? "PAID" : "UNPAID");
                                         const isPaid = status === "PAID";
                                         const isPartial = status === "PARTIAL";
-
+ 
                                         return (
                                             <tr key={student.id}>
                                                 <td style={{ color: "#8fa3b1", fontSize: 12 }}>{idx + 1}</td>
@@ -510,14 +510,19 @@ export default function StudentFeesPage() {
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    {isPaid && <span className="sf2-badge sf2-badge-green"><CheckCircle size={11} /> Paid</span>}
-                                                    {isPartial && <span className="sf2-badge sf2-badge-orange"><Clock size={11} /> Partial</span>}
-                                                    {!isPaid && !isPartial && (
-                                                        <button className="sf2-pay-btn" onClick={() => setPayStudent(student)}>
-                                                            Pay
+                                                    {Number(student.paidAmount || 0) >= Number(student.fees || 0) ? (
+                                                        <span className="sf2-badge sf2-badge-green">
+                                                        <CheckCircle size={12} /> Paid
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                        className="sf2-pay-btn"
+                                                        onClick={() => setPayStudent(student)}
+                                                        >
+                                                        Pay
                                                         </button>
                                                     )}
-                                                </td>
+                                                    </td>
                                                 <td>
                                                     <div style={{ display: "flex", gap: 6 }}>
                                                         <button className="sf2-act sf2-act-edit" title="Edit" onClick={() => handleEdit(student)}><Pencil size={13} /></button>

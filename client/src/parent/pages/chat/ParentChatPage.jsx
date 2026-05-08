@@ -3,12 +3,13 @@ import React, { useState, useEffect } from "react";
 import ParentChatList from "./Components/ParentChatList";
 import ParentMessageView from "./Components/ParentMessageView";
 import { getToken } from "../../../auth/storage";
+import { useLocation } from "react-router-dom";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const ParentChatPage = () => {
   const [selectedChat, setSelectedChat] = useState(null);
-
+  const location = useLocation();
   // NEW STATES
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -42,6 +43,47 @@ const ParentChatPage = () => {
       console.error(err);
     }
   };
+
+  useEffect(() => {
+  const chatRoomId = location.state?.chatRoomId;
+  if (!chatRoomId) return;
+
+  fetch(`${API_URL}/api/chat/list`, {
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+    },
+  })
+    .then((r) => r.json())
+    .then((data) => {
+      const match = (data.data || []).find(
+        (c) => c.id === chatRoomId
+      );
+
+      if (match) setSelectedChat(match);
+    });
+}, [location.state]);
+useEffect(() => {
+  if (!selectedChat?.id) return;
+
+  fetch(`${API_URL}/api/chat/mark-seen`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`,
+    },
+    body: JSON.stringify({
+      chatRoomId: selectedChat.id,
+    }),
+  });
+
+  window.dispatchEvent(
+    new CustomEvent("chat_opened", {
+      detail: {
+        chatRoomId: selectedChat.id,
+      },
+    })
+  );
+}, [selectedChat]);
 
   useEffect(() => {
     fetchStudents();

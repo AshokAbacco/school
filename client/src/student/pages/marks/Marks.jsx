@@ -12,7 +12,6 @@ import { C, FONT, GLOBAL_CSS } from "./tokens.js";
 import SummaryCards from "./components/SummaryCards.jsx";
 import SubjectTable from "./components/SubjectTable.jsx";
 import PerformanceInsights from "./components/PerformanceInsights.jsx";
-import ExamTabs from "./components/ExamTabs.jsx";
 import { downloadReportPDF } from "./utils/downloadPDF.js";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
@@ -166,10 +165,22 @@ export default function Marks() {
       setLoadingGroups(true); setErrorGroups(null);
       try {
         const data = await apiFetch("/marks/exam-groups");
-        setExamGroups(data.examGroups ?? []);
+        const groups = data.examGroups ?? [];
+        setExamGroups(groups);
         setEnrollment(data.enrollment ?? null);
-        if (data.examGroups?.length > 0)
-          setSelectedId(data.examGroups[data.examGroups.length - 1].id);
+
+        if (groups.length > 0) {
+          // ✅ FIX: Default to the last PUBLISHED exam group so students
+          // don't immediately land on "Results Not Published Yet" when
+          // published exams exist alongside unpublished ones.
+          // Falls back to the last group overall if nothing is published yet.
+          const publishedGroups = groups.filter((g) => g.isPublished);
+          const defaultGroup =
+            publishedGroups.length > 0
+              ? publishedGroups[publishedGroups.length - 1]
+              : groups[groups.length - 1];
+          setSelectedId(defaultGroup.id);
+        }
       } catch (e) { setErrorGroups(e.message); }
       finally { setLoadingGroups(false); }
     })();
@@ -205,6 +216,10 @@ export default function Marks() {
     finally { setTimeout(() => setPdfLoading(false), 600); }
   }, [reportData, enrollment]);
 
+  // ✅ FIX: Split groups so the dropdown is grouped and clearly labelled
+  const publishedGroups   = examGroups.filter((g) => g.isPublished);
+  const unpublishedGroups = examGroups.filter((g) => !g.isPublished);
+
   return (
     <>
       <style>{GLOBAL_CSS}</style>
@@ -228,17 +243,33 @@ export default function Marks() {
           }}>
             {!loadingGroups && examGroups.length > 0 && (
               <div style={{ position: "relative", flex: isMobile ? "1" : "unset" }}>
+                {/* ✅ FIX: Use <optgroup> to separate published from pending exams.
+                    Students can instantly see which exams have results ready. */}
                 <select
                   className="mrk-select"
                   value={selectedId ?? ""}
                   onChange={(e) => setSelectedId(e.target.value)}
                   style={{ width: isMobile ? "100%" : "auto" }}
                 >
-                  {examGroups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.term ? `${g.term.name}: ` : ""}{g.name}
-                    </option>
-                  ))}
+                  {publishedGroups.length > 0 && (
+                    <optgroup label="Results Available">
+                      {publishedGroups.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.term ? `${g.term.name}: ` : ""}{g.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+
+                  {unpublishedGroups.length > 0 && (
+                    <optgroup label="Not Yet Published">
+                      {unpublishedGroups.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.term ? `${g.term.name}: ` : ""}{g.name} (Pending)
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 <ChevronDown size={13} color={C.textLight} style={{
                   position: "absolute", right: 11, top: "50%",
@@ -262,18 +293,6 @@ export default function Marks() {
             )}
           </div>
         </div>
-
-        {/* ─── EXAM TABS ─── */}
-        {!loadingGroups && examGroups.length > 0 && (
-          <div className="anim-1" style={{ marginBottom: isMobile ? 14 : 20 }}>
-            <ExamTabs
-              examGroups={examGroups}
-              selectedGroupId={selectedId}
-              onChange={setSelectedId}
-              isMobile={isMobile}
-            />
-          </div>
-        )}
 
         {/* ─── ERRORS ─── */}
         <ErrorBanner message={errorGroups} />

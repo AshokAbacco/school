@@ -1,9 +1,9 @@
 // client/src/admin/pages/meeting/MeetingsList.jsx
 import React, { useState, useEffect, useCallback } from "react";
-import { Plus, Search, RefreshCw, CalendarDays, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, RefreshCw, CalendarDays, Loader2, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
 import MeetingStatsCards from "../../../admin/pages/meeting/components/MeetingStatsCards";
 import MeetingTableRow from "../../../admin/pages/meeting/components/MeetingTableRow";
-import MeetingFormModal from "../../../admin/pages/meeting/components/MeetingFormModal"; // ✅ FIX 4: uncommented import
+import MeetingFormModal from "../../../admin/pages/meeting/components/MeetingFormModal";
 import MeetingViewModal from "../../../admin/pages/meeting/components/MeetingViewModal";
 import { fetchMeetings, fetchMeetingStats, fetchAcademicYears, deleteMeeting } from "../../../admin/pages/meeting/api/meetingsApi";
 
@@ -17,9 +17,13 @@ const MEETING_TYPES    = ["STAFF", "PARENT", "STUDENT", "GENERAL", "BOARD", "CUS
 const MEETING_STATUSES = ["SCHEDULED", "COMPLETED", "CANCELLED", "POSTPONED"];
 const PAGE_SIZE        = 15;
 
-const safeArray = (r, ...keys) => {
+// ── FIX: prioritise "meetings" key before generic "data" key ──────────────
+const safeArray = (r, preferKey) => {
   if (Array.isArray(r)) return r;
-  for (const k of ["data", "meetings", "academicYears", ...keys])
+  // Check the preferred key first (e.g. "meetings", "academicYears")
+  if (preferKey && Array.isArray(r?.[preferKey])) return r[preferKey];
+  // Then fall through common wrapper keys
+  for (const k of ["meetings", "data", "academicYears", "results", "items"])
     if (Array.isArray(r?.[k])) return r[k];
   return [];
 };
@@ -72,6 +76,24 @@ function EmptyState({ onSchedule }) {
   );
 }
 
+/* ── Error State ─────────────────────────────────────────────── */
+function ErrorState({ message, onRetry }) {
+  return (
+    <tr><td colSpan={8}>
+      <div style={{ padding: "50px 20px", textAlign: "center", fontFamily: "'Inter', sans-serif" }}>
+        <div style={{ width: 52, height: 52, borderRadius: 16, background: "#FFF1F2", border: "1px solid #FFD1D7", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+          <AlertCircle size={22} color="#F43F5E" strokeWidth={1.8} />
+        </div>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.text }}>Failed to load meetings</p>
+        <p style={{ margin: "5px 0 16px", fontSize: 12, color: "#F43F5E" }}>{message}</p>
+        <button onClick={onRetry} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 18px", borderRadius: 10, border: `1.5px solid ${C.borderLight}`, background: C.bg, color: C.textLight, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+          <RefreshCw size={13} /> Retry
+        </button>
+      </div>
+    </td></tr>
+  );
+}
+
 /* ════════════════════════════════════════
    MAIN PAGE
 ════════════════════════════════════════ */
@@ -82,6 +104,7 @@ export default function MeetingsList() {
   const [total,         setTotal]         = useState(0);
   const [loading,       setLoading]       = useState(true);
   const [statsLoading,  setStatsLoading]  = useState(true);
+  const [fetchError,    setFetchError]    = useState(null);   // ← NEW
   const [page,          setPage]          = useState(1);
   const [search,        setSearch]        = useState("");
   const [filterType,    setFilterType]    = useState("");
@@ -92,12 +115,11 @@ export default function MeetingsList() {
   const [viewMeeting,   setViewMeeting]   = useState(null);
   const [deleteTarget,  setDeleteTarget]  = useState(null);
   const [deleting,      setDeleting]      = useState(false);
-  // ✅ FIX 3: track when academic years have loaded before firing first fetch
   const [yearsReady,    setYearsReady]    = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // ✅ FIX 3: set yearsReady=true in finally so loadMeetings only runs after active year is known
+  // ── Load academic years, then mark ready ────────────────────
   useEffect(() => {
     fetchAcademicYears()
       .then((res) => {
@@ -106,12 +128,17 @@ export default function MeetingsList() {
         const active = years.find((y) => y.isActive);
         if (active) setFilterYear(active.id);
       })
-      .catch(() => {})
+      .catch((err) => {
+        // Years failed — still mark ready so meetings load without year filter
+        console.warn("[MeetingsList] fetchAcademicYears failed:", err.message);
+      })
       .finally(() => setYearsReady(true));
   }, []);
 
+  // ── FIX: loadMeetings with visible error state ───────────────
   const loadMeetings = useCallback(async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const res = await fetchMeetings({
         ...(search       ? { search }                     : {}),
@@ -120,32 +147,62 @@ export default function MeetingsList() {
         ...(filterYear   ? { academicYearId: filterYear } : {}),
         page, limit: PAGE_SIZE,
       });
-      setMeetings(safeArray(res, "meetings"));
+
+      // Log raw response in dev so you can see the exact shape
+      console.log("[MeetingsList] fetchMeetings →", res);
+
+      // Prefer res.meetings directly, then fall back via safeArray
+      const list = Array.isArray(res?.meetings)
+        ? res.meetings
+        : safeArray(res, "meetings");
+
+      setMeetings(list);
       setTotal(res?.total ?? res?.count ?? 0);
-    } catch { setMeetings([]); }
-    finally  { setLoading(false); }
+    } catch (err) {
+      // ── FIX: surface the error instead of silently eating it ──
+      console.error("[MeetingsList] fetchMeetings failed:", err.message);
+      setFetchError(err.message || "Something went wrong. Please try again.");
+      setMeetings([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
   }, [search, filterType, filterStatus, filterYear, page]);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const res = await fetchMeetingStats({ ...(filterYear ? { academicYearId: filterYear } : {}) });
-      // ✅ FIX 2: backend returns { data: { total, scheduled, ... } } — read res.data not res.stats
+      const res = await fetchMeetingStats({
+        ...(filterYear ? { academicYearId: filterYear } : {}),
+      });
+      console.log("[MeetingsList] fetchMeetingStats →", res);
+      // Backend returns { data: { total, scheduled, ... } }
       setStats(res?.data ?? res?.stats ?? {});
-    } catch {}
-    finally { setStatsLoading(false); }
+    } catch (err) {
+      console.warn("[MeetingsList] fetchMeetingStats failed:", err.message);
+    } finally {
+      setStatsLoading(false);
+    }
   }, [filterYear]);
 
-  // ✅ FIX 3: guard both effects — don't fetch until academic years request has resolved
+  // Only fire once academic years have resolved
   useEffect(() => { if (yearsReady) loadMeetings(); }, [loadMeetings, yearsReady]);
-  useEffect(() => { if (yearsReady) loadStats();    }, [loadStats, yearsReady]);
+  useEffect(() => { if (yearsReady) loadStats();    }, [loadStats,    yearsReady]);
 
   const openEdit    = (m) => { setEditMeeting(m); setShowForm(true); };
   const handleSaved = () => { setShowForm(false); setEditMeeting(null); loadMeetings(); loadStats(); };
   const handleDelete = async () => {
     setDeleting(true);
-    try { await deleteMeeting(deleteTarget.id); setDeleteTarget(null); loadMeetings(); loadStats(); }
-    catch {} finally { setDeleting(false); }
+    try {
+      await deleteMeeting(deleteTarget.id);
+      setDeleteTarget(null);
+      loadMeetings();
+      loadStats();
+    } catch (err) {
+      console.error("[MeetingsList] deleteMeeting failed:", err.message);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -171,6 +228,7 @@ export default function MeetingsList() {
               style={{ width: 38, height: 38, borderRadius: 11, border: `1.5px solid ${C.borderLight}`, background: C.white, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.textLight }}
               onMouseEnter={(e) => (e.currentTarget.style.background = `${C.mist}55`)}
               onMouseLeave={(e) => (e.currentTarget.style.background = C.white)}
+              title="Refresh"
             >
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             </button>
@@ -253,6 +311,9 @@ export default function MeetingsList() {
                       <span style={{ fontSize: 13 }}>Loading meetings…</span>
                     </div>
                   </td></tr>
+                ) : fetchError ? (
+                  // ── FIX: show real error instead of empty state ──
+                  <ErrorState message={fetchError} onRetry={loadMeetings} />
                 ) : meetings.length === 0 ? (
                   <EmptyState onSchedule={() => setShowForm(true)} />
                 ) : (
@@ -265,7 +326,7 @@ export default function MeetingsList() {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
+          {!fetchError && totalPages > 1 && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderTop: `1.5px solid ${C.borderLight}` }}>
               <span style={{ fontSize: 11, color: C.textLight }}>Page {page} of {totalPages}</span>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -289,7 +350,6 @@ export default function MeetingsList() {
         </div>
       </div>
 
-      {/* ✅ FIX 4: MeetingFormModal now imported — renders safely */}
       {showForm    && <MeetingFormModal meeting={editMeeting} onClose={() => { setShowForm(false); setEditMeeting(null); }} onSaved={handleSaved} />}
       {viewMeeting && <MeetingViewModal meeting={viewMeeting} onClose={() => setViewMeeting(null)} onStatusChange={() => { loadMeetings(); loadStats(); }} />}
       {deleteTarget && <DeleteConfirm meeting={deleteTarget} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} loading={deleting} />}

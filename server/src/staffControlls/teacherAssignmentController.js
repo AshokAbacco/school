@@ -233,6 +233,7 @@ export async function createAssignment(req, res) {
       subjectId,
       academicYearId,
       classSectionIds,
+      timeLimitMinutes,
     } = req.body;
 
     if (!title)          return err(res, "title is required");
@@ -259,13 +260,16 @@ export async function createAssignment(req, res) {
       attachmentTypes.push(file.mimetype);
     }
 
+    const parsedLimit = timeLimitMinutes ? parseInt(timeLimitMinutes, 10) : null;
+
     const assignment = await prisma.assignment.create({
       data: {
         title,
         description: description || null,
         type,
         status,
-        dueDate:        new Date(dueDate),
+        dueDate:          new Date(dueDate),
+        timeLimitMinutes: parsedLimit && !isNaN(parsedLimit) ? parsedLimit : null,
         attachmentKeys,
         attachmentNames,
         attachmentTypes,
@@ -315,6 +319,7 @@ export async function updateAssignment(req, res) {
       academicYearId,
       classSectionIds,
       keepKeys,
+      timeLimitMinutes,
     } = req.body;
 
     const sectionIds = classSectionIds
@@ -364,6 +369,11 @@ export async function updateAssignment(req, res) {
           ...(dueDate        !== undefined ? { dueDate: new Date(dueDate) } : {}),
           ...(subjectId      !== undefined ? { subjectId }      : {}),
           ...(academicYearId !== undefined ? { academicYearId } : {}),
+          ...(timeLimitMinutes !== undefined ? {
+            timeLimitMinutes: timeLimitMinutes === "" || timeLimitMinutes === null
+              ? null
+              : parseInt(timeLimitMinutes, 10) || null,
+          } : {}),
           attachmentKeys:  newKeys,
           attachmentNames: newNames,
           attachmentTypes: newTypes,

@@ -36,8 +36,11 @@ function computeTotals(marksRows) {
 // ═══════════════════════════════════════════════════════════════
 export const getExamGroups = async (req, res) => {
   try {
-    const studentId = (req.user ?? req.student)?.id;
-    const schoolId  = req.user?.schoolId;
+    // ✅ FIX: support both req.user (staff) and req.student (student token)
+    const actor     = req.user ?? req.student;
+    const studentId = actor?.id;
+    const schoolId  = actor?.schoolId;
+
     if (!studentId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const enrollment = await prisma.studentEnrollment.findFirst({
@@ -48,7 +51,7 @@ export const getExamGroups = async (req, res) => {
     if (!enrollment) return res.status(404).json({ success: false, message: "No active enrollment found" });
 
     const cacheKey = await cacheService.buildKey(
-      schoolId,
+      schoolId ?? enrollment.classSection.schoolId,
       `student:exam-groups:${studentId}:${enrollment.academicYearId}`
     );
     const cached = await cacheService.get(cacheKey);
@@ -95,18 +98,14 @@ export const getExamGroups = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 export const getReportCard = async (req, res) => {
   try {
-    const studentId = (req.user ?? req.student)?.id;
-    const schoolId  = req.user?.schoolId;
+    // ✅ FIX: support both req.user (staff) and req.student (student token)
+    const actor     = req.user ?? req.student;
+    const studentId = actor?.id;
+    const schoolId  = actor?.schoolId;
+
     if (!studentId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const { assessmentGroupId } = req.params;
-
-    const cacheKey = await cacheService.buildKey(
-      schoolId,
-      `student:report:${studentId}:${assessmentGroupId}`
-    );
-    const cached = await cacheService.get(cacheKey);
-    if (cached) return res.json({ success: true, data: JSON.parse(cached) });
 
     const [enrollment, assessmentGroup] = await Promise.all([
       prisma.studentEnrollment.findFirst({
@@ -125,7 +124,18 @@ export const getReportCard = async (req, res) => {
 
     if (!enrollment) return res.status(404).json({ success: false, message: "No active enrollment found" });
     if (!assessmentGroup) return res.status(404).json({ success: false, message: "Exam not found" });
-    if (!assessmentGroup.isPublished) return res.status(403).json({ success: false, message: "Results have not been published yet" });
+    if (!assessmentGroup.isPublished)
+      return res.status(403).json({ success: false, message: "Results have not been published yet" });
+
+    // Use schoolId from token if available, otherwise fall back to classSection
+    const resolvedSchoolId = schoolId ?? enrollment.classSection.schoolId;
+
+    const cacheKey = await cacheService.buildKey(
+      resolvedSchoolId,
+      `student:report:${studentId}:${assessmentGroupId}`
+    );
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return res.json({ success: true, data: JSON.parse(cached) });
 
     const [personalInfo, student, marks] = await Promise.all([
       prisma.studentPersonalInfo.findUnique({ where: { studentId } }),
@@ -144,7 +154,8 @@ export const getReportCard = async (req, res) => {
       }),
     ]);
 
-    if (marks.length === 0) return res.status(404).json({ success: false, message: "No marks found for this exam" });
+    if (marks.length === 0)
+      return res.status(404).json({ success: false, message: "No marks found for this exam" });
 
     const subjectResults = marks.map((m) => {
       const obtained = m.isAbsent ? null : (m.marksObtained ?? null);
@@ -264,8 +275,11 @@ export const getReportCard = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 export const getTermSummary = async (req, res) => {
   try {
-    const studentId = (req.user ?? req.student)?.id;
-    const schoolId  = req.user?.schoolId;
+    // ✅ FIX: support both req.user (staff) and req.student (student token)
+    const actor     = req.user ?? req.student;
+    const studentId = actor?.id;
+    const schoolId  = actor?.schoolId;
+
     if (!studentId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const { termId } = req.params;
@@ -277,8 +291,10 @@ export const getTermSummary = async (req, res) => {
     });
     if (!enrollment) return res.status(404).json({ success: false, message: "No active enrollment found" });
 
+    const resolvedSchoolId = schoolId ?? enrollment.classSection.schoolId;
+
     const cacheKey = await cacheService.buildKey(
-      schoolId,
+      resolvedSchoolId,
       `student:term-summary:${studentId}:${termId}`
     );
     const cached = await cacheService.get(cacheKey);

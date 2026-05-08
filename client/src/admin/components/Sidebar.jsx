@@ -20,6 +20,8 @@ import {
   Medal,
   Bus,
   MessageCircle,
+  MapPinned,
+  BookMarked
 } from "lucide-react";
 
 const NAV = [
@@ -27,6 +29,7 @@ const NAV = [
   { icon: BookOpen,         label: "Classes",     to: "/admin/classes" },
   { icon: Users,           label: "Students",    to: "/admin/students" },
   { icon: GraduationCap,   label: "Teachers",    to: "/admin/teachers" },
+  {icon: BookMarked,       label: "Tutorial Teachers",to: "/admin/tutorial-teachers"},
   { icon: Users,           label: "Staff",       to: "/admin/staff" },
   { icon: ClipboardCheck,  label: "Attendance",  to: "/admin/attendance" },
   { icon: FileText,        label: "Exams",       to: "/admin/exams" },
@@ -38,6 +41,7 @@ const NAV = [
   { icon: Images,          label: "Gallery",     to: "/admin/gallery" },
   { icon: Bus,             label: "Transport", to: "/admin/transport" },
   { icon: MessageCircle,        label: "Chat",    to: "/admin/chat" },
+  { icon: MapPinned, label: "Tracking", to: "/admin/tracking" },
 ];
 
 const initials = (name = "AU") =>

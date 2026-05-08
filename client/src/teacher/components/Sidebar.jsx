@@ -20,6 +20,7 @@ import {
 
 const NAV = [
   { icon: Home, label: "Dashboard", to: "/teacher/dashboard" },
+  { icon: User, label: "Profile", to: "/teacher/profile" },
   { icon: CalendarDays, label: "Time Table", to: "/teacher/timetable" },
   { icon: User, label: "Attendance", to: "/teacher/attendance" },
   { icon: CalendarDays, label: "Holidays", to: "/teacher/holidays" },

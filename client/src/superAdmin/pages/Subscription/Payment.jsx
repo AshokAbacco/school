@@ -1,3 +1,4 @@
+// src/superAdmin/pages/Subscription/Payment.jsx
 import { useState } from "react";
 import { X, Shield, Zap, Crown, Users, CheckCircle2, ChevronRight, Sparkles, ArrowLeft, Lock } from "lucide-react";
 import { useNavigate } from "react-router-dom";

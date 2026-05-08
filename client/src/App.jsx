@@ -15,7 +15,7 @@ import TeacherRoutes from "./teacher/Routes";
 import ParentRoutes from "./parent/Routes";
 import FinanceRoutes from "./finance/Routes";
 import LandingPage from "./pages/LandingPage";
-
+   
 
 import PublicLayout from "./LandingPages/components/PublicLayout";
 import Home from "./LandingPages/Home";
@@ -26,22 +26,23 @@ import ScrollToTop from "./components/ScrollToTop";
 import ForgotPassword from "./auth/ForgotPassword";
 import VerifyOtp from "./auth/VerifyOtp";
 import ResetPassword from "./auth/ResetPassword";
-
-
+import Terms from "./LandingPages/components/terms";
+import FAQ from "./LandingPages/components/FAQ";
+import PrivacyPolicy from "./LandingPages/components/PrivacyPolicy";
 function App() {
-  const [auth] = useState(getAuth());
+  const auth = getAuth();
 
-  useEffect(() => {
-    const userId = auth?.user?.id;
+useEffect(() => {
+  const userId = auth?.user?.id;
 
-    if (!userId) return;
+  if (!userId) return;
 
-    const socket = connectSocket(userId);
+  const socket = connectSocket(userId);
 
-    return () => {
-      socket?.disconnect();
-    };
-  }, []);
+  return () => {
+    socket?.disconnect();
+  };
+}, [auth?.user?.id]); // ✅ IMPORTANT CHANGE
   return (
     <>
       <Toaster position="top-right" reverseOrder={false} />
@@ -57,6 +58,10 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/verify-otp" element={<VerifyOtp />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+
         </Route>
         {/* PUBLIC */}
         {/* <Route path="/" element={<Navigate to="/login" />} />

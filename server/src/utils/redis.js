@@ -1,10 +1,10 @@
 // server/src/utils/redis.js
 import { createClient } from "redis";
-
+ 
 const redisUrl = process.env.REDIS_URL;
-
+ 
 let redisClient = null;
-
+ 
 if (redisUrl) {
   redisClient = createClient({
     url: redisUrl,
@@ -18,15 +18,15 @@ if (redisUrl) {
       },
     },
   });
-
+ 
   redisClient.on("error", (err) => {
     console.error("Redis Error:", err.message);
   });
-
+ 
   redisClient.on("connect", () => {
     console.log("Redis Connected ✅");
   });
-
+ 
   (async () => {
     try {
       await redisClient.connect();
@@ -37,5 +37,5 @@ if (redisUrl) {
 } else {
   console.warn("⚠️ REDIS_URL not set. Redis disabled.");
 }
-
+ 
 export default redisClient;

@@ -31,6 +31,8 @@ import ActivitiesList from "./pages/activities/ActivitiesList";
 import StaffList from "./pages/Staff/StaffList.jsx";
 import TransportPage from "./pages/transport/TransportPage";
 import ChatPage from "./pages/chat/ChatPage.jsx";
+import TrackingPage from "./pages/tracking/TrackingPage";
+import TutorialTeachersPage from "./pages/tutorials/TutorialTeachersPage";
 function AdminRoutes() {
   return (
     <PageLayout>
@@ -76,6 +78,8 @@ function AdminRoutes() {
         <Route path="awards"                element={<AdminAwardsPage />} />
         <Route path="transport"             element={<TransportPage />} />
         <Route path="chat"                  element={<ChatPage />} />
+        <Route path="tracking"              element={<TrackingPage />} />
+        <Route path="tutorial-teachers"   element={<TutorialTeachersPage />}/>
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="dashboard" replace />} />

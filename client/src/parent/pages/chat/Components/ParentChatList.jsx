@@ -101,17 +101,31 @@ const ParentChatList = ({ selectedChat, onSelectChat, onChatCreated, studentId }
   // Confirm delete modal
   const [confirmDelete, setConfirmDelete] = useState(null); // { ids: [], label: string }
 
-  const fetchChats = useCallback(async () => {
+  const fetchChats = async () => {
     try {
       const res = await fetch(`${API_URL}/api/chat/list`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
+
       const data = await res.json();
-      setChatList(data.data || []);
+
+      const sortedChats = (data.data || []).sort((a, b) => {
+        const aTime = a.messages?.[0]?.createdAt
+          ? new Date(a.messages[0].createdAt).getTime()
+          : 0;
+
+        const bTime = b.messages?.[0]?.createdAt
+          ? new Date(b.messages[0].createdAt).getTime()
+          : 0;
+
+        return bTime - aTime;
+      });
+
+      setChatList(sortedChats);
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  };
 
   const fetchUsersByRole = async (role) => {
     try {
@@ -172,7 +186,25 @@ const ParentChatList = ({ selectedChat, onSelectChat, onChatCreated, studentId }
     }
   };
 
-  useEffect(() => { fetchChats(); }, [fetchChats]);
+useEffect(() => {
+  fetchChats();
+
+  const interval = setInterval(fetchChats, 3000);
+
+  const refreshUnread = () => {
+    fetchChats();
+  };
+
+  window.addEventListener("chat_opened", refreshUnread);
+
+  return () => {
+    clearInterval(interval);
+    window.removeEventListener(
+      "chat_opened",
+      refreshUnread
+    );
+  };
+}, [fetchChats]);
 
   // Close context menu on scroll/click
   useEffect(() => {
@@ -412,6 +444,14 @@ const ParentChatList = ({ selectedChat, onSelectChat, onChatCreated, studentId }
                       toggleSelect(chat.id);
                     } else {
                       onSelectChat(chat);
+
+                      setChatList((prev) =>
+                        prev.map((c) =>
+                          c.id === chat.id
+                            ? { ...c, unreadCount: 0 }
+                            : c
+                        )
+                      );
                     }
                   }}
                   onContextMenu={(e) => !selectionMode && handleRightClick(e, chat.id)}
@@ -428,15 +468,27 @@ const ParentChatList = ({ selectedChat, onSelectChat, onChatCreated, studentId }
                   <Avatar name={chat.otherUser?.name || "?"} size={40} colorIndex={i % 5} />
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center gap-1">
+                    <div className="flex justify-between items-center gap-2">
                       <span className="text-sm font-semibold text-[#384959] truncate">
                         {chat.otherUser?.name || "Unknown"}
                       </span>
-                      <span className="text-xs text-[#6A89A7] whitespace-nowrap flex-shrink-0">
-                        {chat.messages?.[0]?.createdAt
-                          ? new Date(chat.messages[0].createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                          : ""}
-                      </span>
+
+                      <div className="flex items-center gap-2">
+                        {chat.unreadCount > 0 && (
+                          <span className="min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center">
+                            {chat.unreadCount}
+                          </span>
+                        )}
+
+                        <span className="text-xs text-[#6A89A7] whitespace-nowrap">
+                          {chat.messages?.[0]?.createdAt
+                            ? new Date(chat.messages[0].createdAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : ""}
+                        </span>
+                      </div>
                     </div>
                     <RoleBadge role={chat.otherUser?.role || ""} />
                     <div className="text-xs text-gray-400 truncate mt-0.5">

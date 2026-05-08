@@ -1,3 +1,4 @@
+// client/src/parent/pages/FeesAndPayments/FeesAndPayments.jsx
 import React, { useEffect, useState } from "react";
 import { IndianRupee, CreditCard, CheckCircle, AlertCircle, Clock, Loader2, BookOpen, TrendingUp } from "lucide-react";
 import { PayModal } from "../../../finance/pages/Studentfinance/PayModal";
@@ -157,6 +158,125 @@ function FeesAndPayments() {
           justify-content: space-between;
           box-shadow: 0 2px 10px rgba(56,73,89,0.05);
         }
+          /* ===== MODAL FULL STYLES ===== */
+
+.inv-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20,35,50,.6);
+  backdrop-filter: blur(6px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.inv-box {
+  background: #fff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 700px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgba(28,48,64,.32);
+  overflow: hidden;
+}
+
+/* HEADER */
+.inv-head {
+  background: linear-gradient(135deg,#1C3044,#27435B);
+  padding: 16px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.inv-head-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inv-head-ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inv-head-title {
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.inv-head-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,.6);
+}
+
+/* CLOSE BUTTON */
+.inv-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* BODY */
+.inv-body {
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* SECTION BOX */
+.inv-section {
+  background: #f0f7fc;
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid #d0e2ee;
+}
+
+/* ROW */
+.inv-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #e0eef6;
+}
+
+.inv-row:last-child {
+  border-bottom: none;
+}
+
+/* PROGRESS */
+.inv-progress-wrap {
+  height: 8px;
+  background: #d0e2ee;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.inv-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg,#3A5E78,#27435B);
+}
       `}</style>
 
       <div style={{

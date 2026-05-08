@@ -7,9 +7,9 @@ import {
   Settings, CheckCircle2,
 } from "lucide-react";
 import {
-  fetchSchedules, deleteSchedule,
+  fetchSchedulesAdmin, deleteSchedule,
   createGroup, updateGroup, createSchedule,
-  fetchClassSections, fetchClassSectionById,
+  fetchClassSections, fetchClassSectionById,fetchTerms,
 } from "./examsApi";
 
 /* ── Design tokens ── */
@@ -45,13 +45,6 @@ const emptyIndividual = () => ({
   startTime: "", endTime: "", slotKey: "",
   markPresetId: "",
   _saved: false, _savedId: null,
-});
-
-const emptyBulkRow = () => ({
-  _key: Date.now() + Math.random(),
-  examDate: "", startTime: "", endTime: "",
-  maxMarks: "", passingMarks: "",
-  subjectPerClass: {},
 });
 
 const fmtDate = (date) => {
@@ -157,13 +150,12 @@ function TopStepper({ currentStep, completedSteps }) {
       gap: 0, flexShrink: 0,
     }}>
       {STEPS.map((step, i) => {
-        const done = completedSteps.includes(step.id);
+        const done   = completedSteps.includes(step.id);
         const active = currentStep === step.id;
-        const Ic = step.icon;
+        const Ic     = step.icon;
         return (
           <React.Fragment key={step.id}>
             <div className="ae-step-item" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 120 }}>
-              {/* Circle */}
               <div style={{
                 width: 38, height: 38, borderRadius: "50%",
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -178,7 +170,6 @@ function TopStepper({ currentStep, completedSteps }) {
                   : <Ic size={16} color={active ? "#fff" : C.mid} />
                 }
               </div>
-              {/* Labels */}
               <div style={{ textAlign: "center" }}>
                 <div className="ae-step-label" style={{ ...F, fontSize: 12, fontWeight: 700, color: active ? C.dark : done ? C.green : C.mid, whiteSpace: "nowrap" }}>
                   {step.label}
@@ -186,7 +177,6 @@ function TopStepper({ currentStep, completedSteps }) {
                 <div className="ae-step-sub" style={{ ...F, fontSize: 10, color: C.light, marginTop: 1 }}>{step.sub}</div>
               </div>
             </div>
-            {/* Connector */}
             {i < STEPS.length - 1 && (
               <div className="ae-step-connector" style={{
                 flex: 1, height: 2, maxWidth: 60,
@@ -204,7 +194,14 @@ function TopStepper({ currentStep, completedSteps }) {
 /* ══════════════════════════════════════════════
    STEP 1 — Configure Timings
 ══════════════════════════════════════════════ */
-function StepConfigureTimings({ data, onChange, errors }) {
+  function StepConfigureTimings({
+    data,
+    onChange,
+    errors,
+    terms,
+    selectedTermId,
+    setSelectedTermId,
+  }){
   const [slots, setSlots] = useState(data.timeSlots || []);
 
   useEffect(() => {
@@ -212,7 +209,7 @@ function StepConfigureTimings({ data, onChange, errors }) {
   }, [data.timeSlots]);
 
   const addSlot = () => {
-    const newSlots = [...slots, { _key: Date.now(), name: "", startTime: "", endTime: "" }];
+    const newSlots = [...slots, { _key: Date.now() + Math.random(), name: "", startTime: "", endTime: "" }];
     setSlots(newSlots);
     onChange("timeSlots", newSlots);
   };
@@ -260,6 +257,26 @@ function StepConfigureTimings({ data, onChange, errors }) {
         </div>
       </div>
 
+      <div style={{ marginTop: 16 }}>
+  <FieldWrap>
+    <Label required>Term</Label>
+
+    <SelectBase
+      value={selectedTermId}
+      onChange={setSelectedTermId}
+      className="text-[#1a2533]"
+    >
+      <option value="" className="text-[#1a2533]">Select Term</option>
+
+      {terms.map((t) => (
+        <option key={t.id} value={t.id} className="text-[#1a2533]">
+          {t.name}
+        </option>
+      ))}
+    </SelectBase>
+  </FieldWrap>
+</div>
+
       {/* Date Range */}
       <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
         <div className="ae-card-header-inner" style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
@@ -295,9 +312,14 @@ function StepConfigureTimings({ data, onChange, errors }) {
           </div>
         </div>
         <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {slots.length === 0 && (
+            <div style={{ ...F, fontSize: 12, color: C.mid, padding: "8px 0", fontStyle: "italic" }}>
+              No time slots defined. Add a slot below or enter times manually per exam.
+            </div>
+          )}
           {slots.map((slot, i) => (
             <div key={slot._key} className="ae-slot-row" style={{ display: "grid", gap: 12, alignItems: "end", background: "#f8fafc", borderRadius: 12, padding: "12px 14px", border: `1px solid ${C.border}` }}>
-              <FInput label="Slot Name" value={slot.name} onChange={v => updateSlot(slot._key, "name", v)} placeholder="e.g. Morning" />
+              <FInput label="Slot Name" value={slot.name} onChange={v => updateSlot(slot._key, "name", v)} placeholder={`e.g. Morning, Session ${i + 1}`} />
               <FInput label="Start Time" type="time" value={slot.startTime} onChange={v => updateSlot(slot._key, "startTime", v)} />
               <FInput label="End Time" type="time" value={slot.endTime} onChange={v => updateSlot(slot._key, "endTime", v)} />
               <button onClick={() => removeSlot(slot._key)}
@@ -313,7 +335,7 @@ function StepConfigureTimings({ data, onChange, errors }) {
             style={{ border: `1.5px dashed ${C.border}`, background: "transparent", color: C.accent, cursor: "pointer", ...F, borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, width: "fit-content" }}
             onMouseEnter={e => { e.currentTarget.style.background = "#eff6ff"; e.currentTarget.style.borderColor = C.accent; }}
             onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.border; }}>
-            <Plus size={14} /> Add Custom Slot
+            <Plus size={14} /> Add Time Slot
           </button>
         </div>
       </div>
@@ -336,202 +358,140 @@ function StepSelectClasses({ classSections, classLoading, selectedSections, onTo
     return g;
   }, [classSections]);
 
-  const toggleGradeExpand = (grade) => {
-    setExpandedGrades(p => ({ ...p, [grade]: !p[grade] }));
-  };
+  const grades = Object.keys(gradeGroups).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
 
-  const selectedCount = selectedSections.length;
+  useEffect(() => {
+    const init = {};
+    grades.forEach(g => { init[g] = true; });
+    setExpandedGrades(init);
+  }, [classSections.length]);
+
+  if (classLoading) {
+    return (
+      <div className="ae-step-padding" style={{ padding: "28px 32px", display: "flex", flexDirection: "column", gap: 14 }}>
+        {[1, 2, 3].map(i => (
+          <div key={i} style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ height: 14, borderRadius: 6, background: `${C.light}55`, width: "40%" }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              {[1, 2, 3].map(j => <div key={j} style={{ height: 36, borderRadius: 10, background: `${C.light}44`, flex: 1 }} />)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
-    <div className="ae-flex-row ae-step-padding" style={{ display: "flex", gap: 24, padding: "28px 32px", alignItems: "flex-start" }}>
-      {/* Left panel */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <h2 style={{ ...F, fontSize: 22, fontWeight: 700, color: C.dark, margin: 0 }}>Select Classes & Sections</h2>
-        <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 20 }}>Choose grades and sections for this exam.</p>
-
-        <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
-          <div className="ae-card-header-inner" style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <GraduationCap size={16} color={C.green} />
-            </div>
-            <div>
-              <div style={{ ...F, fontSize: 14, fontWeight: 700, color: C.dark }}>Select Grade & Sections</div>
-              <div style={{ ...F, fontSize: 12, color: C.mid }}>Click grade to expand sections</div>
-            </div>
-          </div>
-
-          {classLoading ? (
-            <div style={{ padding: "40px 20px", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, color: C.mid, ...F, fontSize: 13 }}>
-              <Loader2 size={16} style={{ animation: "ae-spin .8s linear infinite" }} /> Loading classes…
-            </div>
-          ) : (
-            <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-              {Object.keys(gradeGroups).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0)).map(grade => {
-                const sections = gradeGroups[grade];
-                const selCount = sections.filter(cs => selectedSections.includes(cs.id)).length;
-                const allSel = selCount === sections.length;
-                const isExp = expandedGrades[grade];
-
-                return (
-                  <div key={grade} style={{ border: `1.5px solid ${selCount > 0 ? "#bbf7d0" : C.border}`, borderRadius: 12, overflow: "hidden" }}>
-                    {/* Grade row */}
-                    <div
-                      onClick={() => toggleGradeExpand(grade)}
-                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", cursor: "pointer", background: selCount > 0 ? "#f0fdf4" : "#fafafa" }}
-                      onMouseEnter={e => e.currentTarget.style.background = selCount > 0 ? "#dcfce7" : C.hover}
-                      onMouseLeave={e => e.currentTarget.style.background = selCount > 0 ? "#f0fdf4" : "#fafafa"}>
-                      {/* Checkbox */}
-                      <div
-                        onClick={e => { e.stopPropagation(); onToggleGrade(grade, sections, !allSel); }}
-                        style={{
-                          width: 20, height: 20, borderRadius: 6, border: `2px solid ${allSel ? C.accent : selCount > 0 ? C.accent : C.border}`,
-                          background: allSel ? C.accent : selCount > 0 ? "#eff6ff" : "#fff",
-                          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer",
-                        }}>
-                        {allSel && <Check size={11} color="#fff" strokeWidth={3} />}
-                        {!allSel && selCount > 0 && <div style={{ width: 8, height: 2, background: C.accent, borderRadius: 2 }} />}
-                      </div>
-                      <span style={{ ...F, fontSize: 14, fontWeight: 700, color: C.dark, flex: 1 }}>Grade {grade}</span>
-                      {selCount > 0 && <span style={{ ...F, fontSize: 11, fontWeight: 700, color: C.accent }}>{selCount} sel.</span>}
-                      <span className="ae-hide-mobile" style={{ ...F, fontSize: 11, color: C.light }}>{sections.length} sections</span>
-                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.light} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
-                        style={{ transform: isExp ? "rotate(180deg)" : "rotate(0deg)", transition: "transform .2s" }}>
-                        <path d="M6 9l6 6 6-6" />
-                      </svg>
-                    </div>
-
-                    {/* Sections */}
-                    {isExp && (
-                      <div style={{ padding: "8px 14px 12px", borderTop: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 6, background: "#fff" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                          <span style={{ ...F, fontSize: 11, color: C.light, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Sections</span>
-                          <button onClick={() => onToggleGrade(grade, sections, !allSel)}
-                            style={{ background: "none", border: "none", cursor: "pointer", ...F, fontSize: 11, fontWeight: 700, color: C.accent }}>
-                            {allSel ? "Deselect All" : "Select All"}
-                          </button>
-                        </div>
-                        {sections.map(cs => {
-                          const isSel = selectedSections.includes(cs.id);
-                          return (
-                            <div key={cs.id}
-                              onClick={() => onToggleSection(cs.id)}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10,
-                                border: `1.5px solid ${isSel ? C.accent : C.border}`,
-                                background: isSel ? "#eff6ff" : "#fff", cursor: "pointer",
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.background = isSel ? "#dbeafe" : "#f8fafc"}
-                              onMouseLeave={e => e.currentTarget.style.background = isSel ? "#eff6ff" : "#fff"}>
-                              <div style={{
-                                width: 18, height: 18, borderRadius: 5, border: `2px solid ${isSel ? C.accent : C.border}`,
-                                background: isSel ? C.accent : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                              }}>
-                                {isSel && <Check size={10} color="#fff" strokeWidth={3} />}
-                              </div>
-                              <span style={{ ...F, fontSize: 13, fontWeight: 600, color: C.dark }}>
-                                {cs.section ? `Section ${cs.section}` : "Main Section"}
-                              </span>
-                              <span style={{ ...F, fontSize: 11, color: C.light, marginLeft: "auto" }}>
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+    <div className="ae-step-padding" style={{ display: "flex", flexDirection: "column", gap: 16, padding: "28px 32px" }}>
+      <div>
+        <h2 className="ae-step-heading" style={{ ...F, fontSize: 22, fontWeight: 700, color: C.dark, margin: 0 }}>Select Classes</h2>
+        <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 0 }}>
+          Choose which grades and sections this exam applies to. ({selectedSections.length} selected)
+        </p>
       </div>
 
-      {/* Right panel */}
-      <div className="ae-side-panel" style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-        {/* Selected count */}
-        <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, padding: "16px 18px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 9, background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Users size={15} color={C.green} />
-            </div>
-            <div>
-              <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>Selected Sections</div>
-              <div style={{ ...F, fontSize: 11, color: C.mid }}>{selectedCount} section{selectedCount !== 1 ? "s" : ""} chosen</div>
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {selectedCount === 0 && (
-              <div style={{ ...F, fontSize: 12, color: C.light, textAlign: "center", padding: "10px 0", fontStyle: "italic" }}>No sections selected yet</div>
-            )}
-            {classSections.filter(cs => selectedSections.includes(cs.id)).map(cs => (
-              <div key={cs.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 9, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-                <span style={{ ...F, fontSize: 12, fontWeight: 600, color: "#065f46" }}>Grade {cs.grade}{cs.section ? ` — Section ${cs.section}` : ""}</span>
-                <button onClick={() => onToggleSection(cs.id)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#10b981", display: "flex", padding: 2 }}>
-                  <X size={12} />
+      {grades.map(grade => {
+        const sections = gradeGroups[grade];
+        const allSelected = sections.every(cs => selectedSections.includes(cs.id));
+        const someSelected = sections.some(cs => selectedSections.includes(cs.id));
+        const expanded = expandedGrades[grade] !== false;
+
+        return (
+          <div key={grade} style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${someSelected ? C.accent : C.border}`, overflow: "hidden", transition: "border-color .15s" }}>
+            <div className="ae-section-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", background: someSelected ? `${C.accent}08` : "#f8fafc", borderBottom: expanded ? `1px solid ${C.border}` : "none", cursor: "pointer" }}
+              onClick={() => setExpandedGrades(p => ({ ...p, [grade]: !expanded }))}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: someSelected ? C.accent : C.border, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <GraduationCap size={13} color={someSelected ? "#fff" : C.mid} />
+                </div>
+                <div style={{ ...F, fontSize: 14, fontWeight: 700, color: C.dark }}>Grade {grade}</div>
+                <span style={{ ...F, fontSize: 11, color: C.mid }}>({sections.length} section{sections.length !== 1 ? "s" : ""})</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button type="button"
+                  onClick={e => { e.stopPropagation(); onToggleGrade(grade, sections, !allSelected); }}
+                  style={{ ...F, fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 8, border: `1.5px solid ${allSelected ? C.accent : C.border}`, background: allSelected ? C.accent : "transparent", color: allSelected ? "#fff" : C.mid, cursor: "pointer" }}>
+                  {allSelected ? "Deselect All" : "Select All"}
                 </button>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* CTA */}
-        {selectedCount > 0 && (
-          <div style={{ background: `linear-gradient(135deg, ${C.navy}, ${C.dark})`, borderRadius: 16, padding: "18px 18px" }}>
-            <div style={{ ...F, fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>Ready to Build Schedule</div>
-            <div style={{ ...F, fontSize: 11, color: "rgba(255,255,255,0.75)", marginBottom: 14 }}>
-              {selectedCount} section{selectedCount !== 1 ? "s" : ""} · assign subjects & times
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, ...F, fontSize: 12, fontWeight: 600, color: "#fff" }}>
-              <Settings size={13} />
-              Build Exam Schedule →
-            </div>
+            {expanded && (
+              <div style={{ padding: "12px 20px", display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {sections.map(cs => {
+                  const sel = selectedSections.includes(cs.id);
+                  return (
+                    <button key={cs.id} type="button"
+                      onClick={() => onToggleSection(cs.id)}
+                      style={{
+                        ...F, fontSize: 13, fontWeight: 600, padding: "8px 16px", borderRadius: 10,
+                        border: `1.5px solid ${sel ? C.accent : C.border}`,
+                        background: sel ? C.accent : "#fff",
+                        color: sel ? "#fff" : C.mid, cursor: "pointer",
+                        display: "flex", alignItems: "center", gap: 6, transition: "all .15s",
+                      }}>
+                      {sel && <Check size={12} strokeWidth={3} />}
+                      {cs.section ? `Section ${cs.section}` : "Main"}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })}
+
+      {grades.length === 0 && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "60px 0", color: C.light, ...F }}>
+          <Users size={32} style={{ opacity: .3 }} />
+          <p style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>No classes found. Please add classes first.</p>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ══════════════════════════════════════════════
-   STEP 3 — Build Schedule (Individual)
+   MARKS PRESET MANAGER
 ══════════════════════════════════════════════ */
-
-/* ── Marks Preset Manager ── */
 function MarksPresetManager({ presets, onPresetsChange }) {
+  const [expanded, setExpanded] = useState(false);
+
   const addPreset = () => {
     onPresetsChange([...presets, { id: Date.now() + Math.random(), maxMarks: "", passingMarks: "" }]);
+    setExpanded(true);
   };
   const removePreset = (id) => onPresetsChange(presets.filter(p => p.id !== id));
   const updatePreset = (id, field, val) => onPresetsChange(presets.map(p => p.id === id ? { ...p, [field]: val } : p));
 
   return (
-    <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden", marginBottom: 4 }}>
-      <div className="ae-card-header-inner" style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: `1px solid ${C.border}`, background: "#fafafa", flexWrap: "wrap" }}>
-        <div style={{ width: 32, height: 32, borderRadius: 9, background: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Settings size={15} color="#f97316" />
+    <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
+      <div className="ae-preset-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", cursor: "pointer", background: expanded ? "#f8fafc" : "#fff" }}
+        onClick={() => setExpanded(p => !p)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 30, height: 30, borderRadius: 9, background: "#fdf4ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Settings size={14} color="#a855f7" />
+          </div>
+          <div>
+            <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>Marks Presets <span style={{ fontSize: 11, color: C.mid, fontWeight: 500 }}>({presets.length})</span></div>
+            <div style={{ ...F, fontSize: 11, color: C.mid }}>Reusable Max/Pass marks configurations</div>
+          </div>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>Marks Presets</div>
-          <div style={{ ...F, fontSize: 11, color: C.mid }}>Create mark templates — select one per exam to auto-fill marks</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button type="button" onClick={e => { e.stopPropagation(); addPreset(); }}
+            style={{ ...F, fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 8, border: `1.5px solid ${C.border}`, background: "#fff", color: C.accent, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+            <Plus size={12} /> Add Preset
+          </button>
         </div>
-        <button type="button" onClick={addPreset}
-          style={{ ...F, border: `1.5px solid #fed7aa`, background: "#fff7ed", color: "#f97316", cursor: "pointer", borderRadius: 9, padding: "6px 14px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}
-          onMouseEnter={e => e.currentTarget.style.background = "#ffedd5"}
-          onMouseLeave={e => e.currentTarget.style.background = "#fff7ed"}>
-          <Plus size={12} /> Add Preset
-        </button>
       </div>
 
-      {presets.length === 0 ? (
-        <div style={{ padding: "14px 20px", ...F, fontSize: 12, color: C.light, fontStyle: "italic" }}>
-          No presets yet — click "Add Preset" to create mark templates (e.g. 100/35, 75/25)
-        </div>
-      ) : (
-        <div style={{ padding: "12px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
-          {presets.map((p, i) => (
+      {expanded && (
+        <div className="ae-preset-body" style={{ padding: "12px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+          {presets.length === 0 ? (
+            <div style={{ ...F, fontSize: 12, color: C.mid, padding: "8px 0", fontStyle: "italic" }}>No presets. Add one above or enter marks manually per exam slot.</div>
+          ) : presets.map((p, i) => (
             <div key={p.id} className="ae-preset-row" style={{ display: "grid", gap: 10, alignItems: "end", background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
-              <div className="ae-preset-num" style={{ ...F, fontSize: 10, fontWeight: 700, color: C.light, textTransform: "uppercase", letterSpacing: "0.06em", paddingBottom: 12 }}>#{i + 1}</div>
+              <div className="ae-preset-num" style={{ ...F, fontSize: 11, fontWeight: 700, color: C.light, paddingBottom: 10 }}>#{i + 1}</div>
               <FieldWrap>
                 <Label>Max Marks</Label>
                 <InputBase type="number" value={p.maxMarks} onChange={v => updatePreset(p.id, "maxMarks", v)} placeholder="100" />
@@ -540,7 +500,7 @@ function MarksPresetManager({ presets, onPresetsChange }) {
                 <Label>Passing Marks</Label>
                 <InputBase type="number" value={p.passingMarks} onChange={v => updatePreset(p.id, "passingMarks", v)} placeholder="35" />
               </FieldWrap>
-              <button type="button" onClick={() => removePreset(p.id)}
+              <button onClick={() => removePreset(p.id)}
                 className="ae-preset-del"
                 style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#fef2f2", border: "none", cursor: "pointer", color: "#ef4444", marginBottom: 2 }}
                 onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
@@ -555,21 +515,210 @@ function MarksPresetManager({ presets, onPresetsChange }) {
   );
 }
 
+/* ══════════════════════════════════════════════
+   EXAM DATE CARD (used in Step 3)
+══════════════════════════════════════════════ */
+function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, timeSlots, examDateOptions, marksPresets, usedSubjectIds }) {
+  const err = f => errors[`${sc._key}_${f}`];
+  const allSubjects  = subjectsMap[sc.classSectionId];
+  const subsLoading  = allSubjects === null;
+  const dateInfo     = fmtDate(sc.examDate);
+
+  const availableSubjects = useMemo(() => {
+    if (!Array.isArray(allSubjects)) return [];
+    return allSubjects.filter(s => !usedSubjectIds.has(s.id) || s.id === sc.subjectId);
+  }, [allSubjects, usedSubjectIds, sc.subjectId]);
+
+  /* ✅ FIX: Slot key matching — compare "HH:MM" of startTime/endTime to slot times */
+  const resolveSlotKey = (startTime, endTime, slots) => {
+    if (!startTime || !slots || slots.length === 0) return "";
+    const st = String(startTime).substring(0, 5);
+    const et = String(endTime || "").substring(0, 5);
+    const match = slots.find(s =>
+      String(s.startTime).substring(0, 5) === st &&
+      String(s.endTime || "").substring(0, 5) === et
+    );
+    return match ? String(match._key) : "";
+  };
+
+  /* ✅ Compute the effective slotKey for display (either stored or resolved from times) */
+  const effectiveSlotKey = useMemo(() => {
+    if (sc.slotKey) return String(sc.slotKey);
+    return resolveSlotKey(sc.startTime, sc.endTime, timeSlots);
+  }, [sc.slotKey, sc.startTime, sc.endTime, timeSlots]);
+
+  const handleSlotSelect = (slotKey) => {
+    const slot = timeSlots.find(s => String(s._key) === String(slotKey));
+    onChange("slotKey", slotKey);
+    if (slot) {
+      onChange("startTime", slot.startTime || "");
+      onChange("endTime", slot.endTime || "");
+    } else {
+      // Cleared
+      onChange("slotKey", "");
+    }
+  };
+
+  const handlePresetSelect = (presetId) => {
+    onChange("markPresetId", presetId);
+    const preset = marksPresets.find(p => String(p.id) === String(presetId));
+    if (preset) {
+      onChange("maxMarks", preset.maxMarks || "");
+      onChange("passingMarks", preset.passingMarks || "");
+    }
+  };
+
+  return (
+    <div style={{ border: `1.5px solid ${sc._isExisting ? "#bfdbfe" : C.border}`, borderRadius: 14, overflow: "hidden", background: "#fafcff" }}>
+      {/* Date header */}
+      <div className="ae-card-date-header" style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: sc._isExisting ? "#eff6ff" : "#f8fafc", borderBottom: `1px solid ${sc._isExisting ? "#bfdbfe" : C.border}` }}>
+        <div style={{
+          width: 46, height: 46, borderRadius: 12,
+          background: sc._isExisting ? "#3b82f6" : C.accent,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <span style={{ ...F, fontSize: 18, fontWeight: 800, color: "#fff", lineHeight: 1 }}>
+            {sc.examDate ? dateInfo.dateNum : idx + 1}
+          </span>
+          <span style={{ ...F, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.8)", textTransform: "uppercase" }}>
+            {sc.examDate ? dateInfo.month : "NEW"}
+          </span>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>
+            {sc.examDate ? dateInfo.full : `Exam Slot ${idx + 1}`}
+          </div>
+          <div style={{ ...F, fontSize: 11, color: C.mid }}>
+            {sc.examDate ? `${dateInfo.day} · ` : ""}
+            {sc.startTime && sc.endTime ? `${fmtTime(sc.startTime)} – ${fmtTime(sc.endTime)}` : "Time not set"}
+            {sc._isExisting && (
+              <span style={{ marginLeft: 8, padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 700, background: "#dbeafe", color: "#3b82f6" }}>
+                Existing
+              </span>
+            )}
+          </div>
+        </div>
+        <button onClick={onRemove}
+          style={{ width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#fef2f2", border: "none", cursor: "pointer", color: "#ef4444", flexShrink: 0 }}
+          onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
+          onMouseLeave={e => e.currentTarget.style.background = "#fef2f2"}>
+          <Trash2 size={12} />
+        </button>
+      </div>
+
+      {/* Fields */}
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+
+        {/* Row 1: Exam Date + Time Slot */}
+        <div className="ae-grid-2" style={{ display: "grid", gap: 12 }}>
+          <FieldWrap error={err("examDate")}>
+            <Label required>Exam Date</Label>
+            {examDateOptions.length > 0 ? (
+              <SelectBase value={sc.examDate} onChange={v => onChange("examDate", v)} error={err("examDate")}>
+                <option value="">— Select Date —</option>
+                {examDateOptions.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+              </SelectBase>
+            ) : (
+              <InputBase type="date" value={sc.examDate} onChange={v => onChange("examDate", v)} error={err("examDate")} />
+            )}
+          </FieldWrap>
+
+          <FieldWrap>
+            <Label>Time Slot</Label>
+            {timeSlots.length > 0 ? (
+              /* ✅ FIX: use effectiveSlotKey so existing records show the correct slot name */
+              <SelectBase value={effectiveSlotKey} onChange={handleSlotSelect}>
+                <option value="">— Select Slot —</option>
+                {timeSlots.map(slot => (
+                  <option key={slot._key} value={String(slot._key)}>
+                    {slot.name || `Slot ${timeSlots.indexOf(slot) + 1}`}
+                    {slot.startTime ? ` (${fmtTime(slot.startTime)}${slot.endTime ? ` – ${fmtTime(slot.endTime)}` : ""})` : ""}
+                  </option>
+                ))}
+              </SelectBase>
+            ) : (
+              <div className="ae-grid-2" style={{ display: "grid", gap: 8 }}>
+                <InputBase type="time" value={sc.startTime} onChange={v => onChange("startTime", v)} />
+                <InputBase type="time" value={sc.endTime} onChange={v => onChange("endTime", v)} />
+              </div>
+            )}
+          </FieldWrap>
+        </div>
+
+        {/* If slot has time but no preset slot, show raw time inputs */}
+        {timeSlots.length > 0 && !effectiveSlotKey && (
+          <div className="ae-grid-2" style={{ display: "grid", gap: 12 }}>
+            <FieldWrap>
+              <Label>Start Time (manual)</Label>
+              <InputBase type="time" value={sc.startTime} onChange={v => onChange("startTime", v)} />
+            </FieldWrap>
+            <FieldWrap>
+              <Label>End Time (manual)</Label>
+              <InputBase type="time" value={sc.endTime} onChange={v => onChange("endTime", v)} />
+            </FieldWrap>
+          </div>
+        )}
+
+        {/* Row 2: Marks Preset + Max + Pass */}
+        <div style={{ background: "#f0f9ff", borderRadius: 10, padding: "10px 14px", border: `1px solid #bae6fd` }}>
+          <div className="ae-marks-row" style={{ display: "grid", gap: 10, alignItems: "end" }}>
+            <FieldWrap>
+              <Label>Marks Preset</Label>
+              <SelectBase value={sc.markPresetId || ""} onChange={handlePresetSelect}>
+                <option value="">— Select Preset or enter manually —</option>
+                {marksPresets.filter(p => p.maxMarks).map(p => (
+                  <option key={p.id} value={p.id}>Max: {p.maxMarks} · Pass: {p.passingMarks || "—"}</option>
+                ))}
+              </SelectBase>
+            </FieldWrap>
+            <FieldWrap error={err("maxMarks")}>
+              <Label required>Max Marks</Label>
+              <InputBase type="number" value={sc.maxMarks} onChange={v => { onChange("maxMarks", v); onChange("markPresetId", ""); }} placeholder="100" error={err("maxMarks")} />
+            </FieldWrap>
+            <FieldWrap>
+              <Label>Passing Marks</Label>
+              <InputBase type="number" value={sc.passingMarks} onChange={v => { onChange("passingMarks", v); onChange("markPresetId", ""); }} placeholder="35" />
+            </FieldWrap>
+          </div>
+        </div>
+
+        {/* Row 3: Subject */}
+        <div className="ae-subject-row" style={{ display: "grid", gap: 12, alignItems: "end", background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+          <div className="ae-subject-label" style={{ ...F, fontSize: 10, fontWeight: 700, color: C.light, textTransform: "uppercase", letterSpacing: "0.06em", paddingBottom: 2, whiteSpace: "nowrap" }}>EXAM {idx + 1}</div>
+          <FieldWrap error={err("subjectId")}>
+            <Label required>Subject</Label>
+            <SelectBase value={sc.subjectId} onChange={v => onChange("subjectId", v)} loading={subsLoading} error={err("subjectId")}>
+              <option value="">
+                {!sc.classSectionId ? "— Select —" : subsLoading ? "Loading…" : availableSubjects.length === 0 ? "All subjects assigned" : "— Select —"}
+              </option>
+              {availableSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </SelectBase>
+            {Array.isArray(allSubjects) && usedSubjectIds.size > 0 && (
+              <span style={{ ...F, fontSize: 10, color: C.light, marginTop: 2 }}>
+                {usedSubjectIds.size} subject{usedSubjectIds.size !== 1 ? "s" : ""} already assigned in other slots
+              </span>
+            )}
+          </FieldWrap>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   STEP 3 — Build Schedule
+══════════════════════════════════════════════ */
 function StepBuildSchedule({
   classSections, selectedSections, schedules, setSched, schedErrors, setSchedErrors,
-  subjectsMap, classLoading, loadSched, gradeOptions, sectionsFor, fetchSubjectsFor,
-  handleGradeChange, handleSectionChange, setSchedField, removeSched, timingData,
+  subjectsMap, classLoading, loadSched, fetchSubjectsFor,
+  setSchedField, removeSched, timingData,
 }) {
   const selectedCS = classSections.filter(cs => selectedSections.includes(cs.id));
 
-  /* ── Marks presets state ── */
   const [marksPresets, setMarksPresets] = useState([]);
-
-  /* ── Track which sections have been "copied from" a source section (same timetable) ── */
   const [copiedSections, setCopiedSections] = useState({});
   const [dismissedBanners, setDismissedBanners] = useState({});
 
-  /* ── Generate date options from Step 1 range ── */
   const examDateOptions = useMemo(() => {
     if (!timingData.fromDate || !timingData.toDate) return [];
     const dates = [];
@@ -589,7 +738,6 @@ function StepBuildSchedule({
 
   const timeSlots = timingData.timeSlots || [];
 
-  /* ── Group selected sections by grade ── */
   const gradeGroups = useMemo(() => {
     const g = {};
     selectedCS.forEach(cs => {
@@ -599,17 +747,17 @@ function StepBuildSchedule({
     return g;
   }, [selectedCS]);
 
-  /* ── Copy timetable from one section to another ── */
   const copyTimetableTo = (sourceCs, targetCs) => {
-    const sourceSlots = schedules.filter(s => s.classSectionId === sourceCs.id && !s._saved);
+    const sourceSlots = schedules.filter(s => s.classSectionId === sourceCs.id);
     if (sourceSlots.length === 0) return;
     setSched(p => {
-      const filtered = p.filter(s => s.classSectionId !== targetCs.id || s._saved);
+      const filtered = p.filter(s => s.classSectionId !== targetCs.id);
       const copies = sourceSlots.map(s => ({
         ...s,
         _key: Date.now() + Math.random(),
         _saved: false,
         _savedId: null,
+        _isExisting: false,
         classSectionId: targetCs.id,
         grade: targetCs.grade,
       }));
@@ -619,17 +767,15 @@ function StepBuildSchedule({
     fetchSubjectsFor(targetCs.id);
   };
 
-  /* ── Render per-grade group with same-timetable prompt ── */
   const renderGradeGroup = (grade, sections) => {
     const sourceCs = sections.find(cs => schedules.filter(s => s.classSectionId === cs.id).length > 0) || sections[0];
     const sourceHasSlots = schedules.filter(s => s.classSectionId === sourceCs.id).length > 0;
 
-    return sections.map((cs, sIdx) => {
+    return sections.map((cs) => {
       const sectionSchedules = schedules.filter(s => s.classSectionId === cs.id);
-      const isSource = cs.id === sourceCs.id;
-      const isCopied = !!copiedSections[cs.id];
+      const isSource   = cs.id === sourceCs.id;
+      const isCopied   = !!copiedSections[cs.id];
       const isDismissed = !!dismissedBanners[cs.id];
-
       const showCopyBanner = !isSource && sections.length > 1 && sourceHasSlots
         && sectionSchedules.length === 0 && !isDismissed && !isCopied;
 
@@ -654,7 +800,7 @@ function StepBuildSchedule({
             )}
           </div>
 
-          {/* ── Same timetable banner ── */}
+          {/* Same timetable banner */}
           {showCopyBanner && (
             <div className="ae-copy-banner" style={{ margin: "12px 16px 0", padding: "12px 16px", borderRadius: 12, background: "#eff6ff", border: `1.5px solid #bfdbfe`, display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 32, height: 32, borderRadius: 9, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -667,15 +813,13 @@ function StepBuildSchedule({
                 </div>
               </div>
               <div className="ae-copy-banner-btns" style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                <button type="button"
-                  onClick={() => copyTimetableTo(sourceCs, cs)}
+                <button type="button" onClick={() => copyTimetableTo(sourceCs, cs)}
                   style={{ ...F, fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}
                   onMouseEnter={e => e.currentTarget.style.background = C.accentDark}
                   onMouseLeave={e => e.currentTarget.style.background = C.accent}>
                   Yes, Copy
                 </button>
-                <button type="button"
-                  onClick={() => setDismissedBanners(p => ({ ...p, [cs.id]: true }))}
+                <button type="button" onClick={() => setDismissedBanners(p => ({ ...p, [cs.id]: true }))}
                   style={{ ...F, fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 9, border: `1.5px solid ${C.border}`, background: "#fff", color: C.mid, cursor: "pointer", whiteSpace: "nowrap" }}>
                   No, Individual
                 </button>
@@ -683,7 +827,6 @@ function StepBuildSchedule({
             </div>
           )}
 
-          {/* Schedule cards for this section */}
           <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
             {loadSched ? (
               <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.mid, ...F, fontSize: 13, padding: "20px 0" }}>
@@ -739,10 +882,8 @@ function StepBuildSchedule({
         <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 0 }}>Assign subjects and time slots for each exam date.</p>
       </div>
 
-      {/* ── Marks Presets ── */}
       <MarksPresetManager presets={marksPresets} onPresetsChange={setMarksPresets} />
 
-      {/* Render grade groups */}
       {Object.keys(gradeGroups).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0)).map(grade =>
         renderGradeGroup(grade, gradeGroups[grade])
       )}
@@ -757,162 +898,20 @@ function StepBuildSchedule({
   );
 }
 
-/* ── Exam Date Card (used in Step 3) ── */
-function ExamDateCard({ sc, idx, errors, subjectsMap, onChange, onRemove, prefilledSection, timeSlots, examDateOptions, marksPresets, usedSubjectIds }) {
-  const err = f => errors[`${sc._key}_${f}`];
-  const allSubjects = subjectsMap[sc.classSectionId];
-  const subsLoading = allSubjects === null;
-  const dateInfo = fmtDate(sc.examDate);
-
-  const availableSubjects = useMemo(() => {
-    if (!Array.isArray(allSubjects)) return [];
-    return allSubjects.filter(s => !usedSubjectIds.has(s.id) || s.id === sc.subjectId);
-  }, [allSubjects, usedSubjectIds, sc.subjectId]);
-
-  const handleSlotSelect = (slotKey) => {
-    const slot = timeSlots.find(s => String(s._key) === String(slotKey));
-    onChange("slotKey", slotKey);
-    if (slot) {
-      onChange("startTime", slot.startTime || "");
-      onChange("endTime", slot.endTime || "");
-    }
-  };
-
-  const handlePresetSelect = (presetId) => {
-    onChange("markPresetId", presetId);
-    const preset = marksPresets.find(p => String(p.id) === String(presetId));
-    if (preset) {
-      onChange("maxMarks", preset.maxMarks || "");
-      onChange("passingMarks", preset.passingMarks || "");
-    }
-  };
-
-  return (
-    <div style={{ border: `1.5px solid ${sc._saved ? "#bbf7d0" : C.border}`, borderRadius: 14, overflow: "hidden", background: "#fafcff" }}>
-      {/* Date header */}
-      <div className="ae-card-date-header" style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: sc._saved ? "#f0fdf4" : "#f8fafc", borderBottom: `1px solid ${sc._saved ? "#bbf7d0" : C.border}` }}>
-        <div style={{
-          width: 46, height: 46, borderRadius: 12, background: sc._saved ? C.green : C.accent,
-          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
-          <span style={{ ...F, fontSize: 18, fontWeight: 800, color: "#fff", lineHeight: 1 }}>{sc.examDate ? dateInfo.dateNum : idx + 1}</span>
-          <span style={{ ...F, fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.8)", textTransform: "uppercase" }}>{sc.examDate ? dateInfo.month : "NEW"}</span>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.dark }}>
-            {sc.examDate ? dateInfo.full : `Exam Slot ${idx + 1}`}
-          </div>
-          <div style={{ ...F, fontSize: 11, color: C.mid }}>
-            {sc.examDate ? `${dateInfo.day} · ` : ""}
-            {sc.startTime && sc.endTime ? `${fmtTime(sc.startTime)} – ${fmtTime(sc.endTime)}` : "Time not set"}
-            {sc._saved && <span style={{ marginLeft: 8, padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 700, background: "#dcfce7", color: C.green }}>✓ Saved</span>}
-          </div>
-        </div>
-        {!sc._saved && (
-          <button onClick={onRemove}
-            style={{ width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#fef2f2", border: "none", cursor: "pointer", color: "#ef4444", flexShrink: 0 }}
-            onMouseEnter={e => e.currentTarget.style.background = "#fee2e2"}
-            onMouseLeave={e => e.currentTarget.style.background = "#fef2f2"}>
-            <Trash2 size={12} />
-          </button>
-        )}
-      </div>
-
-      {/* Fields */}
-      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-
-        {/* Row 1: Exam Date + Time Slot */}
-        <div className="ae-grid-2" style={{ display: "grid", gap: 12 }}>
-          <FieldWrap error={err("examDate")}>
-            <Label required>Exam Date</Label>
-            {examDateOptions.length > 0 ? (
-              <SelectBase value={sc.examDate} onChange={v => onChange("examDate", v)} disabled={sc._saved} error={err("examDate")}>
-                <option value="">— Select Date —</option>
-                {examDateOptions.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-              </SelectBase>
-            ) : (
-              <InputBase type="date" value={sc.examDate} onChange={v => onChange("examDate", v)} disabled={sc._saved} error={err("examDate")} />
-            )}
-          </FieldWrap>
-
-          <FieldWrap>
-            <Label>Time Slot</Label>
-            {timeSlots.length > 0 ? (
-              <SelectBase value={sc.slotKey || ""} onChange={handleSlotSelect} disabled={sc._saved}>
-                <option value="">— Select Slot —</option>
-                {timeSlots.map(slot => (
-                  <option key={slot._key} value={slot._key}>
-                    {slot.name || "Unnamed"}{slot.startTime ? ` (${fmtTime(slot.startTime)}${slot.endTime ? ` – ${fmtTime(slot.endTime)}` : ""})` : ""}
-                  </option>
-                ))}
-              </SelectBase>
-            ) : (
-              <div className="ae-grid-2" style={{ display: "grid", gap: 8 }}>
-                <InputBase type="time" value={sc.startTime} onChange={v => onChange("startTime", v)} disabled={sc._saved} />
-                <InputBase type="time" value={sc.endTime} onChange={v => onChange("endTime", v)} disabled={sc._saved} />
-              </div>
-            )}
-          </FieldWrap>
-        </div>
-
-        {/* Row 2: Marks Preset + Max + Pass */}
-        <div style={{ background: "#f0f9ff", borderRadius: 10, padding: "10px 14px", border: `1px solid #bae6fd` }}>
-          <div className="ae-marks-row" style={{ display: "grid", gap: 10, alignItems: "end" }}>
-            <FieldWrap>
-              <Label>Marks Preset</Label>
-              <SelectBase value={sc.markPresetId || ""} onChange={handlePresetSelect} disabled={sc._saved}>
-                <option value="">— Select Preset or enter manually —</option>
-                {marksPresets.filter(p => p.maxMarks).map(p => (
-                  <option key={p.id} value={p.id}>Max: {p.maxMarks} · Pass: {p.passingMarks || "—"}</option>
-                ))}
-              </SelectBase>
-            </FieldWrap>
-            <FieldWrap error={err("maxMarks")}>
-              <Label required>Max Marks</Label>
-              <InputBase type="number" value={sc.maxMarks} onChange={v => { onChange("maxMarks", v); onChange("markPresetId", ""); }} placeholder="100" disabled={sc._saved} error={err("maxMarks")} />
-            </FieldWrap>
-            <FieldWrap>
-              <Label>Passing Marks</Label>
-              <InputBase type="number" value={sc.passingMarks} onChange={v => { onChange("passingMarks", v); onChange("markPresetId", ""); }} placeholder="35" disabled={sc._saved} />
-            </FieldWrap>
-          </div>
-        </div>
-
-        {/* Row 3: Subject */}
-        <div className="ae-subject-row" style={{ display: "grid", gap: 12, alignItems: "end", background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
-          <div className="ae-subject-label" style={{ ...F, fontSize: 10, fontWeight: 700, color: C.light, textTransform: "uppercase", letterSpacing: "0.06em", paddingBottom: 2, whiteSpace: "nowrap" }}>EXAM {idx + 1}</div>
-          <FieldWrap error={err("subjectId")}>
-            <Label required>Subject</Label>
-            <SelectBase value={sc.subjectId} onChange={v => onChange("subjectId", v)} disabled={sc._saved} loading={subsLoading} error={err("subjectId")}>
-              <option value="">
-                {!sc.classSectionId ? "— Select —" : subsLoading ? "Loading…" : availableSubjects.length === 0 ? "All subjects assigned" : "— Select —"}
-              </option>
-              {availableSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </SelectBase>
-            {Array.isArray(allSubjects) && usedSubjectIds.size > 0 && (
-              <span style={{ ...F, fontSize: 10, color: C.light, marginTop: 2 }}>
-                {usedSubjectIds.size} subject{usedSubjectIds.size !== 1 ? "s" : ""} already assigned in other slots
-              </span>
-            )}
-          </FieldWrap>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ══════════════════════════════════════════════
    STEP 4 — Review & Save
 ══════════════════════════════════════════════ */
 function StepReview({ timingData, selectedSections, classSections, schedules, academicYearLabel }) {
-  const selectedCS = classSections.filter(cs => selectedSections.includes(cs.id));
-  const newSchedules = schedules.filter(s => !s._saved);
+  const selectedCS   = classSections.filter(cs => selectedSections.includes(cs.id));
+  const newSchedules = schedules.filter(s => !s._isExisting);
 
   return (
     <div className="ae-step-padding" style={{ display: "flex", flexDirection: "column", gap: 20, padding: "28px 32px" }}>
       <div>
         <h2 style={{ ...F, fontSize: 22, fontWeight: 700, color: C.dark, margin: 0 }}>Review & Save</h2>
-        <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 0 }}>Confirm everything before publishing the exam schedule.</p>
+        <p style={{ ...F, fontSize: 13, color: C.mid, marginTop: 6, marginBottom: 0 }}>
+          Confirm everything. The exam will be saved as <strong>Scheduled</strong> and visible to students.
+        </p>
       </div>
 
       {/* Summary cards */}
@@ -938,21 +937,29 @@ function StepReview({ timingData, selectedSections, classSections, schedules, ac
         <div style={{ background: "#fff", borderRadius: 14, border: `1.5px solid ${C.border}`, padding: "16px 18px" }}>
           <div style={{ ...F, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.light, marginBottom: 6 }}>Schedules</div>
           <div style={{ ...F, fontSize: 15, fontWeight: 700, color: C.dark }}>{newSchedules.length} to create</div>
-          <div style={{ ...F, fontSize: 12, color: C.mid, marginTop: 3 }}>{schedules.filter(s => s._saved).length} already saved</div>
+          <div style={{ ...F, fontSize: 12, color: C.mid, marginTop: 3 }}>{schedules.filter(s => s._isExisting).length} existing (will be updated)</div>
+        </div>
+      </div>
+
+      {/* Info note */}
+      <div style={{ background: "#eff6ff", borderRadius: 12, border: "1.5px solid #bfdbfe", padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <Info size={16} color="#3b82f6" style={{ flexShrink: 0, marginTop: 1 }} />
+        <div style={{ ...F, fontSize: 13, color: "#1d4ed8" }}>
+          <strong>Auto-Scheduled:</strong> After saving, this exam will be marked as <em>Scheduled</em> and students in the selected classes will see it. Once exams are done, mark it as <em>Completed</em> from the exam list.
         </div>
       </div>
 
       {/* Schedule list */}
       {newSchedules.length > 0 && (
         <div style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${C.border}`, overflow: "hidden" }}>
-          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, ...F, fontSize: 14, fontWeight: 700, color: C.dark }}>
-            Schedules to Create
+          <div className="ae-review-list-header" style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, ...F, fontSize: 14, fontWeight: 700, color: C.dark }}>
+            Schedules to Create ({newSchedules.length})
           </div>
           <div style={{ maxHeight: 240, overflowY: "auto" }}>
             {newSchedules.map((sc, i) => {
               const cs = classSections.find(c => c.id === sc.classSectionId);
               return (
-                <div key={sc._key} className="ae-sched-list-row" style={{ display: "grid", gap: 14, padding: "11px 20px", borderBottom: i < newSchedules.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "center" }}>
+                <div key={sc._key} className="ae-sched-list-row ae-review-list-row" style={{ display: "grid", gap: 14, padding: "11px 20px", borderBottom: i < newSchedules.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "center" }}>
                   <div style={{ width: 28, height: 28, borderRadius: 8, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", ...F, fontSize: 11, fontWeight: 700, color: C.accent, flexShrink: 0 }}>{i + 1}</div>
                   <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.dark, minWidth: 0 }}>
                     Grade {sc.grade || cs?.grade}{sc.classSectionId && cs?.section ? ` - ${cs.section}` : ""}
@@ -979,34 +986,54 @@ export default function AddExamsModal({
   const isEdit = Boolean(group);
 
   /* ── Wizard state ── */
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep]       = useState(1);
   const [completedSteps, setCompletedSteps] = useState(isEdit ? [1, 2, 3] : []);
 
   /* ── Timing data (step 1) ── */
-  const [timingData, setTimingData] = useState({
-    name: group?.name || "",
-    fromDate: "",
-    toDate: "",
-    timeSlots: [],
-  });
+  const [timingData, setTimingData]     = useState({ name: group?.name || "", fromDate: "", toDate: "", timeSlots: [] });
+  const setTimingField = (field, value) => {
+    setTimingData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    setTimingErrors((prev) => ({
+      ...prev,
+      [field]: "",
+    }));
+  };
   const [timingErrors, setTimingErrors] = useState({});
 
   /* ── Class selection (step 2) ── */
   const [selectedSections, setSelectedSections] = useState([]);
 
   /* ── Schedules (step 3) ── */
-  const [schedules, setSched] = useState([]);
+  const [schedules, setSched]     = useState([]);
   const [schedErrors, setSchedErrors] = useState({});
 
   /* ── Shared ── */
-  const [apiError, setApiError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError]   = useState("");
+  const [loading, setLoading]     = useState(false);
   const [loadSched, setLoadSched] = useState(false);
   const [groupId, setGroupId] = useState(group?.id || null);
 
+    const [selectedTermId, setSelectedTermId] = useState(
+      group?.termId || ""
+    );
+
+const [terms, setTerms] = useState([]);
   const [classSections, setClassSections] = useState([]);
-  const [classLoading, setClassLoading] = useState(false);
-  const [subjectsMap, setSubjectsMap] = useState({});
+  const [classLoading, setClassLoading]   = useState(false);
+  const [subjectsMap, setSubjectsMap]     = useState({});
+
+  useEffect(() => {
+    if (!academicYearId) return;
+
+    fetchTerms(academicYearId)
+      .then(setTerms)
+      .catch(console.error);
+  }, [academicYearId]);
+
 
   /* ── Fetch class sections ── */
   useEffect(() => {
@@ -1017,7 +1044,7 @@ export default function AddExamsModal({
       .finally(() => setClassLoading(false));
   }, []);
 
-  /* ── Preload subjects ── */
+  /* ── Preload subjects for all sections ── */
   useEffect(() => {
     if (classSections.length === 0) return;
     classSections.forEach(cs => {
@@ -1032,14 +1059,22 @@ export default function AddExamsModal({
     });
   }, [classSections]);
 
-  /* ── Edit mode load ── */
+  /* ── Edit mode: load schedules via ADMIN route ── */
   useEffect(() => {
     if (!isEdit || !group) return;
     setGroupId(group.id);
     setLoadSched(true);
-    fetchSchedules(group.id)
+
+    fetchSchedulesAdmin(group.id)  // ✅ use admin route — no classSectionId filter
       .then(list => {
-        const toHHMM = (t) => t ? String(t).substring(0, 5) : "";
+        const toHHMM = (t) => {
+          if (!t) return "";
+          const s = String(t);
+          // Handle ISO datetime like "2024-01-01T09:00:00.000Z" → "09:00"
+          if (s.includes("T")) return s.split("T")[1].substring(0, 5);
+          // Handle "HH:MM:SS" or "HH:MM"
+          return s.substring(0, 5);
+        };
 
         const loaded = list.map(sc => ({
           _key: sc.id,
@@ -1054,7 +1089,9 @@ export default function AddExamsModal({
           examDate: sc.examDate ? sc.examDate.split("T")[0] : "",
           startTime: toHHMM(sc.startTime),
           endTime: toHHMM(sc.endTime),
+          // ✅ slotKey left empty here — ExamDateCard will resolve it via effectiveSlotKey
           slotKey: "",
+          markPresetId: "",
         }));
 
         setSched(loaded);
@@ -1062,18 +1099,21 @@ export default function AddExamsModal({
         setSelectedSections(csIds);
 
         if (loaded.length > 0) {
-          const dates = loaded.map(s => s.examDate).filter(Boolean).sort();
+          const dates    = loaded.map(s => s.examDate).filter(Boolean).sort();
           const fromDate = dates[0] || "";
           const toDate   = dates[dates.length - 1] || "";
 
+          // ✅ Reconstruct time slots from actual schedule times
+          // Each unique startTime+endTime combo becomes a slot
           const slotMap = new Map();
-          loaded.forEach(s => {
+          loaded.forEach((s, i) => {
             if (s.startTime && s.endTime) {
               const key = `${s.startTime}|${s.endTime}`;
               if (!slotMap.has(key)) {
                 slotMap.set(key, {
+                  // ✅ Use the time string as _key so effectiveSlotKey can match via startTime comparison
                   _key: key,
-                  name: "",
+                  name: "",          // Admin can rename; blank by default
                   startTime: s.startTime,
                   endTime: s.endTime,
                 });
@@ -1132,18 +1172,7 @@ export default function AddExamsModal({
     setSched(p => p.map(s => s._key === key ? { ...s, [field]: value } : s));
     setSchedErrors(p => ({ ...p, [`${key}_${field}`]: "" }));
   };
-  const handleGradeChange = (key, grade) => {
-    setSched(p => p.map(s => s._key === key ? { ...s, grade, classSectionId: "", subjectId: "" } : s));
-    const secs = classSections.filter(cs => cs.grade === grade);
-    if (secs.length === 1) {
-      setSched(p => p.map(s => s._key === key ? { ...s, grade, classSectionId: secs[0].id, subjectId: "" } : s));
-      fetchSubjectsFor(secs[0].id);
-    }
-  };
-  const handleSectionChange = (key, cid) => {
-    setSched(p => p.map(s => s._key === key ? { ...s, classSectionId: cid, subjectId: "" } : s));
-    fetchSubjectsFor(cid);
-  };
+
   const removeSched = async sc => {
     if (sc._isExisting && sc._savedId) {
       if (!window.confirm("Remove this schedule from the server?")) return;
@@ -1166,7 +1195,7 @@ export default function AddExamsModal({
     });
   };
 
-  /* ── Step navigation ── */
+  /* ── Step validation ── */
   const validateStep = (step) => {
     if (step === 1) {
       const errs = {};
@@ -1184,9 +1213,9 @@ export default function AddExamsModal({
       const sErrs = {};
       schedules.forEach(sc => {
         if (!sc.classSectionId) sErrs[`${sc._key}_classSectionId`] = "Required";
-        if (!sc.subjectId) sErrs[`${sc._key}_subjectId`] = "Required";
-        if (!sc.examDate) sErrs[`${sc._key}_examDate`] = "Required";
-        if (!sc.maxMarks) sErrs[`${sc._key}_maxMarks`] = "Required";
+        if (!sc.subjectId)      sErrs[`${sc._key}_subjectId`]      = "Required";
+        if (!sc.examDate)       sErrs[`${sc._key}_examDate`]       = "Required";
+        if (!sc.maxMarks)       sErrs[`${sc._key}_maxMarks`]       = "Required";
       });
       if (Object.keys(sErrs).length) { setSchedErrors(sErrs); return false; }
     }
@@ -1204,12 +1233,37 @@ export default function AddExamsModal({
   /* ── Final submit ── */
   const handleSubmit = async () => {
     if (!validateStep(3)) return;
-    setLoading(true); setApiError("");
+    setLoading(true);
+    setApiError("");
     try {
       let gId = groupId;
-      const payload = { name: timingData.name.trim(), academicYearId };
-      if (isEdit && gId) { await updateGroup(gId, payload); }
-      else { const r = await createGroup(payload); gId = r.id; setGroupId(gId); }
+
+      // ✅ FIX: Always include isPublished: true so new exams are "Scheduled" (not Draft)
+      const payload = {
+        name: timingData.name.trim(),
+        academicYearId,
+        isPublished: true,   // auto-schedule on create
+        isLocked: false,
+      };
+
+        if (isEdit && gId) {
+        await updateGroup(gId, {
+          name: timingData.name.trim(),
+          termId: selectedTermId, // ✅ add this
+        });
+      } else {
+        const payload = {
+          name: timingData.name.trim(),
+          academicYearId,
+          weightage: 0,
+          termId: selectedTermId, // ✅ REQUIRED
+        };
+
+        const r = await createGroup(payload);
+
+        gId = r.id;
+        setGroupId(gId);
+      }
 
       const normalizeTime = (t) => {
         if (!t || typeof t !== "string") return "00:00";
@@ -1217,35 +1271,39 @@ export default function AddExamsModal({
         return /^\d{2}:\d{2}$/.test(clean) ? clean : "00:00";
       };
 
+      // Delete existing schedules that are being re-created
+      const existingToUpdate = schedules.filter(sc => sc._isExisting && sc._savedId);
+      for (const sc of existingToUpdate) {
+        await deleteSchedule(sc._savedId);
+      }
+
+      // Create all schedules (new + updated existing)
       for (const sc of schedules) {
         if (!sc.subjectId || !sc.classSectionId || !sc.examDate) continue;
         const scheduleData = {
           assessmentGroupId: gId,
-          subjectId: sc.subjectId,
-          classSectionId: sc.classSectionId,
-          maxMarks: Number(sc.maxMarks) || 0,
-          passingMarks: Number(sc.passingMarks) || 0,
-          examDate: sc.examDate,
-          startTime: normalizeTime(sc.startTime),
-          endTime:   normalizeTime(sc.endTime),
+          subjectId:         sc.subjectId,
+          classSectionId:    sc.classSectionId,
+          maxMarks:          Number(sc.maxMarks) || 0,
+          passingMarks:      Number(sc.passingMarks) || 0,
+          examDate:          sc.examDate,
+          startTime:         normalizeTime(sc.startTime),
+          endTime:           normalizeTime(sc.endTime),
         };
-
-        if (sc._isExisting && sc._savedId) {
-          await deleteSchedule(sc._savedId);
-          await createSchedule(scheduleData);
-        } else {
-          await createSchedule(scheduleData);
-        }
+        await createSchedule(scheduleData);
       }
-      onSuccess(); onClose();
+
+      onSuccess();
+      onClose();
     } catch (err) {
       setApiError(err.message || "Something went wrong. Please try again.");
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const progressPct = (currentStep / 4) * 100;
 
-  /* ── Render ── */
   return (
     <>
       <style>{`
@@ -1255,220 +1313,103 @@ export default function AddExamsModal({
         .ae-scroll::-webkit-scrollbar { width:4px }
         .ae-scroll::-webkit-scrollbar-thumb { background:#e2e8f0; border-radius:8px }
 
-        /* ══════════ MODAL ══════════ */
-        .ae-modal {
-          width: min(98vw, 920px);
-          max-width: 96vw;
-          max-height: 94vh;
-          border-radius: 24px;
-        }
+        .ae-modal { width: min(98vw, 920px); max-width: 96vw; max-height: 94vh; border-radius: 24px; }
         @media (max-width: 640px) {
-          .ae-modal {
-            width: 100vw !important;
-            max-width: 100vw !important;
-            height: 100vh !important;
-            max-height: 100vh !important;
-            border-radius: 0 !important;
-            top: 0 !important;
-            left: 0 !important;
-            transform: none !important;
-            animation: mobileIn .2s ease !important;
-          }
+          .ae-modal { width:100vw!important; max-width:100vw!important; height:100vh!important; max-height:100vh!important; border-radius:0!important; top:0!important; left:0!important; transform:none!important; animation:mobileIn .2s ease!important; }
           @keyframes mobileIn { from{opacity:0} to{opacity:1} }
         }
-        @media (min-width: 641px) and (max-width: 1024px) {
-          .ae-modal {
-            width: 96vw !important;
-            max-width: 96vw !important;
-            max-height: 96vh !important;
-          }
+        @media (min-width:641px) and (max-width:1024px) {
+          .ae-modal { width:96vw!important; max-width:96vw!important; max-height:96vh!important; }
         }
 
-        /* ══════════ STEPPER ══════════ */
-        .ae-stepper-wrap {
-          padding: 18px 32px;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
+        .ae-stepper-wrap { padding:18px 32px; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+        .ae-stepper-wrap::-webkit-scrollbar { display:none; }
+        .ae-step-item { min-width:120px; }
+        .ae-step-connector { max-width:60px; }
+        @media (max-width:640px) {
+          .ae-stepper-wrap { padding:14px 12px; justify-content:flex-start!important; }
+          .ae-step-item { min-width:72px; }
+          .ae-step-label { font-size:10px!important; letter-spacing:-0.01em; }
+          .ae-step-sub { display:none!important; }
+          .ae-step-connector { max-width:24px; margin:0 2px!important; }
         }
-        .ae-stepper-wrap::-webkit-scrollbar { display: none; }
-        .ae-step-item { min-width: 120px; }
-        .ae-step-connector { max-width: 60px; }
-        @media (max-width: 640px) {
-          .ae-stepper-wrap {
-            padding: 14px 12px;
-            justify-content: flex-start !important;
-          }
-          .ae-step-item { min-width: 72px; }
-          .ae-step-label { font-size: 10px !important; letter-spacing: -0.01em; }
-          .ae-step-sub { display: none !important; }
-          .ae-step-connector { max-width: 24px; margin: 0 2px !important; }
-        }
-        @media (min-width: 641px) and (max-width: 860px) {
-          .ae-step-item { min-width: 100px; }
-          .ae-step-sub { font-size: 9px !important; }
-          .ae-step-connector { max-width: 36px; }
+        @media (min-width:641px) and (max-width:860px) {
+          .ae-step-item { min-width:100px; }
+          .ae-step-sub { font-size:9px!important; }
+          .ae-step-connector { max-width:36px; }
         }
 
-        /* ══════════ STEP PADDING ══════════ */
-        .ae-step-padding { padding: 28px 32px; }
-        @media (max-width: 640px) {
-          .ae-step-padding { padding: 20px 14px; }
-        }
-        @media (min-width: 641px) and (max-width: 1024px) {
-          .ae-step-padding { padding: 24px 20px; }
+        .ae-step-padding { padding:28px 32px; }
+        @media (max-width:640px) { .ae-step-padding { padding:20px 14px; } }
+        @media (min-width:641px) and (max-width:1024px) { .ae-step-padding { padding:24px 20px; } }
+
+        .ae-grid-2 { grid-template-columns:1fr 1fr; }
+        @media (max-width:640px) { .ae-grid-2 { grid-template-columns:1fr!important; } }
+
+        .ae-slot-row { grid-template-columns:1fr 1fr 1fr auto; }
+        @media (max-width:640px) {
+          .ae-slot-row { grid-template-columns:1fr 1fr!important; }
+          .ae-slot-del { grid-column:1/-1!important; width:100%!important; justify-content:center; }
         }
 
-        /* ══════════ GRIDS ══════════ */
-        .ae-grid-2 { grid-template-columns: 1fr 1fr; }
-        @media (max-width: 640px) {
-          .ae-grid-2 { grid-template-columns: 1fr !important; }
+        .ae-marks-row { grid-template-columns:1fr auto auto; }
+        @media (max-width:640px) { .ae-marks-row { grid-template-columns:1fr!important; } }
+
+        .ae-preset-row { grid-template-columns:auto 1fr 1fr auto; }
+        @media (max-width:640px) {
+          .ae-preset-row { grid-template-columns:1fr 1fr!important; }
+          .ae-preset-num { display:none!important; }
+          .ae-preset-del { grid-column:1/-1!important; width:100%!important; justify-content:center; }
         }
 
-        .ae-slot-row { grid-template-columns: 1fr 1fr 1fr auto; }
-        @media (max-width: 640px) {
-          .ae-slot-row { grid-template-columns: 1fr 1fr !important; }
-          .ae-slot-del {
-            grid-column: 1 / -1 !important;
-            width: 100% !important;
-            justify-content: center;
-          }
+        .ae-subject-row { grid-template-columns:auto 1fr; }
+        @media (max-width:640px) {
+          .ae-subject-row { grid-template-columns:1fr!important; }
+          .ae-subject-label { display:none!important; }
         }
 
-        .ae-marks-row { grid-template-columns: 1fr auto auto; }
-        @media (max-width: 640px) {
-          .ae-marks-row { grid-template-columns: 1fr !important; }
+        .ae-review-grid { grid-template-columns:1fr 1fr; }
+        @media (max-width:640px) { .ae-review-grid { grid-template-columns:1fr!important; } }
+
+        .ae-sched-list-row { grid-template-columns:auto 1fr 1fr 1fr; }
+        @media (max-width:640px) { .ae-sched-list-row { grid-template-columns:auto 1fr!important; gap:6px!important; } }
+
+        .ae-flex-row { display:flex; gap:24px; align-items:flex-start; }
+        @media (max-width:640px) { .ae-flex-row { flex-direction:column!important; gap:16px!important; } .ae-side-panel { width:100%!important; } }
+
+        .ae-copy-banner { flex-direction:row; }
+        @media (max-width:580px) {
+          .ae-copy-banner { flex-direction:column!important; align-items:flex-start!important; }
+          .ae-copy-banner-btns { width:100%; justify-content:flex-end; margin-top:4px; }
         }
 
-        .ae-preset-row { grid-template-columns: auto 1fr 1fr auto; }
-        @media (max-width: 640px) {
-          .ae-preset-row { grid-template-columns: 1fr 1fr !important; }
-          .ae-preset-num { display: none !important; }
-          .ae-preset-del {
-            grid-column: 1 / -1 !important;
-            width: 100% !important;
-            justify-content: center;
-          }
+        @media (max-width:480px) { .ae-card-header-inner { flex-wrap:wrap; gap:8px!important; } }
+        @media (max-width:400px) {
+          .ae-card-date-header { gap:10px!important; }
+          .ae-card-date-header>div:first-child { width:38px!important; height:38px!important; }
+          .ae-card-date-header>div:first-child span:first-child { font-size:15px!important; }
         }
 
-        .ae-subject-row { grid-template-columns: auto 1fr; }
-        @media (max-width: 640px) {
-          .ae-subject-row { grid-template-columns: 1fr !important; }
-          .ae-subject-label { display: none !important; }
+        @media (max-width:640px) { .ae-hide-mobile { display:none!important; } }
+
+        .ae-footer { padding:0 32px 20px; }
+        @media (max-width:640px) { .ae-footer { padding:0 14px 14px; } }
+        .ae-footer-inner { display:flex; align-items:center; justify-content:space-between; }
+        @media (max-width:640px) {
+          .ae-footer-inner { flex-direction:column!important; gap:10px!important; align-items:stretch!important; }
+          .ae-footer-step-label { text-align:center; }
+        }
+        .ae-footer-btns { display:flex; gap:10px; }
+        @media (max-width:640px) {
+          .ae-footer-btns { flex-wrap:wrap; gap:8px!important; }
+          .ae-footer-btns button { flex:1 1 0; min-width:0; justify-content:center; padding:10px 12px!important; font-size:12px!important; }
         }
 
-        .ae-review-grid { grid-template-columns: 1fr 1fr; }
-        @media (max-width: 640px) {
-          .ae-review-grid { grid-template-columns: 1fr !important; }
-        }
-
-        .ae-sched-list-row { grid-template-columns: auto 1fr 1fr 1fr; }
-        @media (max-width: 640px) {
-          .ae-sched-list-row { grid-template-columns: auto 1fr !important; gap: 6px !important; }
-        }
-
-        /* ══════════ FLEX LAYOUT ══════════ */
-        .ae-flex-row { display: flex; gap: 24px; align-items: flex-start; }
-        @media (max-width: 640px) {
-          .ae-flex-row { flex-direction: column !important; gap: 16px !important; }
-          .ae-side-panel { width: 100% !important; }
-        }
-
-        /* ══════════ COPY BANNER ══════════ */
-        .ae-copy-banner { flex-direction: row; }
-        @media (max-width: 580px) {
-          .ae-copy-banner { flex-direction: column !important; align-items: flex-start !important; }
-          .ae-copy-banner-btns { width: 100%; justify-content: flex-end; margin-top: 4px; }
-        }
-
-        /* ══════════ CARD HEADER ══════════ */
-        @media (max-width: 480px) {
-          .ae-card-header-inner { flex-wrap: wrap; gap: 8px !important; }
-        }
-
-        /* ══════════ DATE HEADER IN EXAM CARD ══════════ */
-        @media (max-width: 400px) {
-          .ae-card-date-header { gap: 10px !important; }
-          .ae-card-date-header > div:first-child { width: 38px !important; height: 38px !important; }
-          .ae-card-date-header > div:first-child span:first-child { font-size: 15px !important; }
-        }
-
-        /* ══════════ HIDE ON MOBILE ══════════ */
-        @media (max-width: 640px) {
-          .ae-hide-mobile { display: none !important; }
-        }
-
-        /* ══════════ FOOTER ══════════ */
-        .ae-footer { padding: 0 32px 20px; }
-        @media (max-width: 640px) {
-          .ae-footer { padding: 0 14px 14px; }
-        }
-        .ae-footer-inner { display: flex; align-items: center; justify-content: space-between; }
-        @media (max-width: 640px) {
-          .ae-footer-inner {
-            flex-direction: column !important;
-            gap: 10px !important;
-            align-items: stretch !important;
-          }
-          .ae-footer-step-label { text-align: center; }
-        }
-        .ae-footer-btns { display: flex; gap: 10px; }
-        @media (max-width: 640px) {
-          .ae-footer-btns {
-            flex-wrap: wrap;
-            gap: 8px !important;
-          }
-          .ae-footer-btns button {
-            flex: 1 1 0;
-            min-width: 0;
-            justify-content: center;
-            padding: 10px 12px !important;
-            font-size: 12px !important;
-          }
-        }
-
-        /* ══════════ HEADER ══════════ */
-        .ae-modal-header { padding: 14px 24px; }
-        @media (max-width: 640px) {
-          .ae-modal-header { padding: 12px 16px; }
-        }
-
-        /* ══════════ API ERROR ══════════ */
-        .ae-api-error { margin: 12px 24px 0; }
-        @media (max-width: 640px) {
-          .ae-api-error { margin: 10px 14px 0; }
-        }
-
-        /* ══════════ INNER CARD PADDING ══════════ */
-        @media (max-width: 640px) {
-          .ae-card-inner-pad { padding: 14px 14px !important; }
-        }
-
-        /* ══════════ SCHEDULE SECTION PAD ══════════ */
-        @media (max-width: 640px) {
-          .ae-sched-section-pad { padding: 14px 14px !important; }
-        }
-
-        /* ══════════ SECTION HEADER MOBILE ══════════ */
-        @media (max-width: 640px) {
-          .ae-section-header { padding: 12px 14px !important; }
-        }
-
-        /* ══════════ PRESET HEADER MOBILE ══════════ */
-        @media (max-width: 640px) {
-          .ae-preset-header { padding: 12px 14px !important; }
-          .ae-preset-body { padding: 10px 14px !important; }
-        }
-
-        /* ══════════ REVIEW LIST HEADER ══════════ */
-        @media (max-width: 640px) {
-          .ae-review-list-header { padding: 12px 14px !important; }
-          .ae-review-list-row { padding: 10px 14px !important; }
-        }
-
-        /* ══════════ STEP HEADING ══════════ */
-        @media (max-width: 640px) {
-          .ae-step-heading { font-size: 18px !important; }
-        }
+        .ae-modal-header { padding:14px 24px; }
+        @media (max-width:640px) { .ae-modal-header { padding:12px 16px; } }
+        .ae-api-error { margin:12px 24px 0; }
+        @media (max-width:640px) { .ae-api-error { margin:10px 14px 0; } }
+        @media (max-width:640px) { .ae-step-heading { font-size:18px!important; } }
       `}</style>
 
       {/* Backdrop */}
@@ -1482,7 +1423,7 @@ export default function AddExamsModal({
         animation: "modalIn 0.22s ease", ...F,
       }}>
 
-        {/* ── Header bar ── */}
+        {/* Header */}
         <div className="ae-modal-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: `linear-gradient(135deg, ${C.navy}, ${C.dark})`, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 38, height: 38, borderRadius: 12, background: "rgba(59,130,246,0.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -1505,24 +1446,27 @@ export default function AddExamsModal({
           </button>
         </div>
 
-        {/* ── Top Stepper ── */}
+        {/* Top Stepper */}
         <TopStepper currentStep={currentStep} completedSteps={completedSteps} />
 
-        {/* ── API Error ── */}
+        {/* API Error */}
         {apiError && (
           <div className="ae-api-error" style={{ padding: "11px 14px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", color: C.red, fontSize: 13, ...F, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             <AlertCircle size={14} style={{ flexShrink: 0 }} />{apiError}
           </div>
         )}
 
-        {/* ── Body ── */}
+        {/* Body */}
         <div className="ae-scroll" style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
           {currentStep === 1 && (
-            <StepConfigureTimings
-              data={timingData}
-              onChange={(field, val) => setTimingData(p => ({ ...p, [field]: val }))}
-              errors={timingErrors}
-            />
+          <StepConfigureTimings
+            data={timingData}
+            onChange={setTimingField}
+            errors={timingErrors}
+            terms={terms}
+            selectedTermId={selectedTermId}
+            setSelectedTermId={setSelectedTermId}
+          />
           )}
           {currentStep === 2 && (
             <StepSelectClasses
@@ -1544,11 +1488,7 @@ export default function AddExamsModal({
               subjectsMap={subjectsMap}
               classLoading={classLoading}
               loadSched={loadSched}
-              gradeOptions={gradeOptions}
-              sectionsFor={sectionsFor}
               fetchSubjectsFor={fetchSubjectsFor}
-              handleGradeChange={handleGradeChange}
-              handleSectionChange={handleSectionChange}
               setSchedField={setSchedField}
               removeSched={removeSched}
               timingData={timingData}
@@ -1565,9 +1505,8 @@ export default function AddExamsModal({
           )}
         </div>
 
-        {/* ── Footer ── */}
+        {/* Footer */}
         <div className="ae-footer" style={{ flexShrink: 0, background: C.bg }}>
-          {/* Progress bar */}
           <div style={{ height: 3, background: C.border, borderRadius: 99, marginBottom: 16, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${progressPct}%`, background: `linear-gradient(90deg, ${C.navy}, ${C.dark})`, borderRadius: 99, transition: "width .3s ease" }} />
           </div>
@@ -1587,13 +1526,15 @@ export default function AddExamsModal({
               {currentStep < 4 ? (
                 <button onClick={goNext}
                   style={{ ...F, border: "none", borderRadius: 11, padding: "9px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: `linear-gradient(135deg, ${C.navy}, ${C.dark})`, color: "#fff", display: "flex", alignItems: "center", gap: 6, boxShadow: "0 4px 14px rgba(56,73,89,0.3)" }}>
-                  {currentStep === 2 ? "Build Schedule" : "Next"}
-                  <ChevronRight size={15} />
+                  {currentStep === 2 ? "Build Schedule" : "Next"} <ChevronRight size={15} />
                 </button>
               ) : (
                 <button onClick={handleSubmit} disabled={loading}
                   style={{ ...F, border: "none", borderRadius: 11, padding: "9px 22px", fontSize: 13, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", background: loading ? "#a0b5c8" : "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff", display: "flex", alignItems: "center", gap: 6, boxShadow: loading ? "none" : "0 4px 14px rgba(16,185,129,0.3)" }}>
-                  {loading ? <><Loader2 size={14} style={{ animation: "ae-spin .8s linear infinite" }} />{isEdit ? "Saving…" : "Creating…"}</> : <><Check size={14} />{isEdit ? "Save Changes" : "Create Assessment"}</>}
+                  {loading
+                    ? <><Loader2 size={14} style={{ animation: "ae-spin .8s linear infinite" }} />{isEdit ? "Saving…" : "Scheduling…"}</>
+                    : <><Check size={14} />{isEdit ? "Save Changes" : "Create & Schedule"}</>
+                  }
                 </button>
               )}
             </div>

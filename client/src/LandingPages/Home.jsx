@@ -160,20 +160,30 @@ export default function Home() {
                         </h1>
 
                         <p className="text-base leading-relaxed mb-9 max-w-md" style={{ color: "#5a7a96" }}>
-                             Education Management CRM brings together students, teachers, parents, finance, and administration into a single
+                             Education Management Software brings together students, teachers, parents, finance, and administration into a single
                             powerful system built with role-based access so everyone gets exactly what they need.
                         </p>
 
                         <div className="flex flex-wrap gap-3 mb-8">
                             <button
                                 onClick={() => (window.location.href = "/login")}
-                                className="relative overflow-hidden flex items-center gap-2 px-8 py-3.5 rounded-xl font-bold text-sm text-white transition-all hover:-translate-y-0.5 active:scale-95"
+                                className="relative overflow-hidden flex items-center gap-2 px-8 py-3.5 cursor-pointer rounded-xl font-bold text-sm text-white transition-all hover:-translate-y-0.5 active:scale-95"
                                 style={{
                                     background: "linear-gradient(135deg, #384959 0%, #6A89A7 50%, #88BDF2 100%)",
                                     boxShadow: "0 8px 32px rgba(106,137,167,0.35)",
                                 }}
                             >
                                 Access Dashboard <ArrowRight size={16} />
+                            </button>
+                            <button
+                            onClick={() => window.open("https://youtu.be/ozxbGKDpR14", "_blank")}
+                            className="relative overflow-hidden flex items-center gap-2 px-8 py-3.5 rounded-xl font-bold cursor-pointer text-sm text-white transition-all hover:-translate-y-0.5 active:scale-95"
+                            style={{
+                                background: "linear-gradient(135deg, #384959 0%, #6A89A7 50%, #88BDF2 100%)",
+                                boxShadow: "0 8px 32px rgba(106,137,167,0.35)",
+                            }}
+                            > 
+                            Watch Demo <ArrowRight size={16} />
                             </button>
                            
                         </div>
@@ -217,7 +227,7 @@ export default function Home() {
                                     className="flex-1 bg-white border border-slate-100 rounded-md px-3 py-1 text-center text-xs"
                                     style={{ color: "#9db8cc" }}
                                 >
-                                     Education Management CRM.app/admin/dashboard
+                                     Education Management Software.app/admin/dashboard
                                 </div>
                             </div>
 
@@ -342,7 +352,7 @@ export default function Home() {
                             className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full border text-xs font-semibold uppercase tracking-widest mb-4"
                             style={{ background: "#e8f3fd", borderColor: "#BDDDFC", color: "#6A89A7" }}
                         >
-                            <LayoutDashboard size={12} /> What's Inside  Education Management CRM
+                            <LayoutDashboard size={12} /> What's Inside  Education Management Software
                         </div>
                         <h2 className="text-4xl font-black mb-4" style={{ color: "#1a2533", fontFamily: "Georgia, serif" }}>
                             Every Module Your{" "}
@@ -387,24 +397,37 @@ export default function Home() {
                         ))}
                     </div>
 
-                    <div className="mt-16 rounded-3xl overflow-hidden relative h-64 shadow-xl">
-                        <img
-                            src="https://images.unsplash.com/photo-1571260899304-425eee4c7efc?w=1600&q=80&auto=format&fit=crop"
-                            alt="Teacher helping students"
-                            className="w-full h-full object-cover object-[center_30%]"
-                        />
-                        <div
-                            className="absolute inset-0 flex items-center px-12"
-                            style={{ background: "linear-gradient(to right, rgba(56,73,89,0.82) 0%, rgba(56,73,89,0.3) 60%, transparent 100%)" }}
-                        >
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "#BDDDFC" }}>Real Impact</p>
-                                <p className="text-2xl font-black text-white max-w-md leading-snug" style={{ fontFamily: "Georgia, serif" }}>
-                                    Empowering teachers to focus on what matters most teaching.
-                                </p>
-                            </div>
+                <div className="mt-16 rounded-3xl overflow-hidden relative h-64 shadow-xl">
+                    <img
+                        src="/homeImage1.avif"
+                        alt="Teacher helping students"
+                        className="w-full h-full object-cover object-[center_30%]"
+                    />
+
+                    <div
+                        className="absolute inset-0 flex items-center px-12"
+                        style={{
+                            background:
+                                "linear-gradient(to right, rgba(56,73,89,0.82) 0%, rgba(56,73,89,0.3) 60%, transparent 100%)"
+                        }}
+                    >
+                        <div>
+                            <p
+                                className="text-xs font-semibold uppercase tracking-widest mb-2"
+                                style={{ color: "#BDDDFC" }}
+                            >
+                                Real Impact
+                            </p>
+
+                            <p
+                                className="text-2xl font-black text-white max-w-md leading-snug"
+                                style={{ fontFamily: "Georgia, serif" }}
+                            >
+                                Empowering teachers to focus on what matters most teaching.
+                            </p>
                         </div>
                     </div>
+                </div>
                 </div>
             </section>
 
@@ -629,7 +652,7 @@ export default function Home() {
                             className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full border text-xs font-semibold uppercase tracking-widest mb-4"
                             style={{ background: "#e8f3fd", borderColor: "#BDDDFC", color: "#6A89A7" }}
                         >
-                            <School size={12} /> Why  Education Management CRM
+                            <School size={12} /> Why  Education Management Software
                         </div>
                         <h2 className="text-4xl font-black mb-5" style={{ color: "#1a2533", fontFamily: "Georgia, serif" }}>
                             Every Department,{" "}
@@ -641,7 +664,7 @@ export default function Home() {
                             </span>
                         </h2>
                         <p className="text-base leading-relaxed mb-7" style={{ color: "#6A89A7" }}>
-                             Education Management CRM isn't just student records. It's a complete ecosystem from finance and staff management
+                             Education Management Software isn't just student records. It's a complete ecosystem from finance and staff management
                             to parent portals and academic reporting all talking to each other in real time.
                         </p>
                         <ul className="space-y-4 mb-10">
@@ -656,7 +679,7 @@ export default function Home() {
                         </ul>
                         <button
                             onClick={() => (window.location.href = "/login")}
-                            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl font-bold text-sm text-white transition-all hover:-translate-y-0.5"
+                            className="inline-flex items-center gap-2 px-8 py-3.5 cursor-pointer rounded-xl font-bold text-sm text-white transition-all hover:-translate-y-0.5"
                             style={{
                                 background: "linear-gradient(135deg, #384959 0%, #6A89A7 50%, #88BDF2 100%)",
                                 boxShadow: "0 8px 28px rgba(106,137,167,0.3)",
@@ -694,11 +717,11 @@ export default function Home() {
                                 Educators Say
                             </span>
                         </h2>
-                        <p className="text-sm" style={{ color: "#9db8cc" }}>From the people who use  Education Management CRM every day</p>
+                        <p className="text-sm" style={{ color: "#9db8cc" }}>From the people who use  Education Management Software every day</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {[
-                            { quote: "Managing 1,200 students used to be chaos.  Education Management CRM made it completely organized attendance, fees, results all in one place.", name: "Priya Sharma", role: "Principal, Delhi Public School", Icon: School },
+                            { quote: "Managing 1,200 students used to be chaos.  Education Management Software made it completely organized attendance, fees, results all in one place.", name: "Priya Sharma", role: "Principal, Delhi Public School", Icon: School },
                             { quote: "The finance module is exactly what we needed. Fee collection, reminders, and reports everything automated and clean.", name: "Rajesh Nair", role: "Finance Head, Kendriya Vidyalaya", Icon: Wallet },
                             { quote: "As a parent I can see my child's attendance and marks anytime. The notifications keep me in the loop.", name: "Meena Iyer", role: "Parent, Presidency School", Icon: UsersRound },
                         ].map((t, i) => (
@@ -730,6 +753,102 @@ export default function Home() {
                 </div>
             </section>
 
+            <section
+                className="py-20 bg-cover bg-center"
+                style={{
+                    backgroundImage:
+                    "linear-gradient(rgba(248,251,255,0.97), rgba(248,251,255,0.97)), url('https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1600&q=80&auto=format&fit=crop')",
+                }}
+                >
+                <div className="max-w-7xl mx-auto px-4">
+                    
+                    {/* Header */}
+                    <div className="text-center mb-14">
+                    <div
+                        className="inline-flex items-center gap-2 px-4 py-1 rounded-full border text-xs font-semibold uppercase tracking-widest mb-4"
+                        style={{ background: "#e8f3fd", borderColor: "#BDDDFC", color: "#6A89A7" }}
+                    >
+                        🚀 Upcoming Features
+                    </div>
+
+                    <h2
+                        className="text-4xl font-black mb-4"
+                        style={{ color: "#1a2533", fontFamily: "Georgia, serif" }}
+                    >
+                        What’s Coming Next
+                    </h2>
+
+                    <p className="text-base max-w-xl mx-auto" style={{ color: "#6A89A7" }}>
+                        We’re building smarter tools to make your school system even more powerful and future-ready.
+                    </p>
+                    </div>
+
+                    {/* Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                    {/* AI Programming */}
+                    <div className="rounded-2xl p-6 bg-white border hover:-translate-y-1 transition-all"
+                        style={{ borderColor: "#e2edf7", boxShadow: "0 6px 24px rgba(106,137,167,0.08)" }}>
+                        
+                        <div className="flex items-center justify-between mb-4">
+                        <PencilLine size={22} color="#6A89A7" />
+                        <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 font-semibold">
+                            Coming Soon
+                        </span>
+                        </div>
+
+                        <h3 className="text-lg font-bold mb-2" style={{ color: "#384959" }}>
+                        AI Programming Assistant
+                        </h3>
+
+                        <p className="text-sm" style={{ color: "#6A89A7" }}>
+                        Automate academic workflows, generate reports, and assist teachers with intelligent AI-based tools.
+                        </p>
+                    </div>
+
+                    {/* Syllabus */}
+                    <div className="rounded-2xl p-6 bg-white border hover:-translate-y-1 transition-all"
+                        style={{ borderColor: "#e2edf7", boxShadow: "0 6px 24px rgba(106,137,167,0.08)" }}>
+                        
+                        <div className="flex items-center justify-between mb-4">
+                        <BookOpen size={22} color="#6A89A7" />
+                        <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 font-semibold">
+                            Coming Soon
+                        </span>
+                        </div>
+
+                        <h3 className="text-lg font-bold mb-2" style={{ color: "#384959" }}>
+                        Syllabus Management
+                        </h3>
+
+                        <p className="text-sm" style={{ color: "#6A89A7" }}>
+                        Organize subjects, chapters, and curriculum in a structured digital format accessible to teachers and students.
+                        </p>
+                    </div>
+
+                    {/* Textbook Pages */}
+                    <div className="rounded-2xl p-6 bg-white border hover:-translate-y-1 transition-all"
+                        style={{ borderColor: "#e2edf7", boxShadow: "0 6px 24px rgba(106,137,167,0.08)" }}>
+                        
+                        <div className="flex items-center justify-between mb-4">
+                        <FileText size={22} color="#6A89A7" />
+                        <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 font-semibold">
+                            Coming Soon
+                        </span>
+                        </div>
+
+                        <h3 className="text-lg font-bold mb-2" style={{ color: "#384959" }}>
+                        Textbook Page Upload
+                        </h3>
+
+                        <p className="text-sm" style={{ color: "#6A89A7" }}>
+                        Upload and manage textbook pages, notes, and learning materials directly within the platform.
+                        </p>
+                    </div>
+
+                    </div>
+                </div>
+                </section>
             {/* ── CTA ── */}
             <section
                 id="contact"
@@ -757,7 +876,7 @@ export default function Home() {
                         
                         <button
                             onClick={() => (window.location.href = "/login")}
-                            className="inline-flex items-center gap-2 border border-white/35 bg-white/10 text-white px-10 py-4 rounded-2xl text-base font-medium transition-all hover:bg-white/20"
+                            className="inline-flex items-center gap-2 border border-white/35 cursor-pointer bg-white/10 text-white px-10 py-4 rounded-2xl text-base font-medium transition-all hover:bg-white/20"
                         >
                             <ArrowRight size={16} /> Sign In
                         </button>

@@ -189,7 +189,7 @@ export const getDashboard = async (req, res) => {
         OR: [
           { students: { some: { studentId } } },
           { classes:  { some: { classSectionId } } },
-          { type: { in: ["PARENT", "GENERAL"] } },
+          { type: { in: ["PARENTS", "GENERAL"] } },
         ],
       },
       orderBy: { meetingDate: "asc" },

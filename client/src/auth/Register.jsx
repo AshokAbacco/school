@@ -1,6 +1,6 @@
 // client/src/auth/Register.jsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation  } from "react-router-dom";
 import { registerSuperAdmin } from "./api";
 import { saveAuth } from "./storage";
 
@@ -25,8 +25,8 @@ const getErrors = (s, form) => {
       errs.push({ field: "adminName", msg: "Full name is required" });
     if (!/\S+@\S+\.\S+/.test(form.adminEmail))
       errs.push({ field: "adminEmail", msg: "Valid email is required" });
-    if (form.adminPassword.length < 8)
-      errs.push({ field: "adminPassword", msg: "Password must be at least 8 characters" });
+    if (form.adminPassword.length < 6)
+      errs.push({ field: "adminPassword", msg: "Password must be at least 6 characters" });
     if (form.adminPassword !== form.adminConfirmPassword)
       errs.push({ field: "adminConfirmPassword", msg: "Passwords do not match" });
   }
@@ -34,26 +34,42 @@ const getErrors = (s, form) => {
 };
 
 /* ─── reusable Input ───────────────────────────────────────── */
-const Input = ({ label, required, hint, error, ...props }) => (
+const Input = ({ label, required, hint, error, type = "text", isPassword, show, toggleShow, ...props }) => (
   <div className="flex flex-col gap-1">
     <label className="text-xs font-semibold text-[#6A89A7] uppercase tracking-wide">
       {label}{required && <span className="text-[#88BDF2] ml-0.5">*</span>}
     </label>
-    <input
-      className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-medium text-[#384959] outline-none transition-all duration-200
-        bg-slate-50 border
-        ${error
-          ? "border-red-400 bg-red-50 focus:ring-2 focus:ring-red-200"
-          : "border-slate-200 hover:border-[#88BDF2] hover:bg-white focus:border-[#6A89A7] focus:bg-white focus:ring-2 focus:ring-[#88BDF2]/25"
-        }
-        placeholder:text-slate-300`}
-      {...props}
-    />
+
+    <div className="relative">
+      <input
+        type={isPassword ? (show ? "text" : "password") : type}
+        className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-medium text-[#384959] outline-none transition-all duration-200
+          bg-slate-50 border
+          ${error
+            ? "border-red-400 bg-red-50 focus:ring-2 focus:ring-red-200"
+            : "border-slate-200 hover:border-[#88BDF2] hover:bg-white focus:border-[#6A89A7] focus:bg-white focus:ring-2 focus:ring-[#88BDF2]/25"
+          }`}
+        {...props}
+      />
+
+      {/* 👁 Toggle Icon */}
+      {isPassword && (
+        <button
+          type="button"
+          onClick={toggleShow}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6A89A7] text-sm"
+        >
+          {show ? "🙈" : "🙊"}
+        </button>
+      )}
+    </div>
+
     {error && (
       <p className="text-xs text-red-500 font-medium flex items-center gap-1">
-        <span>⚠</span> {error}
+        ⚠ {error}
       </p>
     )}
+
     {hint && !error && (
       <p className="text-xs text-[#6A89A7] italic">{hint}</p>
     )}
@@ -68,19 +84,26 @@ export default function Register() {
   const [globalError, setGlobalError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone]     = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const location = useLocation();
+  const paymentData = location.state || {};
+  const tempUserId =
+    paymentData.tempUserId || localStorage.getItem("tempUserId");
 
   const [form, setForm] = useState({
-    universityName: "",
+    universityName: paymentData.schoolName || "",
     universityCode: "",
     universityCity: "",
     universityState: "",
-    universityPhone: "",
-    universityEmail: "",
-    adminName: "",
-    adminEmail: "",
+    universityPhone: paymentData.phone || "",
+    universityEmail: paymentData.email || "",
+
+    adminName: paymentData.fullName || "",
+    adminEmail: paymentData.email || "",
     adminPassword: "",
     adminConfirmPassword: "",
-    adminPhone: "",
+    adminPhone: paymentData.phone || "",
   });
 
   /* ── field updater ─────────────────────────── */
@@ -155,8 +178,10 @@ export default function Register() {
         adminEmail:      form.adminEmail,
         adminPassword:   form.adminPassword,
         adminPhone:      form.adminPhone,
+        tempUserId: tempUserId,
       });
       saveAuth(result);
+      localStorage.removeItem("tempUserId");
       setDone(true);
       setTimeout(() => { window.location.href = "/login"; }, 2000);
     } catch (err) {
@@ -169,7 +194,7 @@ export default function Register() {
   /* ── step completion status ─────────────────── */
   const stepDone = (s) => getErrors(s, form).length === 0 && (
     s === 1 ? (form.universityName.trim() && form.universityCode.length >= 2) :
-    s === 2 ? (form.adminName.trim() && /\S+@\S+\.\S+/.test(form.adminEmail) && form.adminPassword.length >= 8 && form.adminPassword === form.adminConfirmPassword) :
+    s === 2 ? (form.adminName.trim() && /\S+@\S+\.\S+/.test(form.adminEmail) && form.adminPassword.length >= 6 && form.adminPassword === form.adminConfirmPassword) :
     false
   );
 
@@ -339,20 +364,38 @@ export default function Register() {
                   <Input label="Phone" type="tel" placeholder="+91 98765 43210"
                     value={form.adminPhone} onChange={set("adminPhone")} />
                 </div>
-                <Input label="Email Address" required type="email"
-                  placeholder="super@university.edu"
-                  hint="Your primary login credential"
-                  value={form.adminEmail} onChange={set("adminEmail")}
-                  error={fieldErrors.adminEmail} />
+                <Input
+                  label="Email Address"
+                  type="email"
+                  value={form.adminEmail}
+                  onChange={set("adminEmail")}
+                  disabled
+                />
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="Password" required type="password"
-                    placeholder="••••••••" hint="Min. 8 characters"
-                    value={form.adminPassword} onChange={set("adminPassword")}
-                    error={fieldErrors.adminPassword} />
-                  <Input label="Confirm Password" required type="password"
+                  <Input
+                    label="Password"
+                    required
+                    isPassword
+                    show={showPassword}
+                    toggleShow={() => setShowPassword(!showPassword)}
                     placeholder="••••••••"
-                    value={form.adminConfirmPassword} onChange={set("adminConfirmPassword")}
-                    error={fieldErrors.adminConfirmPassword} />
+                    hint="Min. 6 characters"
+                    value={form.adminPassword}
+                    onChange={set("adminPassword")}
+                    error={fieldErrors.adminPassword}
+                  />
+
+                  <Input
+                    label="Confirm Password"
+                    required
+                    isPassword
+                    show={showConfirmPassword}
+                    toggleShow={() => setShowConfirmPassword(!showConfirmPassword)}
+                    placeholder="••••••••"
+                    value={form.adminConfirmPassword}
+                    onChange={set("adminConfirmPassword")}
+                    error={fieldErrors.adminConfirmPassword}
+                  />
                 </div>
               </div>
             )}

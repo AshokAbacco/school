@@ -116,7 +116,7 @@ export default function AddSchoolAdminModal({ onClose, onSuccess, admin = null }
     const needsPassword = !isEdit || changePassword;
     if (needsPassword) {
       if (!form.password)           errs.password = "Required";
-      else if (form.password.length < 8) errs.password = "Minimum 8 characters";
+      else if (form.password.length < 6) errs.password = "Minimum 6 characters";
       if (!form.confirmPassword)    errs.confirmPassword = "Required";
       else if (form.password !== form.confirmPassword)
         errs.confirmPassword = "Passwords do not match";
@@ -282,7 +282,7 @@ export default function AddSchoolAdminModal({ onClose, onSuccess, admin = null }
                           type={showPassword ? "text" : "password"}
                           value={form.password}
                           onChange={(e) => set("password")(e.target.value)}
-                          placeholder="Min. 8 characters"
+                          placeholder="Min. 6 characters"
                           className="w-full py-2 px-3 pr-16 rounded-lg text-sm outline-none transition-all"
                           style={{ border: `1.5px solid ${errors.password ? "#f87171" : "#BDDDFC"}`, ...font, color: "#384959", background: "#fff" }}
                           onFocus={(e) => (e.target.style.borderColor = "#88BDF2")}
@@ -318,7 +318,7 @@ export default function AddSchoolAdminModal({ onClose, onSuccess, admin = null }
                       type={showPassword ? "text" : "password"}
                       value={form.password}
                       onChange={(e) => set("password")(e.target.value)}
-                      placeholder="Min. 8 characters"
+                      placeholder="Min. 6 characters"
                       className="w-full py-2 px-3 pr-16 rounded-lg text-sm outline-none transition-all"
                       style={{ border: `1.5px solid ${errors.password ? "#f87171" : "#BDDDFC"}`, ...font, color: "#384959", background: "#fff" }}
                       onFocus={(e) => (e.target.style.borderColor = "#88BDF2")}

@@ -1,6 +1,8 @@
 // client/src/student/pages/Homework/HomeworkPage.jsx
 
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
 import {
   BookOpen,
   Calendar,
@@ -16,6 +18,7 @@ import {
   Inbox,
   Filter,
   Eye,
+  Trophy,
 } from "lucide-react";
 import { getToken } from "../../../auth/storage";
 
@@ -127,11 +130,19 @@ function SkeletonCard() {
 }
 
 // ── Assignment card ──────────────────────────────────────────
-function AssignmentCard({ hw }) {
+function AssignmentCard({ hw, onOpen }) {
   const [expanded, setExpanded] = useState(false);
-  const isOverdue = hw.dueDate && new Date(hw.dueDate) < new Date();
-  const dateColor = dueDateColor(hw.dueDate);
-  const hasFiles  = hw.attachmentNames?.length > 0;
+  const isOverdue   = hw.dueDate && new Date(hw.dueDate) < new Date();
+  const dateColor   = dueDateColor(hw.dueDate);
+  const hasFiles    = hw.attachmentNames?.length > 0;
+  const submission  = hw.submission;           // already returned by API
+  const isSubmitted = !!submission;
+  const hasTimeLimit = !!hw.timeLimitMinutes;
+
+  // Submission score label
+  const scoreLabel = isSubmitted && submission.totalScore !== null
+    ? `${submission.totalScore}/${submission.totalMaxScore} · ${submission.percentage?.toFixed(0)}%`
+    : null;
 
   return (
     <div
@@ -139,7 +150,9 @@ function AssignmentCard({ hw }) {
       style={{
         background: C.white,
         borderRadius: 16,
-        border: isOverdue
+        border: isSubmitted
+          ? "1.5px solid #86efac"
+          : isOverdue
           ? "1.5px solid #fca5a5"
           : `1.5px solid ${C.borderLight}`,
         padding: 20,
@@ -157,11 +170,15 @@ function AssignmentCard({ hw }) {
         {/* Subject icon */}
         <div style={{
           width: 44, height: 44, borderRadius: 12,
-          background: `linear-gradient(135deg, ${C.mist}66, ${C.sky}33)`,
+          background: isSubmitted
+            ? "linear-gradient(135deg, #dcfce7, #bbf7d0)"
+            : `linear-gradient(135deg, ${C.mist}66, ${C.sky}33)`,
           display: "flex", alignItems: "center", justifyContent: "center",
           flexShrink: 0,
         }}>
-          <BookOpen size={18} color={C.deep} />
+          {isSubmitted
+            ? <CheckCircle2 size={20} color="#16a34a" />
+            : <BookOpen size={18} color={C.deep} />}
         </div>
 
         {/* Title + subject */}
@@ -181,19 +198,24 @@ function AssignmentCard({ hw }) {
           </p>
         </div>
 
-        {/* Type badge */}
+        {/* Badges */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
           {typeBadge(hw.type)}
-          {isOverdue && (
+          {isSubmitted ? (
+            <span style={{ fontSize: 9, fontWeight: 700, color: "#16a34a",
+              fontFamily: "'DM Sans', sans-serif", letterSpacing: "0.05em" }}>
+              ✓ SUBMITTED
+            </span>
+          ) : isOverdue ? (
             <span style={{ fontSize: 9, fontWeight: 700, color: "#b91c1c",
               fontFamily: "'DM Sans', sans-serif", letterSpacing: "0.05em" }}>
               OVERDUE
             </span>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {/* Due date + teacher */}
+      {/* Due date + teacher + time limit */}
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
           <Calendar size={11} color={dateColor} />
@@ -214,7 +236,62 @@ function AssignmentCard({ hw }) {
             </span>
           </div>
         )}
+        {hasTimeLimit && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <Clock size={11} color="#d97706" />
+            <span style={{ fontSize: 11, color: "#d97706", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>
+              {hw.timeLimitMinutes} min timed
+            </span>
+          </div>
+        )}
       </div>
+
+      {/* Time limit warning banner */}
+      {hasTimeLimit && !isSubmitted && (
+        <div style={{
+          padding: "8px 12px", borderRadius: 10,
+          background: "#fffbeb", border: "1px solid #fde68a",
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <Clock size={13} color="#d97706" />
+          <span style={{ fontSize: 11, color: "#92400e", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
+            Timed: {hw.timeLimitMinutes} minutes · Timer starts when you click "Start Assignment". Answers auto-save.
+          </span>
+        </div>
+      )}
+
+      {/* Submitted score banner */}
+      {isSubmitted && scoreLabel && (
+        <div style={{
+          padding: "8px 12px", borderRadius: 10,
+          background: "#f0fdf4", border: "1px solid #86efac",
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <Trophy size={13} color="#16a34a" />
+          <span style={{ fontSize: 12, color: "#166534", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>
+            Score: {scoreLabel}
+          </span>
+          {submission.grade && (
+            <span style={{
+              marginLeft: "auto", fontSize: 13, fontWeight: 800, color: "#16a34a",
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              {submission.grade}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Submitted — pending written grading */}
+      {isSubmitted && submission.writtenMaxScore > 0 && submission.writtenScore === null && (
+        <div style={{
+          padding: "8px 12px", borderRadius: 10,
+          background: "#eff6ff", border: "1px solid #bfdbfe",
+          fontSize: 11, color: "#1e40af", fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+        }}>
+          📝 Written answers are pending teacher review
+        </div>
+      )}
 
       {/* Description (expandable) */}
       {hw.description && (
@@ -246,88 +323,102 @@ function AssignmentCard({ hw }) {
       {hasFiles && <div style={{ height: 1, background: C.borderLight }} />}
 
       {/* Attachments */}
-{hasFiles && (
-  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-    <p style={{ 
-      margin: 0, fontSize: 10, fontWeight: 700, color: C.slate,
-      textTransform: "uppercase", letterSpacing: "0.08em",
-      fontFamily: "'DM Sans', sans-serif" 
-    }}>
-      Attachments ({hw.attachmentNames.length})
-    </p>
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {hw.attachmentNames.map((name, i) => {
-        const fileUrl = hw.attachmentSignedUrls?.[i]; // The secure link from backend
-        
-        return (
-          <div
-            key={i}
-            onClick={(e) => e.stopPropagation()} // Prevent card from toggling
-            style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "8px 12px", borderRadius: 10,
-              background: C.bg, border: `1px solid ${C.border}`,
-            }}
-          >
-            <span style={{ fontSize: 16 }}>{fileIcon(hw.attachmentTypes?.[i])}</span>
-            <span style={{ 
-              flex: 1, fontSize: 12, color: C.deep, 
-              fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", 
-              whiteSpace: "nowrap" 
-            }}>
-              {name}
-            </span>
-            
-            <div style={{ display: "flex", gap: 6 }}>
-              {/* VIEW OPTION */}
-              {fileUrl && (
-                <a
-                  href={fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+      {hasFiles && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <p style={{
+            margin: 0, fontSize: 10, fontWeight: 700, color: C.slate,
+            textTransform: "uppercase", letterSpacing: "0.08em",
+            fontFamily: "'DM Sans', sans-serif",
+          }}>
+            Attachments ({hw.attachmentNames.length})
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {hw.attachmentNames.map((name, i) => {
+              const fileUrl = hw.attachmentSignedUrls?.[i];
+              return (
+                <div
+                  key={i}
+                  onClick={(e) => e.stopPropagation()}
                   style={{
-                    display: "flex", alignItems: "center", gap: 4,
-                    padding: "4px 10px", borderRadius: 6,
-                    background: C.white, border: `1px solid ${C.border}`,
-                    color: C.accent, fontSize: 10, fontWeight: 700,
-                    textDecoration: "none", cursor: "pointer",
-                    transition: "all 0.2s"
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.background = C.mist + '33'}
-                  onMouseOut={(e) => e.currentTarget.style.background = C.white}
-                >
-                  <Eye size={12} /> VIEW
-                </a>
-              )}
-              
-              {/* DOWNLOAD OPTION */}
-              {fileUrl && (
-                <a
-                  href={fileUrl}
-                  download={name}
-                  style={{
-                    display: "flex", alignItems: "center",
-                    padding: "6px", borderRadius: 6,
-                    background: C.white, border: `1px solid ${C.border}`,
-                    color: C.slate, cursor: "pointer"
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "8px 12px", borderRadius: 10,
+                    background: C.bg, border: `1px solid ${C.border}`,
                   }}
                 >
-                  <Download size={13} />
-                </a>
-              )}
-            </div>
+                  <span style={{ fontSize: 16 }}>{fileIcon(hw.attachmentTypes?.[i])}</span>
+                  <span style={{
+                    flex: 1, fontSize: 12, color: C.deep,
+                    fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {name}
+                  </span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {fileUrl && (
+                      <a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        padding: "4px 10px", borderRadius: 6,
+                        background: C.white, border: `1px solid ${C.border}`,
+                        color: C.accent, fontSize: 10, fontWeight: 700,
+                        textDecoration: "none", cursor: "pointer",
+                      }}>
+                        <Eye size={12} /> VIEW
+                      </a>
+                    )}
+                    {fileUrl && (
+                      <a href={fileUrl} download={name} style={{
+                        display: "flex", alignItems: "center",
+                        padding: "6px", borderRadius: 6,
+                        background: C.white, border: `1px solid ${C.border}`,
+                        color: C.slate, cursor: "pointer",
+                      }}>
+                        <Download size={13} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
-    </div>
-  </div>
-)}
+        </div>
+      )}
+
+      {/* Action button */}
+      {isSubmitted ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); onOpen(); }}
+          style={{
+            marginTop: 4, width: "100%", padding: "11px 14px", borderRadius: 12,
+            border: "1.5px solid #86efac", background: "#f0fdf4",
+            color: "#16a34a", fontSize: 12, fontWeight: 700, cursor: "pointer",
+            fontFamily: "'DM Sans', sans-serif",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}
+        >
+          <Eye size={13} /> View Submission
+        </button>
+      ) : (
+        <button
+          onClick={(e) => { e.stopPropagation(); onOpen(); }}
+          style={{
+            marginTop: 4, width: "100%", padding: "11px 14px", borderRadius: 12,
+            border: "none",
+            background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
+            color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer",
+            fontFamily: "'DM Sans', sans-serif",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}
+        >
+          {hasTimeLimit ? <><Clock size={13} /> Start Timed Assignment</> : "Start Assignment"}
+        </button>
+      )}
     </div>
   );
 }
 
 // ── Main page ────────────────────────────────────────────────
 export default function HomeworkPage() {
+    const navigate = useNavigate();
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState("");
@@ -339,7 +430,7 @@ export default function HomeworkPage() {
     try {
       setLoading(true);
       setError("");
-      const res = await fetch(`${API_URL}/api/student/homework`, {
+      const res = await fetch(`${API_URL}/api/student/assignments`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -439,6 +530,17 @@ export default function HomeworkPage() {
                 <FileText size={13} color={C.slate} />
                 {assignments.length} total
               </div>
+              {assignments.filter(a => a.submission).length > 0 && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 12px", borderRadius: 10,
+                  background: "#f0fdf4", border: "1px solid #86efac",
+                  fontSize: 12, color: "#166534", fontWeight: 700,
+                }}>
+                  <CheckCircle2 size={13} />
+                  {assignments.filter(a => a.submission).length} submitted
+                </div>
+              )}
               {overdue > 0 && (
                 <div style={{
                   display: "flex", alignItems: "center", gap: 6,
@@ -530,7 +632,13 @@ export default function HomeworkPage() {
         ) : (
           <div className="hw-grid fade-up">
             {filtered.map((hw) => (
-              <AssignmentCard key={hw.id} hw={hw} />
+              <AssignmentCard
+          key={hw.id}
+          hw={hw}
+          onOpen={() =>
+            navigate(`/student/assignment/${hw.id}`)
+          }
+        />
             ))}
           </div>
         )}

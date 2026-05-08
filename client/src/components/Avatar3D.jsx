@@ -10,6 +10,8 @@ const BOY_MODELS = [
   "/avatars/boys/boy4.glb",
   "/avatars/boys/boy5.glb",
   "/avatars/boys/boy6.glb",
+  "/avatars/boys/boy7.glb",
+  "/avatars/boys/boy8.glb",
   "/avatars/boys/model1.glb",
   "/avatars/boys/model2.glb",
 ];

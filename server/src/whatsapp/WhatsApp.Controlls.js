@@ -1,20 +1,41 @@
 import axios from "axios";
 import { prisma } from "../config/db.js";
 
-// Test message
+/**
+ * Utility: Clean phone number and ensure country code
+ */
+const formatPhone = (phone) => {
+  let clean = phone?.replace(/\D/g, "");
+
+  if (!clean) return null;
+
+  // Add India code if missing
+  if (clean.length === 10) {
+    clean = "91" + clean;
+  }
+
+  return clean;
+};
+
+// ================= TEST MESSAGE =================
 export const sendTestMessage = async (req, res) => {
   try {
     const { phone } = req.body;
+
+    const cleanPhone = formatPhone(phone);
+    if (!cleanPhone) {
+      return res.status(400).json({ success: false, error: "Invalid phone" });
+    }
 
     const response = await axios.post(
       `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
       {
         messaging_product: "whatsapp",
-        to: phone.replace(/\D/g, ""),
+        to: cleanPhone,
         type: "template",
         template: {
           name: "hello_world",
-          language: { code: "en"}
+          language: { code: "en_US" }
         }
       },
       {
@@ -35,34 +56,39 @@ export const sendTestMessage = async (req, res) => {
   }
 };
 
-// Manual Birthday
+// ================= MANUAL BIRTHDAY =================
 export const sendBirthdayWish = async (req, res) => {
   try {
-    const { phone, name } = req.body;
+    const { phone, name, schoolName } = req.body;
+
+    const cleanPhone = formatPhone(phone);
+    if (!cleanPhone) {
+      return res.status(400).json({ success: false, error: "Invalid phone" });
+    }
 
     const response = await axios.post(
       `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
       {
         messaging_product: "whatsapp",
-        to: phone.replace(/\D/g, ""),
+        to: cleanPhone,
         type: "template",
         template: {
-          name: "birthday",
-          language: { code: "en"},
+          name: "birthday_message",
+          language: { code: "en_US" },
           components: [
-          {
-            type: "body",
-            parameters: [
-              {
-                type: "text",
-                text: name
-              },
-              {
-                type: "text",
-                text: "ABC School"
-              }
-            ]
-          }
+            {
+              type: "body",
+              parameters: [
+                {
+                  type: "text",
+                  text: name
+                },
+                {
+                  type: "text",
+                  text: schoolName
+                }
+              ]
+            }
           ]
         }
       },
@@ -84,8 +110,7 @@ export const sendBirthdayWish = async (req, res) => {
   }
 };
 
-// Send today's birthdays manually
-// Send today's birthdays manually
+// ================= TODAY BIRTHDAYS =================
 export const sendTodayBirthdays = async (req, res) => {
   try {
     const today = new Date();
@@ -114,29 +139,21 @@ export const sendTodayBirthdays = async (req, res) => {
         dob.getMonth() + 1 === month &&
         dob.getDate() === day
       ) {
-        const phone =
-          item.phone?.replace(/\D/g, "");
+        const cleanPhone = formatPhone(item.phone);
+        if (!cleanPhone) continue;
 
-        if (!phone) continue;
-
-        const name =
-          `${item.firstName || ""} ${item.lastName || ""}`.trim();
-
-        // fetch school name from related student -> school
-        const schoolName =
-          item.student?.school?.name ||
-          item.student?.school?.schoolName ||
-          "ABC School";
+        const name = `${item.firstName || ""} ${item.lastName || ""}`.trim();
+        const schoolName = item.student?.school?.name || "Your School";
 
         await axios.post(
           `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
           {
             messaging_product: "whatsapp",
-            to: phone,
+            to: cleanPhone,
             type: "template",
             template: {
-              name: "birthday",
-              language: { code: "en" },
+              name: "birthday_message",
+              language: { code: "en_US" },
               components: [
                 {
                   type: "body",
@@ -145,10 +162,10 @@ export const sendTodayBirthdays = async (req, res) => {
                       type: "text",
                       text: name
                     },
-                    {
-                      type: "text",
-                      text: schoolName
-                    }
+                      {
+                        type: "text",
+                        text: schoolName
+                      }
                   ]
                 }
               ]
@@ -162,6 +179,7 @@ export const sendTodayBirthdays = async (req, res) => {
           }
         );
 
+        console.log(`✅ Birthday wish sent to ${name}`);
         total++;
       }
     }

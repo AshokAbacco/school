@@ -3,16 +3,14 @@
 import { prisma } from "../../config/db.js";
 
 const BIRTHDAY_WISHES = [
-  "🎂 Wishing you a day filled with joy and laughter!",
-  "🎉 May your birthday be as amazing as you are!",
-  "🌟 Another year older, another year wiser — Happy Birthday!",
-  "🎈 Hope your special day is absolutely fantastic!",
-  "🥳 Cheers to you on your wonderful birthday!",
-  "🎁 May all your birthday dreams come true today!",
-  "✨ Sending you warm wishes on your special day!",
-  "🌈 Hope this birthday brings you endless happiness!",
-  "🍰 Have a slice of happiness on your birthday!",
-  "💫 May this birthday be the start of your best year yet!",
+  "🎂 Happy Birthday! Dear student, wishing you a wonderful day filled with joy and success in your studies.",
+  "🎉 Happy Birthday! Keep learning, growing, and making your teachers proud.",
+  "🌟 Happy Birthday! Wishing you a bright future and great success in your academics.",
+  "🎈 Happy Birthday! May your day be full of smiles and your year full of achievements.",
+  "🥳 Happy Birthday! Stay focused, work hard, and achieve all your dreams.",
+  "🎁 Happy Birthday! Wishing you success in studies and happiness in life.",
+  "✨ Happy Birthday! May this year bring you knowledge, growth, and great results.",
+  "🌈 Happy Birthday! Keep believing in yourself and continue to excel.",
 ];
 
 function pickRandomWish() {

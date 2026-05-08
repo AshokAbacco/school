@@ -78,7 +78,7 @@ function AttendanceSummary({ present, total }) {
 
 export default function MeetingViewModal({ meeting: initialMeeting, onClose, onStatusChange }) {
   const [meeting,         setMeeting]         = useState(initialMeeting);
-  const [loadingFull,     setLoadingFull]     = useState(false);
+  const [loadingFull,     setLoadingFull]     = useState(true);  // true: fetch starts on mount
   const [updatingStatus,  setUpdatingStatus]  = useState(false);
   const [sendingReminder, setSendingReminder] = useState(false);
   const [togglingAtt,     setTogglingAtt]     = useState({});
@@ -87,12 +87,25 @@ export default function MeetingViewModal({ meeting: initialMeeting, onClose, onS
   const [savingNotes,     setSavingNotes]     = useState(false);
 
   React.useEffect(() => {
+    if (!initialMeeting?.id) return;
     setLoadingFull(true);
     fetchMeetingById(initialMeeting.id)
-      .then((res) => { const full = res?.data ?? res; setMeeting(full); setNotesValue(full.notes ?? ""); })
-      .catch(() => {})
+      .then((res) => {
+        // API returns { data: meeting } — merge with initialMeeting so scalar
+        // fields (meetingDate, startTime, endTime) are never lost even if the
+        // full fetch returns a partial object or an unexpected shape.
+        const full = res?.data ?? res;
+        if (full && typeof full === "object" && full.id) {
+          setMeeting((prev) => ({ ...prev, ...full }));
+          setNotesValue(full.notes ?? "");
+        }
+      })
+      .catch((err) => {
+        console.error("MeetingViewModal: failed to fetch full meeting", err);
+        // Keep initialMeeting data — don't blank it out on error
+      })
       .finally(() => setLoadingFull(false));
-  }, [initialMeeting.id]);
+  }, [initialMeeting?.id]);
 
   const handleStatusChange = async (status) => {
     setUpdatingStatus(true);
@@ -100,9 +113,30 @@ export default function MeetingViewModal({ meeting: initialMeeting, onClose, onS
     catch {} finally { setUpdatingStatus(false); }
   };
   const handleReminder = async () => {
+    if (sendingReminder) return;
+
     setSendingReminder(true);
-    try { await sendMeetingReminder(meeting.id); setMeeting((m) => ({ ...m, reminderSentAt: new Date().toISOString() })); }
-    catch {} finally { setSendingReminder(false); }
+
+    try {
+      const res = await sendMeetingReminder(meeting.id);
+
+      // ✅ update UI
+      setMeeting((m) => ({
+        ...m,
+        reminderSentAt: new Date().toISOString(),
+      }));
+
+      // ✅ SUCCESS MESSAGE
+      alert("✅ WhatsApp reminders sent successfully");
+
+    } catch (err) {
+      console.error(err);
+
+      // ❌ ERROR MESSAGE
+      alert("❌ Failed to send WhatsApp messages");
+    } finally {
+      setSendingReminder(false);
+    }
   };
   const handleSaveNotes = async () => {
     setSavingNotes(true);
@@ -126,6 +160,7 @@ export default function MeetingViewModal({ meeting: initialMeeting, onClose, onS
   };
 
   const userP     = meeting.participants?.filter((p) => p.type === "USER")     ?? [];
+  const staffP = meeting.participants?.filter((p) => p.type === "STAFF") ?? [];
   const parentP   = meeting.participants?.filter((p) => p.type === "PARENT")   ?? [];
   const externalP = meeting.participants?.filter((p) => p.type === "EXTERNAL") ?? [];
   const studentP  = meeting.students ?? [];
@@ -187,7 +222,7 @@ export default function MeetingViewModal({ meeting: initialMeeting, onClose, onS
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {[
               { Icon: CalendarDays, label: "Date",  val: fmtDate(meeting.meetingDate) },
-              { Icon: Clock4,       label: "Time",  val: `${meeting.startTime} – ${meeting.endTime}` },
+              { Icon: Clock4,       label: "Time",  val: meeting.startTime && meeting.endTime ? `${meeting.startTime} – ${meeting.endTime}` : "—" },
               ...((meeting.venueType || meeting.location) ? [{ Icon: VenueIcon, label: "Venue", val: meeting.venueType ? `${meeting.venueType.charAt(0) + meeting.venueType.slice(1).toLowerCase()}${meeting.venueDetail ? ` — ${meeting.venueDetail}` : ""}` : meeting.location }] : []),
             ].map(({ Icon, label, val }) => (
               <div key={label} style={{ display: "flex", alignItems: "flex-start", gap: 10, background: `${C.bg}88`, borderRadius: 12, padding: "11px 14px", border: `1px solid ${C.borderLight}` }}>
@@ -354,6 +389,27 @@ export default function MeetingViewModal({ meeting: initialMeeting, onClose, onS
             </div>
           )}
 
+          {staffP.length > 0 && (
+            <div>
+              <SectionHead icon={User}>Non-Teaching Staff</SectionHead>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {staffP.map((p) => (
+                  <AttendanceRow
+                    key={p.id}
+                    label={
+                      p.staff
+                        ? `${p.staff.firstName} ${p.staff.lastName ?? ""}`.trim()
+                        : p.name ?? "Staff"
+                    }
+                    attended={p.attended}
+                    loading={!!togglingAtt[`p-${p.id}`]}
+                    onToggle={() => toggleParticipant(p)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* External */}
           {externalP.length > 0 && (
             <div>
@@ -428,9 +484,19 @@ export default function MeetingViewModal({ meeting: initialMeeting, onClose, onS
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button onClick={handleReminder} disabled={sendingReminder}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", fontSize: 12, fontWeight: 600, borderRadius: 10, border: `1.5px solid ${C.border}`, background: C.mist, color: C.deep, cursor: sendingReminder ? "not-allowed" : "pointer", opacity: sendingReminder ? 0.6 : 1 }}>
-              {sendingReminder ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />} Send Reminder
+            <button
+              onClick={handleReminder}
+              disabled={sendingReminder}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 10,
+                border: "none",
+                background: sendingReminder ? "#ccc" : "#2563EB",
+                color: "#fff",
+                cursor: sendingReminder ? "not-allowed" : "pointer",
+              }}
+            >
+              {sendingReminder ? "Sending..." : "Send Reminder"}
             </button>
             <button onClick={onClose}
               style={{ padding: "8px 20px", fontSize: 13, fontWeight: 600, borderRadius: 11, border: "none", background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`, color: "#fff", cursor: "pointer" }}

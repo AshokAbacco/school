@@ -89,59 +89,75 @@ export const getUsersByRole = async (req, res) => {
       });
     }
 
-    // PARENT
-      if (role === "PARENT" && req.user.role === "TEACHER") {
+     
+      // PARENT
+      if (role === "PARENT") {
 
-        // 1. Find teacher classes
-        const entries = await prisma.timetableEntry.findMany({
-          where: {
-            teacher: {
-              userId: req.user.id,
+        // TEACHER sees only own class parents
+        if (req.user.role === "TEACHER") {
+          const entries = await prisma.timetableEntry.findMany({
+            where: {
+              teacher: {
+                userId: req.user.id,
+              },
             },
-          },
-          select: {
-            classSectionId: true,
-            academicYearId: true,
-          },
-        });
-
-        const classIds = entries.map(e => e.classSectionId);
-
-        // 2. Find students in those classes
-        const students = await prisma.studentEnrollment.findMany({
-          where: {
-            classSectionId: { in: classIds },
-            status: "ACTIVE",
-          },
-          select: { studentId: true },
-        });
-
-        const studentIds = students.map(s => s.studentId);
-
-        // 3. Get parents of those students
-        const parents = await prisma.studentParent.findMany({
-          where: {
-            studentId: { in: studentIds },
-          },
-          include: {
-            parent: {
-              select: { id: true, name: true, email: true },
+            select: {
+              classSectionId: true,
             },
-          },
-        });
+          });
 
-        // 4. Unique parents
-        const map = new Map();
-        parents.forEach(p => {
-          if (p.parent) {
-            map.set(p.parent.id, {
-              ...p.parent,
-              role: "PARENT",
-            });
-          }
-        });
+          const classIds = entries.map(e => e.classSectionId);
 
-        users = Array.from(map.values());
+          const students = await prisma.studentEnrollment.findMany({
+            where: {
+              classSectionId: { in: classIds },
+              status: "ACTIVE",
+            },
+            select: { studentId: true },
+          });
+
+          const studentIds = students.map(s => s.studentId);
+
+          const parents = await prisma.studentParent.findMany({
+            where: {
+              studentId: { in: studentIds },
+            },
+            include: {
+              parent: {
+                select: { id: true, name: true, email: true },
+              },
+            },
+          });
+
+          const map = new Map();
+
+          parents.forEach((p) => {
+            if (p.parent) {
+              map.set(p.parent.id, {
+                ...p.parent,
+                role: "PARENT",
+              });
+            }
+          });
+
+          users = Array.from(map.values());
+        }
+
+        // ADMIN / SUPER_ADMIN / FINANCE sees all parents
+        else {
+          users = await prisma.parent.findMany({
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          });
+
+          users = users.map((u) => ({
+            ...u,
+            role: "PARENT",
+          }));
+        }
       }
 
     // STUDENT
@@ -261,4 +277,144 @@ export const markMessagesSeen = async (req, res) => {
   });
 
   res.json({ success: true });
+};
+
+export const getTeachersBySubject = async (req, res) => {
+  try {
+    const schoolId = req.user.schoolId;
+
+    const entries = await prisma.timetableEntry.findMany({
+      where: {
+        teacher: {
+          schoolId: schoolId, // ✅ FIXED
+        },
+      },
+      include: {
+        subject: true,
+        teacher: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+      },
+    });
+
+    console.log("ENTRIES:", entries.length); // 👈 DEBUG
+
+    const map = new Map();
+
+    entries.forEach((e) => {
+      if (!e.subject || !e.teacher?.user) return;
+
+      const subjectId = e.subject.id;
+
+      if (!map.has(subjectId)) {
+        map.set(subjectId, {
+          subjectId,
+          subjectName: e.subject.name,
+          teachers: [],
+        });
+      }
+
+      const group = map.get(subjectId);
+
+      if (!group.teachers.find(t => t.id === e.teacher.user.id)) {
+        group.teachers.push({
+          id: e.teacher.user.id,
+          name: e.teacher.user.name,
+          email: e.teacher.user.email,
+        });
+      }
+    });
+
+    const result = Array.from(map.values()).map((s) => ({
+      ...s,
+      count: s.teachers.length,
+    }));
+
+    console.log("RESULT:", result); // 👈 DEBUG
+
+    res.json({ success: true, data: result });
+
+  } catch (err) {
+    console.log("ERROR:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const groupSendMessage = async (req, res) => {
+  try {
+    const { classSectionIds, message, type } = req.body;
+
+    if (!classSectionIds?.length || !message) {
+      return res.status(400).json({
+        success: false,
+        message: "classSectionIds and message required",
+      });
+    }
+
+    // 🔥 get students
+    const students = await prisma.studentEnrollment.findMany({
+      where: {
+        classSectionId: { in: classSectionIds },
+        status: "ACTIVE",
+      },
+      select: {
+        studentId: true,
+      },
+    });
+
+    const studentIds = [...new Set(students.map(s => s.studentId))];
+
+    // 🔥 create chat + message for each student
+    for (const studentId of studentIds) {
+      let chat = await prisma.chatRoom.findFirst({
+        where: {
+          type: "NOTIFICATION",
+          participants: {
+            some: { userId: req.user.id },
+          },
+          AND: {
+            participants: {
+              some: { userId: studentId },
+            },
+          },
+        },
+      });
+
+      if (!chat) {
+        chat = await prisma.chatRoom.create({
+          data: {
+            type: "NOTIFICATION",
+            participants: {
+              create: [
+                { userId: req.user.id, role: req.user.role },
+                { userId: studentId, role: "STUDENT" },
+              ],
+            },
+          },
+        });
+      }
+
+      await prisma.message.create({
+        data: {
+          chatRoomId: chat.id,
+          senderId: req.user.id,
+          senderRole: req.user.role,
+          content: message,
+          type: "NOTIFICATION",
+        },
+      });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("GROUP SEND ERROR:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
 };

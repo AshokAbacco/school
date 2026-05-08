@@ -20,14 +20,39 @@ dotenv.config();
 
 const finance = express();
 
+// finance.use(
+//   cors({
+//     origin: process.env.CLIENT_ORIGIN,
+//     credentials: true,
+//   })
+// );
 finance.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN,
+    origin: (origin, callback) => {
+      const allowedOrigins = process.env.CLIENT_ORIGIN.split(",");
+
+      // allow requests without origin (mobile apps, Postman)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS blocked: " + origin));
+    },
     credentials: true,
-  })
+  }),
 );
 
-finance.use(express.json());
+// finance.use(express.json());
+finance.use(express.json({
+  limit: "50mb",
+}));
+
+finance.use(express.urlencoded({
+  extended: true,
+  limit: "50mb",
+}));
 
 // existing routes
 finance.use("/api/finance", expenseRoutes);

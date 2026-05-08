@@ -87,8 +87,16 @@ export const createGroup = async (req, res) => {
     const { name, weightage, academicYearId, termId } = req.body;
     const schoolId = req.user?.schoolId;
 
-    if (!academicYearId) return res.status(400).json({ error: "academicYearId is required" });
-    if (!schoolId)       return res.status(400).json({ error: "schoolId not found in token" });
+    // ✅ REQUIRED VALIDATIONS
+    if (!academicYearId)
+      return res.status(400).json({ error: "academicYearId is required" });
+
+    if (!schoolId)
+      return res.status(400).json({ error: "schoolId not found in token" });
+
+    // 🔴 ADD THIS (IMPORTANT FIX)
+    if (!termId)
+      return res.status(400).json({ error: "termId is required" });
 
     const group = await prisma.assessmentGroup.create({
       data: {
@@ -96,7 +104,9 @@ export const createGroup = async (req, res) => {
         weightage: weightage || 0,
         academicYearId,
         schoolId,
-        ...(termId && { termId }),
+        termId, // ✅ ALWAYS SAVE termId
+        isPublished: true,
+        isLocked: false,
       },
     });
 
@@ -203,9 +213,10 @@ export const lockGroup = async (req, res) => {
     const { id } = req.params;
     const schoolId = req.user?.schoolId;
 
+    // ✅ FIX: Lock = "Mark as Completed" — sets both isLocked and isPublished
     const group = await prisma.assessmentGroup.update({
       where: { id },
-      data: { isLocked: true },
+      data: { isLocked: true, isPublished: true },
     });
 
     await cacheService.invalidateSchool(schoolId);
@@ -221,9 +232,32 @@ export const lockGroup = async (req, res) => {
 
 export const createSchedule = async (req, res) => {
   try {
-    const data = req.body;
+    const {
+      assessmentGroupId,
+      classSectionId,
+      subjectId,
+      examDate,
+      startTime,
+      endTime,
+      maxMarks,
+      passingMarks,
+    } = req.body;
+
     const schoolId = req.user?.schoolId;
-    const dateOnly = (data.examDate || "").split("T")[0];
+
+    if (!assessmentGroupId) {
+      return res.status(400).json({ error: "assessmentGroupId is required" });
+    }
+
+    if (!classSectionId) {
+      return res.status(400).json({ error: "classSectionId is required" });
+    }
+
+    if (!subjectId) {
+      return res.status(400).json({ error: "subjectId is required" });
+    }
+
+    const dateOnly = (examDate || "").split("T")[0];
 
     const toUTCDateTime = (timeStr) => {
       const t = String(timeStr || "00:00").trim().substring(0, 8);
@@ -231,55 +265,134 @@ export const createSchedule = async (req, res) => {
       const hh = (parts[0] || "00").padStart(2, "0");
       const mm = (parts[1] || "00").padStart(2, "0");
       const ss = (parts[2] || "00").padStart(2, "0");
+
       const iso = `${dateOnly}T${hh}:${mm}:${ss}.000Z`;
       const d = new Date(iso);
-      if (isNaN(d.getTime())) throw new Error(`Invalid time value: "${timeStr}"`);
+
+      if (isNaN(d.getTime())) {
+        throw new Error(`Invalid time value: "${timeStr}"`);
+      }
+
       return d;
     };
 
     const schedule = await prisma.assessmentSchedule.create({
       data: {
-        ...data,
-        examDate:  new Date(`${dateOnly}T12:00:00.000Z`),
-        startTime: toUTCDateTime(data.startTime),
-        endTime:   toUTCDateTime(data.endTime),
+        assessmentGroupId,
+        classSectionId,
+        subjectId,
+        examDate: new Date(`${dateOnly}T12:00:00.000Z`),
+        startTime: toUTCDateTime(startTime),
+        endTime: toUTCDateTime(endTime),
+        maxMarks: maxMarks ?? null,
+        passingMarks: passingMarks ?? null,
       },
     });
 
     await cacheService.invalidateSchool(schoolId);
+
     res.status(201).json(schedule);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-export const getSchedules = async (req, res) => {
+/**
+ * ✅ NEW: Admin route — fetches ALL schedules for a group (no classSectionId filter)
+ * Used by admin ViewExams / EditExams modals
+ */
+export const getSchedulesAdmin = async (req, res) => {
   try {
     const { groupId } = req.params;
     const schoolId = req.user?.schoolId;
 
-    const cacheKey = await cacheService.buildKey(schoolId, `schedules:${groupId}`);
+    const cacheKey = await cacheService.buildKey(schoolId, `schedules-admin:${groupId}`);
     const cached = await cacheService.get(cacheKey);
     if (cached) return res.json(JSON.parse(cached));
 
     const schedules = await prisma.assessmentSchedule.findMany({
       where: { assessmentGroupId: groupId },
-      include: { subject: true, classSection: true },
+      include: {
+        subject: true,
+        classSection: true,
+      },
     });
 
     const toTimeStr = (dt) => {
       if (!dt) return "";
       const iso = dt instanceof Date ? dt.toISOString() : String(dt);
-      return iso.includes("T") ? iso.split("T")[1].substring(0, 8) : iso;
+      // Return HH:MM format
+      if (iso.includes("T")) {
+        return iso.split("T")[1].substring(0, 5);
+      }
+      return iso.substring(0, 5);
     };
 
     const normalized = schedules.map((sc) => ({
       ...sc,
       startTime: toTimeStr(sc.startTime),
-      endTime:   toTimeStr(sc.endTime),
+      endTime: toTimeStr(sc.endTime),
     }));
 
     await cacheService.set(cacheKey, normalized);
+
+    res.json(normalized);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+/**
+ * Student route — filters by classSectionId from JWT token
+ */
+export const getSchedules = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const schoolId = req.user?.schoolId;
+
+    const classSectionId = req.user?.classSectionId;
+
+    if (!classSectionId) {
+      return res.status(400).json({
+        error: "classSectionId missing in token. Please login again.",
+      });
+    }
+
+    const cacheKey = await cacheService.buildKey(
+      schoolId,
+      `schedules:${groupId}:${classSectionId}`
+    );
+
+    const cached = await cacheService.get(cacheKey);
+    if (cached) return res.json(JSON.parse(cached));
+
+    const schedules = await prisma.assessmentSchedule.findMany({
+      where: {
+        assessmentGroupId: groupId,
+        classSectionId: classSectionId,
+      },
+      include: {
+        subject: true,
+        classSection: true,
+      },
+    });
+
+    const toTimeStr = (dt) => {
+      if (!dt) return "";
+      const iso = dt instanceof Date ? dt.toISOString() : String(dt);
+      return iso.includes("T")
+        ? iso.split("T")[1].substring(0, 5)
+        : iso.substring(0, 5);
+    };
+
+    const normalized = schedules.map((sc) => ({
+      ...sc,
+      startTime: toTimeStr(sc.startTime),
+      endTime: toTimeStr(sc.endTime),
+    }));
+
+    await cacheService.set(cacheKey, normalized);
+
     res.json(normalized);
   } catch (err) {
     res.status(500).json({ error: err.message });

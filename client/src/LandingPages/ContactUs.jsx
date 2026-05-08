@@ -1,435 +1,194 @@
 import { useState } from "react";
+import {
+  Mail,
+  Phone,
+  MapPin,
+  Send,
+  MessageSquare,
+  Clock,
+  Star,
+  CheckCircle,
+  Loader2,
+} from "lucide-react";
 
-const styles = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  .cu-root {
-    font-family: 'DM Sans', sans-serif;
-    color: #384959;
-    line-height: 1.6;
-  }
-  .cu-root h1, .cu-root h2, .cu-root h3 {
-    font-family: 'Playfair Display', serif;
-    line-height: 1.2;
-  }
-
-  @keyframes cu-fadeUp {
-    from { opacity: 0; transform: translateY(24px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes cu-float {
-    0%, 100% { transform: translateY(0); }
-    50%       { transform: translateY(-14px); }
-  }
-  @keyframes cu-pulseRing {
-    0%   { transform: scale(.9); opacity: .7; }
-    100% { transform: scale(1.5); opacity: 0; }
-  }
-
-  .cu-fadeUp { animation: cu-fadeUp .6s ease both; }
-  .cu-d1 { animation-delay: .08s; }
-  .cu-d2 { animation-delay: .18s; }
-  .cu-d3 { animation-delay: .28s; }
-  .cu-d4 { animation-delay: .38s; }
-
-  /* ── Hero ── */
-  .cu-hero {
-    background: linear-gradient(160deg, #EDF5FE 0%, #dbeeff 100%);
-    padding: 88px 32px 72px;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-  }
-  .cu-bubble {
-    position: absolute;
-    border-radius: 50%;
-    background: #BDDDFC;
-    opacity: .28;
-    pointer-events: none;
-    animation: cu-float 7s ease-in-out infinite;
-  }
-  .cu-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: #6A89A7;
-    background: #fff;
-    border: 1px solid #D6E8FA;
-    border-radius: 100px;
-    padding: 5px 16px;
-    margin-bottom: 20px;
-  }
-  .cu-hero h1 {
-    font-size: clamp(32px, 5vw, 56px);
-    color: #1E2D3D;
-    margin-bottom: 18px;
-  }
-  .cu-hero h1 span { color: #88BDF2; }
-  .cu-hero p {
-    font-size: 16px;
-    color: #6B7280;
-    max-width: 480px;
-    margin: 0 auto 40px;
-    line-height: 1.8;
-  }
-  .cu-pill-row {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-  .cu-pill {
-    background: #fff;
-    border: 1px solid #D6E8FA;
-    border-radius: 100px;
-    padding: 7px 16px;
-    font-size: 13px;
-    font-weight: 500;
-    color: #384959;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  /* ── Body ── */
-  .cu-body {
-    background: #F7FAFD;
-    padding: 72px 32px;
-  }
-  .cu-inner {
-    max-width: 1100px;
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: 1fr 1.35fr;
-    gap: 40px;
-    align-items: start;
-  }
-  @media (max-width: 860px) {
-    .cu-inner { grid-template-columns: 1fr; }
-  }
-
-  /* ── Contact Cards ── */
-  .cu-cards { display: flex; flex-direction: column; gap: 20px; }
-  .cu-card {
-    background: #fff;
-    border: 1px solid #D6E8FA;
-    border-radius: 20px;
-    padding: 30px 24px;
-    text-align: center;
-    transition: box-shadow .25s, transform .25s;
-    cursor: default;
-  }
-  .cu-card:hover {
-    box-shadow: 0 14px 44px #88BDF225;
-    transform: translateY(-4px);
-  }
-  .cu-card.featured {
-    background: linear-gradient(135deg, #6A89A7 0%, #88BDF2 100%);
-    border-color: transparent;
-    color: #fff;
-  }
-  .cu-icon-wrap {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 16px;
-    transition: transform .25s;
-  }
-  .cu-card:hover .cu-icon-wrap { transform: scale(1.1); }
-  .cu-icon-wrap.light {
-    background: #EDF5FE;
-    border: 1.5px solid #D6E8FA;
-  }
-  .cu-icon-wrap.dark {
-    background: rgba(255,255,255,.2);
-    border: 1.5px solid rgba(255,255,255,.3);
-  }
-  .cu-card h3 {
-    font-size: 16px;
-    font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
-    margin-bottom: 6px;
-  }
-  .cu-card .sub {
-    font-size: 13px;
-    color: #9BAEC0;
-    margin-bottom: 10px;
-  }
-  .cu-card.featured .sub { color: rgba(255,255,255,.65); }
-  .cu-card a {
-    font-size: 14px;
-    font-weight: 500;
-    color: #6A89A7;
-    text-decoration: none;
-    display: block;
-    line-height: 1.7;
-    transition: color .2s;
-  }
-  // .cu-card a:hover { color: #384959; text-decoration: underline; }
-  .cu-card.featured a { color: #fff; font-weight: 600; }
-  .cu-card.featured a:hover { opacity: .85; text-decoration: none; }
-  .cu-card h3 a { color: #1E2D3D; }
-
-  /* ── Form Card ── */
-  .cu-form-card {
-    background: #fff;
-    border: 1px solid #D6E8FA;
-    border-radius: 24px;
-    padding: 44px 40px;
-    box-shadow: 0 16px 64px #1E2D3D0A;
-  }
-  @media (max-width: 600px) {
-    .cu-form-card { padding: 28px 20px; }
-    .cu-body { padding: 48px 16px; }
-  }
-  .cu-form-head { margin-bottom: 30px; }
-  .cu-form-head h2 {
-    font-size: clamp(22px, 3vw, 32px);
-    color: #1E2D3D;
-    margin-bottom: 6px;
-  }
-  .cu-form-head h2 span { color: #88BDF2; }
-  .cu-form-head p { font-size: 13px; color: #6B7280; }
-
-  .cu-row2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-  @media (max-width: 500px) {
-    .cu-row2 { grid-template-columns: 1fr; }
-  }
-  .cu-field { margin-bottom: 18px; }
-  .cu-field label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: #384959;
-    margin-bottom: 7px;
-    letter-spacing: .01em;
-  }
-  .cu-field input,
-  .cu-field select,
-  .cu-field textarea {
-    width: 100%;
-    padding: 13px 16px;
-    border: 1.5px solid #D6E8FA;
-    border-radius: 10px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    color: #1E2D3D;
-    background: #EDF5FE;
-    outline: none;
-    transition: border-color .2s, background .2s, box-shadow .2s;
-    appearance: none;
-  }
-  .cu-field input:focus,
-  .cu-field select:focus,
-  .cu-field textarea:focus {
-    border-color: #88BDF2;
-    background: #fff;
-    box-shadow: 0 0 0 3px #88BDF214;
-  }
-  .cu-field input::placeholder,
-  .cu-field textarea::placeholder { color: #A3B8CC; }
-  .cu-field select { cursor: pointer; }
-  .cu-field textarea { resize: vertical; min-height: 130px; }
-
-  .cu-btn {
-    width: 100%;
-    padding: 14px;
-    background: #6A89A7;
-    color: #fff;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 15px;
-    font-weight: 600;
-    border: none;
-    border-radius: 100px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: background .2s, transform .15s, box-shadow .2s;
-    box-shadow: 0 4px 18px #6A89A750;
-  }
-  .cu-btn:hover {
-    background: #384959;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 28px #6A89A76A;
-  }
-  .cu-toast {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: #1E2D3D;
-    color: #fff;
-    border-radius: 12px;
-    padding: 14px 18px;
-    font-size: 14px;
-    font-weight: 500;
-    animation: cu-fadeUp .35s ease both;
-  }
-`;
-
-const IconMail = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="#6A89A7" strokeWidth="2" width="24" height="24">
-    <rect x="2" y="4" width="20" height="16" rx="2"/>
-    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-  </svg>
-);
-const IconPhone = ({ color = "#6A89A7" }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" width="24" height="24">
-    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.57 3.18C1.52 2.09 2.37 1 3.46 1h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.4a16 16 0 0 0 5.36 5.36l.78-.78a2 2 0 0 1 2.1-.45c.91.33 1.85.57 2.81.7A2 2 0 0 1 21 15.19v1.73z"/>
-  </svg>
-);
-const IconMapPin = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="#6A89A7" strokeWidth="2" width="24" height="24">
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-    <circle cx="12" cy="10" r="3"/>
-  </svg>
-);
-const IconSend = ({ size = 24, color = "#6A89A7" }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" width={size} height={size}>
-    <line x1="22" y1="2" x2="11" y2="13"/>
-    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-  </svg>
-);
-const IconMessage = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-  </svg>
-);
-const IconClock = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="#6A89A7" strokeWidth="2" width="13" height="13">
-    <circle cx="12" cy="12" r="10"/>
-    <polyline points="12 6 12 12 16 14"/>
-  </svg>
-);
-const IconStar = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="#6A89A7" strokeWidth="2" width="13" height="13">
-    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-  </svg>
-);
-const IconCheck = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="#88BDF2" strokeWidth="2" width="18" height="18">
-    <polyline points="20 6 9 17 4 12"/>
-  </svg>
-);
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function ContactUs() {
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    firstName: "", lastName: "", email: "", subject: "", message: ""
+    firstName: "",
+    lastName: "",
+    email: "",
+    subject: "",
+    message: "",
   });
 
-  const handleChange = e =>
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleChange = (e) =>
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
-  const handleSubmit = e => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.email || !form.message) return;
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 4000);
-    setForm({ firstName: "", lastName: "", email: "", subject: "", message: "" });
+
+    if (!form.email || !form.message) {
+      alert("Email and message are required.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setSubmitted(true);
+        setForm({ firstName: "", lastName: "", email: "", subject: "", message: "" });
+        setTimeout(() => setSubmitted(false), 5000);
+      } else {
+        alert(data.error || "Failed to send message. Please try again.");
+      }
+    } catch (err) {
+      console.error("Contact form error:", err);
+      alert("Server error. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const inputClass =
+    "w-full px-4 py-3 rounded-xl border border-blue-100 bg-blue-50 text-slate-800 text-sm placeholder-slate-400 outline-none focus:border-blue-300 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all duration-200";
+
+  const labelClass = "block text-xs font-semibold text-slate-600 mb-1.5 tracking-wide";
+
   return (
-    <div className="cu-root">
-      <style>{styles}</style>
+    <div className="font-sans text-slate-700">
 
       {/* ── Hero ── */}
-      <section className="cu-hero">
-        <div className="cu-bubble" style={{ width: 420, height: 420, top: -130, right: -90 }} />
-        <div className="cu-bubble" style={{ width: 260, height: 260, bottom: -70, left: -50, animationDelay: "2.5s" }} />
+      <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-sky-100 py-24 px-6 text-center">
+        <div className="pointer-events-none absolute -top-32 -right-20 h-[420px] w-[420px] rounded-full bg-blue-200 opacity-25 animate-pulse" />
+        <div className="pointer-events-none absolute -bottom-16 -left-12 h-64 w-64 rounded-full bg-sky-200 opacity-20" />
 
-        <div style={{ position: "relative", zIndex: 1, padding: "50px 0" }}>
-          <div className="cu-badge cu-fadeUp">
-            <IconMessage /> Contact Us
-          </div>
-          <h1 className="cu-fadeUp cu-d1">
-            We'd Love to <span>Hear From You</span>
+        <div className="relative z-10">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-4 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-blue-500 mb-6">
+            <MessageSquare size={11} /> Contact Us
+          </span>
+
+          <h1 className="mb-4 text-4xl font-bold text-slate-900 md:text-5xl lg:text-6xl">
+            We'd Love to{" "}
+            <span className="text-blue-400">Hear From You</span>
           </h1>
-          <p className="cu-fadeUp cu-d2">
-            Have questions or need help? Our team is ready to assist you with all your school management needs — usually within a few hours.
+
+          <p className="mx-auto mb-10 max-w-lg text-base leading-relaxed text-slate-500">
+            Have questions or need help? Our team is ready to assist you with all your
+            school management needs — usually within a few hours.
           </p>
-          <div className="cu-pill-row cu-fadeUp cu-d3">
-            <div className="cu-pill"><IconClock /> Avg. 3hr response</div>
-            <div className="cu-pill"><IconPhone color="#6A89A7" /> Live support available</div>
-            <div className="cu-pill"><IconStar /> Dedicated onboarding</div>
+
+          <div className="flex flex-wrap justify-center gap-3">
+            {[
+              { icon: <Clock size={13} />, text: "Avg. 3hr response" },
+              { icon: <Phone size={13} />, text: "Live support available" },
+              { icon: <Star size={13} />, text: "Dedicated onboarding" },
+            ].map(({ icon, text }) => (
+              <span
+                key={text}
+                className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-slate-700"
+              >
+                <span className="text-blue-400">{icon}</span>
+                {text}
+              </span>
+            ))}
           </div>
         </div>
       </section>
 
       {/* ── Body ── */}
-      <section className="cu-body">
-        <div className="cu-inner">
+      <section className="bg-slate-50 px-6 py-20">
+        <div className="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[1fr_1.4fr] lg:items-start">
 
           {/* Contact Cards */}
-          <div className="cu-cards cu-fadeUp">
-            <div className="cu-card">
-              <div className="cu-icon-wrap light"><IconMail /></div>
-              <h3>Email Us</h3>
-              <p className="sub">We reply within a few hours</p>
-              <a href="mailto:support@eduabaccotech.com">support@eduabaccotech.com</a>
+          <div className="flex flex-col gap-5">
+
+            <div className="group rounded-2xl border border-blue-100 bg-white p-7 text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-blue-100 bg-blue-50 transition-transform duration-300 group-hover:scale-110">
+                <Mail size={22} className="text-blue-400" />
+              </div>
+              <h3 className="mb-1 text-sm font-semibold text-slate-800">Email Us</h3>
+              <p className="mb-2 text-xs text-slate-400">We reply within a few hours</p>
+              <a href="mailto:support@eduabaccotech.com" className="text-sm font-medium text-blue-500 hover:underline">
+                support@eduabaccotech.com
+              </a>
             </div>
 
-            <div className="cu-card featured">
-              <div className="cu-icon-wrap dark"><IconPhone color="#fff" /></div>
-              <h3>Call Us</h3>
-              <a href="tel:+919972452044">+91 9972452044</a>
+            <div className="group rounded-2xl bg-gradient-to-br from-slate-600 to-blue-400 p-7 text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/20 border border-white/30 transition-transform duration-300 group-hover:scale-110">
+                <Phone size={22} className="text-white" />
+              </div>
+              <h3 className="mb-2 text-sm font-semibold text-white">Call Us</h3>
+              <a href="tel:+919972452044" className="text-base font-bold text-white hover:opacity-80">
+                +91 9972452044
+              </a>
             </div>
 
-            <div className="cu-card">
-              <div className="cu-icon-wrap light"><IconMapPin /></div>
-              <h3><a href="https://maps.app.goo.gl/gXSu8AhJEAkCTm138" target="_blank" rel="noopener noreferrer">Visit Us</a></h3>
-              <p className="sub">Walk-ins welcome</p>
-              <a href="https://maps.app.goo.gl/gXSu8AhJEAkCTm138" target="_blank" rel="noopener noreferrer">
-                No 12,13 &amp; 12/A, Kirthan Arcade, 3rd Floor, Aditya Nagar,
-                Sandeep Unnikrishnan Road, Bangalore — 560097
+            <div className="group rounded-2xl border border-blue-100 bg-white p-7 text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-blue-100 bg-blue-50 transition-transform duration-300 group-hover:scale-110">
+                <MapPin size={22} className="text-blue-400" />
+              </div>
+              <h3 className="mb-1 text-sm font-semibold text-slate-800">
+                <a href="https://maps.app.goo.gl/gXSu8AhJEAkCTm138" target="_blank" rel="noopener noreferrer" className="hover:text-blue-500">
+                  Visit Us
+                </a>
+              </h3>
+              <p className="mb-2 text-xs text-slate-400">Walk-ins welcome</p>
+              <a
+                href="https://maps.app.goo.gl/gXSu8AhJEAkCTm138"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm leading-relaxed text-blue-500 hover:underline"
+              >
+                No 12,13 &amp; 12/A, Kirthan Arcade, 3rd Floor,<br />
+                Aditya Nagar, Sandeep Unnikrishnan Road,<br />
+                Bangalore — 560097
               </a>
             </div>
           </div>
 
-          {/* Form */}
-          <div className="cu-form-card cu-fadeUp cu-d4">
-            <div className="cu-form-head">
-              <div className="cu-badge" style={{ marginBottom: 14 }}>
-                <IconSend size={11} color="#6A89A7" /> Send a Message
-              </div>
-              <h2>How Can We <span>Help?</span></h2>
-              <p>Fill in the form and we'll get back to you shortly.</p>
+          {/* Form Card */}
+          <div className="rounded-3xl border border-blue-100 bg-white p-10 shadow-xl shadow-slate-100 max-sm:p-6">
+            <div className="mb-8">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-blue-400 mb-3">
+                <Send size={10} /> Send a Message
+              </span>
+              <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">
+                How Can We <span className="text-blue-400">Help?</span>
+              </h2>
+              <p className="mt-1 text-sm text-slate-400">Fill in the form and we'll get back to you shortly.</p>
             </div>
 
-            <form onSubmit={handleSubmit}>
-              <div className="cu-row2">
-                <div className="cu-field">
-                  <label>First Name</label>
-                  <input name="firstName" value={form.firstName} onChange={handleChange} placeholder="John" />
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
+                <div>
+                  <label className={labelClass}>First Name</label>
+                  <input name="firstName" value={form.firstName} onChange={handleChange} placeholder="John" className={inputClass} />
                 </div>
-                <div className="cu-field">
-                  <label>Last Name</label>
-                  <input name="lastName" value={form.lastName} onChange={handleChange} placeholder="Smith" />
+                <div>
+                  <label className={labelClass}>Last Name</label>
+                  <input name="lastName" value={form.lastName} onChange={handleChange} placeholder="Smith" className={inputClass} />
                 </div>
               </div>
 
-              <div className="cu-field">
-                <label>Email Address</label>
-                <input name="email" type="email" value={form.email} onChange={handleChange} placeholder="john@yourschool.edu" />
+              <div>
+                <label className={labelClass}>Email Address</label>
+                <input name="email" type="email" value={form.email} onChange={handleChange} placeholder="john@yourschool.edu" className={inputClass} />
               </div>
 
-              <div className="cu-field">
-                <label>Subject</label>
-                <select name="subject" value={form.subject} onChange={handleChange}>
+              <div>
+                <label className={labelClass}>Subject</label>
+                <select name="subject" value={form.subject} onChange={handleChange} className={inputClass + " cursor-pointer"}>
                   <option value="">Select a topic…</option>
                   <option>General Inquiry</option>
                   <option>Demo Request</option>
@@ -439,20 +198,31 @@ export default function ContactUs() {
                 </select>
               </div>
 
-              <div className="cu-field">
-                <label>Message</label>
-                <textarea name="message" value={form.message} onChange={handleChange} placeholder="Tell us how we can help your school…" />
+              <div>
+                <label className={labelClass}>Message</label>
+                <textarea
+                  name="message"
+                  value={form.message}
+                  onChange={handleChange}
+                  placeholder="Tell us how we can help your school…"
+                  rows={5}
+                  className={inputClass + " resize-y min-h-[130px]"}
+                />
               </div>
 
               {submitted ? (
-                <div className="cu-toast">
-                  <IconCheck />
+                <div className="flex items-center gap-3 rounded-xl bg-slate-900 px-5 py-4 text-sm font-medium text-white">
+                  <CheckCircle size={18} className="text-blue-300 shrink-0" />
                   Message sent! We'll be in touch within a few hours.
                 </div>
               ) : (
-                <button type="submit" className="cu-btn">
-                  <IconSend size={15} color="#fff" />
-                  Send Message
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-full bg-slate-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-300 transition-all duration-200 hover:bg-slate-800 hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} />}
+                  {loading ? "Sending…" : "Send Message"}
                 </button>
               )}
             </form>

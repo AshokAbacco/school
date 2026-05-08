@@ -75,7 +75,7 @@ export default function Navbar() {
         >
            
           <span style={{ fontSize: 10, fontWeight: 900 }}>
-            <img src="/Logo/logo-trans.png" alt="" className="w-full h-15" />
+            <img src="/Logo/logo_sch.png" alt="" className="w-full h-14" />
           </span>
         </div>
 

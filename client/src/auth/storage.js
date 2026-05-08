@@ -13,7 +13,7 @@
 // };
 export const saveAuth = (data) => {
   const role = data.user?.role;
-
+  localStorage.setItem("user", JSON.stringify(data.user)); 
   let accountType = data.user?.userType;
 
   if (role === "SUPER_ADMIN") accountType = "superAdmin";

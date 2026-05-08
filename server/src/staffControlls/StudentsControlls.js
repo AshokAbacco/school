@@ -55,7 +55,46 @@ const compact = (obj) =>
   Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== undefined && v !== ""),
   );
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const NUMBERS = "0123456789";
 
+function generateStudentCode() {
+  let code = "";
+
+  // 6 numbers first
+  for (let i = 0; i < 6; i++) {
+    code += NUMBERS.charAt(
+      Math.floor(Math.random() * NUMBERS.length)
+    );
+  }
+
+  // 4 alphabets last
+  for (let i = 0; i < 4; i++) {
+    code += LETTERS.charAt(
+      Math.floor(Math.random() * LETTERS.length)
+    );
+  }
+
+  return code;
+}
+
+async function createUniqueStudentCode() {
+  let studentCode;
+  let exists = true;
+
+  while (exists) {
+    studentCode = generateStudentCode();
+
+    const student = await prisma.student.findUnique({
+      where: { studentCode },
+      select: { id: true },
+    });
+
+    exists = !!student;
+  }
+
+  return studentCode;
+}
 // ── registerStudent ───────────────────────────────────────────────────────────
 export const registerStudent = async (req, res) => {
   try {
@@ -79,9 +118,18 @@ export const registerStudent = async (req, res) => {
       });
 
     const hashed = await bcrypt.hash(password, 10);
-const student = await prisma.student.create({
-  data: { name, email, password: hashed, schoolId },
-});
+
+    const studentCode = await createUniqueStudentCode();
+
+    const student = await prisma.student.create({
+      data: {
+        studentCode,
+        name,
+        email,
+        password: hashed,
+        schoolId,
+      },
+    });
 
 
 
@@ -913,47 +961,119 @@ export const bulkImportRow = async (req, res) => {
 export const bulkImportStudents = async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
-    if (!schoolId) return res.status(400).json({ message: "schoolId missing" });
 
-    const students = req.body.students;
-    if (!Array.isArray(students) || students.length === 0) {
-      return res.status(400).json({ message: "No students provided" });
+    if (!schoolId) {
+      return res.status(400).json({
+        message: "schoolId missing from token",
+      });
+    }
+
+    const students = Array.isArray(req.body.students)
+      ? req.body.students
+      : [];
+
+    if (!students.length) {
+      return res.status(400).json({
+        message: "No students provided",
+      });
     }
 
     const results = [];
 
-    // Process each student row through the unified worker
     for (let i = 0; i < students.length; i++) {
-      const row = students[i];
+      const s = students[i];
+
       try {
-        const student = await createStudentFull(row, schoolId);
+        // validate required fields
+        if (!s.firstName)
+          throw new Error("First name is required");
+
+        if (!s.email)
+          throw new Error("Email is required");
+
+        if (!s.password)
+          throw new Error("Password is required");
+
+        // duplicate email check
+        const existingStudent = await prisma.student.findFirst({
+          where: {
+            email: s.email,
+            schoolId,
+          },
+        });
+
+        if (existingStudent) {
+          throw new Error("Student email already exists");
+        }
+
+        // hash password
+        const hashedPassword = await bcrypt.hash(s.password, 10);
+
+        // create student
+        const student = await prisma.student.create({
+          data: {
+            name: `${s.firstName} ${s.lastName || ""}`.trim(),
+            email: s.email,
+            password: hashedPassword,
+            schoolId,
+          },
+        });
+
+        // create personal info
+        await prisma.studentPersonalInfo.create({
+          data: {
+            studentId: student.id,
+            firstName: s.firstName,
+            lastName: s.lastName || "",
+            phone: s.phone || null,
+          },
+        });
+
         results.push({
           row: i + 1,
           success: true,
           studentId: student.id,
         });
       } catch (err) {
-        // Capture the specific reason for failure for this row
+        console.error(`[bulkImportStudents][Row ${i + 1}]`, err);
+
+        let message = err.message || "Unknown error";
+
+        // Prisma duplicate error
+        if (err.code === "P2002") {
+          message = "Duplicate value already exists";
+        }
+
+        // Prisma foreign key error
+        if (err.code === "P2003") {
+          message = "Related record not found";
+        }
+
         results.push({
           row: i + 1,
           success: false,
-          error: err.message,
+          error: message,
         });
       }
     }
 
-    await bustStudentCache(schoolId);
+    const successCount = results.filter((r) => r.success).length;
+    const failedCount = results.filter((r) => !r.success).length;
 
-    return res.json({
+    return res.status(200).json({
+      success: failedCount === 0,
       total: students.length,
-      successCount: results.filter(r => r.success).length,
-      failCount: results.filter(r => !r.success).length,
+      successCount,
+      failedCount,
       results,
     });
-
   } catch (err) {
     console.error("[bulkImportStudents]", err);
-    return res.status(500).json({ message: "Import process encountered a server error" });
+
+    return res.status(500).json({
+      message: "Bulk import failed",
+      detail: err.message,
+    });
   }
 };
 

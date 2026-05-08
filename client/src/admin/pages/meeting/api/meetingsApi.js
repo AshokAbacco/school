@@ -133,3 +133,18 @@ export const fetchStudents = (filters = {}) =>
   fetch(`${BASE}/students?${toQuery(filters)}`, {
     headers: authHeaders(),
   }).then(handle);
+
+  export const fetchNonTeachingStaff = () =>
+  fetch(`${BASE}/meetings/staff`, {
+    headers: authHeaders(),
+  }).then(handle);
+
+  export const fetchParentsByClassSection = (classSectionId, academicYearId) => {
+  const q = academicYearId ? `?academicYearId=${academicYearId}` : "";
+  return fetch(
+    `${BASE}/parents/class-sections/${classSectionId}${q}`,
+    {
+      headers: authHeaders(),
+    }
+  ).then(handle);
+};

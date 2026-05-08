@@ -1,5 +1,8 @@
 {
-  "appId": "com.school.app",
-  "appName": "SchoolApp",
-  "webDir": "dist"
+  "appId": "com.abacco.schoolapp",
+  "appName": "Abacco School App",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
 }

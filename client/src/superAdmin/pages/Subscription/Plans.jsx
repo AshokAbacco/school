@@ -1,4 +1,4 @@
-// src/LandingPages/pricing/Pricing.jsx
+// src/superAdmin/pages/Subscription/Plans.jsx
 import { useState } from "react";
 import { Check, X, Zap, Shield, Crown, ChevronDown, ChevronUp, Sparkles, Globe, Mail, Info } from "lucide-react";
 import PaymentModal from "./Payment";

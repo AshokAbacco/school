@@ -29,6 +29,7 @@ import teacherCurriculumRoutes from "./staffRoutes/teacherCurriculumRoutes.js";
 import adminCurriculumRoutes from "./staffRoutes/adminCurriculumRoutes.js";
 import galleryRoutes from "./staffRoutes/gallery.routes.js";
 import adminHolidayRoute from "./staffRoutes/adminHolidayRoute.js";
+import tutorialRoutes from "./staffRoutes/tutorialRoutes.js";
 import adminActivityRoute from "./staffRoutes/adminActivityRoute.js";
 import teacherActivityRoute from "./staffRoutes/teacherActivityRoute.js";
 import awardRoutes from "./staffRoutes/Awardroutes.js";
@@ -42,6 +43,7 @@ import chatRoutes from "../src/chatbox/chat.routes.js";
 import staffNotificationRoutes from "./staffRoutes/staffNotificationRoutes.js";
 import logoRoutes from "./utils/logoRoutes.js";
 import { requireAuth } from "./middlewares/auth.middleware.js";
+import deleteAccountRoutes from "./superAdmin/routes/DeleteAccount.routes.js";
 
 // ── NEW: shared read-only holiday route for teacher/staff logins ──────────────
 import makeHolidayRouter from "./sharedRoutes/holidayRoute.js";
@@ -52,14 +54,39 @@ dotenv.config();
 
 const staff = express();
 
+// staff.use(
+//   cors({
+//     origin: process.env.CLIENT_ORIGIN,
+//     credentials: true,
+//   }),
+// );
 staff.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN,
+    origin: (origin, callback) => {
+      const allowedOrigins = process.env.CLIENT_ORIGIN.split(",");
+
+      // allow requests without origin (mobile apps, Postman)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS blocked: " + origin));
+    },
     credentials: true,
   }),
 );
 
-staff.use(express.json());
+// staff.use(express.json());
+staff.use(express.json({
+  limit: "50mb",
+}));
+
+staff.use(express.urlencoded({
+  extended: true,
+  limit: "50mb",
+}));
 
 // super admin
 staff.use("/api/schools", schoolRoutes);
@@ -68,6 +95,7 @@ staff.use("/api/users", userRoutes);
 staff.use("/api/superadmin/analytics", analyticsRouter);
 staff.use("/api/finance-profiles", financeProfileRoutes);
 staff.use("/api/fees", feeRoutes);
+staff.use("/api/superadmin/delete-account", deleteAccountRoutes); // NEW: delete account route
 
 // staff / teacher routes
 staff.use("/api/students", studentsRoutes);
@@ -90,6 +118,7 @@ staff.use("/api/gallery", galleryRoutes);
 // Admin full CRUD holidays (admin login uses this)
 staff.use("/api/admin/holidays", adminHolidayRoute);
 
+
 // ── Teacher / staff read-only holidays  (GET / and GET /check only) ──────────
 staff.use("/api/holidays", makeHolidayRouter(authMiddleware));
 // ─────────────────────────────────────────────────────────────────────────────
@@ -107,6 +136,7 @@ staff.use("/api/teacher/assignments", teacherAssignmentRoute);
 staff.use("/api/admin/transport", adminTransportRoute);
 staff.use("/api/superadmin/profile", superAdminProfileRoutes);
 staff.use("/api/notifications", staffNotificationRoutes);
+staff.use("/api/admin/tutorials", tutorialRoutes);
 staff.use("/api/chat", chatRoutes);
 staff.use("/api", logoRoutes(requireAuth));
 

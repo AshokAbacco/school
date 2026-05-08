@@ -470,16 +470,22 @@ export async function saveMarksForSchedule(req, res) {
         const grade      = getGrade(percentage);
 
         const summaryData = { totalMarks, maxMarks: coveredMax, percentage, grade };
+          const termId = schedule.assessmentGroup.termId;
 
-        return tx.resultSummary.upsert({
-          where: {
-            studentId_academicYearId_termId_assessmentGroupId: {
-              studentId:         item.studentId,
-              academicYearId:    activeYear.id,
-              termId:            schedule.assessmentGroup.termId || null,
-              assessmentGroupId: schedule.assessmentGroupId,
+          if (!termId) {
+            console.warn("❌ termId missing → skipping resultSummary");
+            return; // ⛔ prevent Prisma crash
+          }
+
+          return tx.resultSummary.upsert({
+            where: {
+              studentId_academicYearId_termId_assessmentGroupId: {
+                studentId: item.studentId,
+                academicYearId: activeYear.id,
+                termId: termId, // ✅ FIXED
+                assessmentGroupId: schedule.assessmentGroupId,
+              },
             },
-          },
           update: summaryData,
           create: {
             studentId:         item.studentId,
