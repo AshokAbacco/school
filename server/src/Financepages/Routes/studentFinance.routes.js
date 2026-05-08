@@ -1,7 +1,7 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { saveBackup } from "../../utils/cloudBackup.js";
-
+import { sendFeePendingWhatsApp } from "../../whatsapp/sendFeePendingWhatsApp.js";
 import authMiddleware from "../../middlewares/authMiddleware.js";
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -317,3 +317,91 @@ router.get("/parentFees", authMiddleware, async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
+
+router.post(
+  "/sendFeeReminder/:id",
+  authMiddleware,
+  async (req, res) => {
+    try {
+
+      const id = parseInt(req.params.id);
+
+      // finance student
+      const financeStudent = await prisma.studentList.findUnique({
+        where: { id },
+      });
+
+      if (!financeStudent) {
+        return res.status(404).json({
+          message: "Student not found",
+        });
+      }
+
+      const totalFees = Number(financeStudent.fees || 0);
+      const paidAmount = Number(financeStudent.paidAmount || 0);
+
+      const pendingAmount = totalFees - paidAmount;
+
+      if (pendingAmount <= 0) {
+        return res.status(400).json({
+          message: "No pending fees",
+        });
+      }
+
+      // REAL student
+        const realStudent = await prisma.student.findFirst({
+          where: {
+            id: financeStudent.studentId,
+          },
+          include: {
+            parentLinks: {
+              include: {
+                parent: true,
+              },
+            },
+          },
+        });
+
+      if (!realStudent) {
+        return res.status(404).json({
+          message: "Real student record not found",
+        });
+      }
+
+      // send to all parents
+      for (const link of realStudent.parentLinks) {
+
+        const parentPhone = link.parent?.phone;
+
+        if (!parentPhone) continue;
+
+        const school = await prisma.school.findUnique({
+          where: {
+            id: req.user.schoolId,
+          },
+        });
+
+        await sendFeePendingWhatsApp({
+          phone: parentPhone,
+          pendingAmount,
+          studentName: financeStudent.name,
+          schoolName: school?.name || "School",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Fee reminder sent successfully",
+      });
+
+    } catch (error) {
+
+      console.log(error);
+
+      res.status(500).json({
+        message: error.message,
+      });
+    }
+  }
+);

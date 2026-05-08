@@ -5,9 +5,9 @@ import {
     AlertCircle, CheckCircle, Clock, CreditCard,
     Users, X, Download, Receipt, FileText
 } from "lucide-react";
-// import  from "../../components/";
 import Addstudent from "./Addstudent";
 import { PayModal } from "../../../finance/pages/Studentfinance/PayModal";
+import { FaWhatsapp } from "react-icons/fa";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -21,7 +21,6 @@ function InvoiceModal({ student, onClose }) {
     const invoiceNo = `INV-${String(student.id || "").slice(-4).padStart(4, "0")}-${new Date().getFullYear()}`;
     const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-    // Parse fee breakdown if stored as JSON in feeBreakdown field
     let breakdown = null;
     try { breakdown = student.feeBreakdown ? JSON.parse(student.feeBreakdown) : null; } catch { }
 
@@ -159,8 +158,62 @@ function InvoiceModal({ student, onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PAY MODAL  — reads real student data, persists via API
+// WHATSAPP CONFIRM MODAL
 // ─────────────────────────────────────────────────────────────────────────────
+function WhatsAppConfirmModal({ student, onClose, onConfirm }) {
+    return (
+        <div className="inv-overlay" onClick={onClose}>
+            <div
+                style={{
+                    background: "#fff", borderRadius: 16, width: "100%", maxWidth: 340,
+                    overflow: "hidden", boxShadow: "0 16px 40px rgba(0,0,0,.22)",
+                    animation: "invUp .25s ease"
+                }}
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div style={{ background: "linear-gradient(135deg,#1C3044,#27435B)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(255,255,255,.14)", border: "1.5px solid rgba(255,255,255,.22)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <FaWhatsapp size={18} color="#fff" />
+                    </div>
+                    <div>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, fontFamily: "'DM Sans',sans-serif" }}>Send WhatsApp</div>
+                        <div style={{ color: "rgba(255,255,255,.6)", fontSize: 12, fontFamily: "'DM Sans',sans-serif" }}>Fee reminder to parent</div>
+                    </div>
+                </div>
+
+                {/* Body */}
+                <div style={{ padding: "24px 22px 8px", textAlign: "center" }}>
+                    <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#e7f7ee", border: "2px solid #b2dfc6", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+                        <FaWhatsapp size={22} color="#25D366" />
+                    </div>
+                    <p style={{ fontSize: 14, color: "#1C3044", margin: "0 0 8px", fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}>
+                        Send fee reminder?
+                    </p>
+                    <p style={{ fontSize: 13, color: "#4A6B80", margin: 0, lineHeight: 1.6, fontFamily: "'DM Sans',sans-serif" }}>
+                        A WhatsApp message will be sent to <strong style={{ color: "#27435B" }}>{student.name}</strong>'s parent about the pending fee.
+                    </p>
+                </div>
+
+                {/* Footer */}
+                <div style={{ padding: "20px 22px 22px", display: "flex", gap: 10 }}>
+                    <button
+                        onClick={onClose}
+                        style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1.5px solid #d0d5dd", background: "#fff", fontSize: 13, fontWeight: 600, color: "#4A6B80", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "#25D366", fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, fontFamily: "'DM Sans',sans-serif" }}
+                    >
+                        <FaWhatsapp size={14} /> Send
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE
@@ -173,8 +226,8 @@ export default function StudentFeesPage() {
     const [courseFilter, setCourseFilter] = useState("All");
     const [invoiceStudent, setInvoiceStudent] = useState(null);
     const [payStudent, setPayStudent] = useState(null);
+    const [waStudent, setWaStudent] = useState(null);
 
-    // Load jsPDF for invoice downloads
     useEffect(() => {
         if (!window.jspdf) {
             const s = document.createElement("script");
@@ -184,18 +237,13 @@ export default function StudentFeesPage() {
         }
     }, []);
 
-    // ── Fetch students ────────────────────────────────────────────────────────
     const fetchStudents = async () => {
         try {
             const auth = JSON.parse(localStorage.getItem("auth"));
             const token = auth?.token;
-
             const res = await fetch(`${API_URL}/api/finance/getStudentFinance`, {
-                headers: {
-                    Authorization: `Bearer ${token}` // ✅ FIX
-                }
+                headers: { Authorization: `Bearer ${token}` }
             });
-
             const data = await res.json();
             setStudents(Array.isArray(data) ? data : []);
         } catch (err) {
@@ -204,22 +252,16 @@ export default function StudentFeesPage() {
     };
     useEffect(() => { fetchStudents(); }, []);
 
-    // ── Computed KPI from real data ───────────────────────────────────────────
     const totalFeesAll = students.reduce((a, s) => a + Number(s.fees || 0), 0);
     const totalPaidAll = students.reduce((a, s) => a + Number(s.paidAmount || 0), 0);
     const totalDueAll = Math.max(0, totalFeesAll - totalPaidAll);
     const paidCount = students.filter(s => s.paymentStatus === "PAID").length;
     const collectionPct = totalFeesAll > 0 ? Math.round((totalPaidAll / totalFeesAll) * 100) : 0;
 
-    // ── Handlers ──────────────────────────────────────────────────────────────
     const addStudentData = (newStudent) => {
         setStudents(prev => {
             const exists = prev.some(s => s.id === newStudent.id);
-            if (exists) {
-                // Edit: replace the existing row in-place
-                return prev.map(s => s.id === newStudent.id ? newStudent : s);
-            }
-            // New: prepend
+            if (exists) return prev.map(s => s.id === newStudent.id ? newStudent : s);
             return [newStudent, ...prev];
         });
     };
@@ -228,27 +270,38 @@ export default function StudentFeesPage() {
         if (!window.confirm("Delete this student record?")) return;
         const auth = JSON.parse(localStorage.getItem("auth"));
         const token = auth?.token;
-
         await fetch(`${API_URL}/api/finance/deleteStudentFinance/${id}`, {
             method: "DELETE",
-            headers: {
-                Authorization: `Bearer ${token}`
-            }
+            headers: { Authorization: `Bearer ${token}` }
         });
         fetchStudents();
     };
 
     const handleEdit = (student) => { setEditData(student); setOpenPopup(true); };
 
-    // Called after a successful payment in PayModal — updates student in-place
     const handlePaymentDone = (id, newPaidAmount, newStatus) => {
         setStudents(prev => prev.map(s =>
-            s.id === id
-                ? { ...s, paidAmount: newPaidAmount, paymentStatus: newStatus }
-                : s
+            s.id === id ? { ...s, paidAmount: newPaidAmount, paymentStatus: newStatus } : s
         ));
-        // Also refresh from DB to stay in sync
         fetchStudents();
+    };
+
+    const handleSendWhatsApp = async () => {
+        if (!waStudent) return;
+        try {
+            const auth = JSON.parse(localStorage.getItem("auth"));
+            const token = auth?.token;
+            const res = await fetch(`${API_URL}/api/finance/sendFeeReminder/${waStudent.id}`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const data = await res.json();
+            alert(data.message);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to send WhatsApp message.");
+        }
+        setWaStudent(null);
     };
 
     const courses = ["All", ...Array.from(new Set(students.map(s => s.course).filter(Boolean))).sort()];
@@ -312,11 +365,13 @@ export default function StudentFeesPage() {
                 .sf2-badge-blue  { color:#27435B; background:rgba(39,67,91,.12); }
                 .sf2-badge-orange{ color:#92400e; background:#fef3c7; border:1px solid #fde68a; }
 
-                .sf2-act { width:30px; height:30px; border-radius:8px; border:none; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition:opacity .15s; }
-                .sf2-act:hover { opacity:.72; }
+                .sf2-act { width:30px; height:30px; border-radius:8px; border:none; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition:all .15s; }
+                .sf2-act:hover { opacity:.75; }
                 .sf2-act-edit { background:rgba(39,67,91,.14); color:#27435B; }
                 .sf2-act-del  { background:rgba(39,67,91,.18); color:#1C3044; }
                 .sf2-act-inv  { background:rgba(39,67,91,.12); color:#27435B; }
+                .sf2-act-wa   { background:#e7f7ee; color:#25D366; border:1px solid #b2dfc6; }
+                .sf2-act-wa:hover { background:#25D366 !important; color:#fff !important; opacity:1 !important; }
 
                 .sf2-pay-btn { border:none; border-radius:8px; padding:5px 16px; font-size:12px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; transition:opacity .15s; background:linear-gradient(135deg,#27435B,#1C3044); color:#fff; white-space:nowrap; }
                 .sf2-pay-btn:hover { opacity:.8; }
@@ -360,25 +415,25 @@ export default function StudentFeesPage() {
                 .inv-progress-fill { height:100%; background:linear-gradient(90deg,#3A5E78,#27435B); border-radius:6px; transition:width .5s ease; }
 
                 @media (max-width: 768px) {
-                  .sf2-topbar { padding: 14px 16px; flex-direction: column; align-items: flex-start; gap: 12px; }
-                  .sf2-content { padding: 16px; }
-                  .sf2-kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-                  .sf2-strip { padding: 14px 16px; flex-direction: column; gap: 10px; }
-                  .sf2-progress-track { display: none; }
-                  .sf2-tbl { font-size: 12px; }
-                  .sf2-tbl th, .sf2-tbl td { padding: 9px 8px; }
-                  .sf2-panel-head { flex-direction: column; gap: 10px; align-items: flex-start; padding: 12px 16px; }
-                  .sf2-search-inp { width: 100%; }
-                  .sf2-panel-body { overflow-x: auto; }
-                  .sf2-kpi-val { font-size: 17px; }
-                  .sf2-title { font-size: 15px; }
+                  .sf2-topbar { padding:14px 16px; flex-direction:column; align-items:flex-start; gap:12px; }
+                  .sf2-content { padding:16px; }
+                  .sf2-kpi-grid { grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+                  .sf2-strip { padding:14px 16px; flex-direction:column; gap:10px; }
+                  .sf2-progress-track { display:none; }
+                  .sf2-tbl { font-size:12px; }
+                  .sf2-tbl th, .sf2-tbl td { padding:9px 8px; }
+                  .sf2-panel-head { flex-direction:column; gap:10px; align-items:flex-start; padding:12px 16px; }
+                  .sf2-search-inp { width:100%; }
+                  .sf2-panel-body { overflow-x:auto; }
+                  .sf2-kpi-val { font-size:17px; }
+                  .sf2-title { font-size:15px; }
                 }
                 @media (max-width: 480px) {
-                  .sf2-kpi-grid { grid-template-columns: 1fr; }
-                  .inv-box { border-radius: 16px; }
-                  .inv-head { border-radius: 16px 16px 0 0; padding: 14px 16px; }
-                  .inv-body { padding: 14px 16px 18px; }
-                  .inv-detail-grid { grid-template-columns: 1fr; }
+                  .sf2-kpi-grid { grid-template-columns:1fr; }
+                  .inv-box { border-radius:16px; }
+                  .inv-head { border-radius:16px 16px 0 0; padding:14px 16px; }
+                  .inv-body { padding:14px 16px 18px; }
+                  .inv-detail-grid { grid-template-columns:1fr; }
                 }
             `}</style>
 
@@ -405,7 +460,7 @@ export default function StudentFeesPage() {
 
                 <div className="sf2-content">
 
-                    {/* ── KPI CARDS — all from real data ── */}
+                    {/* ── KPI CARDS ── */}
                     <div className="sf2-kpi-grid">
                         {[
                             { lbl: "Total Fees", val: `₹${totalFeesAll.toLocaleString("en-IN")}`, Icon: IndianRupee },
@@ -490,10 +545,7 @@ export default function StudentFeesPage() {
                                         const totalFee = Number(student.fees || 0);
                                         const paidAmt = Number(student.paidAmount || 0);
                                         const remaining = Math.max(0, totalFee - paidAmt);
-                                        const status = student.paymentStatus || (remaining === 0 && totalFee > 0 ? "PAID" : "UNPAID");
-                                        const isPaid = status === "PAID";
-                                        const isPartial = status === "PARTIAL";
- 
+
                                         return (
                                             <tr key={student.id}>
                                                 <td style={{ color: "#8fa3b1", fontSize: 12 }}>{idx + 1}</td>
@@ -510,24 +562,30 @@ export default function StudentFeesPage() {
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    {Number(student.paidAmount || 0) >= Number(student.fees || 0) ? (
+                                                    {paidAmt >= totalFee && totalFee > 0 ? (
                                                         <span className="sf2-badge sf2-badge-green">
-                                                        <CheckCircle size={12} /> Paid
+                                                            <CheckCircle size={12} /> Paid
                                                         </span>
                                                     ) : (
-                                                        <button
-                                                        className="sf2-pay-btn"
-                                                        onClick={() => setPayStudent(student)}
-                                                        >
-                                                        Pay
+                                                        <button className="sf2-pay-btn" onClick={() => setPayStudent(student)}>
+                                                            Pay
                                                         </button>
                                                     )}
-                                                    </td>
+                                                </td>
                                                 <td>
                                                     <div style={{ display: "flex", gap: 6 }}>
-                                                        <button className="sf2-act sf2-act-edit" title="Edit" onClick={() => handleEdit(student)}><Pencil size={13} /></button>
-                                                        <button className="sf2-act sf2-act-del" title="Delete" onClick={() => handleDelete(student.id)}><Trash2 size={13} /></button>
-                                                        <button className="sf2-act sf2-act-inv" title="Invoice" onClick={() => setInvoiceStudent(student)}><FileText size={13} /></button>
+                                                        <button className="sf2-act sf2-act-edit" title="Edit" onClick={() => handleEdit(student)}>
+                                                            <Pencil size={13} />
+                                                        </button>
+                                                        <button className="sf2-act sf2-act-del" title="Delete" onClick={() => handleDelete(student.id)}>
+                                                            <Trash2 size={13} />
+                                                        </button>
+                                                        <button className="sf2-act sf2-act-inv" title="Invoice" onClick={() => setInvoiceStudent(student)}>
+                                                            <FileText size={13} />
+                                                        </button>
+                                                        <button className="sf2-act sf2-act-wa" title="Send WhatsApp to Parent" onClick={() => setWaStudent(student)}>
+                                                            <FaWhatsapp size={13} />
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -541,11 +599,11 @@ export default function StudentFeesPage() {
                 </div>
             </div>
 
-            {/* Modals */}
+            {/* ── MODALS ── */}
             <Addstudent open={openPopup} handleClose={() => setOpenPopup(false)} addStudentData={addStudentData} editData={editData} />
             {invoiceStudent && <InvoiceModal student={invoiceStudent} onClose={() => setInvoiceStudent(null)} />}
             {payStudent && <PayModal student={payStudent} onClose={() => setPayStudent(null)} onPaymentDone={handlePaymentDone} />}
-
+            {waStudent && <WhatsAppConfirmModal student={waStudent} onClose={() => setWaStudent(null)} onConfirm={handleSendWhatsApp} />}
         </>
     );
 }
