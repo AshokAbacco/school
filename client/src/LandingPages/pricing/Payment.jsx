@@ -100,6 +100,7 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          planId: selectedPlan.id,
           planName: selectedPlan.name,
           userCount,
           studentCount,

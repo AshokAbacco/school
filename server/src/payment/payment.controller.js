@@ -19,10 +19,10 @@ export const createOrder = async (req, res) => {
       email,
       phone,
       address,
+      planId,
       planName,
       studentCount = 0,
       teacherCount = 0,
- 
       amount,
     } = req.body;
 
@@ -52,12 +52,9 @@ export const createOrder = async (req, res) => {
 
     const tempUserId = crypto.randomUUID();
 
-    const selectedPlan = await prisma.plan.findFirst({
+    const selectedPlan = await prisma.plan.findUnique({
       where: {
-        name: {
-          equals: planName,
-          mode: "insensitive",
-        },
+        id: planId,
       },
     });
 
