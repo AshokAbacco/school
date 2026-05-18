@@ -1,8 +1,6 @@
 // server/src/adminControlls/adminCurriculumController.js
 
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
-
+import { prisma } from "../config/db.js";
 /**
  * Coerces the stored `chapters` JSON into a typed array.
  * Also handles legacy data where chapters may be missing or null.

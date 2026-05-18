@@ -1,7 +1,7 @@
 // src/controllers/superAdminAuth.controller.js
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import prisma from "../prisma/client.js";
+import { prisma } from "../../config/db.js";
 import { generateToken } from "../utils/jwt.js";
 import { successResponse, errorResponse } from "../utils/response.js";
 

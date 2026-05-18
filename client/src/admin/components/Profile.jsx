@@ -1,14 +1,25 @@
 import React from "react";
-import { Mail, Phone, Shield, School, User } from "lucide-react";
+import {
+  Mail,
+  Phone,
+  Shield,
+  School,
+  User,
+  RotateCcw,
+} from "lucide-react";
+
+import { useNavigate } from "react-router-dom";
 
 export default function Profile() {
   const auth = JSON.parse(localStorage.getItem("auth"));
+  const navigate = useNavigate();
   const user = auth?.user;
+
 
   return (
     <div className="min-h-screen bg-[#f6f9fc] p-6">
       <div className="max-w-4xl mx-auto">
-        
+
         {/* Header */}
         <div className="bg-white rounded-3xl shadow-sm border border-[#e8eef5] p-8 mb-6">
           <div className="flex items-center gap-5">
@@ -25,9 +36,23 @@ export default function Profile() {
                 {user?.role || "ADMIN"}
               </p>
 
-              <div className="mt-3 inline-flex items-center gap-2 bg-[#eef5fc] px-4 py-2 rounded-xl text-sm text-[#384959]">
-                <Shield size={16} />
-                Administrator Access
+              <div className="mt-4 flex items-center gap-3 flex-wrap">
+
+                {/* Admin Access */}
+                <div className="inline-flex items-center gap-2 bg-[#eef5fc] px-4 py-2 rounded-xl text-sm text-[#384959]">
+                  <Shield size={16} />
+                  Administrator Access
+                </div>
+
+                {/* Recovery Button */}
+                <button
+                  onClick={() => navigate("/admin/deleted-records")}
+                  className="inline-flex items-center gap-2 bg-[#e8f7ee] hover:bg-[#d9f3e3] transition px-4 py-2 rounded-xl text-sm text-[#1f7a45] font-medium"
+                >
+                  <RotateCcw size={16} />
+                  Recovery
+                </button>
+
               </div>
             </div>
           </div>

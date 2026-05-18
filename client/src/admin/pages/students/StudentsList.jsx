@@ -143,7 +143,7 @@ function StatCards({ stats }) {
                 fontWeight: 800,
                 color: C.text,
                 lineHeight: 1,
-               fontFamily: "'Inter', sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 letterSpacing: "-1px",
               }}
             >
@@ -155,7 +155,7 @@ function StatCards({ stats }) {
                 fontSize: 11,
                 fontWeight: 600,
                 color: C.textLight,
-               fontFamily: "'Inter', sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
               }}
@@ -204,7 +204,7 @@ function PanelHead({ title, sub, IconComp, iconColor = C.slate, right }) {
           <p
             style={{
               margin: 0,
-             fontFamily: "'Inter', sans-serif",
+              fontFamily: "'Inter', sans-serif",
               fontSize: 14,
               fontWeight: 700,
               color: C.text,
@@ -216,7 +216,7 @@ function PanelHead({ title, sub, IconComp, iconColor = C.slate, right }) {
             <p
               style={{
                 margin: 0,
-               fontFamily: "'Inter', sans-serif",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: 11,
                 color: C.textLight,
                 marginTop: 1,
@@ -253,7 +253,7 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
         </div>
         <p
           style={{
-           fontFamily: "'Inter', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             fontWeight: 600,
             color: C.text,
@@ -264,7 +264,7 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
         </p>
         <p
           style={{
-           fontFamily: "'Inter', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 12,
             color: C.textLight,
             margin: 0,
@@ -348,7 +348,7 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
               <p
                 style={{
                   margin: 0,
-                 fontFamily: "'Inter', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   fontSize: 16,
                   fontWeight: 800,
                   color: C.text,
@@ -361,7 +361,7 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
                 <p
                   style={{
                     margin: "3px 0 0",
-                   fontFamily: "'Inter', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     fontSize: 11,
                     color: C.textLight,
                   }}
@@ -382,7 +382,7 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
                     <span
                       key={chip}
                       style={{
-                       fontFamily: "'Inter', sans-serif",
+                        fontFamily: "'Inter', sans-serif",
                         fontSize: 10,
                         fontWeight: 700,
                         padding: "2px 8px",
@@ -447,7 +447,7 @@ function Breadcrumb({ crumbs, onNavigate }) {
                   gap: 5,
                   padding: "5px 12px",
                   borderRadius: 10,
-                 fontFamily: "'Inter', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   fontSize: 12,
                   fontWeight: 700,
                   color: C.deep,
@@ -467,7 +467,7 @@ function Breadcrumb({ crumbs, onNavigate }) {
                   gap: 5,
                   padding: "5px 12px",
                   borderRadius: 10,
-                 fontFamily: "'Inter', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   fontSize: 12,
                   fontWeight: 600,
                   color: C.textLight,
@@ -510,7 +510,7 @@ function StatusBadge({ status = "" }) {
         gap: 6,
         padding: "3px 10px",
         borderRadius: 20,
-       fontFamily: "'Inter', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         fontSize: 11,
         fontWeight: 700,
         background: s.bg,
@@ -559,7 +559,7 @@ function Avatar({ student }) {
         fontWeight: 700,
         flexShrink: 0,
         boxShadow: `0 3px 10px ${C.sky}44`,
-       fontFamily: "'Inter', sans-serif",
+        fontFamily: "'Inter', sans-serif",
       }}
     >
       {initials}
@@ -634,7 +634,7 @@ function StudentsTable({ students, loading, onDelete, sectionName, total, isFilt
         <Loader2 size={30} className="animate-spin" style={{ color: C.sky }} />
         <p
           style={{
-           fontFamily: "'Inter', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 13,
             color: C.textLight,
             margin: 0,
@@ -802,7 +802,7 @@ function StudentsTable({ students, loading, onDelete, sectionName, total, isFilt
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p
                   style={{
-                   fontFamily: "'Inter', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     fontSize: 13,
                     fontWeight: 700,
                     color: C.text,
@@ -816,7 +816,7 @@ function StudentsTable({ students, loading, onDelete, sectionName, total, isFilt
                 </p>
                 <p
                   style={{
-                   fontFamily: "'Inter', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                     fontSize: 11,
                     color: C.textLight,
                     margin: "2px 0 0",
@@ -838,7 +838,7 @@ function StudentsTable({ students, loading, onDelete, sectionName, total, isFilt
                   {enroll?.rollNumber && (
                     <span
                       style={{
-                       fontFamily: "'Inter', sans-serif",
+                        fontFamily: "'Inter', sans-serif",
                         fontSize: 10,
                         fontWeight: 600,
                         color: C.textLight,
@@ -895,7 +895,7 @@ function StudentsTable({ students, loading, onDelete, sectionName, total, isFilt
           style={{
             width: "100%",
             borderCollapse: "collapse",
-           fontFamily: "'Inter', sans-serif",
+            fontFamily: "'Inter', sans-serif",
             fontSize: 13,
           }}
         >
@@ -1151,7 +1151,7 @@ function Pagination({ page, totalPages, total, showing, onPageChange }) {
       style={{
         padding: "7px 14px",
         borderRadius: 11,
-       fontFamily: "'Inter', sans-serif",
+        fontFamily: "'Inter', sans-serif",
         fontSize: 12,
         fontWeight: 700,
         background: active
@@ -1189,7 +1189,7 @@ function Pagination({ page, totalPages, total, showing, onPageChange }) {
     >
       <p
         style={{
-         fontFamily: "'Inter', sans-serif",
+          fontFamily: "'Inter', sans-serif",
           fontSize: 12,
           color: C.textLight,
           margin: 0,
@@ -1253,34 +1253,34 @@ function StudentsList() {
   const invalidate = useCallback(() => setRefreshKey((k) => k + 1), []);
 
 
-const handleExportExcel = async () => {
-  try {
-    let url = `${API_URL}/api/students/export/excel`;
+  const handleExportExcel = async () => {
+    try {
+      let url = `${API_URL}/api/students/export/excel`;
 
-    // ✅ Add class filter
-    if (selectedSection?.id) {
-      url += `?classSectionId=${selectedSection.id}`;
+      // ✅ Add class filter
+      if (selectedSection?.id) {
+        url += `?classSectionId=${selectedSection.id}`;
+      }
+
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
+
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = "students.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      console.error("Export failed", err);
     }
-
-    const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${getToken()}`,
-      },
-    });
-
-    const blob = await res.blob();
-    const downloadUrl = window.URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = downloadUrl;
-    a.download = "students.xlsx";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } catch (err) {
-    console.error("Export failed", err);
-  }
-};
+  };
 
 
   useEffect(() => {
@@ -1564,22 +1564,54 @@ const handleExportExcel = async () => {
 
   const handleDelete = async (e, id, name) => {
     e.stopPropagation();
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) {
+      return;
+    }
+
     try {
+
+      setLoading(true);
+
       const res = await fetch(`${API_URL}/api/students/${id}`, {
         method: "DELETE",
         headers: authHeaders(),
       });
+
+      const data = await res.json();
+
       if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.message);
+        throw new Error(data.message || "Delete failed");
       }
+
+      // ✅ REMOVE DELETED STUDENT IMMEDIATELY
+      setStudents((prev) =>
+        prev.filter((student) => student.id !== id)
+      );
+
+      // ✅ UPDATE TOTAL COUNT
+      setTotal((prev) => prev - 1);
+
+      // ✅ REFRESH AGAIN FROM SERVER
+      await fetchStudents();
+
+      // ✅ REFRESH STATS
       invalidate();
+
+      alert("Student moved to recovery successfully");
+
     } catch (err) {
+
+      console.error(err);
+
       alert(`Delete failed: ${err.message}`);
+
+    } finally {
+
+      setLoading(false);
+
     }
   };
-
   const viewLevel = !navStack.length
     ? 0
     : !selectedSection
@@ -1663,7 +1695,7 @@ const handleExportExcel = async () => {
           minHeight: "100vh",
           background: C.bg,
           padding: "28px 30px",
-         fontFamily: "'Inter', sans-serif",
+          fontFamily: "'Inter', sans-serif",
           backgroundImage: `radial-gradient(ellipse at 0% 0%, ${C.mist}40 0%, transparent 55%)`,
         }}
       >
@@ -1754,34 +1786,34 @@ const handleExportExcel = async () => {
                 }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
                 Import CSV
               </button>
               <button
-              onClick={() => setOpenModal(true)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-                padding: "10px 20px",
-                borderRadius: 13,
-                border: "none",
-                background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: "pointer",
-               fontFamily: "'Inter', sans-serif",
-                boxShadow: `0 4px 14px ${C.deep}44`,
-                transition: "all 0.2s",
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-            >
-              <Plus size={15} /> Add Student
-            </button>
+                onClick={() => setOpenModal(true)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  padding: "10px 20px",
+                  borderRadius: 13,
+                  border: "none",
+                  background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                  boxShadow: `0 4px 14px ${C.deep}44`,
+                  transition: "all 0.2s",
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.88")}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+              >
+                <Plus size={15} /> Add Student
+              </button>
             </div>
           </div>
         </div>
@@ -1885,7 +1917,7 @@ const handleExportExcel = async () => {
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: "pointer",
-                   fontFamily: "'Inter', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                   }}
                   onMouseEnter={(e) =>
                     (e.currentTarget.style.background = `${C.mist}55`)
@@ -1954,7 +1986,7 @@ const handleExportExcel = async () => {
                     color: C.text,
                     background: C.bg,
                     outline: "none",
-                   fontFamily: "'Inter', sans-serif",
+                    fontFamily: "'Inter', sans-serif",
                   }}
                   onFocus={(e) => (e.target.style.borderColor = C.sky)}
                   onBlur={(e) => (e.target.style.borderColor = C.border)}
@@ -1975,7 +2007,7 @@ const handleExportExcel = async () => {
                   color: C.text,
                   background: C.bg,
                   outline: "none",
-                 fontFamily: "'Inter', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                   minWidth: 140,
                 }}
               >
@@ -2004,7 +2036,7 @@ const handleExportExcel = async () => {
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: "pointer",
-                 fontFamily: "'Inter', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                 }}
                 onMouseEnter={(e) =>
                   (e.currentTarget.style.background = `${C.mist}55`)
@@ -2032,7 +2064,7 @@ const handleExportExcel = async () => {
                   color: "#8b1c1c",
                   fontSize: 13,
                   marginBottom: 14,
-                 fontFamily: "'Inter', sans-serif",
+                  fontFamily: "'Inter', sans-serif",
                 }}
               >
                 <AlertCircle size={14} style={{ flexShrink: 0 }} /> {error}
@@ -2071,7 +2103,7 @@ const handleExportExcel = async () => {
                         background: `${C.sky}18`,
                         color: C.deep,
                         border: `1px solid ${C.sky}33`,
-                       fontFamily: "'Inter', sans-serif",
+                        fontFamily: "'Inter', sans-serif",
                       }}
                     >
                       <BookOpen size={11} /> {selectedSection.name}
@@ -2112,7 +2144,7 @@ const handleExportExcel = async () => {
                         fontSize: 12,
                         fontWeight: 600,
                         cursor: "pointer",
-                       fontFamily: "'Inter', sans-serif",
+                        fontFamily: "'Inter', sans-serif",
                       }}
                       onMouseEnter={(e) =>
                         (e.currentTarget.style.background = `${C.mist}55`)

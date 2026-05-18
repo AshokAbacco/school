@@ -1,5 +1,5 @@
 // server/src/staffControlls/timetableConfigController.js
-import { PrismaClient } from "@prisma/client";
+
 import cacheService from "../utils/cacheService.js";
 import { prisma } from "../config/db.js";
 // ═══════════════════════════════════════════════════════════════

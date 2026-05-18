@@ -1,7 +1,6 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../../config/db.js";
 import redisClient from "../../utils/redis.js";
 
-const prisma = new PrismaClient();
 const CACHE_TTL = 300; // 5 minutes
 
 // ─────────────────────────────────────────────

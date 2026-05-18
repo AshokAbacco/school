@@ -1,9 +1,8 @@
 // server/src/staffControlls/schoolAdmin.controller.js
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../../config/db.js";
 import bcrypt from "bcrypt";
 import redisClient from "../../utils/redis.js";
 
-const prisma = new PrismaClient();
 const SALT_ROUNDS = 10;
 const CACHE_TTL = 300;
 

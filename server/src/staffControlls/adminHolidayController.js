@@ -16,7 +16,10 @@ export const getHolidays = async (req, res) => {
     const cached = await cacheService.get(cacheKey);
     if (cached) return res.json(JSON.parse(cached));
 
-    const where = { schoolId };
+   const where = {
+  schoolId,
+  deletedAt: null,
+};
     if (type) where.type = type;
     if (academicYearId) where.academicYearId = academicYearId;
 
@@ -192,7 +195,12 @@ export const deleteHoliday = async (req, res) => {
     const existing = await prisma.schoolHoliday.findFirst({ where: { id, schoolId } });
     if (!existing) return res.status(404).json({ message: "Holiday not found." });
 
-    await prisma.schoolHoliday.delete({ where: { id } });
+   await prisma.schoolHoliday.update({
+  where: { id },
+  data: {
+    deletedAt: new Date(),
+  },
+})
 
     await cacheService.invalidateSchool(schoolId); // ✅ bust cache
     return res.json({ message: "Holiday deleted successfully." });

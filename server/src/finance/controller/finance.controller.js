@@ -1,5 +1,5 @@
 // server/src/modules/finance/finance.controller.js
-
+import { prisma } from "../config/db.js";
 export const getFinanceDashboard = async (req, res) => {
   res.json({
     message: "Finance Dashboard Working ✅",

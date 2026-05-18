@@ -1,7 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-
-const prisma = new PrismaClient();
+import { prisma } from "../../config/db.js";
 
 export const getExpenses = async (req, res) => {
   try {
@@ -108,9 +105,13 @@ export const deleteExpense = async (req, res) => {
     });
 
     // delete expense
-    await prisma.expense.delete({
-      where: { id }
-    });
+  await prisma.expense.update({
+  where: { id },
+
+  data: {
+    deletedAt: new Date(),
+  },
+});
 
     res.json({ success: true });
 

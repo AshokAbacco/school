@@ -31,9 +31,15 @@ export async function listStudentCertificates(req, res) {
       certificates = typeof cached === "string" ? JSON.parse(cached) : cached;
     } else {
       // ── db fetch ───────────────────────────────────────────
-      certificates = await prisma.certificate.findMany({
-        where:   { studentId },
-        orderBy: { createdAt: "desc" },
+    certificates = await prisma.certificate.findMany({
+  where: {
+    studentId,
+    deletedAt: null,
+  },
+
+  orderBy: {
+    createdAt: "desc",
+  },
         select: {
           id:              true,
           studentName:     true,

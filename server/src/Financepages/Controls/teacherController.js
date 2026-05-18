@@ -386,7 +386,13 @@ class TeacherSalaryController {
       if (!existing)
         return res.status(404).json({ message: "Salary record not found" });
 
-      await prisma.teacherMonthlySalary.delete({ where: { id: salaryId } });
+     await prisma.teacherMonthlySalary.update({
+  where: { id: salaryId },
+
+  data: {
+    deletedAt: new Date(),
+  },
+});
       res.json({ message: "Salary record deleted successfully" });
     } catch (e) {
       res.status(400).json({ message: e.message });

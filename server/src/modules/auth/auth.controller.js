@@ -11,7 +11,7 @@ import {
   resetPassword as resetPasswordService
 } from "./auth.service.js";
 
-
+import { prisma } from "../../config/db.js";
 
 const handle = (serviceFn) => async (req, res) => {
   try {

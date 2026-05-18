@@ -1,7 +1,5 @@
 // server/src/superAdmin/controllers/users.controller.js
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../../config/db.js";
 
 /**
  * GET /api/users/all
