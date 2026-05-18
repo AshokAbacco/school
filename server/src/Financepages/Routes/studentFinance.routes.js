@@ -1,10 +1,10 @@
 // ── Student Finance Routes ───────────────────────────────────────────────
 import express from "express";
 import { PrismaClient } from "@prisma/client";
-import { saveBackup } from "../../utils/cloudBackup.js";
+import { saveSchoolBackup } from "../../utils/schoolBackup.service.js";
 import { sendFeePendingWhatsApp } from "../../whatsapp/Fees/sendFeePendingWhatsApp.js";
 import { sendFeeReceiptWhatsApp } from "../../whatsapp/Fees/sendFeeReceiptWhatsApp.js";
-
+ 
 import authMiddleware from "../../middlewares/authMiddleware.js";
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -47,9 +47,10 @@ router.post("/addStudentFinance", authMiddleware, async (req, res) => {
         schoolId, // ✅ NOW WORKS
       }
     });
-await saveBackup({
- model: "studentList",
- refId: String(student.id),
+await saveSchoolBackup({
+  schoolId,
+  module: "studentList",
+  recordId: String(student.id),
   data: student,
   action: "create",
 });
@@ -133,11 +134,12 @@ router.put("/updateStudentFinance/:id", authMiddleware, async (req, res) => {
       where: { id },
       data: updateData,
     });
-await saveBackup({
-  model: "finance_students",
-  refId: String(updated.id),
-  data: updated,
-  action: "update",
+await saveSchoolBackup({
+  schoolId,
+  module: "studentList",
+  recordId: String(student.id),
+  data: student,
+  action: "create",
 });
     res.json(updated);
 
@@ -158,12 +160,13 @@ router.delete("/deleteStudentFinance/:id", authMiddleware, async (req, res) => {
       }
     });
 
-    await saveBackup({
-      model: "studentList",
-      refId: String(id),
-      data: deleted,
-      action: "delete",
-    });
+ await saveSchoolBackup({
+  schoolId,
+  module: "studentList",
+  recordId: String(student.id),
+  data: student,
+  action: "create",
+});
 
     res.json({
       message: "Deleted Successfully"
