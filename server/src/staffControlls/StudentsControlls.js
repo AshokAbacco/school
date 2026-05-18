@@ -237,10 +237,12 @@ export const createParentLogin = async (req, res) => {
           schoolId,
         },
       });
-      await saveBackup({
-  model: "parents",
-  refId: parent.id,
-  data: parent,
+await saveSchoolBackup({
+  schoolId,
+  module: "studentList",
+  recordId: String(student.id),
+  data: student,
+  action: "create",
 });
     }
 
@@ -264,10 +266,12 @@ export const createParentLogin = async (req, res) => {
         },
       },
     });
-await saveBackup({
-  model: "studentParent",
-  refId: link.id,
-  data: link,
+await saveSchoolBackup({
+  schoolId,
+  module: "studentList",
+  recordId: String(student.id),
+  data: student,
+  action: "create",
 });
     await bustStudentCache(schoolId);
     return res.status(201).json({
