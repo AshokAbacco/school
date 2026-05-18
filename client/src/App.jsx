@@ -15,7 +15,7 @@ import TeacherRoutes from "./teacher/Routes";
 import ParentRoutes from "./parent/Routes";
 import FinanceRoutes from "./finance/Routes";
 import LandingPage from "./pages/LandingPage";
-   
+
 
 import PublicLayout from "./LandingPages/components/PublicLayout";
 import Home from "./LandingPages/Home";
@@ -32,17 +32,33 @@ import PrivacyPolicy from "./LandingPages/components/PrivacyPolicy";
 function App() {
   const auth = getAuth();
 
-useEffect(() => {
-  const userId = auth?.user?.id;
+  useEffect(() => {
 
-  if (!userId) return;
+    const userId = auth?.user?.id;
 
-  const socket = connectSocket(userId);
+    if (!userId) return;
 
-  return () => {
-    socket?.disconnect();
-  };
-}, [auth?.user?.id]); // ✅ IMPORTANT CHANGE
+    let socketInstance;
+
+    try {
+
+      socketInstance = connectSocket(userId);
+
+    } catch (error) {
+
+      console.log("Socket connection failed:", error);
+
+    }
+
+    return () => {
+
+      if (socketInstance?.connected) {
+        socketInstance.disconnect();
+      }
+
+    };
+
+  }, [auth?.user?.id]);
   return (
     <>
       <Toaster position="top-right" reverseOrder={false} />

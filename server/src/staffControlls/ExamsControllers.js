@@ -69,7 +69,12 @@ export const deleteTerm = async (req, res) => {
     const { id } = req.params;
     const schoolId = req.user?.schoolId;
 
-    await prisma.assessmentTerm.delete({ where: { id } });
+await prisma.assessmentTerm.update({
+  where: { id },
+  data: {
+    deletedAt: new Date(),
+  },
+});
 
     await cacheService.invalidateSchool(schoolId);
     res.json({ message: "Term deleted" });
@@ -179,15 +184,31 @@ export const updateGroup = async (req, res) => {
 
 export const deleteGroup = async (req, res) => {
   try {
+
     const { id } = req.params;
     const schoolId = req.user?.schoolId;
 
-    await prisma.assessmentGroup.delete({ where: { id } });
+    await prisma.assessmentGroup.update({
+
+      where: { id },
+
+      data: {
+        deletedAt: new Date(),
+      },
+    });
 
     await cacheService.invalidateSchool(schoolId);
-    res.json({ message: "Group deleted" });
+
+    res.json({
+      message: "Group deleted",
+    });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    res.status(500).json({
+      error: err.message,
+    });
+
   }
 };
 
@@ -401,15 +422,31 @@ export const getSchedules = async (req, res) => {
 
 export const deleteSchedule = async (req, res) => {
   try {
+
     const { id } = req.params;
     const schoolId = req.user?.schoolId;
 
-    await prisma.assessmentSchedule.delete({ where: { id } });
+    await prisma.assessmentSchedule.update({
+
+      where: { id },
+
+      data: {
+        deletedAt: new Date(),
+      },
+    });
 
     await cacheService.invalidateSchool(schoolId);
-    res.json({ message: "Schedule deleted" });
+
+    res.json({
+      message: "Schedule deleted",
+    });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    res.status(500).json({
+      error: err.message,
+    });
+
   }
 };
 

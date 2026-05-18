@@ -252,7 +252,15 @@ export const deleteGalleryImage = async (req, res) => {
       invalidateBulkCachedUrls(schoolId, keysToDelete),
     ]);
 
-    await prisma.galleryImage.delete({ where: { id: imageId } });
+await prisma.galleryImage.update({
+  where: {
+    id: imageId,
+  },
+
+  data: {
+    deletedAt: new Date(),
+  },
+});
     res.json({ message: "Image deleted" });
   } catch (error) {
     console.error("[deleteGalleryImage]", error);

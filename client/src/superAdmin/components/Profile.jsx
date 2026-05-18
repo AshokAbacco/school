@@ -1,16 +1,24 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, User, Lock, Image as ImageIcon, ChevronRight } from "lucide-react";
+import {
+  ArrowLeft,
+  User,
+  Lock,
+  Image as ImageIcon,
+  ChevronRight,
+  DatabaseBackup,
+} from "lucide-react";
 import { getToken } from "../../auth/storage";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const authHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
 
 const NAV_ITEMS = [
-  { key: "basic",    label: "Basic information", icon: User  },
-  { key: "password", label: "Change password",   icon: Lock  },
-  { key: "logo",     label: "School logo",        icon: ImageIcon },
-  { key: "delete",   label: "Delete Account",     icon: ChevronRight },
+  { key: "basic", label: "Basic information", icon: User },
+  { key: "password", label: "Change password", icon: Lock },
+  { key: "logo", label: "School logo", icon: ImageIcon },
+  { key: "recovery", label: "School Recovery", icon: DatabaseBackup },
+  { key: "delete", label: "Delete Account", icon: ChevronRight },
 ];
 
 export default function Profile() {
@@ -170,7 +178,7 @@ export default function Profile() {
   };
 
   const handleDeleteAccount = async () => {
-    if (confirmationText !== "DELETE MY UNIVERSITY ACCOUNT"){
+    if (confirmationText !== "DELETE MY UNIVERSITY ACCOUNT") {
       return showToast("Please type the confirmation sentence correctly", "error");
     }
     if (!otp) {
@@ -249,7 +257,14 @@ export default function Profile() {
             {NAV_ITEMS.map(({ key, label, icon: Icon }, i) => (
               <button
                 key={key}
-                onClick={() => setActiveTab(key)}
+                onClick={() => {
+                  if (key === "recovery") {
+                    navigate("/superAdmin/recovery");
+                    return;
+                  }
+
+                  setActiveTab(key);
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-left transition
                   ${i > 0 ? "border-t border-gray-100" : ""}
                   ${activeTab === key
@@ -468,8 +483,8 @@ export default function Profile() {
                       {sendingOtp
                         ? "Sending..."
                         : resendCooldown > 0
-                        ? `Resend in ${resendCooldown}s`
-                        : "Resend OTP"}
+                          ? `Resend in ${resendCooldown}s`
+                          : "Resend OTP"}
                     </button>
                   </div>
 

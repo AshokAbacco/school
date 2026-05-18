@@ -328,7 +328,13 @@ export const deleteGroupBSalary = async (req, res) => {
     const existing = await prisma.groupBStaffSalary.findUnique({ where: { id: salaryId } });
     if (!existing) return res.status(404).json({ message: "Salary record not found" });
 
-    await prisma.groupBStaffSalary.delete({ where: { id: salaryId } });
+   await prisma.groupBStaffSalary.update({
+  where: { id: salaryId },
+
+  data: {
+    deletedAt: new Date(),
+  },
+});
     res.json({ message: "Salary record deleted successfully" });
   } catch (err) {
     console.error("[deleteGroupBSalary]", err);

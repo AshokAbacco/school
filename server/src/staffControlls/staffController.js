@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import cacheService from "../utils/cacheService.js";
-import { saveBackup } from "../utils/cloudBackup.js";
+
 
 import { prisma } from "../config/db.js"; 
 const SALT_ROUNDS = 10;
@@ -174,6 +174,7 @@ export async function updateStaff(req, res) {
     const updated = await prisma.staffProfile.update({
       where: { id },
       data: {
+  
         firstName,
         lastName: lastName || "",
         phone: phone || null,
@@ -200,24 +201,86 @@ export async function updateStaff(req, res) {
 
 // ➤ Delete (soft delete)
 export async function deleteStaff(req, res) {
+
   try {
+
     const { id } = req.params;
-    const schoolId = req.user?.schoolId;
 
-    const existing = await prisma.staffProfile.findFirst({ where: { id, schoolId } });
-    if (!existing) return res.status(404).json({ error: "Staff not found" });
+    const schoolId =
+      req.user?.schoolId;
 
+    const existing =
+      await prisma.staffProfile.findFirst({
+
+        where: {
+          id,
+          schoolId,
+        },
+      });
+
+    if (!existing) {
+
+      return res.status(404).json({
+        error: "Staff not found",
+      });
+
+    }
+
+    // ✅ SOFT DELETE STAFF
     await prisma.staffProfile.update({
+
       where: { id },
-      data: { status: "RESIGNED" },
+
+      data: {
+
+        status: "RESIGNED",
+
+        deletedAt: new Date(),
+      },
     });
 
-    // ✅ Bust cache so the deleted staff disappears from the list immediately
-    await cacheService.invalidateSchool(schoolId);
+    // ✅ OPTIONAL:
+    // deactivate linked user
 
-    res.json({ message: "Staff marked as resigned" });
+    if (existing.userId) {
+
+      await prisma.user.update({
+
+        where: {
+          id: existing.userId,
+        },
+
+        data: {
+
+          deletedAt: new Date(),
+
+          isActive: false,
+        },
+      });
+
+    }
+
+    // ✅ CLEAR CACHE
+    await cacheService.invalidateSchool(
+      schoolId
+    );
+
+    res.json({
+      message:
+        "Staff moved to recycle bin",
+    });
+
   } catch (err) {
-    console.error("[deleteStaff]", err);
-    res.status(500).json({ error: "Failed to delete staff" });
+
+    console.error(
+      "[deleteStaff]",
+      err
+    );
+
+    res.status(500).json({
+      error:
+        "Failed to delete staff",
+    });
+
   }
 }

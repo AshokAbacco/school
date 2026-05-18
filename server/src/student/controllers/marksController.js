@@ -59,6 +59,7 @@ export const getExamGroups = async (req, res) => {
 
     const groups = await prisma.assessmentGroup.findMany({
       where: {
+        deletedAt: null,
         schoolId: enrollment.classSection.schoolId,
         academicYearId: enrollment.academicYearId,
         schedules: { some: { classSectionId: enrollment.classSectionId } },
@@ -143,6 +144,7 @@ export const getReportCard = async (req, res) => {
       prisma.marks.findMany({
         where: {
           studentId,
+          deletedAt: null,
           schedule: { assessmentGroupId, classSectionId: enrollment.classSectionId },
         },
         include: {

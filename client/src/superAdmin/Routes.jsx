@@ -18,28 +18,34 @@ import AddFee from "./pages/Fees/AddFee";
 import Finance from "./pages/Finance/Finance";
 import AddFinance from "./pages/Finance/AddFinancers";
 import ChatPage from "./pages/chat/ChatPage.jsx";
+import SchoolRecovery from "./pages/Recovery/SchoolRecovery";
+
 function SuperAdminRoutes() {
   return (
     <PageLayout>
       <Routes>
-        <Route index                     element={<Navigate to="dashboard" replace />} />
-        <Route path="profile"            element={<Profile />} />
-        <Route path="dashboard"          element={<Dashboard />} />
-        <Route path="students"           element={<StudentsList />} />
-        <Route path="schools"            element={<Schools />} />
-        <Route path="schools-admins"     element={<SchoolAdmins />} />
-        <Route path="users-management"   element={<UsersManagement />} />
-        <Route path="roles-permissions"  element={<RolesPermissions />} />
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="profile" element={<Profile />} />
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="students" element={<StudentsList />} />
+        <Route path="schools" element={<Schools />} />
+        <Route path="schools-admins" element={<SchoolAdmins />} />
+        <Route path="users-management" element={<UsersManagement />} />
+        <Route path="roles-permissions" element={<RolesPermissions />} />
         <Route path="subscription-Plans" element={<Plans />} />
-        <Route path="analytics"          element={<Analytics />} />
-        <Route path="mettings"           element={<Mettings />} />
-        <Route path="fees"               element={<Fees />} />
-        <Route path="fees-add"           element={<AddFee />} />
-        <Route path="finance"            element={<Finance />} />
-        <Route path="finance-add"        element={<AddFinance />} />
-        <Route path="settings"           element={<div>Global Settings</div>} />
-        <Route path="chat"               element={<ChatPage />} />
-        <Route path="*"                  element={<Navigate to="dashboard" replace />} />
+        <Route path="analytics" element={<Analytics />} />
+        <Route path="mettings" element={<Mettings />} />
+        <Route path="fees" element={<Fees />} />
+        <Route path="fees-add" element={<AddFee />} />
+        <Route path="finance" element={<Finance />} />
+        <Route path="finance-add" element={<AddFinance />} />
+        <Route path="settings" element={<div>Global Settings</div>} />
+        <Route path="chat" element={<ChatPage />} />
+        <Route path="*" element={<Navigate to="dashboard" replace />} />
+        <Route
+          path="recovery"
+          element={<SchoolRecovery />}
+        />
       </Routes>
     </PageLayout>
   );

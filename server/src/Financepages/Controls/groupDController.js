@@ -43,9 +43,13 @@ export const deleteGroupDStaff = async (req, res) => {
   try {
     const { id } = req.params;
 
-    await prisma.groupDStaffSalary.delete({
-      where: { id: Number(id) }
-    });
+    await prisma.groupDStaffSalary.update({
+  where: { id: Number(id) },
+
+  data: {
+    deletedAt: new Date(),
+  },
+});
 
     res.json({ message: "Deleted successfully" });
   } catch (error) {

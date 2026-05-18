@@ -1,6 +1,6 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
-import { saveBackup } from "../../utils/cloudBackup.js";
+
 
 import authMiddleware from "../../middlewares/authMiddleware.js";
 const router = express.Router();
@@ -45,7 +45,7 @@ router.post("/addStudentFinance", authMiddleware, async (req, res) => {
       }
     });
 await saveBackup({
-  model: "finance_students",
+ model: "studentList",
  refId: String(student.id),
   data: student,
   action: "create",
@@ -70,7 +70,10 @@ router.get("/getStudentFinance", authMiddleware, async (req, res) => {
     }
 
     const students = await prisma.studentList.findMany({
-      where: { schoolId }, // ✅ NOW WORKS
+    where: {
+  schoolId,
+  deletedAt: null
+}, // ✅ NOW WORKS
       orderBy: {
         createdAt: "desc"
       }
@@ -142,22 +145,31 @@ await saveBackup({
 });
 router.delete("/deleteStudentFinance/:id", authMiddleware, async (req, res) => {
   try {
-    
+
     const id = parseInt(req.params.id);
-    
-    await prisma.studentList.delete({
-      where: { id }
+
+    const deleted = await prisma.studentList.update({
+      where: { id },
+      data: {
+        deletedAt: new Date()
+      }
     });
+
     await saveBackup({
-  model: "finance_students",
-  refId: String(id),
-  data: { id },
-  action: "delete",
-});
-    res.json({ message: "Deleted Successfully" });
-    
+      model: "studentList",
+      refId: String(id),
+      data: deleted,
+      action: "delete",
+    });
+
+    res.json({
+      message: "Deleted Successfully"
+    });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      message: error.message
+    });
   }
 });
 router.get("/studentsByClass", async (req, res) => {
@@ -236,9 +248,12 @@ router.delete("/deleteStudent/:id", async (req, res) => {
 
     const id = parseInt(req.params.id);
 
-    await prisma.studentList.delete({
-      where: { id }
-    });
+await prisma.studentList.update({
+  where: { id },
+  data: {
+    deletedAt: new Date()
+  }
+});
 
     res.json({ message: "Deleted successfully" });
 
@@ -304,12 +319,12 @@ router.get("/parentFees", authMiddleware, async (req, res) => {
     const studentIds = children.map(c => c.studentId);
 
     // 2. Get finance data
-    const fees = await prisma.studentList.findMany({
-      where: {
-        studentId: { in: studentIds }
-      }
-    });
-
+ const fees = await prisma.studentList.findMany({
+  where: {
+    studentId: { in: studentIds },
+    deletedAt: null
+  }
+});
     res.json(fees);
 
   } catch (err) {

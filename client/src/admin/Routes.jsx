@@ -33,6 +33,8 @@ import TransportPage from "./pages/transport/TransportPage";
 import ChatPage from "./pages/chat/ChatPage.jsx";
 import TrackingPage from "./pages/tracking/TrackingPage";
 import TutorialTeachersPage from "./pages/tutorials/TutorialTeachersPage";
+import DeletedRecords from "./pages/settings/DeletedRecords";
+import Profile from "./components/Profile.jsx"
 function AdminRoutes() {
   return (
     <PageLayout>
@@ -40,49 +42,51 @@ function AdminRoutes() {
         {/* /admin/ → /admin/dashboard */}
         <Route index element={<Navigate to="dashboard" replace />} />
 
-        <Route path="dashboard"             element={<Dashboard />} />
-
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="profile" element={<Profile />} />
         {/* Students */}
-        <Route path="students"              element={<StudentsList />} />
-        <Route path="students/add"          element={<AddStudents />} />
-        <Route path="students/:id"          element={<StudentView />} />
-        <Route path="students/:id/edit"     element={<AddStudents />} />
+        <Route path="students" element={<StudentsList />} />
+        <Route path="students/add" element={<AddStudents />} />
+        <Route path="students/:id" element={<StudentView />} />
+        <Route path="students/:id/edit" element={<AddStudents />} />
 
         {/* Teachers */}
-        <Route path="teachers"              element={<TeachersPage />} />
+        <Route path="teachers" element={<TeachersPage />} />
 
         {/* Classes */}
-        <Route path="classes"               element={<ClassesList />} />
-        <Route path="classes/timings"       element={<SchoolTimingsPage />} />
-        <Route path="classes/subjects"      element={<SubjectsPage />} />
-        <Route path="classes/sections"      element={<CreateSectionsPage />} />
-        <Route path="classes/timetable"     element={<TimetablePage />} />
+        <Route path="classes" element={<ClassesList />} />
+        <Route path="classes/timings" element={<SchoolTimingsPage />} />
+        <Route path="classes/subjects" element={<SubjectsPage />} />
+        <Route path="classes/sections" element={<CreateSectionsPage />} />
+        <Route path="classes/timetable" element={<TimetablePage />} />
         <Route path="classes/:id/timetable" element={<ClassTimetableViewPage />} />
-        <Route path="classes/streams"       element={<StreamsPage />} />
-        <Route path="classes/courses"       element={<CoursesPage />} />
-        <Route path="classes/promotion"     element={<PromotionPage />} />
-        <Route path="classes/readmission"   element={<ReadmissionPage />} />
+        <Route path="classes/streams" element={<StreamsPage />} />
+        <Route path="classes/courses" element={<CoursesPage />} />
+        <Route path="classes/promotion" element={<PromotionPage />} />
+        <Route path="classes/readmission" element={<ReadmissionPage />} />
         {/* Staff */}
-        <Route path="/staff"                 element={<StaffList />} />
+        <Route path="/staff" element={<StaffList />} />
         {/* <Route path="staff/add"             element={<StaffAdd />} /> */}
 
         {/* Other */}
-        <Route path="attendance"            element={<AttendanceList />} />
-        <Route path="exams"                 element={<ExamsList />} />
-        <Route path="exams-page"            element={<ExamsPage />} />
-        <Route path="activities"            element={<ActivitiesList />} />
-        <Route path="meetings"              element={<MeetingsList />} />
-        <Route path="curriculum"            element={<CurriculumList />} />
-        <Route path="gallery"               element={<Gallery />} />
-        <Route path="holidays"              element={<HolidayList />} />
-        <Route path="awards"                element={<AdminAwardsPage />} />
-        <Route path="transport"             element={<TransportPage />} />
-        <Route path="chat"                  element={<ChatPage />} />
-        <Route path="tracking"              element={<TrackingPage />} />
-        <Route path="tutorial-teachers"   element={<TutorialTeachersPage />}/>
-
-        {/* Fallback */}
+        <Route path="attendance" element={<AttendanceList />} />
+        <Route path="exams" element={<ExamsList />} />
+        <Route path="exams-page" element={<ExamsPage />} />
+        <Route path="activities" element={<ActivitiesList />} />
+        <Route path="meetings" element={<MeetingsList />} />
+        <Route path="curriculum" element={<CurriculumList />} />
+        <Route path="gallery" element={<Gallery />} />
+        <Route path="holidays" element={<HolidayList />} />
+        <Route path="awards" element={<AdminAwardsPage />} />
+        <Route path="transport" element={<TransportPage />} />
+        <Route path="chat" element={<ChatPage />} />
+        <Route path="tracking" element={<TrackingPage />} />
+        <Route path="tutorial-teachers" element={<TutorialTeachersPage />} />
         <Route path="*" element={<Navigate to="dashboard" replace />} />
+        <Route
+          path="deleted-records"
+          element={<DeletedRecords />}
+        />
       </Routes>
     </PageLayout>
   );

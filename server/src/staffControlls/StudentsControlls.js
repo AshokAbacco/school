@@ -7,7 +7,7 @@ import { getExpiryByRole } from "../utils/fileAccessPolicy.js";
 import { uploadToCloud } from "../utils/cloud.service.js";
 import XLSX from "xlsx";
 
-import { saveBackup } from "../utils/cloudBackup.js";
+
 import { prisma } from "../config/db.js";
 
 async function bustStudentCache(schoolId) {
@@ -657,44 +657,56 @@ export const listStudents = async (req, res) => {
       ...(status ? { status } : {}),
     };
 
-    const where = {
-      schoolId,
-      ...(hasEnrollmentFilter
-        ? { enrollments: { some: enrollmentFilter } }
-        : {}),
-      ...(search
-        ? {
-            OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { email: { contains: search, mode: "insensitive" } },
-              {
-                personalInfo: {
-                  is: {
-                    firstName: { contains: search, mode: "insensitive" },
-                  },
+  const where = {
+  schoolId,
+  deletedAt: null,
+
+  ...(hasEnrollmentFilter
+    ? { enrollments: { some: enrollmentFilter } }
+    : {}),
+
+  ...(search
+    ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+
+          {
+            personalInfo: {
+              is: {
+                firstName: {
+                  contains: search,
+                  mode: "insensitive",
                 },
               },
-              {
-                personalInfo: {
-                  is: {
-                    lastName: { contains: search, mode: "insensitive" },
-                  },
+            },
+          },
+
+          {
+            personalInfo: {
+              is: {
+                lastName: {
+                  contains: search,
+                  mode: "insensitive",
                 },
               },
-              {
-                enrollments: {
-                  some: {
-                    admissionNumber: {
-                      contains: search,
-                      mode: "insensitive",
-                    },
-                  },
+            },
+          },
+
+          {
+            enrollments: {
+              some: {
+                admissionNumber: {
+                  contains: search,
+                  mode: "insensitive",
                 },
               },
-            ],
-          }
-        : {}),
-    };
+            },
+          },
+        ],
+      }
+    : {}),
+};
 
     const total = await prisma.student.count({ where });
 
@@ -756,24 +768,36 @@ export const listStudents = async (req, res) => {
 // ── deleteStudent ─────────────────────────────────────────────────────────────
 export const deleteStudent = async (req, res) => {
   try {
+
     const { id } = req.params;
-    const schoolId = req.user?.schoolId;
-    if (!schoolId)
-      return res.status(400).json({ message: "schoolId missing from token" });
 
-   const student = await prisma.student.findUnique({
-  where: { id, schoolId },
-});
-    if (!student) return res.status(404).json({ message: "Student not found" });
+    const student = await prisma.student.update({
+      where: {
+        id,
+      },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
 
+    // ✅ CLEAR CACHE
+    await bustStudentCache(student.schoolId);
 
-    await bustStudentCache(schoolId);
-    return res.json({ message: "Student deleted" });
-  } catch (err) {
-    if (err.code === "P2025")
-      return res.status(404).json({ message: "Student not found" });
-    console.error("[deleteStudent]", err);
-    return res.status(500).json({ message: "Server error" });
+    return res.json({
+      success: true,
+      message: "Student moved to recovery",
+      student,
+    });
+
+  } catch (error) {
+
+    console.log("DELETE ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+
   }
 };
 
@@ -1018,7 +1042,12 @@ export const bulkImportStudents = async (req, res) => {
             schoolId,
           },
         });
-
+await uploadBackup({
+   schoolId: student.schoolId,
+   model: "students",
+   recordId: student.id,
+   data: student,
+});
         // create personal info
         await prisma.studentPersonalInfo.create({
           data: {

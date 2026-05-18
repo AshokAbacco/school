@@ -85,7 +85,7 @@ export default function Navbar({ onMenuClick, user }) {
 
       socket.off("new_message");
       socket.on("new_message", (msg) => {
-        notificationSound.current?.play().catch(() => {});
+        notificationSound.current?.play().catch(() => { });
 
         setNotifications((prev) => {
           const existing = prev.find((n) => n.id === msg.chatRoomId);
@@ -150,7 +150,7 @@ export default function Navbar({ onMenuClick, user }) {
         },
         body: JSON.stringify({ chatRoomId: chatId }),
       });
-    } catch (_) {}
+    } catch (_) { }
     setNotifications((prev) => prev.filter((n) => n.id !== chatId));
     window.dispatchEvent(new CustomEvent("chat_opened", { detail: { chatRoomId: chatId } }));
   };
@@ -165,7 +165,7 @@ export default function Navbar({ onMenuClick, user }) {
           Authorization: `Bearer ${getToken()}`,
         },
         body: JSON.stringify({ chatRoomId: n.id }),
-      }).catch(() => {})
+      }).catch(() => { })
     ));
     notifications.forEach((n) =>
       window.dispatchEvent(new CustomEvent("chat_opened", { detail: { chatRoomId: n.id } }))
@@ -384,7 +384,7 @@ export default function Navbar({ onMenuClick, user }) {
                 </div>
 
                 <button
-                  onClick={() => { setDropdownOpen(false); navigate("/superadmin/profile"); }}
+                  onClick={() => { setDropdownOpen(false); navigate("/admin/profile"); }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
                   style={{ color: "#384959", background: "none", border: "none", cursor: "pointer", ...font }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f8fd")}

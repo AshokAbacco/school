@@ -9,11 +9,11 @@ import authRoutes from "./modules/auth/auth.routes.js";
 import { globalLimiter } from "./middlewares/rateLimiter.js";
 import errorHandler from "./middlewares/errorMiddleware.js";
 
-import { startBackupScheduler } from "./backup/scheduler.js";
-import { cleanCloud } from "./backup/cleanupCloud.js";
+
 import logoRoutes from "./utils/logoRoutes.js";
 import { requireAuth } from "./middlewares/auth.middleware.js";
 import parent from "./parent.js";
+import backupRoutes from "./modules/backup/backup.routes.js";
 
 const app = express();
 
@@ -51,7 +51,7 @@ app.use("/api", logoRoutes(requireAuth));
 app.use(globalLimiter);
 app.use(errorHandler);
 app.use("/api/parent", parent);
-startBackupScheduler();
-setInterval(cleanCloud, 24 * 60 * 60 * 1000);
+app.use("/api/backups", backupRoutes);
+
 
 export default app;

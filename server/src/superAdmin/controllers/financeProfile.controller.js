@@ -178,7 +178,19 @@ export const deleteFinanceProfile = async (req, res) => {
   try {
     const { id } = req.params;
 
-    await prisma.financeProfile.delete({ where: { id } });
+   prisma.financeProfile.update({
+  where: { id },
+
+  data: {
+    deletedAt: new Date(),
+  },
+});
+prisma.user.update({
+  data: {
+    deletedAt: new Date(),
+    isActive: false,
+  }
+})
 
     // ✅ Invalidate both list and single cache
     await redisClient.del(CACHE_ALL);

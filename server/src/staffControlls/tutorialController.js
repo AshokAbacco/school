@@ -16,7 +16,8 @@ export const getTutorialTeachers =
         await prisma.teacherTutorialProfile.findMany({
           where: {
             schoolId,
-            isActive: true,
+          isActive: true,
+deletedAt: null,
           },
 
           include: {
@@ -438,9 +439,10 @@ export const deleteTutorialTeacher =
             id: req.params.id,
           },
 
-          data: {
-            isActive: false,
-          },
+       data: {
+  isActive: false,
+  deletedAt: new Date(),
+},
         }
       );
 

@@ -105,9 +105,13 @@ export const deleteExpense = async (req, res) => {
     });
 
     // delete expense
-    await prisma.expense.delete({
-      where: { id }
-    });
+  await prisma.expense.update({
+  where: { id },
+
+  data: {
+    deletedAt: new Date(),
+  },
+});
 
     res.json({ success: true });
 

@@ -195,7 +195,14 @@ export const deleteSchool = async (req, res) => {
     const { id } = req.params;
     const universityId = req.user.universityId;
 
-    await prisma.school.delete({ where: { id } });
+await prisma.school.update({
+  where: { id },
+
+  data: {
+    deletedAt: new Date(),
+    isActive: false,
+  },
+});
 
     // Clear Redis Cache after delete
     await redisClient.del(`schools:${universityId}`);

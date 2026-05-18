@@ -296,7 +296,13 @@ export const deleteTimetableEntry = async (req, res) => {
     });
     if (!entry) return res.status(404).json({ message: "Entry not found" });
 
-    await prisma.timetableEntry.delete({ where: { id: entryId } });
+   await prisma.timetableEntry.update({
+  where: { id: entryId },
+
+  data: {
+    deletedAt: new Date(),
+  },
+});
 
     await cacheService.invalidateSchool(schoolId);
     return res.json({ message: "Entry removed" });

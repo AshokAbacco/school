@@ -87,6 +87,7 @@ export const getTimetable = async (req, res) => {
         classSectionId: enrollment.classSectionId,
         academicYearId: enrollment.academicYearId,
       },
+      deletedAt: null,
       include: {
         subject:          { select: { id: true, name: true, code: true } },
         teacher:          { select: { id: true, firstName: true, lastName: true } },

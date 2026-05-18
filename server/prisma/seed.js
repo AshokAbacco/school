@@ -170,7 +170,7 @@ async function createTeachers(school, password, teacherDefs) {
   for (let i = 0; i < teacherDefs.subjectDefs.length; i++) tBySubject[i] = [];
 
   for (const def of teacherDefs.defs) {
-    const n     = TEACHER_CTR++;
+    const n     = TEACHER_CTR;
     const email = `teacher${n}@gmail.com`;
 
     let user = await prisma.user.findUnique({
@@ -186,6 +186,7 @@ async function createTeachers(school, password, teacherDefs) {
           school:   { connect: { id: school.id } },
         },
       });
+       TEACHER_CTR++; 
     }
 
     let prof = await prisma.teacherProfile.findUnique({ where: { userId: user.id } });
@@ -195,7 +196,7 @@ async function createTeachers(school, password, teacherDefs) {
         data: {
           user:            { connect: { id: user.id } },
           school:          { connect: { id: school.id } },
-          employeeCode:    `${school.code.slice(0,3)}-T${String(n).padStart(3,"0")}`,
+          employeeCode: `${school.code.slice(0,3)}-T${String(def.n).padStart(3,"0")}`,
           firstName:       def.fn,
           lastName:        def.ln,
           dateOfBirth:     new Date(`${1970 + (idx % 25)}-${String((idx % 9) + 1).padStart(2,"0")}-15`),

@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import cacheService from "../utils/cacheService.js";
 import { uploadToR2, generateSignedUrl } from "../lib/r2.js";
-import { saveBackup } from "../utils/cloudBackup.js";
+
 import { prisma } from "../config/db.js";
 
 const SALT_ROUNDS = 10;
