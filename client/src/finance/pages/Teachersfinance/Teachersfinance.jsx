@@ -8,7 +8,7 @@ const groups = [
     { id: "A", label: "Group A", subtitle: "Teaching Faculty" },
     { id: "B", label: "Group B", subtitle: "Non-Teaching Faculty" },
     { id: "C", label: "Group C", subtitle: "Support Staff" },
-    // { id: "D", label: "Group D", subtitle: "Administrative" },
+    { id: "D", label: "Admins", subtitle: "Administrative" },
 ];
 
 export default function TeacherSalaryManagement() {
@@ -40,7 +40,7 @@ export default function TeacherSalaryManagement() {
             {activeGroup === "A" && <GroupASalary />}
             {activeGroup === "B" && <GroupBSalary />}
             {activeGroup === "C" && <GroupCSalary />}
-            {/* {activeGroup === "D" && <GroupDSalary />} */}
+            {activeGroup === "D" && <GroupDSalary />}
 
         </div>
     );

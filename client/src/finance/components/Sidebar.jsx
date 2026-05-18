@@ -4,16 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, GraduationCap, Wallet, X,MessageCircle,CalendarDays } from "lucide-react";
 import { useSchoolLogo } from "../../hooks/useSchoolLogo";
 
-const NAV = [
-  { icon: LayoutDashboard, label: "Dashboard", to: "/finance/dashboard" },
-  { icon: GraduationCap, label: "Student", to: "/finance/studentfinance" },
-  { icon: Wallet, label: "Staff", to: "/finance/teachersfinance" },
-  { icon: Wallet, label: "Expenses", to: "/finance/expenses" },
-  { icon: MessageCircle, label: "Chat", to: "/finance/chat" },
-  { icon: CalendarDays, label: "Holidays", to: "/finance/holidays" }
-
-];
-
+ 
 const initials = (name = "AU") =>
   name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 
@@ -28,9 +19,44 @@ export default function Sidebar({ isOpen, onClose, user }) {
   const displayRole = user?.role || "Finance";
   const displayEmail = user?.email || "";
 
-  // On mobile (isOpen), always show expanded labels.
-  // On desktop, expand on hover.
+  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+
+  const userPlan =
+    user?.planName ||
+    storedUser?.planName ||
+    "Silver";
+
+  console.log("FINANCE PLAN =", userPlan);
+ 
   const expanded = isOpen || hovered;
+
+  const NAV = [
+  { icon: LayoutDashboard, label: "Dashboard", to: "/finance/dashboard" },
+  { icon: GraduationCap, label: "Student", to: "/finance/studentfinance" },
+  { icon: Wallet, label: "Staff", to: "/finance/teachersfinance" },
+
+  // ✅ Gold + Premium
+  ...(userPlan !== "Silver"
+    ? [{
+        icon: Wallet,
+        label: "Expenses",
+        to: "/finance/expenses",
+      }]
+    : []),
+
+  // ✅ Premium only
+  ...(userPlan === "Premium"
+    ? [{
+        icon: MessageCircle,
+        label: "Chat",
+        to: "/finance/chat",
+      }]
+    : []),
+
+  { icon: CalendarDays, label: "Holidays", to: "/finance/holidays" },
+];
+
+
 
   return (
     <>

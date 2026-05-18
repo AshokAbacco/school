@@ -7,7 +7,7 @@ const plans = [
   {
     id: "silver",
     name: "Silver",
-    price: 1,
+    price: 300,
     tagline: "Best for single school setup",
     icon: Shield,
     badge: null,

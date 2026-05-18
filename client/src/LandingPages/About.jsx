@@ -343,12 +343,7 @@ const whyItems = [
   { icon: Shield,     title: "Secure & Reliable",        desc: "Enterprise-grade security with 99.9% uptime SLA. Your data is always safe." },
 ];
 
-const stats = [
-  { num: "756+", label: "Schools Enrolled" },
-  { num: "36+",  label: "Staff Members" },
-  { num: "18%",  label: "Efficiency Boost" },
-  { num: "6",    label: "Product Modules" },
-];
+ 
 
 /* ─── ABOUT PAGE ──────────────────────────────────────────────────── */
 export default function About() {
@@ -379,27 +374,12 @@ export default function About() {
             <button className="btn-primary">
               Get Started Today <ArrowRight style={{ width: 16, height: 16 }} />
             </button>
-            <button style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              background: "transparent", color: "var(--mid)", fontFamily: "'DM Sans',sans-serif",
-              fontSize: 15, fontWeight: 600, border: "2px solid var(--border)",
-              borderRadius: "100px", padding: "13px 30px", cursor: "pointer"
-            }}>
-              Watch Demo
-            </button>
+ 
           </div>
         </div>
       </section>
 
-      {/* ══ STAT STRIP ═══════════════════════════════════════════════ */}
-      <div className="stat-strip">
-        {stats.map((s, i) => (
-          <div key={i} className="stat-item">
-            <div className="stat-num">{s.num}</div>
-            <div className="stat-label">{s.label}</div>
-          </div>
-        ))}
-      </div>
+ 
 
       {/* ══ MISSION ══════════════════════════════════════════════════ */}
       <section className="section" style={{ background: "var(--white)" }}>

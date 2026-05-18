@@ -1,6 +1,6 @@
 // client/src/admin/pages/teachers/components/BulkImportTeachers.jsx
 // Drop an Excel/CSV → preview → bulk register teachers
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm";
 import {
   Upload, Download, X, CheckCircle, AlertCircle,
@@ -212,7 +212,20 @@ export default function BulkImportTeachers({ onClose, onSuccess }) {
   const [expanded, setExpanded]   = useState(null);
   const [step, setStep]           = useState("upload"); // upload | preview | done
   const [unmapped, setUnmapped]   = useState([]);
+  const [limitStatus, setLimitStatus] = useState(null); // { used, limit }
   const fileRef = useRef();
+
+  // ── Fetch live teacher limit on mount ─────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(`${API}/api/teachers/limit-status`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        if (r.ok) setLimitStatus(await r.json());
+      } catch { /* non-critical */ }
+    })();
+  }, []);
 
   // ── Parse uploaded file ───────────────────────────────────────────────────
   const parseFile = useCallback((f) => {
@@ -299,12 +312,31 @@ export default function BulkImportTeachers({ onClose, onSuccess }) {
     setImporting(false);
     setStep("done");
     onSuccess?.();
+
+    // Refresh live counter
+    try {
+      const r = await fetch(`${API}/api/teachers/limit-status`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (r.ok) setLimitStatus(await r.json());
+    } catch { /* non-critical */ }
   };
 
   const validCount   = rows.filter((r) => r.errors.length === 0).length;
   const invalidCount = rows.filter((r) => r.errors.length > 0).length;
   const successCount = rows.filter((r) => r.status === "success").length;
   const failCount    = rows.filter((r) => r.status === "error").length;
+
+  // ── Limit helpers ──────────────────────────────────────────────────────────
+  const isUnlimited    = limitStatus?.limit === null;
+  const remainingSlots = (limitStatus && !isUnlimited) ? Math.max(0, limitStatus.limit - limitStatus.used) : Infinity;
+  const limitPct       = (limitStatus && !isUnlimited) ? Math.round((limitStatus.used / limitStatus.limit) * 100) : 0;
+  const atLimit        = !isUnlimited && limitStatus && limitStatus.used >= limitStatus.limit;
+  const nearLimit      = !isUnlimited && limitPct >= 80 && !atLimit;
+  const exceedsSlots   = !isUnlimited && validCount > remainingSlots;
+  const limitColor     = atLimit ? "#dc2626" : nearLimit ? "#b45309" : "#15803d";
+  const limitBg        = atLimit ? "#fef2f2" : nearLimit ? "#fffbeb" : "#f0fdf4";
+  const limitBorder    = atLimit ? "#fecaca" : nearLimit ? "#fde68a" : "#bbf7d0";
 
   // ── Steps ─────────────────────────────────────────────────────────────────
   const STEPS = [
@@ -358,19 +390,166 @@ export default function BulkImportTeachers({ onClose, onSuccess }) {
           </div>
 
           {/* Header */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 20px 14px 20px", background:C.primary, borderBottom:`1px solid rgba(255,255,255,0.08)` }}>
-            <div style={{ display:"flex", alignItems:"center", gap:12, minWidth:0 }}>
-              <div style={{ width:38, height:38, borderRadius:12, background:"rgba(255,255,255,0.12)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                <FileSpreadsheet size={18} color="#fff"/>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "14px 20px",
+              background: C.primary,
+              borderBottom: `1px solid rgba(255,255,255,0.08)`,
+            }}
+          >
+
+            {/* LEFT SIDE */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                minWidth: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.12)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <FileSpreadsheet size={18} color="#fff" />
               </div>
-              <div style={{ minWidth:0 }}>
-                <h2 style={{ ...F, margin:0, fontSize:15, fontWeight:700, color:"#fff", letterSpacing:"-0.02em" }}>Bulk Import Teachers</h2>
-                <p style={{ ...F, margin:0, fontSize:11, color:"rgba(255,255,255,0.55)", marginTop:1 }}>Upload Excel / CSV to register multiple teachers at once</p>
+
+              <div style={{ minWidth: 0 }}>
+                <h2
+                  style={{
+                    ...F,
+                    margin: 0,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: "#fff",
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  Bulk Import Teachers
+                </h2>
+
+                <p
+                  style={{
+                    ...F,
+                    margin: 0,
+                    fontSize: 11,
+                    color: "rgba(255,255,255,0.55)",
+                    marginTop: 1,
+                  }}
+                >
+                  Upload Excel / CSV to register multiple teachers at once
+                </p>
               </div>
             </div>
-            <button onClick={onClose} style={{ width:32, height:32, borderRadius:9, background:"rgba(255,255,255,0.1)", border:"none", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#fff", flexShrink:0 }}>
-              <X size={15}/>
-            </button>
+
+            {/* RIGHT SIDE */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                flexShrink: 0,
+              }}
+            >
+
+              {/* LIMIT BADGE */}
+              {limitStatus && !isUnlimited && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 12px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    background: limitBg,
+                    border: `1px solid ${limitBorder}`,
+                    color: limitColor,
+                    whiteSpace: "nowrap",
+                    height: 30,
+                  }}
+                >
+                  <Users size={12} />
+
+                  <span>
+                    {limitStatus.used} / {limitStatus.limit}
+                  </span>
+
+                  <div
+                    style={{
+                      width: 40,
+                      height: 5,
+                      borderRadius: 99,
+                      background: `${limitColor}22`,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${Math.min(limitPct, 100)}%`,
+                        height: "100%",
+                        background: limitColor,
+                        borderRadius: 99,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* UNLIMITED */}
+              {limitStatus && isUnlimited && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 12px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    background: "#f0fdf4",
+                    border: "1px solid #bbf7d0",
+                    color: "#15803d",
+                    height: 30,
+                  }}
+                >
+                  <Users size={12} />
+                  Unlimited
+                </div>
+              )}
+
+              {/* CLOSE BUTTON */}
+              <button
+                onClick={onClose}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 9,
+                  background: "rgba(255,255,255,0.1)",
+                  border: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  color: "#fff",
+                  flexShrink: 0,
+                }}
+              >
+                <X size={15} />
+              </button>
+            </div>
           </div>
 
           {/* Step indicator */}

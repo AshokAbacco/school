@@ -10,7 +10,8 @@ import groupDRoutes from "./Financepages/Routes/groupDRoutes.js";
 import teacherRoutes from "./Financepages/Routes/teacherRoutes.js";
 import logoRoutes from "./utils/logoRoutes.js";
 import { requireAuth } from "./middlewares/auth.middleware.js";
-
+import adminSalaryRoutes from "./Financepages/Routes/adminSalary.routes.js";
+import financeSalaryRoutes from "./Financepages/Routes/financeSalary.routes.js";
 // ── NEW: shared read-only holiday route ───────────────────────────────────────
 import makeHolidayRouter from "./sharedRoutes/holidayRoute.js";
 // Finance server uses requireAuth (from auth.middleware.js) — pass it directly
@@ -61,6 +62,11 @@ finance.use("/api/groupb", groupBRoutes);
 finance.use("/api/groupc", groupCRoutes);
 finance.use("/api/groupd/salary", groupDRoutes);
 finance.use("/api/teachers", teacherRoutes);
+finance.use("/api/admin-salary", adminSalaryRoutes);
+finance.use(
+  "/api/finance-salary",
+  financeSalaryRoutes
+);
 
 // ── Finance read-only holidays  (GET / and GET /check) ───────────────────────
 finance.use("/api/holidays", makeHolidayRouter(requireAuth));

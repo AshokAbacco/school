@@ -7,8 +7,18 @@ import {
 import React, { useState, useEffect, useRef } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { FaWhatsapp } from "react-icons/fa";
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+const getPlan = () => {
+    try {
+        const auth = JSON.parse(localStorage.getItem("auth"));
+        return auth?.user?.planName || auth?.planName || "Silver";
+    } catch {
+        return "Silver";
+    }
+};
 
 const getAuthSchool = () => {
     try {
@@ -38,6 +48,7 @@ const statusStyle = (s) => {
 };
 
 export default function GroupCSalary() {
+    const isPremium = getPlan() === "Premium";
     const [search, setSearch] = useState("");
     const [tableStatusFilter, setTableStatusFilter] = useState("ALL");
     const [showStatusDropdown, setShowStatusDropdown] = useState(false);
@@ -65,6 +76,10 @@ export default function GroupCSalary() {
     const [loading, setLoading] = useState(false);
     const pdfRef = useRef();
     const dropdownRef = useRef();
+    const [waConfirmModal, setWaConfirmModal] = useState(false);
+
+    const [selectedWhatsAppSalary, setSelectedWhatsAppSalary] = useState(null);
+
     const tok = () => {
         try {
             const raw = localStorage.getItem("auth");
@@ -108,13 +123,41 @@ export default function GroupCSalary() {
     // ── API Calls ─────────────────────────────────────────────────────────────
 
     const fetchGroupCStaff = async (id) => {
+
         try {
-            const res = await fetch(`${API_URL}/api/groupc/staff/${id}`, {
-                headers: { Authorization: `Bearer ${tok()}` }
-            });
-            if (!res.ok) { setDropdownStaff([]); return; }
-            setDropdownStaff(await res.json());
-        } catch { setDropdownStaff([]); }
+
+            const res = await fetch(
+                `${API_URL}/api/groupc/staff/${id}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${tok()}`
+                    }
+                }
+            );
+
+            if (!res.ok) {
+
+                setDropdownStaff([]);
+                return;
+            }
+
+            const data = await res.json();
+
+            setDropdownStaff(
+                Array.isArray(data)
+                    ? data
+                    : []
+            );
+
+        } catch (error) {
+
+            console.log(
+                "GROUP C STAFF FETCH ERROR =>",
+                error
+            );
+
+            setDropdownStaff([]);
+        }
     };
 
     const buildPlaceholderRows = (historyList, targetMonth, targetYear, prefix) => {
@@ -146,19 +189,145 @@ export default function GroupCSalary() {
         setSalaryList(Array.isArray(data) ? data.filter(r => r.salaryId !== null) : []);
     };
 
-    const fetchAllHistory = async (id) => {
-        try {
-            const res = await fetch(`${API_URL}/api/groupc/salary/history-by-school/${id}`, {
-                headers: { Authorization: `Bearer ${tok()}` }
-            });
-            if (!res.ok) { setAllSalaryHistory([]); return; }
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : [];
-            setAllSalaryHistory(list);
-            const now = new Date();
-            setCurrentMonthPlaceholders(buildPlaceholderRows(list, now.getMonth() + 1, now.getFullYear(), "cur"));
-        } catch { setAllSalaryHistory([]); }
-    };
+const fetchAllHistory = async (id) => {
+
+    try {
+
+        // ✅ FETCH SALARY HISTORY
+        const historyRes = await fetch(
+            `${API_URL}/api/groupc/salary/history-by-school/${id}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${tok()}`
+                }
+            }
+        );
+
+        // ✅ FETCH ALL STAFF
+        const staffRes = await fetch(
+            `${API_URL}/api/groupc/staff/${id}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${tok()}`
+                }
+            }
+        );
+
+        const historyData =
+            historyRes.ok
+                ? await historyRes.json()
+                : [];
+
+        const staffData =
+            staffRes.ok
+                ? await staffRes.json()
+                : [];
+
+        const historyList =
+            Array.isArray(historyData)
+                ? historyData
+                : [];
+
+        const allStaff =
+            Array.isArray(staffData)
+                ? staffData
+                : [];
+
+        setAllSalaryHistory(historyList);
+
+        const now = new Date();
+
+        const curMonth =
+            now.getMonth() + 1;
+
+        const curYear =
+            now.getFullYear();
+
+        // ✅ CURRENT MONTH SALARY IDS
+        const existingSalaryIds =
+            new Set(
+                historyList
+                    .filter(
+                        r =>
+                            Number(r.month) === curMonth &&
+                            Number(r.year) === curYear
+                    )
+                    .map(
+                        r =>
+                            String(
+                                r.staff?.id ||
+                                r.staffId
+                            )
+                    )
+            );
+
+        // ✅ BUILD PLACEHOLDER ROWS
+        const placeholders =
+            allStaff.map((staff) => ({
+
+                id: `cur-${staff.id}`,
+
+                salaryId: null,
+
+                staffId: staff.id,
+
+                staff,
+
+                staffName:
+                    `${staff.firstName || ""} ${staff.lastName || ""}`,
+
+                staffEmail:
+                    staff.email || "—",
+
+                staffRole:
+                    staff.role || "—",
+
+                month: curMonth,
+
+                year: curYear,
+
+                basicSalary:
+                    Number(
+                        staff.basicSalary || 0
+                    ),
+
+                bonus: 0,
+
+                deductions: 0,
+
+                leaveDays: 0,
+
+                netSalary:
+                    Number(
+                        staff.basicSalary || 0
+                    ),
+
+                status: "PENDING",
+
+                paymentDate: null,
+
+                _isPlaceholder:
+                    !existingSalaryIds.has(
+                        String(staff.id)
+                    ),
+            }));
+
+        setCurrentMonthPlaceholders(
+            placeholders
+        );
+
+    } catch (error) {
+
+        console.log(
+            "FETCH HISTORY ERROR =>",
+            error
+        );
+
+        setAllSalaryHistory([]);
+
+        setCurrentMonthPlaceholders([]);
+    }
+};
 
     const createSalary = async () => {
         if (!selectedStaff) { alert("Please select a staff member"); return; }
@@ -287,6 +456,248 @@ export default function GroupCSalary() {
         const pw = pdf.internal.pageSize.getWidth();
         pdf.addImage(imgData, "PNG", 0, 10, pw, (canvas.height * pw) / canvas.width);
         pdf.save(`Payslip-GroupC-${selectedSalary.staffName || selectedSalary.staff?.firstName || "staff"}.pdf`);
+    };
+
+    const buildPayslipPDF = async (salary) => {
+
+        // ✅ CAPTURE FULL MODAL CONTENT
+        const canvas =
+            await html2canvas(
+                pdfRef.current,
+                {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: "#ffffff",
+                    logging: false,
+                }
+            );
+
+        const imgData =
+            canvas.toDataURL(
+                "image/png"
+            );
+
+        // ✅ CREATE PDF
+        const pdf =
+            new jsPDF(
+                "p",
+                "mm",
+                "a4"
+            );
+
+        const pdfWidth =
+            pdf.internal
+                .pageSize
+                .getWidth();
+
+        const pdfHeight =
+            Math.min(
+                295,
+                (canvas.height * pdfWidth) /
+                canvas.width
+            );
+
+        // ✅ ADD IMAGE TO PDF
+        pdf.addImage(
+            imgData,
+            "PNG",
+            5,
+            5,
+            pdfWidth - 10,
+            pdfHeight
+        );
+
+        return pdf;
+    };
+
+    const handleSendSalarySlip = async (salary) => {
+
+        try {
+
+            // ✅ SET SALARY FIRST
+            setSelectedSalary(salary);
+
+            // ✅ WAIT FOR RENDER
+            await new Promise(
+                (resolve) =>
+                    setTimeout(resolve, 1200)
+            );
+
+            const auth =
+                JSON.parse(
+                    localStorage.getItem("auth")
+                );
+
+            const token =
+                auth?.token;
+
+            // ✅ CAPTURE FULL PDF CONTENT
+            const canvas =
+                await html2canvas(
+                    pdfRef.current,
+                    {
+                        scale: 2,
+                        useCORS: true,
+                        backgroundColor:
+                            "#ffffff",
+                        logging: false,
+                    }
+                );
+
+            const imgData =
+                canvas.toDataURL(
+                    "image/png"
+                );
+
+            // ✅ CREATE PDF
+            const pdf =
+                new jsPDF(
+                    "p",
+                    "mm",
+                    "a4"
+                );
+
+            const pdfWidth =
+                pdf.internal
+                    .pageSize
+                    .getWidth();
+
+            const pdfHeight =
+                (canvas.height *
+                    (pdfWidth - 10)) /
+                canvas.width;
+
+            pdf.addImage(
+                imgData,
+                "PNG",
+                5,
+                5,
+                pdfWidth - 10,
+                pdfHeight
+            );
+
+            // ✅ PDF BASE64
+            const pdfBase64 =
+                pdf.output(
+                    "datauristring"
+                );
+
+            console.log(
+                "PDF GENERATED"
+            );
+
+            // ✅ UPLOAD PDF
+            const uploadRes =
+                await fetch(
+                    `${API_URL}/api/groupc/salary/uploadSalarySlip/${salary.id}`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+
+                            Authorization:
+                                `Bearer ${token}`,
+                        },
+
+                        body: JSON.stringify({
+                            pdfBase64,
+                        }),
+                    }
+                );
+
+            const uploadData =
+                await uploadRes.json();
+
+            console.log(
+                "UPLOAD DATA =>",
+                uploadData
+            );
+
+            if (!uploadRes.ok) {
+
+                alert(
+                    uploadData.message ||
+                    "PDF Upload Failed"
+                );
+
+                return;
+            }
+
+            // ✅ SEND WHATSAPP
+            const sendRes =
+                await fetch(
+                    `${API_URL}/api/groupc/salary/sendSalarySlip/${salary.id}`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+
+                            Authorization:
+                                `Bearer ${token}`,
+                        },
+
+                        body: JSON.stringify({
+                            pdfUrl:
+                                uploadData.pdfUrl,
+                        }),
+                    }
+                );
+
+            const sendData =
+                await sendRes.json();
+
+            console.log(
+                "SEND DATA =>",
+                sendData
+            );
+
+            if (!sendRes.ok) {
+
+                alert(
+                    sendData.message ||
+                    "WhatsApp Send Failed"
+                );
+
+                return;
+            }
+
+            // ✅ CLOSE MODAL
+            setSlipModal(false);
+
+            alert(
+                "Salary slip sent successfully"
+            );
+
+        } catch (error) {
+
+            console.log(
+                "SEND ERROR =>",
+                error
+            );
+
+            setSlipModal(false);
+
+            alert(
+                "Failed to send salary slip"
+            );
+
+        }
+
+    };
+
+    const confirmWhatsAppSend = async () => {
+
+        if (!selectedWhatsAppSalary) return;
+
+        await handleSendSalarySlip(selectedWhatsAppSalary);
+
+        setWaConfirmModal(false);
+
+        setSelectedWhatsAppSalary(null);
     };
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -465,6 +876,23 @@ export default function GroupCSalary() {
                                                 { icon: Trash2, fn: () => openDeleteModal(r), color: r._isPlaceholder ? "text-[#C8DCEC] cursor-not-allowed" : "text-red-500 hover:bg-red-50", disabled: r._isPlaceholder },
                                                 { icon: History, fn: () => openHistoryModal(r), color: "text-[#4A6B80] hover:bg-[#EAF1F6]", disabled: false },
                                                 { icon: Eye, fn: () => !r._isPlaceholder && openSlipModal(r), color: r._isPlaceholder ? "text-[#C8DCEC] cursor-not-allowed" : "text-[#27435B] hover:bg-[#EAF1F6]", disabled: r._isPlaceholder },
+                                                ...(isPremium ? [{
+                                                    icon: FaWhatsapp,
+                                                    fn: () => {
+                                                        if (r._isPlaceholder) return;
+
+                                                        setSelectedWhatsAppSalary(r);
+
+                                                        setWaConfirmModal(true);
+                                                    },
+                                                    color: r._isPlaceholder
+                                                        ? "text-[#C8DCEC] cursor-not-allowed"
+                                                        : "text-green-600 hover:bg-green-50",
+
+                                                    title: "Send WhatsApp",
+
+                                                    disabled: r._isPlaceholder,
+                                                }] : []),
                                             ].map(({ icon: Ic, fn, color, disabled }, i) => (
                                                 <button key={i} onClick={disabled ? undefined : fn} disabled={disabled}
                                                     className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${color}`}>
@@ -725,55 +1153,236 @@ export default function GroupCSalary() {
 
             {/* ── PAYSLIP MODAL ── */}
             {slipModal && selectedSalary && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSlipModal(false)}>
-                    <div className="bg-white rounded-3xl w-full max-w-[560px] max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="bg-gradient-to-r from-[#1A2E3D] to-[#27435B] rounded-t-3xl px-6 py-5 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center"><FileText size={16} color="#fff" /></div>
-                                <div><div className="text-white font-bold text-[16px]">Salary Slip</div><div className="text-white/55 text-[11px]">{monthName(selectedSalary.month)} {selectedSalary.year}</div></div>
-                            </div>
-                            <button onClick={() => setSlipModal(false)} className="w-8 h-8 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors"><X size={15} /></button>
-                        </div>
-                        <div className="p-6">
-                            <div className="bg-[#EAF1F6] rounded-2xl p-4 mb-4 grid grid-cols-2 gap-3">
-                                {[
-                                    { label: "Employee", val: rowName(selectedSalary) },
-                                    { label: "Role", val: rowRole(selectedSalary) },
-                                    { label: "Pay Period", val: `${monthName(selectedSalary.month)} ${selectedSalary.year}` },
-                                    { label: "Group", val: "Group C" },
-                                ].map((f, i) => (
-                                    <div key={i}>
-                                        <div className="text-[10px] font-bold text-[#527a91] uppercase tracking-wide mb-0.5">{f.label}</div>
-                                        <div className="text-[13px] font-semibold text-[#1A2E3D]">{f.val}</div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="grid grid-cols-3 gap-3 mb-4">
-                                {[
-                                    { label: "Basic Salary", val: `₹${Number(selectedSalary.basicSalary || 0).toLocaleString("en-IN")}`, color: "text-[#1A2E3D]" },
-                                    { label: "Bonus", val: `+₹${Number(selectedSalary.bonus || 0).toLocaleString("en-IN")}`, color: "text-green-600" },
-                                    { label: "Deductions", val: `-₹${Number(selectedSalary.deductions || 0).toLocaleString("en-IN")}`, color: "text-red-500" },
-                                ].map((f, i) => (
-                                    <div key={i} className="bg-[#F5FAFE] border border-[#EAF1F6] rounded-xl p-3">
-                                        <div className="text-[9.5px] font-bold text-[#8AAFC4] uppercase tracking-wide mb-1">{f.label}</div>
-                                        <div className={`text-[13px] font-semibold ${f.color}`}>{f.val}</div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="bg-gradient-to-r from-[#1c3040] to-[#3c5d74] rounded-2xl px-5 py-4 flex justify-between items-center mb-4">
-                                <div><div className="text-[11px] font-bold text-white/60 uppercase tracking-wide mb-1">Net Salary Payable</div><div className="text-[11px] text-white/40">For {monthName(selectedSalary.month)} {selectedSalary.year}</div></div>
-                                <div className="text-[28px] font-bold text-white">₹{Number(selectedSalary.netSalary || 0).toLocaleString("en-IN")}</div>
-                            </div>
-                            <div className="text-[10.5px] text-[#527a91] text-center italic mb-4">This is a system-generated payslip and does not require a physical signature.</div>
-                            <div className="flex justify-end gap-3">
-                                <button onClick={() => setSlipModal(false)} className="px-5 py-2.5 border border-[#C8DCEC] rounded-xl text-[13px] font-semibold text-[#4A6B80] hover:border-[#27435B] transition-colors">Close</button>
-                                <button onClick={downloadPayslip} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#27435B] to-[#1A2E3D] text-white text-[13px] font-bold hover:opacity-90 transition-opacity"><Printer size={14} /> Download PDF</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
 
+                <div className="fixed inset-0 z-[999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+
+                    <div className="bg-white w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl relative max-h-[95vh] overflow-y-auto">
+
+                        {/* CLOSE BUTTON */}
+                        <button
+                            onClick={() => setSlipModal(false)}
+                            className="absolute top-5 right-5 z-20 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center hover:bg-red-50 transition"
+                        >
+                            <X size={18} className="text-red-500" />
+                        </button>
+
+                        {/* PDF CONTENT */}
+                        <div
+                            ref={pdfRef}
+                               className="bg-white rounded-2xl overflow-hidden shadow-xl"
+                        >
+
+                            {/* Header */}
+                            <div className="bg-[#1C3040] px-8 py-6 text-white">
+                                <div className="flex items-center justify-between">
+
+                                    <div>
+                                        <h2 className="text-2xl font-bold">
+                                            {authSchool.schoolName}
+                                        </h2>
+
+                                        <p className="text-sm text-[#A8C0D4] mt-1">
+                                            Group C — Support Staff
+                                        </p>
+                                    </div>
+
+                                    <div className="text-right mr-10">
+                                        <p className="text-xs text-[#A8C0D4]">
+                                            SALARY SLIP
+                                        </p>
+
+                                        <h3 className="text-xl font-bold">
+                                            {monthName(selectedSalary.month)} {selectedSalary.year}
+                                        </h3>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            {/* Employee Info */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 px-8 py-6 bg-[#EEF5FA] border-b border-[#D9E7F2]">
+
+                                <div>
+                                    <p className="text-xs font-bold text-[#537A91]">
+                                        EMPLOYEE NAME
+                                    </p>
+
+                                    <p className="text-sm font-bold text-[#1C3040] mt-1">
+                                        {selectedSalary.staffName ||
+                                            `${selectedSalary.staff?.firstName || ""} ${selectedSalary.staff?.lastName || ""}`}
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <p className="text-xs font-bold text-[#537A91]">
+                                        ROLE
+                                    </p>
+
+                                    <p className="text-sm font-bold text-[#1C3040] mt-1">
+                                        {selectedSalary.staffRole ||
+                                            selectedSalary.staff?.role}
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <p className="text-xs font-bold text-[#537A91]">
+                                        EMAIL
+                                    </p>
+
+                                    <p className="text-sm font-bold text-[#1C3040] mt-1">
+                                        {selectedSalary.staffEmail ||
+                                            selectedSalary.staff?.email}
+                                    </p>
+                                </div>
+
+                                <div className="text-right">
+                                    <p className="text-xs font-bold text-[#537A91]">
+                                        PAY PERIOD
+                                    </p>
+
+                                    <p className="text-sm font-bold text-[#1C3040] mt-1">
+                                        {monthName(selectedSalary.month)} {selectedSalary.year}
+                                    </p>
+                                </div>
+
+                            </div>
+
+                            {/* Salary Tables */}
+                            <div className="grid md:grid-cols-2 gap-6 p-8">
+
+                                {/* Earnings */}
+                                <div className="border border-[#D9E7F2] rounded-2xl overflow-hidden">
+
+                                    <div className="bg-[#2B4557] text-white px-5 py-3 font-bold text-sm">
+                                        Earnings
+                                    </div>
+
+                                    <div className="divide-y divide-[#EDF3F7]">
+
+                                        <div className="flex justify-between px-5 py-3 text-sm">
+                                            <span>Basic Salary</span>
+
+                                            <span className="font-bold">
+                                                ₹{Number(selectedSalary.basicSalary || 0).toLocaleString("en-IN")}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex justify-between px-5 py-3 text-sm">
+                                            <span>Bonus</span>
+
+                                            <span className="font-bold">
+                                                ₹{Number(selectedSalary.bonus || 0).toLocaleString("en-IN")}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex justify-between px-5 py-3 text-sm">
+                                            <span>HRA</span>
+
+                                            <span className="font-bold">
+                                                ₹0
+                                            </span>
+                                        </div>
+
+                                        <div className="flex justify-between px-5 py-3 text-sm bg-[#F8FBFD] font-bold">
+
+                                            <span>Gross Earnings</span>
+
+                                            <span>
+                                                ₹{(
+                                                    Number(selectedSalary.basicSalary || 0) +
+                                                    Number(selectedSalary.bonus || 0)
+                                                ).toLocaleString("en-IN")}
+                                            </span>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                                {/* Deductions */}
+                                <div className="border border-[#D9E7F2] rounded-2xl overflow-hidden">
+
+                                    <div className="bg-[#1C3040] text-white px-5 py-3 font-bold text-sm">
+                                        Deductions
+                                    </div>
+
+                                    <div className="divide-y divide-[#EDF3F7]">
+
+                                        <div className="flex justify-between px-5 py-3 text-sm">
+
+                                            <span>Leave Deduction</span>
+
+                                            <span className="font-bold">
+                                                ₹{Number(selectedSalary.leaveDeduction || 0).toLocaleString("en-IN")}
+                                            </span>
+
+                                        </div>
+
+                                        <div className="flex justify-between px-5 py-3 text-sm">
+
+                                            <span>Other Deductions</span>
+
+                                            <span className="font-bold">
+                                                ₹{Number(selectedSalary.deductions || 0).toLocaleString("en-IN")}
+                                            </span>
+
+                                        </div>
+
+                                        <div className="flex justify-between px-5 py-3 text-sm">
+                                            <span>PF</span>
+
+                                            <span className="font-bold">
+                                                ₹0
+                                            </span>
+                                        </div>
+
+                                        <div className="flex justify-between px-5 py-3 text-sm bg-[#F8FBFD] font-bold">
+
+                                            <span>Total Deductions</span>
+
+                                            <span>
+                                                ₹{Number(selectedSalary.deductions || 0).toLocaleString("en-IN")}
+                                            </span>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                            {/* NET SALARY */}
+                            <div className="px-8 pb-8">
+
+                                <div className="bg-[#1C3040] rounded-2xl px-6 py-5 text-white flex items-center justify-between">
+
+                                    <div>
+                                        <p className="text-sm text-[#A8C0D4]">
+                                            NET SALARY PAYABLE
+                                        </p>
+
+                                        <p className="text-xs text-[#A8C0D4] mt-1">
+                                            For {monthName(selectedSalary.month)} {selectedSalary.year}
+                                        </p>
+                                    </div>
+
+                                    <div className="text-3xl font-bold">
+                                        ₹{Number(selectedSalary.netSalary || 0).toLocaleString("en-IN")}
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            )}
             {/* Hidden PDF template */}
             <div ref={pdfRef} style={{ position: "absolute", left: "-9999px", top: 0 }}>
                 <div style={{ width: "794px", background: "#fff", fontFamily: "Arial, sans-serif" }}>
@@ -805,6 +1414,65 @@ export default function GroupCSalary() {
                     </div>
                 </div>
             </div>
+            {/* WhatsApp Confirm Modal */}
+            {waConfirmModal && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                    onClick={() => {
+                        setWaConfirmModal(false);
+                        setSelectedWhatsAppSalary(null);
+                    }}
+                >
+                    <div
+                        className="bg-white rounded-3xl w-full max-w-[420px] shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="p-6 flex flex-col items-center text-center gap-4">
+
+                            <div className="w-16 h-16 rounded-2xl bg-green-100 flex items-center justify-center">
+                                <FaWhatsapp size={28} className="text-green-600" />
+                            </div>
+
+                            <div>
+                                <div className="text-[18px] font-bold text-[#1A2E3D]">
+                                    Send WhatsApp Salary Slip?
+                                </div>
+
+                                <div className="text-[13px] text-[#4A6B80] mt-2">
+                                    Are you sure you want to send salary slip to
+                                    <span className="font-bold text-[#1A2E3D]">
+                                        {" "}
+                                        {selectedWhatsAppSalary?.admin?.name ||
+                                            selectedWhatsAppSalary?.adminName ||
+                                            "Staff"}
+                                    </span>
+                                    ?
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 w-full">
+                                <button
+                                    onClick={() => {
+                                        setWaConfirmModal(false);
+                                        setSelectedWhatsAppSalary(null);
+                                    }}
+                                    className="flex-1 py-3 border border-[#C8DCEC] rounded-xl text-[14px] font-semibold text-[#4A6B80]"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    onClick={confirmWhatsAppSend}
+                                    className="flex-1 py-3 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-white text-[14px] font-bold"
+                                >
+                                    Send
+                                </button>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

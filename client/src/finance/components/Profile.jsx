@@ -5,16 +5,12 @@ import {
   Shield,
   School,
   User,
-  RotateCcw,
+  BadgeDollarSign,
 } from "lucide-react";
 
-import { useNavigate } from "react-router-dom";
-
-export default function Profile() {
+export default function FinanceProfile() {
   const auth = JSON.parse(localStorage.getItem("auth"));
-  const navigate = useNavigate();
   const user = auth?.user;
-
 
   return (
     <div className="min-h-screen bg-[#f6f9fc] p-6">
@@ -23,44 +19,33 @@ export default function Profile() {
         {/* Header */}
         <div className="bg-white rounded-3xl shadow-sm border border-[#e8eef5] p-8 mb-6">
           <div className="flex items-center gap-5">
+
             <div className="w-24 h-24 rounded-full bg-gradient-to-r from-[#88BDF2] to-[#5d7fa3] flex items-center justify-center text-white text-3xl font-bold">
               {user?.name?.charAt(0)}
             </div>
 
             <div>
               <h1 className="text-3xl font-bold text-[#384959]">
-                {user?.name || "Admin User"}
+                {user?.name || "Finance User"}
               </h1>
 
               <p className="text-[#6A89A7] mt-1">
-                {user?.role || "ADMIN"}
+                {user?.role || "FINANCE"}
               </p>
 
-              <div className="mt-4 flex items-center gap-3 flex-wrap">
-
-                {/* Admin Access */}
-                <div className="inline-flex items-center gap-2 bg-[#eef5fc] px-4 py-2 rounded-xl text-sm text-[#384959]">
-                  <Shield size={16} />
-                  Administrator Access
-                </div>
-
-                {/* Recovery Button */}
-                <button
-                  onClick={() => navigate("/admin/deleted-records")}
-                  className="inline-flex items-center gap-2 bg-[#e8f7ee] hover:bg-[#d9f3e3] transition px-4 py-2 rounded-xl text-sm text-[#1f7a45] font-medium"
-                >
-                  <RotateCcw size={16} />
-                  Recovery
-                </button>
-
+              <div className="mt-3 inline-flex items-center gap-2 bg-[#eef5fc] px-4 py-2 rounded-xl text-sm text-[#384959]">
+                <BadgeDollarSign size={16} />
+                Finance Department Access
               </div>
             </div>
+
           </div>
         </div>
 
         {/* Details */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
+          {/* Personal */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#e8eef5]">
             <h2 className="text-lg font-semibold text-[#384959] mb-5">
               Personal Information

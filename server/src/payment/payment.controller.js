@@ -20,13 +20,22 @@ export const createOrder = async (req, res) => {
       phone,
       address,
       planId,
-      userCount,
+      planName,
+      studentCount = 0,
+      teacherCount = 0,
       amount,
     } = req.body;
+
+    const userCount =
+      Number(studentCount) + Number(teacherCount);
 
     // ✅ Validation
     if (!fullName || !schoolName || !email || !phone || !address) {
       return res.status(400).json({ error: "All fields are required" });
+    }
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Invalid amount. Please add at least 1 user." });
     }
 
     // ✅ Create Razorpay Order
@@ -41,10 +50,25 @@ export const createOrder = async (req, res) => {
       ),
     ]);
 
-    // 🔥 Generate tempUserId (important)
     const tempUserId = crypto.randomUUID();
 
-    // ✅ Save in DB
+    const selectedPlan = await prisma.plan.findUnique({
+      where: {
+        id: planId,
+      },
+    });
+
+    if (!selectedPlan) {
+      return res.status(404).json({
+        error: "Plan not found",
+      });
+    }
+
+    const startDate = new Date();
+
+    const endDate = new Date();
+    endDate.setFullYear(endDate.getFullYear() + 1);
+
     const payment = await prisma.payment.create({
       data: {
         fullName,
@@ -52,11 +76,33 @@ export const createOrder = async (req, res) => {
         email,
         phone,
         address,
-        planId,
+
+        // 📦 PLAN
+        planId: selectedPlan.id,
+        planName: selectedPlan.name,
+        planPrice: selectedPlan.price,
+
+        maxSchools: selectedPlan.maxSchools,
+        maxStudents: selectedPlan.maxStudents,
+        maxTeachers: selectedPlan.maxTeachers,
+        maxSchoolAdmins: selectedPlan.maxSchoolAdmins,
+        // 👥 USERS
         userCount,
+        studentCount,
+        teacherCount,
+
+        // 💰 PAYMENT
         amount,
+
+        // 📅 DATES
+        planStartDate: startDate,
+        planEndDate: endDate,
+
+        // 🔗 RAZORPAY
         razorpayOrderId: order.id,
-        tempUserId, // 🔥 IMPORTANT
+
+        // 🔥 TEMP REGISTER
+        tempUserId,
       },
     });
 
@@ -85,6 +131,7 @@ export const verifyPayment = async (req, res) => {
       razorpay_signature,
       paymentId,
       phone,
+      superAdminId,
     } = req.body;
 
     const body = razorpay_order_id + "|" + razorpay_payment_id;
@@ -113,21 +160,24 @@ export const verifyPayment = async (req, res) => {
         razorpaySignature: razorpay_signature,
         status: "SUCCESS",
         phone,
+        superAdminId,
       },
     });
 
     // ✅ Send invoice email
     sendInvoiceEmail({
-      email:              updatedPayment.email,
-      fullName:           updatedPayment.fullName,
-      schoolName:         updatedPayment.schoolName,
-      phone:              updatedPayment.phone,
-      address:            updatedPayment.address,
-      planId:             updatedPayment.planId,
-      userCount:          updatedPayment.userCount,
-      amount:             updatedPayment.amount,
-      razorpayPaymentId:  razorpay_payment_id,
-      razorpayOrderId:    razorpay_order_id,
+      email:             updatedPayment.email,
+      fullName:          updatedPayment.fullName,
+      schoolName:        updatedPayment.schoolName,
+      phone:             updatedPayment.phone,
+      address:           updatedPayment.address,
+      planName:          updatedPayment.planName,   // ✅ human-readable name (Silver/Gold/Premium)
+      studentCount:      updatedPayment.studentCount,
+      teacherCount:      updatedPayment.teacherCount,
+      userCount:         updatedPayment.userCount,
+      amount:            updatedPayment.amount,
+      razorpayPaymentId: razorpay_payment_id,
+      razorpayOrderId:   razorpay_order_id,
     }).catch((err) => console.error("❌ Invoice email failed:", err));
 
     res.json({ status: "verified" });
@@ -217,7 +267,9 @@ export const razorpayWebhook = async (req, res) => {
             schoolName:        payment.schoolName,
             phone:             payment.phone,
             address:           payment.address,
-            planId:            payment.planId,
+            planName:          payment.planName,        // ✅ human-readable name
+            studentCount:      payment.studentCount,
+            teacherCount:      payment.teacherCount,
             userCount:         payment.userCount,
             amount:            payment.amount,
             razorpayPaymentId: razorpayPayment.id,

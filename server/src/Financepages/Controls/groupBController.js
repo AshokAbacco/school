@@ -1,4 +1,13 @@
-import { prisma } from "../../config/db.js";
+import { PrismaClient } from "@prisma/client";
+
+import { uploadSalarySlipPdfToR2 }
+from "../../utils/uploadSalarySlipPdfToR2.js";
+
+import { sendSalarySlipWhatsApp }
+from "../../whatsapp/sendSalarySlipWhatsApp.js";
+
+
+const prisma = new PrismaClient();
 
 // ─── Helper: leave deduction (monthly salary × 12 / 365 × days) ───────────────
 const calcLeaveDeduction = (monthlySalary, leaveDays) => {
@@ -340,4 +349,155 @@ export const deleteGroupBSalary = async (req, res) => {
     console.error("[deleteGroupBSalary]", err);
     res.status(500).json({ error: err.message });
   }
+};
+
+
+export const uploadSalarySlip = async (req, res) => {
+try {
+
+ 
+const { id } = req.params;
+
+const pdfBase64 = req.body?.pdfBase64;
+
+if (!pdfBase64) {
+return res.status(400).json({
+message: "PDF missing",
+});
+}
+
+
+if (!pdfBase64) {
+  return res.status(400).json({
+    message: "PDF missing",
+  });
+}
+
+const salary = await prisma.groupBStaffSalary.findUnique({
+  where: { id },
+  include: {
+    staff: true,
+  },
+});
+
+if (!salary) {
+  return res.status(404).json({
+    message: "Salary not found",
+  });
+}
+
+const base64Data = pdfBase64.split(",")[1];
+
+
+const pdfBuffer = Buffer.from(base64Data, "base64");
+
+const fileName =
+  `salary-slips/${salary.staffName}_${Date.now()}.pdf`;
+
+const pdfUrl =
+  await uploadSalarySlipPdfToR2(
+    pdfBuffer,
+    fileName
+  );
+
+return res.json({
+  success: true,
+  pdfUrl,
+});
+ 
+
+} catch (error) {
+
+ 
+console.log(
+  "UPLOAD PDF ERROR:",
+  error
+);
+
+return res.status(500).json({
+  message: error.message,
+});
+ 
+
+}
+};
+
+export const sendSalarySlip = async (req, res) => {
+
+try {
+
+ 
+const { salaryId } = req.params;
+
+const salary =
+  await prisma.groupBStaffSalary.findUnique({
+    where: { id: salaryId },
+
+    include: {
+      staff: true,
+    },
+  });
+
+if (!salary) {
+  return res.status(404).json({
+    message: "Salary not found",
+  });
+}
+
+if (!salary.staff?.phone) {
+  return res.status(400).json({
+    message: "Staff phone number missing",
+  });
+}
+
+const {
+  pdfUrl,
+} = req.body;
+
+if (!pdfUrl) {
+  return res.status(400).json({
+    message: "PDF URL missing",
+  });
+}
+
+await sendSalarySlipWhatsApp({
+
+  phone: salary.staff.phone,
+
+  staffName:
+    salary.staffName,
+
+  schoolName:
+    req.user.schoolName ||
+    "School",
+
+  monthYear:
+    `${salary.month}/${salary.year}`,
+
+  pdfUrl,
+
+});
+
+return res.json({
+  success: true,
+  message:
+    "Salary slip sent successfully",
+});
+ 
+
+} catch (error) {
+
+ 
+console.log(
+  "SEND SALARY SLIP ERROR:",
+  error
+);
+
+return res.status(500).json({
+  message: error.message,
+});
+ 
+
+}
+
 };

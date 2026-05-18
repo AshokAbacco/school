@@ -220,9 +220,10 @@ model University {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  superAdmins SuperAdmin[]
-  schools     School[]
-  Payment     Payment[]
+  superAdmins  SuperAdmin[]
+  schools      School[]
+  Payment      Payment[]
+  Subscription Subscription[]
 
   @@index([code])
   @@map("universities")
@@ -329,6 +330,8 @@ model School {
   GroupDStaffSalary      GroupDStaffSalary[]
   Payment                Payment[]
   TeacherTutorialProfile TeacherTutorialProfile[]
+  adminProfiles          SchoolAdminProfile[]
+  AdminMonthlySalary     AdminMonthlySalary[]
 
   @@index([universityId])
   @@index([type])
@@ -539,11 +542,57 @@ model User {
   classFeeCreated          ClassFee[]           @relation("ClassFeeCreatedBy")
   classFeeUpdated          ClassFee[]           @relation("ClassFeeUpdatedBy")
 
+  schoolAdminProfile   SchoolAdminProfile?
+  AdminMonthlySalary   AdminMonthlySalary[]
+  FinanceMonthlySalary FinanceMonthlySalary[]
+
   @@unique([email, schoolId])
   @@index([role])
   @@index([isActive])
   @@index([schoolId])
   @@map("users")
+}
+
+model SchoolAdminProfile {
+  id String @id @default(cuid())
+
+  userId   String @unique
+  schoolId String
+
+  // ADMIN DETAILS
+  adminName   String?
+  email       String?
+  phoneNumber String?
+  address     String?
+
+  employeeId  String?
+  designation String?
+
+  // SALARY
+  basicSalary Float @default(0)
+
+  // BANK DETAILS
+  bankName      String?
+  accountNumber String?
+  ifscCode      String?
+
+  // DOCUMENT DETAILS
+  panNumber    String?
+  aadharNumber String?
+
+  photoUrl          String?
+  panDocumentUrl    String?
+  aadharDocumentUrl String?
+
+  // OTHER DETAILS
+  joiningDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // RELATIONS
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 }
 
 model Student {
@@ -1370,13 +1419,33 @@ model StreamCombination {
 }
 
 model FinanceProfile {
-  id           String   @id @default(uuid())
-  userId       String   @unique
-  schoolId     String
+  id       String @id @default(uuid())
+  userId   String @unique
+  schoolId String
+
+  name  String?
+  email String?
+
+  // ── Core ──
   employeeCode String?
   designation  String?
   phone        String?
-  salary       Decimal?
+  address      String? // NEW
+  salary       Decimal? // was present, kept
+
+  // ── Banking ── (NEW)
+  bankName      String?
+  accountNumber String?
+  ifscCode      String?
+
+  // ── Identity ── (NEW)
+  panNumber    String?
+  aadharNumber String?
+
+  // ── Documents ── (NEW — store URLs after upload to S3/Cloudinary/disk)
+  photoUrl     String?
+  panDocUrl    String?
+  aadharDocUrl String?
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -1430,6 +1499,77 @@ model TeacherMonthlySalary {
   createdAt DateTime @default(now())
 
   @@unique([teacherId, month, year])
+}
+
+model AdminMonthlySalary {
+  id String @id @default(uuid())
+
+  adminId  String
+  schoolId String
+
+  month Int
+  year  Int
+
+  // snapshot
+  adminName  String
+  adminEmail String
+
+  basicSalary Decimal @db.Decimal(10, 2)
+  bonus       Decimal @default(0) @db.Decimal(10, 2)
+  deductions  Decimal @default(0) @db.Decimal(10, 2)
+
+  leaveDays      Int     @default(0)
+  leaveDeduction Decimal @default(0) @db.Decimal(10, 2)
+
+  netSalary Decimal @db.Decimal(10, 2)
+
+  status      String    @default("PENDING")
+  paymentDate DateTime?
+
+  pdfUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  admin  User   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, month, year])
+}
+
+model FinanceMonthlySalary {
+  id String @id @default(uuid())
+
+  financeId String
+  schoolId  String
+
+  month Int
+  year  Int
+
+  financeName  String
+  financeEmail String
+
+  basicSalary Decimal @db.Decimal(10, 2)
+
+  bonus          Decimal @default(0) @db.Decimal(10, 2)
+  deductions     Decimal @default(0) @db.Decimal(10, 2)
+  leaveDeduction Decimal @default(0) @db.Decimal(10, 2)
+
+  leaveDays Int @default(0)
+
+  netSalary Decimal @db.Decimal(10, 2)
+
+  status SalaryStatus @default(PENDING)
+
+  paymentDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  finance User @relation(fields: [financeId], references: [id], onDelete: Cascade)
+
+  @@unique([financeId, month, year])
+  @@map("finance_monthly_salary")
 }
 
 enum SalaryStatus {
@@ -2726,68 +2866,93 @@ model Message {
   @@map("Message")
 }
 
-model Payment {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // 👤 User Details
-  fullName   String
-  schoolName String
-  email      String
-  phone      String
-  address    String
-
-  // 📦 Plan Info
-  planId    String?
-  userCount Int?
-
-  // 💰 Payment Info
-  amount Float
-
-  // 🔗 Razorpay Details
-  razorpayOrderId   String  @unique
-  razorpayPaymentId String?
-  razorpaySignature String?
-
-  // 📊 Status
-  status PaymentStatus @default(PENDING)
-
-  // 🔥 Linking key
-  tempUserId String? @unique
-
-  // 🔗 Relations
-  superAdminId String?
-  superAdmin   SuperAdmin? @relation(fields: [superAdminId], references: [id])
-
-  universityId String?
-  university   University? @relation(fields: [universityId], references: [id])
-
-  schoolId String?
-  school   School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-
-  Subscription Subscription[]
-
-  @@index([email])
-  @@index([razorpayOrderId])
-  @@index([tempUserId])
-  @@index([superAdminId])
-}
-
 enum PaymentStatus {
   PENDING
   SUCCESS
   FAILED
 }
 
-model Plan {
-  id         String @id @default(uuid())
-  name       String // Silver, Gold, Premium
-  price      Float
-  maxUsers   Int?
-  maxSchools Int?
+model Payment {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  features Json? // store all features (flexible)
+  // 👤 Buyer Details
+  fullName   String
+  schoolName String
+  email      String
+  phone      String
+  address    String
+
+  // 🏫 University
+  universityId String?
+  university   University? @relation(fields: [universityId], references: [id])
+
+  // 📦 Plan
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  // 🔥 Snapshot Data
+  planName  String
+  planPrice Float
+
+  maxSchools      Int?
+  maxStudents     Int?
+  maxTeachers     Int?
+  maxSchoolAdmins Int?
+
+  // 👥 Purchased Users
+  userCount    Int?
+  studentCount Int?
+  teacherCount Int?
+  // 💰 Payment
+  amount       Float
+
+  // 🔗 Razorpay
+  razorpayOrderId   String  @unique
+  razorpayPaymentId String?
+  razorpaySignature String?
+
+  // 📅 Plan Dates
+  planStartDate DateTime?
+  planEndDate   DateTime?
+
+  // 📊 Status
+  status PaymentStatus @default(PENDING)
+
+  // 🔥 Temp Register
+  tempUserId String? @unique
+
+  // 🔗 Relations
+  superAdminId String?
+  superAdmin   SuperAdmin? @relation(fields: [superAdminId], references: [id])
+
+  subscriptions Subscription[]
+  School        School?        @relation(fields: [schoolId], references: [id])
+  schoolId      String?
+
+  @@index([email])
+  @@index([razorpayOrderId])
+  @@index([tempUserId])
+  @@index([superAdminId])
+  @@index([universityId])
+}
+
+model Plan {
+  id String @id @default(uuid())
+
+  // 📦 Plan
+  name  String
+  price Float
+
+  // 🔥 Limits
+  maxSchools      Int?
+  maxStudents     Int?
+  maxTeachers     Int?
+  maxSchoolAdmins Int?
+
+  // ✨ Features
+  features Json?
 
   isActive Boolean @default(true)
 
@@ -2795,6 +2960,7 @@ model Plan {
   updatedAt DateTime @updatedAt
 
   subscriptions Subscription[]
+  payments      Payment[]
 
   @@map("plans")
 }
@@ -2802,25 +2968,43 @@ model Plan {
 model Subscription {
   id String @id @default(uuid())
 
-  schoolId String
-  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  // 🏫 University
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
 
+  // 📦 Plan
   planId String
   plan   Plan   @relation(fields: [planId], references: [id])
 
+  // 💳 Payment
   paymentId String?
   payment   Payment? @relation(fields: [paymentId], references: [id])
 
+  // 📅 Dates
   startDate DateTime @default(now())
   endDate   DateTime
 
+  // 📊 Status
   status SubscriptionStatus @default(ACTIVE)
 
-  userCount Int?
+  // 🔥 Snapshot Limits
+  maxSchools      Int?
+  maxStudents     Int?
+  maxTeachers     Int?
+  maxSchoolAdmins Int?
+
+  // 📈 Current Usage
+  usedSchools  Int @default(0)
+  usedStudents Int @default(0)
+  usedTeachers Int @default(0)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  School    School?  @relation(fields: [schoolId], references: [id])
+  schoolId  String?
 
-  @@index([schoolId])
+  @@index([universityId])
+  @@index([planId])
   @@map("subscriptions")
 }
 

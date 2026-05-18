@@ -14,6 +14,52 @@ async function bustStudentCache(schoolId) {
   await cacheService.invalidateSchool(schoolId);
 }
 
+// ── checkStudentLimit ─────────────────────────────────────────────────────────
+async function checkStudentLimit(schoolId, countToAdd = 1) {
+  const school = await prisma.school.findUnique({
+    where: { id: schoolId },
+    select: { universityId: true },
+  });
+  if (!school) return { allowed: false, message: "School not found" };
+
+  const payment = await prisma.payment.findFirst({
+    where: {
+      status: "SUCCESS",
+      superAdmin: { universityId: school.universityId },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { studentCount: true },
+  });
+
+  if (!payment) {
+    return { allowed: false, message: "No active plan found for this school." };
+  }
+
+  // null = unlimited (Premium plan)
+  if (payment.studentCount === null) return { allowed: true };
+
+  const currentCount = await prisma.student.count({ where: { schoolId } });
+  const limit = payment.studentCount;
+
+  if (currentCount + countToAdd > limit) {
+    return {
+      allowed: false,
+      message: `Student limit reached. Your plan allows ${limit} students and you currently have ${currentCount}.`,
+      used:  currentCount,
+      limit,
+    };
+  }
+
+  return { allowed: true, used: currentCount, limit };
+}
+// Increments usedStudents after successful add
+async function incrementStudentCount(subscriptionId, by = 1) {
+  await prisma.subscription.update({
+    where: { id: subscriptionId },
+    data: { usedStudents: { increment: by } },
+  });
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const toEnum = (v) => (v ? v.toUpperCase().replace(/\s+/g, "_") : undefined);
 
@@ -101,45 +147,43 @@ export const registerStudent = async (req, res) => {
     const { name, email, password } = req.body;
 
     if (!email || !password || !name)
-      return res
-        .status(400)
-        .json({ message: "name, email and password are required" });
+      return res.status(400).json({ message: "name, email and password are required" });
 
     const schoolId = req.user?.schoolId;
     if (!schoolId)
       return res.status(400).json({ message: "schoolId missing from token" });
 
-    const exists = await prisma.student.findFirst({
-      where: { email, schoolId },
-    });
+    // ── ✅ Plan limit check ──────────────────────────────────────────────────
+    const limitCheck = await checkStudentLimit(schoolId, 1);
+    if (!limitCheck.allowed) {
+      return res.status(403).json({
+        message: limitCheck.message,
+        used:    limitCheck.used,
+        limit:   limitCheck.limit,
+        code:    "STUDENT_LIMIT_REACHED",
+      });
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    const exists = await prisma.student.findFirst({ where: { email, schoolId } });
     if (exists)
       return res.status(409).json({
         message: "A student with this email already exists in this school",
       });
 
     const hashed = await bcrypt.hash(password, 10);
-
     const studentCode = await createUniqueStudentCode();
 
     const student = await prisma.student.create({
-      data: {
-        studentCode,
-        name,
-        email,
-        password: hashed,
-        schoolId,
-      },
+      data: { studentCode, name, email, password: hashed, schoolId },
     });
 
-
-
+ 
     await bustStudentCache(schoolId);
     return res.status(201).json({ student });
   } catch (err) {
     console.error("[registerStudent]", err);
-    return res
-      .status(500)
-      .json({ message: "Server error", detail: err.message });
+    return res.status(500).json({ message: "Server error", detail: err.message });
   }
 };
 
@@ -985,55 +1029,42 @@ export const bulkImportRow = async (req, res) => {
 export const bulkImportStudents = async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
 
-    if (!schoolId) {
-      return res.status(400).json({
-        message: "schoolId missing from token",
+    const students = Array.isArray(req.body.students) ? req.body.students : [];
+    if (!students.length)
+      return res.status(400).json({ message: "No students provided" });
+
+    // ── ✅ Plan limit check — check all at once before starting ──────────────
+    const limitCheck = await checkStudentLimit(schoolId, students.length);
+    if (!limitCheck.allowed) {
+      return res.status(403).json({
+        message: limitCheck.message,
+        used:    limitCheck.used,
+        limit:   limitCheck.limit,
+        code:    "STUDENT_LIMIT_REACHED",
       });
     }
-
-    const students = Array.isArray(req.body.students)
-      ? req.body.students
-      : [];
-
-    if (!students.length) {
-      return res.status(400).json({
-        message: "No students provided",
-      });
-    }
+    // ────────────────────────────────────────────────────────────────────────
 
     const results = [];
+    let successCount = 0;
 
     for (let i = 0; i < students.length; i++) {
       const s = students[i];
-
       try {
-        // validate required fields
-        if (!s.firstName)
-          throw new Error("First name is required");
+        if (!s.firstName)  throw new Error("First name is required");
+        if (!s.email)      throw new Error("Email is required");
+        if (!s.password)   throw new Error("Password is required");
 
-        if (!s.email)
-          throw new Error("Email is required");
-
-        if (!s.password)
-          throw new Error("Password is required");
-
-        // duplicate email check
         const existingStudent = await prisma.student.findFirst({
-          where: {
-            email: s.email,
-            schoolId,
-          },
+          where: { email: s.email, schoolId },
         });
+        if (existingStudent) throw new Error("Student email already exists");
 
-        if (existingStudent) {
-          throw new Error("Student email already exists");
-        }
-
-        // hash password
         const hashedPassword = await bcrypt.hash(s.password, 10);
 
-        // create student
         const student = await prisma.student.create({
           data: {
             name: `${s.firstName} ${s.lastName || ""}`.trim(),
@@ -1042,53 +1073,36 @@ export const bulkImportStudents = async (req, res) => {
             schoolId,
           },
         });
-await uploadBackup({
-   schoolId: student.schoolId,
-   model: "students",
-   recordId: student.id,
-   data: student,
-});
+        await uploadBackup({
+          schoolId: student.schoolId,
+          model: "students",
+          recordId: student.id,
+          data: student,
+        });
         // create personal info
         await prisma.studentPersonalInfo.create({
           data: {
             studentId: student.id,
             firstName: s.firstName,
-            lastName: s.lastName || "",
-            phone: s.phone || null,
+            lastName:  s.lastName || "",
+            phone:     s.phone || null,
           },
         });
 
-        results.push({
-          row: i + 1,
-          success: true,
-          studentId: student.id,
-        });
+ 
+        successCount++;
+        results.push({ row: i + 1, success: true, studentId: student.id });
+
       } catch (err) {
         console.error(`[bulkImportStudents][Row ${i + 1}]`, err);
-
         let message = err.message || "Unknown error";
-
-        // Prisma duplicate error
-        if (err.code === "P2002") {
-          message = "Duplicate value already exists";
-        }
-
-        // Prisma foreign key error
-        if (err.code === "P2003") {
-          message = "Related record not found";
-        }
-
-        results.push({
-          row: i + 1,
-          success: false,
-          error: message,
-        });
+        if (err.code === "P2002") message = "Duplicate value already exists";
+        if (err.code === "P2003") message = "Related record not found";
+        results.push({ row: i + 1, success: false, error: message });
       }
     }
 
-    const successCount = results.filter((r) => r.success).length;
     const failedCount = results.filter((r) => !r.success).length;
-
     return res.status(200).json({
       success: failedCount === 0,
       total: students.length,
@@ -1096,13 +1110,10 @@ await uploadBackup({
       failedCount,
       results,
     });
+
   } catch (err) {
     console.error("[bulkImportStudents]", err);
-
-    return res.status(500).json({
-      message: "Bulk import failed",
-      detail: err.message,
-    });
+    return res.status(500).json({ message: "Bulk import failed", detail: err.message });
   }
 };
 
@@ -1560,5 +1571,37 @@ export const exportStudentsExcel = async (req, res) => {
   } catch (err) {
     console.error("[exportStudentsExcel]", err);
     res.status(500).json({ message: "Export failed", error: err.message });
+  }
+};
+
+ 
+export const getStudentLimitStatus = async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing" });
+
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { universityId: true },
+    });
+
+    const payment = await prisma.payment.findFirst({
+      where: {
+        status: "SUCCESS",
+        superAdmin: { universityId: school.universityId },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { studentCount: true },
+    });
+
+    const currentCount = await prisma.student.count({ where: { schoolId } });
+
+    return res.json({
+      used:  currentCount,
+      limit: payment?.studentCount ?? null,
+    });
+  } catch (err) {
+    console.error("[getStudentLimitStatus]", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };

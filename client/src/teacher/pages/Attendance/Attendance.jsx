@@ -1,3 +1,4 @@
+// client/src/teacher/pages/Attendance/Attendance.jsx
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   fetchTeacherClasses,
@@ -163,7 +164,8 @@ export default function Attendance() {
   const [searchQuery, setSearchQuery]         = useState("");
   const [initError, setInitError]             = useState(null);
   const { toasts, toast, remove }             = useToast();
-
+  const [sendingMonthlyReport, setSendingMonthlyReport] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
   const filteredStudents = searchQuery.trim()
     ? students.filter((s) => {
         const q = searchQuery.trim().toLowerCase();
@@ -274,6 +276,77 @@ export default function Attendance() {
       toast("Failed to save attendance. Please try again.", "error", 4000);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendAttendanceReport = async () => {
+    try {
+      setSendingReport(true);
+
+      await saveAttendance({
+        classSectionId: selectedClassId,
+        academicYearId,
+        date,
+        records: students.filter((s) => s.status),
+        sendWhatsApp: true,
+      });
+
+      toast(
+        "Attendance report sent to parents successfully",
+        "success",
+        4000
+      );
+    } catch (err) {
+      toast(
+        "Failed to send attendance report",
+        "error",
+        4000
+      );
+    } finally {
+      setSendingReport(false);
+    }
+  };
+
+  const handleSendMonthlyReport = async () => {
+    try {
+      setSendingMonthlyReport(true);
+
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/attendance/send-monthly-report`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({
+            classSectionId: selectedClassId,
+            academicYearId,
+            month: new Date(date).getMonth() + 1,
+            year: new Date(date).getFullYear(),
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed");
+      }
+
+      toast(
+        "Monthly attendance report sent successfully",
+        "success",
+        4000
+      );
+    } catch (err) {
+      toast(
+        err.message || "Failed to send monthly report",
+        "error",
+        4000
+      );
+    } finally {
+      setSendingMonthlyReport(false);
     }
   };
 
@@ -513,10 +586,101 @@ export default function Attendance() {
                   <CheckCircle2 size={13} /> Mark All Present
                 </button>
 
+                
+
                 {/* Submit — hidden on mobile (sticky footer handles it) */}
                 <div style={{ display: "none" }} className="desktop-submit">
                   <SubmitButton />
                 </div>
+
+                <button
+                  disabled={sendingReport || hasEmptyStatus}
+                  onClick={handleSendAttendanceReport}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    padding: "9px 14px",
+                    borderRadius: 12,
+                    border: "none",
+                    background:
+                      sendingReport || hasEmptyStatus
+                        ? C.borderLight
+                        : "linear-gradient(135deg, #22c55e, #15803d)",
+                    color:
+                      sendingReport || hasEmptyStatus
+                        ? C.textLight
+                        : "#fff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor:
+                      sendingReport || hasEmptyStatus
+                        ? "not-allowed"
+                        : "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                    whiteSpace: "nowrap",
+                    boxShadow:
+                      sendingReport || hasEmptyStatus
+                        ? "none"
+                        : "0 4px 14px rgba(34,197,94,0.25)",
+                  }}
+                >
+                  {sendingReport ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={13} />
+                      Send Attendance Report
+                    </>
+                  )}
+                </button>
+
+                <button
+                  disabled={sendingMonthlyReport}
+                  onClick={handleSendMonthlyReport}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    padding: "9px 14px",
+                    borderRadius: 12,
+                    border: "none",
+                    background: sendingMonthlyReport
+                      ? C.borderLight
+                      : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                    color: sendingMonthlyReport
+                      ? C.textLight
+                      : "#fff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: sendingMonthlyReport
+                      ? "not-allowed"
+                      : "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                    whiteSpace: "nowrap",
+                    boxShadow: sendingMonthlyReport
+                      ? "none"
+                      : "0 4px 14px rgba(37,99,235,0.25)",
+                  }}
+                >
+                  {sendingMonthlyReport ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <CalendarCheck size={13} />
+                      Send Monthly Report
+                    </>
+                  )}
+                </button>
+                
                 <style>{`@media (min-width: 640px) { .desktop-submit { display: block !important; } }`}</style>
               </div>
             </div>

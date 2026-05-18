@@ -231,9 +231,9 @@ export default function FinanceDashboard() {
         fetchWithAuth(`${API_URL}/api/finance/list`)
       ),
       // /api/finance/revenue is optional — falls back to totalFees if 404
-      safe("revenue", () =>
-        fetchWithAuth(`${API_URL}/api/finance/revenue`)
-      ),
+      // safe("revenue", () =>
+      //   fetchWithAuth(`${API_URL}/api/finance/revenue`)
+      // ),
       (school && token)
         ? safe("teachers", () =>
           doFetch(`${API_URL}/api/teachers/salary/list/${school}`, {
@@ -274,10 +274,10 @@ export default function FinanceDashboard() {
               }
             }).then(res => res.json())
           ),
-    ]).then(([stu, exp, rev, teach, gb, gc]) => {
+    ]).then(([stu, exp, teach, gb, gc]) => {
       if (Array.isArray(stu)) setStudentData(stu);
       if (Array.isArray(exp)) setExpenseSections(exp);
-      if (Array.isArray(rev)) setBaseRevenue(rev);
+      // if (Array.isArray(rev)) setBaseRevenue(rev);
       if (Array.isArray(teach)) setTeacherSalaries(teach);
       if (Array.isArray(gb)) setGroupBSalaries(gb);
       if (Array.isArray(gc)) setGroupCSalaries(gc);
@@ -300,9 +300,7 @@ export default function FinanceDashboard() {
   const allSalaries = teachTotal + gbTotal + gcTotal;
 
   const totalExpenses = expenseSections.reduce((s, e) => s + (e.total || 0), 0);
-  const totalRevenue = baseRevenue.length
-    ? baseRevenue.reduce((s, r) => s + (r.amount || 0), 0)
-    : totalFees;
+  const totalRevenue = paidFees;
   const netBalance = totalRevenue - totalExpenses - allSalaries;
   const pctCollected = totalFees > 0 ? Math.round((paidFees / totalFees) * 100) : 0;
 

@@ -344,6 +344,16 @@ export default function MeetingFormModal({ meeting = null, onClose, onSaved }) {
     if (!form.startTime)      missing.push({ label: "Start Time",        step: 1 });
     if (!form.endTime)        missing.push({ label: "End Time",          step: 1 });
     if (!form.venueType)      missing.push({ label: "Venue / Location",  step: 2 });
+    if (!form.contactNumber.trim()) {
+      missing.push({ label: "Contact Number", step: 1 });
+    }
+
+    if (
+      form.contactNumber &&
+      !/^\91\s[6-9]\d{9}$/.test(form.contactNumber)
+    ) {
+      missing.push({ label: "Valid Indian Contact Number", step: 1 });
+    }
     return missing;
   };
 
@@ -1086,16 +1096,45 @@ export default function MeetingFormModal({ meeting = null, onClose, onSaved }) {
                   value={form.description} onChange={(e) => set("description", e.target.value)} autoFocus
                   onFocus={(e) => (e.target.style.borderColor = C.sky)} onBlur={(e) => (e.target.style.borderColor = C.border)} />
               </div>
-              <div>
-                <Label>Contact Number</Label>
-                <input
-                  type="text"
-                  placeholder="91XXXXXXXXXX"
-                  value={form.contactNumber || ""}
-                  onChange={(e) => set("contactNumber", e.target.value)}
-                  style={inp()}
-                />
-              </div>
+                <div>
+                  <Label required>Contact Number</Label>
+
+                  <input
+                    type="tel"
+                    required
+                    pattern="^\+91\s[6-9]\d{9}$"
+                    title="Enter valid Indian number like 91 7412589636"
+                    placeholder="91 7412589636"
+                    value={form.contactNumber}
+                    onChange={(e) => {
+                      let value = e.target.value;
+
+                      // Always keep +91
+                      if (!value.startsWith("91")) {
+                        value = "91 ";
+                      }
+
+                      // Allow only numbers after +91
+                      const numbers = value.replace("91 ", "").replace(/\D/g, "");
+
+                      // Limit to 10 digits
+                      set("contactNumber", `91 ${numbers.slice(0, 10)}`);
+                    }}
+                    style={inp()}
+                    onFocus={(e) => (e.target.style.borderColor = C.sky)}
+                    onBlur={(e) => (e.target.style.borderColor = C.border)}
+                  />
+
+                  <p
+                    style={{
+                      marginTop: 4,
+                      fontSize: 11,
+                      color: C.textLight,
+                    }}
+                  >
+                    Format: 91 7412589636
+                  </p>
+                </div>
             </div>
           )}
 

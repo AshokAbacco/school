@@ -689,11 +689,11 @@ export default function Login({ onSwitchToRegister }) {
             </div>
 
             {/* Register */}
-            <button className="btn-secondary" onClick={() => navigate("/register")}>
+            {/* <button className="btn-secondary" onClick={() => navigate("/register")}>
               <Building2 size={15} color="#6A89A7" />
               <span>Register New University</span>
               <ChevronRight size={14} color="#6A89A7" />
-            </button>
+            </button> */}
           </div>
         </div>
       </div>

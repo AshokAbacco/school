@@ -1,7 +1,10 @@
 // client/src/admin/pages/teachers/components/AddTeacherModal.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { X, Eye, EyeOff, Check, Loader2, Camera } from "lucide-react";
+import { X, Eye, EyeOff, Check, Loader2, Camera, Users } from "lucide-react";
 import { createTeacher, uploadTeacherProfileImage, uploadTeacherDocument } from "../api/teachersApi.js";
+
+const API_URL = import.meta.env.VITE_API_URL;
+import { getToken } from "../../../../auth/storage";
 
 const INIT = {
   firstName:"", lastName:"", email:"", password:"", confirmPassword:"",
@@ -169,7 +172,22 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
   const [photoPreview, setPhotoPreview] = useState("");
   const [docFiles, setDocFiles] = useState({});
   const [uploadStatus, setUploadStatus] = useState("");
+  const [limitStatus, setLimitStatus] = useState(null); // { used, limit }
   const isMobile = useIsMobile(540);
+
+ 
+
+  // ── Live teacher limit ─────────────────────────────────────────────────────
+  const fetchLimitStatus = async () => {
+    try {
+      const r = await fetch(`${API_URL}/api/teachers/limit-status`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (r.ok) setLimitStatus(await r.json());
+    } catch { /* non-critical */ }
+  };
+
+  useEffect(() => { fetchLimitStatus(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (k) => (v) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -218,13 +236,22 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
           try { await uploadTeacherDocument(teacherId, file, docType); } catch (e) { console.warn(e.message); }
         }
       }
-      setUploadStatus(""); onSuccess();
+      setUploadStatus(""); onSuccess(); fetchLimitStatus();
     } catch (err) { setApiError(err.message || "Failed to create teacher"); setUploadStatus(""); }
     finally { setLoading(false); }
   };
 
   const requiredDocs = DOC_SLOTS.filter((s) => s.required);
   const uploadedRequiredCount = requiredDocs.filter((s) => docFiles[s.type]).length;
+
+  // ── Limit helpers ────────────────────────────────────────────────────────────
+  const isUnlimited  = limitStatus?.limit === null;
+  const limitPct     = (limitStatus && !isUnlimited) ? Math.round((limitStatus.used / limitStatus.limit) * 100) : 0;
+  const atLimit      = !isUnlimited && limitStatus && limitStatus.used >= limitStatus.limit;
+  const nearLimit    = !isUnlimited && limitPct >= 80 && !atLimit;
+  const limitColor   = atLimit ? "#dc2626" : nearLimit ? "#b45309" : "#15803d";
+  const limitBg      = atLimit ? "#fef2f2" : nearLimit ? "#fffbeb" : "#f0fdf4";
+  const limitBorder  = atLimit ? "#fecaca" : nearLimit ? "#fde68a" : "#bbf7d0";
 
   return (
     <>
@@ -279,12 +306,37 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose}
-            style={{ width: 30, height: 30, borderRadius: 9, border: "1.5px solid #E8F0F9", background: "#F4F8FD", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6A89A7", flexShrink: 0, transition: "background 0.12s" }}
-            onMouseEnter={(e) => e.currentTarget.style.background = "#EDF3FA"}
-            onMouseLeave={(e) => e.currentTarget.style.background = "#F4F8FD"}>
-            <X size={13} />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {/* Live teacher limit badge */}
+            {limitStatus && !isUnlimited && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 5,
+                padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                background: limitBg, border: `1px solid ${limitBorder}`, color: limitColor,
+                ...font, whiteSpace: "nowrap",
+              }}
+                title={`${limitStatus.used} of ${limitStatus.limit} teacher slots used`}
+              >
+                <Users size={11} />
+                {limitStatus.used} / {limitStatus.limit}
+                {/* mini bar */}
+                <div style={{ width: 36, height: 5, borderRadius: 99, background: `${limitColor}22`, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${Math.min(limitPct, 100)}%`, background: limitColor, borderRadius: 99, transition: "width 0.4s" }} />
+                </div>
+              </div>
+            )}
+            {limitStatus && isUnlimited && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", ...font }}>
+                <Users size={11} /> Unlimited
+              </div>
+            )}
+            <button onClick={onClose}
+              style={{ width: 30, height: 30, borderRadius: 9, border: "1.5px solid #E8F0F9", background: "#F4F8FD", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6A89A7", flexShrink: 0, transition: "background 0.12s" }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "#EDF3FA"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "#F4F8FD"}>
+              <X size={13} />
+            </button>
+          </div>
         </div>
 
         {/* Step tabs */}
@@ -317,6 +369,37 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
 
         {/* Body */}
         <div className="modal-body" style={{ flex: 1, overflowY: "auto", padding: isMobile ? "14px 16px" : "16px 22px" }}>
+
+          {/* ── Live Teacher Limit Bar ──────────────────────────────────────── */}
+          {limitStatus && !isUnlimited && (
+            <div style={{ marginBottom: 12, padding: "10px 14px", borderRadius: 12, background: limitBg, border: `1px solid ${limitBorder}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Users size={12} style={{ color: limitColor }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: limitColor, ...font }}>Teacher Slots</span>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 800, color: limitColor, ...font }}>
+                  {limitStatus.used} / {limitStatus.limit}
+                  {!atLimit && <span style={{ fontWeight: 500 }}> &nbsp;({limitStatus.limit - limitStatus.used} left)</span>}
+                </span>
+              </div>
+              <div style={{ width: "100%", height: 7, borderRadius: 99, background: `${limitColor}22`, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${Math.min(limitPct, 100)}%`, background: limitColor, borderRadius: 99, transition: "width 0.5s" }} />
+              </div>
+              {atLimit && (
+                <p style={{ margin: "6px 0 0", fontSize: 11, fontWeight: 600, color: limitColor, ...font }}>
+                  ⚠ Teacher limit reached. Please upgrade your plan to add more teachers.
+                </p>
+              )}
+              {nearLimit && (
+                <p style={{ margin: "6px 0 0", fontSize: 11, fontWeight: 600, color: limitColor, ...font }}>
+                  You're nearing your teacher limit — {limitStatus.limit - limitStatus.used} slot{limitStatus.limit - limitStatus.used !== 1 ? "s" : ""} remaining.
+                </p>
+              )}
+            </div>
+          )}
+          {/* ─────────────────────────────────────────────────────────────────── */}
+
           {apiError && (
             <div style={{ marginBottom: 12, padding: "10px 14px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fca5a5", color: "#b91c1c", fontSize: 12, ...font }}>
               ⚠ {apiError}
@@ -476,9 +559,13 @@ export default function AddTeacherModal({ onClose, onSuccess }) {
                 Next →
               </button>
             ) : (
-              <button onClick={handleSubmit} disabled={loading}
-                style={{ ...font, fontSize: 13, fontWeight: 700, padding: "9px 20px", borderRadius: 11, background: "#384959", color: "#fff", border: "none", cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1, boxShadow: "0 2px 10px rgba(36,51,64,0.20)", display: "flex", alignItems: "center", gap: 6 }}>
-                <Check size={13} /> Create Teacher
+              <button
+                onClick={handleSubmit}
+                disabled={loading || !!atLimit}
+                title={atLimit ? "Teacher limit reached — upgrade your plan" : undefined}
+                style={{ ...font, fontSize: 13, fontWeight: 700, padding: "9px 20px", borderRadius: 11, background: atLimit ? "#9ca3af" : "#384959", color: "#fff", border: "none", cursor: (loading || atLimit) ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1, boxShadow: "0 2px 10px rgba(36,51,64,0.20)", display: "flex", alignItems: "center", gap: 6 }}>
+                {loading ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                {atLimit ? "Limit Reached" : "Create Teacher"}
               </button>
             )
           )}

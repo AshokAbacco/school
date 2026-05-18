@@ -8,6 +8,78 @@ import { prisma } from "../config/db.js";
 
 const SALT_ROUNDS = 10;
 
+// ── checkTeacherLimit ─────────────────────────────────────────────────────────
+async function checkTeacherLimit(schoolId, countToAdd = 1) {
+  const school = await prisma.school.findUnique({
+    where: { id: schoolId },
+    select: { universityId: true },
+  });
+  if (!school) return { allowed: false, message: "School not found" };
+
+  const payment = await prisma.payment.findFirst({
+    where: {
+      status: "SUCCESS",
+      superAdmin: { universityId: school.universityId },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { teacherCount: true },
+  });
+
+  if (!payment) {
+    return { allowed: false, message: "No active plan found for this school." };
+  }
+
+  // null = unlimited
+  if (payment.teacherCount === null) return { allowed: true };
+
+  const currentCount = await prisma.teacherProfile.count({ where: { schoolId } });
+  const limit = payment.teacherCount;
+
+  if (currentCount + countToAdd > limit) {
+    return {
+      allowed: false,
+      message: `Teacher limit reached. Your plan allows ${limit} teachers and you currently have ${currentCount}.`,
+      used:  currentCount,
+      limit,
+      code: "TEACHER_LIMIT_REACHED",
+    };
+  }
+
+  return { allowed: true, used: currentCount, limit };
+}
+
+// ── GET /api/teachers/limit-status ────────────────────────────────────────────
+export async function getTeacherLimitStatus(req, res) {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing" });
+
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { universityId: true },
+    });
+
+    const payment = await prisma.payment.findFirst({
+      where: {
+        status: "SUCCESS",
+        superAdmin: { universityId: school.universityId },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { teacherCount: true },
+    });
+
+    const currentCount = await prisma.teacherProfile.count({ where: { schoolId } });
+
+    return res.json({
+      used:  currentCount,
+      limit: payment?.teacherCount ?? null, // null = unlimited
+    });
+  } catch (err) {
+    console.error("[getTeacherLimitStatus]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+}
+
 // ── POST /api/teachers/:id/profile-image ──────────────────────
 export async function uploadProfileImage(req, res) {
   try {
@@ -336,6 +408,18 @@ export async function createTeacher(req, res) {
     if (!schoolId)
       return res.status(400).json({ error: "schoolId missing from token" });
 
+    // ── Plan limit check ───────────────────────────────────────────────────────
+    const limitCheck = await checkTeacherLimit(schoolId, 1);
+    if (!limitCheck.allowed) {
+      return res.status(403).json({
+        error:   limitCheck.message,
+        code:    "TEACHER_LIMIT_REACHED",
+        used:    limitCheck.used  ?? null,
+        limit:   limitCheck.limit ?? null,
+      });
+    }
+    // ──────────────────────────────────────────────────────────────────────────
+
     const teacher = await prisma.$transaction(async (tx) => {
       const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
@@ -557,7 +641,8 @@ export async function getTeacherDocumentUrl(req, res) {
 
 export async function bulkImportTeachers(req, res) {
   try {
-    const { teachers } = req.body;
+    const { teachers: teachersRaw } = req.body;
+    let teachers = teachersRaw;
     const schoolId = req.user?.schoolId;
 
     console.log("[bulkImportTeachers] schoolId:", schoolId);
@@ -568,6 +653,28 @@ export async function bulkImportTeachers(req, res) {
 
     if (!Array.isArray(teachers) || teachers.length === 0)
       return res.status(400).json({ error: "No teachers provided" });
+
+    // ── Plan limit check ───────────────────────────────────────────────────────
+    const limitCheck = await checkTeacherLimit(schoolId, teachers.length);
+    if (!limitCheck.allowed) {
+      // Check how many we can actually still add
+      const currentCount = limitCheck.used ?? 0;
+      const maxAllowed   = limitCheck.limit ?? 0;
+      const canAdd       = Math.max(0, maxAllowed - currentCount);
+
+      if (canAdd === 0) {
+        return res.status(403).json({
+          error: limitCheck.message,
+          code:  "TEACHER_LIMIT_REACHED",
+          used:  currentCount,
+          limit: maxAllowed,
+        });
+      }
+      // Partially allow — trim the list to how many slots remain
+      teachers = teachers.slice(0, canAdd);
+      console.log(`[bulkImportTeachers] Limit: only importing first ${canAdd} of requested teachers`);
+    }
+    // ──────────────────────────────────────────────────────────────────────────
 
     const results = [];
 

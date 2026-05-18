@@ -18,6 +18,7 @@ import {
   uploadTeacherDocument,
   getTeacherDocumentUrl,
   bulkImportTeachers,
+  getTeacherLimitStatus,
 } from "../staffControlls/teacherController.js";
 
 const router = express.Router();
@@ -29,6 +30,13 @@ const upload = multer({
 /* =========================================================
    STATIC ROUTES FIRST
    ========================================================= */
+
+// Live teacher limit status (used / max per plan)
+router.get(
+  "/limit-status",
+  authMiddleware,
+  getTeacherLimitStatus
+);
 
 // Bulk Import
 router.post(

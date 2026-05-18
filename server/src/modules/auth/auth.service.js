@@ -42,6 +42,7 @@ export const registerSuperAdminService = async ({
   const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
   const result = await prisma.$transaction(async (tx) => {
+
     // 1️⃣ Create University
     const university = await tx.university.create({
       data: {
@@ -64,26 +65,59 @@ export const registerSuperAdminService = async ({
         password: hashedPassword,
         phone: adminPhone || null,
         university: {
-          connect: { id: university.id },
+          connect: {
+            id: university.id,
+          },
         },
       },
     });
 
-    // 🔥 FIXED: use local variables (NOT result)
+    // 3️⃣ Find Payment
+    let payment = null;
+
     if (tempUserId) {
-      await tx.payment.updateMany({
+      payment = await tx.payment.findUnique({
         where: {
           tempUserId,
-          superAdminId: null,
+        },
+      });
+    }
+
+    // 4️⃣ Update Payment
+    if (payment) {
+      await tx.payment.update({
+        where: {
+          id: payment.id,
         },
         data: {
           superAdminId: superAdmin.id,
           universityId: university.id,
         },
       });
+
+      // 5️⃣ Create Subscription
+      await tx.subscription.create({
+        data: {
+          universityId: university.id,
+
+          planId: payment.planId,
+
+          paymentId: payment.id,
+
+          startDate: payment.planStartDate,
+          endDate: payment.planEndDate,
+
+          maxSchools: payment.maxSchools,
+          maxStudents: payment.maxStudents,
+          maxTeachers: payment.maxTeachers,
+        },
+      });
     }
 
-    return { university, superAdmin };
+    return {
+      university,
+      superAdmin,
+    };
   });
 
   const token = generateToken({
@@ -139,6 +173,7 @@ export const registerSuperAdminService = async ({
 };
 
 export const loginSuperAdminService = async ({ email, password }) => {
+
   const admin = await prisma.superAdmin.findUnique({
     where: { email },
     include: {
@@ -148,6 +183,19 @@ export const loginSuperAdminService = async ({ email, password }) => {
           name: true,
           code: true,
           isDeactivated: true,
+        },
+      },
+
+      Payment: {
+        where: {
+          status: "SUCCESS",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+        select: {
+          planName: true,
         },
       },
     },
@@ -192,6 +240,7 @@ export const loginSuperAdminService = async ({ email, password }) => {
       email: admin.email,
       role: "SUPER_ADMIN",
       userType: "superAdmin",
+      planName: admin.Payment?.[0]?.planName || "Silver",
       university: admin.university,
     },
   };
@@ -248,9 +297,20 @@ export const loginStaffService = async ({ email, password, selectedRole }) => {
       school: {
         include: {
           university: {
-            select: {
-              id: true,
-              isDeactivated: true,
+            include: {
+              Subscription: {
+                orderBy: {
+                  createdAt: "desc",
+                },
+                take: 1,
+                include: {
+                  payment: {
+                    select: {
+                      planName: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -322,6 +382,9 @@ export const loginStaffService = async ({ email, password, selectedRole }) => {
       userType: "staff",
       school: user.school,
       teacherProfile: user.teacherProfile || null,
+
+      planName:
+        user.school?.university?.Subscription?.[0]?.payment?.planName || "Silver",
     },
   };
 };
@@ -332,16 +395,27 @@ export const loginStudentService = async ({ email, password }) => {
   const student = await prisma.student.findFirst({
     where: { email, isActive: true },
     include: {
-    school: {
-      include: {
-        university: {
-          select: {
-            id: true,
-            isDeactivated: true,
+      school: {
+        include: {
+          university: {
+            include: {
+              Subscription: {
+                orderBy: {
+                  createdAt: "desc",
+                },
+                take: 1,
+                include: {
+                  payment: {
+                    select: {
+                      planName: true,
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       },
-    },
       personalInfo: {
         select: {
           firstName: true,
@@ -434,6 +508,8 @@ export const loginStudentService = async ({ email, password }) => {
       currentEnrollment: student.enrollments[0] || null,
 
       classSectionId: activeEnrollment?.classSection?.id || null, // ✅ ADD THIS
+          planName:
+      student.school?.university?.Subscription?.[0]?.payment?.planName || "Silver",
     },
   };
 };
@@ -447,9 +523,20 @@ export const loginParentService = async ({ email, password }) => {
     school: {
       include: {
         university: {
-          select: {
-            id: true,
-            isDeactivated: true,
+          include: {
+            Subscription: {
+              orderBy: {
+                createdAt: "desc",
+              },
+              take: 1,
+              include: {
+                payment: {
+                  select: {
+                    planName: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -507,6 +594,8 @@ export const loginParentService = async ({ email, password }) => {
       role: "PARENT",
       userType: "parent",
       school: parent.school,
+      planName:
+      parent.school?.university?.Subscription?.[0]?.payment?.planName || "Silver",
     },
   };
 };
@@ -524,9 +613,20 @@ export async function loginFinanceService({ email, password }) {
       school: {
         include: {
           university: {
-            select: {
-              id: true,
-              isDeactivated: true,
+            include: {
+              Subscription: {
+                orderBy: {
+                  createdAt: "desc",
+                },
+                take: 1,
+                include: {
+                  payment: {
+                    select: {
+                      planName: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -581,6 +681,8 @@ export async function loginFinanceService({ email, password }) {
       role: user.role,
       userType: "staff",
       school: user.school,
+      planName:
+          user.school?.university?.Subscription?.[0]?.payment?.planName || "Silver",
     },
   };
 }

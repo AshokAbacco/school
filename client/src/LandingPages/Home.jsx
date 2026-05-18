@@ -20,12 +20,7 @@ const FEATURES = [
     { Icon: BarChart2, title: "Academic Analytics", desc: "Visual dashboards with grade trends, attendance heatmaps, and performance breakdowns per class, section, and subject." },
 ];
 
-const STATS = [
-    { value: "5000+", label: "Students Managed", Icon: GraduationCap },
-    { value: "200+", label: "Staff Onboarded", Icon: Users },
-    { value: "98%", label: "Uptime Reliability", Icon: TrendingUp },
-    { value: "6", label: "Modules Built", Icon: LayoutDashboard },
-];
+ 
 
 const HOW_IT_WORKS = [
     { step: "01", title: "Super Admin Sets Up", desc: "Super Admin configures the school, creates departments, and sets up role-based access for admins, teachers, and parents.", Icon: Settings },
@@ -314,26 +309,7 @@ export default function Home() {
 
             {/* DIVIDER */}
             <div className="h-px opacity-35" style={{ background: "linear-gradient(90deg, transparent, #88BDF2, #6A89A7, #88BDF2, transparent)" }} />
-
-            {/* ── STATS ── */}
-            <section className="py-14" style={{ background: "#f5f9ff" }}>
-                <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-                    {STATS.map((s) => (
-                        <div key={s.label} className="flex flex-col items-center gap-2.5">
-                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "#e8f3fd" }}>
-                                <s.Icon size={22} color="#6A89A7" />
-                            </div>
-                            <div
-                                className="text-4xl font-black bg-clip-text text-transparent"
-                                style={{ fontFamily: "Georgia, serif", backgroundImage: "linear-gradient(135deg, #6A89A7 0%, #88BDF2 60%, #384959 100%)" }}
-                            >
-                                <AnimatedCounter target={s.value} />
-                            </div>
-                            <p className="text-sm font-medium" style={{ color: "#6A89A7" }}>{s.label}</p>
-                        </div>
-                    ))}
-                </div>
-            </section>
+ 
 
             <div className="h-px opacity-35" style={{ background: "linear-gradient(90deg, transparent, #88BDF2, #6A89A7, #88BDF2, transparent)" }} />
 

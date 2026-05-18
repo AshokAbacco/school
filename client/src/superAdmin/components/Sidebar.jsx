@@ -8,23 +8,44 @@ import {
   MessageCircle,
 } from "lucide-react";
 
-const NAV = [
-  { icon: LayoutDashboard, label: "Dashboard",           to: "/superadmin/dashboard" },
-  { icon: Building2,       label: "Schools",             to: "/superadmin/schools" },
-  { icon: UserCog,         label: "School Admins",       to: "/superadmin/schools-admins" },
-  { icon: Wallet,          label: "Finance Account",     to: "/superadmin/finance" },
-  { icon: Users,           label: "Users Management",    to: "/superadmin/users-management" },
-  { icon: ShieldCheck,     label: "Roles & Permissions", to: "/superadmin/roles-permissions" },
-  { icon: Building2,       label: "Fees",                to: "/superadmin/fees" },
-  { icon: BarChart3,       label: "Analytics",           to: "/superadmin/analytics" },
-  { icon: CreditCard,      label: "Subscription Plans",  to: "/superadmin/subscription-Plans" },
-  { icon: MessageCircle,   label: "Chat",                to: "/superadmin/chat" },
-];
 
 const initials = (name = "SA") =>
   name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 
 export default function Sidebar({ isOpen, onClose, user }) {
+  const userPlan = user?.planName || "Silver";
+
+    const NAV = [
+      { icon: LayoutDashboard, label: "Dashboard",          to: "/superadmin/dashboard" },
+      { icon: Building2,       label: "Schools",            to: "/superadmin/schools" },
+      { icon: UserCog,         label: "School Admins",      to: "/superadmin/schools-admins" },
+      { icon: Wallet,          label: "Finance Account",    to: "/superadmin/finance" },
+      { icon: Users,           label: "Users Management",   to: "/superadmin/users-management" },
+
+      // ✅ Gold + Premium only
+      ...(userPlan === "Gold" || userPlan === "Premium"
+        ? [{
+            icon: ShieldCheck,
+            label: "Roles & Permissions",
+            to: "/superadmin/roles-permissions",
+          }]
+        : []),
+
+      { icon: Building2,       label: "Fees",               to: "/superadmin/fees" },
+      { icon: BarChart3,       label: "Analytics",          to: "/superadmin/analytics" },
+      { icon: CreditCard,      label: "Subscription Plans", to: "/superadmin/subscription-Plans" },
+
+      // ✅ Premium only
+      ...(userPlan === "Premium"
+        ? [{
+            icon: MessageCircle,
+            label: "Chat",
+            to: "/superadmin/chat",
+          }]
+        : []),
+    ];
+
+
   const { pathname } = useLocation();
   const [logoUrl, setLogoUrl] = useState(null);
   const [hovered, setHovered] = useState(false);

@@ -1,7 +1,11 @@
 // src/superAdmin/pages/Subscription/Plans.jsx
-import { useState } from "react";
-import { Check, X, Zap, Shield, Crown, ChevronDown, ChevronUp, Sparkles, Globe, Mail, Info } from "lucide-react";
+import { useState, useEffect  } from "react";
+import {
+  Check, X, Zap, Shield, Crown,
+  ChevronDown, ChevronUp, Sparkles, Globe, Mail, Info,
+} from "lucide-react";
 import PaymentModal from "./Payment";
+import SubscriptionTimeline from "./PlansTimeline";
 
 const plans = [
   {
@@ -15,7 +19,7 @@ const plans = [
     webPackage: {
       pages: "1-page website",
       emails: "Staff & administration",
-      note: "Free for Year 1 — renewal charges apply from Year 2",
+      
     },
     features: {
       "Super Admin": "Limited",
@@ -52,7 +56,7 @@ const plans = [
     webPackage: {
       pages: "5-page website",
       emails: "Staff & administration",
-      note: "Free for Year 1 — renewal charges apply from Year 2",
+      
     },
     features: {
       "Super Admin": true,
@@ -91,7 +95,7 @@ const plans = [
     webPackage: {
       pages: "15-page website",
       emails: "Staff, administration & students",
-      note: "Free for Year 1 — renewal charges apply from Year 2",
+      
     },
     features: {
       "Super Admin": "Full Control",
@@ -145,7 +149,6 @@ const allFeatureKeys = [
   "Parent Dashboard",
   "Student Fees (Basic)",
   "Reports & Advanced Analytics",
-  "curriculum Management",
   "Exams & Results",
   "Activities & Events",
   "Payment Gateway",
@@ -162,45 +165,117 @@ const allFeatureKeys = [
   "API Integrations",
 ];
 
-export default function PricingPage() {
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [showAllFeatures, setShowAllFeatures] = useState(false);
+export default function UpgradePage() {
+  const [selectedPlan,      setSelectedPlan]      = useState(null);
+  const [showAllFeatures,   setShowAllFeatures]   = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState(null);
+  const [loadingPlan, setLoadingPlan] = useState(true);
 
-  const visibleFeatures = showAllFeatures ? allFeatureKeys : allFeatureKeys.slice(0, 12);
+
+  const visibleFeatures = showAllFeatures
+    ? allFeatureKeys
+    : allFeatureKeys.slice(0, 12);
+
+  const openPlan = (planId) => {
+    setSelectedPlan(planId);
+    setIsPaymentModalOpen(true);
+  };
+
+  useEffect(() => {
+    fetchCurrentPlan();
+  }, []);
+
+  const fetchCurrentPlan = async () => {
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/subscription/timeline`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+
+      const active = data?.subscriptions?.find(
+        (s) => s.status === "ACTIVE"
+      );
+
+      if (active) {
+        setCurrentPlan(active);
+      }
+    } catch (err) {
+      console.error("Failed to fetch current plan:", err);
+    } finally {
+      setLoadingPlan(false);
+    }
+  };
+
+  const planOrder = {
+    silver: 1,
+    gold: 2,
+    premium: 3,
+  };
 
   return (
-    <div className="min-h-screen py-30 px-4 bg-gradient-to-br from-blue-50 to-blue-100">
-      {/* Decorative blobs */}
-      <div className="fixed top-0 left-0 w-72 h-72 rounded-full pointer-events-none opacity-20 bg-blue-200 blur-80 translate-x-[-30%] translate-y-[-30%]" />
-      <div className="fixed top-0 right-0 w-96 h-96 rounded-full pointer-events-none opacity-15 bg-blue-300 blur-100 translate-x-[30%] translate-y-[30%]" />
+    <div className="min-h-screen py-12 px-4 bg-gradient-to-br from-blue-50 to-blue-100">
 
-      <div className="max-w-7xl mx-auto relative">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-5 bg-blue-200 text-blue-800">
-            <Sparkles size={12} />Dashboard CRM Pricing
+      <div className="max-w-7xl mx-auto">
+
+        {/* ── Subscription Timeline ─────────────────────────────────────────── */}
+        <div className="mb-14">
+          <SubscriptionTimeline
+            onUpgrade={() => {
+              // scroll down to plans section
+              document.getElementById("plans-section")?.scrollIntoView({ behavior: "smooth" });
+            }}
+          />
+        </div>
+
+        {/* ── Plans Header ──────────────────────────────────────────────────── */}
+        <div id="plans-section" className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-4 bg-blue-200 text-blue-800">
+            <Sparkles size={12} /> Upgrade Plans
           </div>
-          <h1 className="text-5xl font-black mb-4 leading-tight text-gray-800">
-            <span className="text-[#384959]">Upgrade Plans</span>
-          </h1>
-          <p className="text-base max-w-md mx-auto text-[#6A89A7]">
-            Choose the plan that fits your institution. Upgrade anytime as you grow.
+          <h1 className="text-4xl font-black mb-3 text-[#384959]">Choose Your Plan</h1>
+          <p className="text-sm max-w-md mx-auto text-[#6A89A7]">
+            Upgrade anytime. Your new plan activates immediately and replaces the current one.
           </p>
         </div>
 
-        {/* Plan Cards */}
+        {/* ── Plan Cards ────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-14">
           {plans.map((plan) => {
-            const Icon = plan.icon;
+            const Icon   = plan.icon;
             const isGold = plan.id === "gold";
+
+            // ✅ Current active plan
+            const currentPlanName =
+              currentPlan?.planName
+                ?.replace(" Plan", "")
+                ?.trim()
+                ?.toLowerCase();
+
+            const isCurrent =
+              currentPlanName === plan.id.toLowerCase();
+
+            // ✅ Prevent downgrade
+            const isLowerPlan =
+              currentPlan &&
+              planOrder[plan.id] <
+              planOrder[currentPlanName]
+
+            // ✅ Upgrade allowed
+            const canUpgrade = !isCurrent && !isLowerPlan;
 
             return (
               <div
                 key={plan.id}
-                className={`relative rounded-2xl transition-all duration-300 overflow-hidden
+                className={`relative rounded-2xl transition-all duration-300 overflow-hidden cursor-pointer
                   ${isGold ? "shadow-xl scale-[1.03]" : "shadow-md hover:shadow-lg hover:-translate-y-1"}
-                  ${selectedPlan === plan.id ? "ring-2 ring-blue-300" : ""}
+                  ${selectedPlan === plan.id ? "ring-2 ring-blue-400" : ""}
                   ${isGold ? "bg-gradient-to-br from-blue-200 to-blue-300" : "bg-white"}
                 `}
                 onClick={() => setSelectedPlan(plan.id)}
@@ -211,13 +286,19 @@ export default function PricingPage() {
                   </div>
                 )}
 
+                {isCurrent && (
+                  <div className="absolute top-4 left-4 text-[10px] font-bold px-3 py-1 rounded-full tracking-widest uppercase bg-green-500 text-white">
+                    Current Plan
+                  </div>
+                )}
+
                 <div className="p-6">
                   <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${isGold ? "bg-white/40" : "bg-blue-100"}`}>
                     <Icon size={22} className={isGold ? "text-gray-800" : "text-[#88BDF2]"} />
                   </div>
 
                   <h3 className="text-xl font-bold mb-1 text-gray-800">{plan.name}</h3>
-                  <p className="text-xs mb-5 leading-snug text-[#6A89A7]">{plan.tagline}</p>
+                  <p className="text-xs mb-4 leading-snug text-[#6A89A7]">{plan.tagline}</p>
 
                   <div className="flex items-end gap-1 mb-1">
                     <span className="text-4xl font-black text-gray-800">₹{plan.price}</span>
@@ -229,35 +310,46 @@ export default function PricingPage() {
                   </div>
 
                   <button
-                    className={`w-full py-2.5 rounded-xl text-sm font-bold tracking-wide transition-colors cursor-pointer
-                      ${isGold || plan.id === "premium"
-                        ? "bg-gray-800 text-white hover:bg-gray-900"
-                        : "bg-blue-100 text-[#6cabf3] border border-blue-300 hover:bg-[#88BDF2] hover:text-white"
+                    disabled={isCurrent || isLowerPlan}
+                    className={`w-full py-2.5 rounded-xl text-sm font-bold tracking-wide transition-colors
+                      ${
+                        isCurrent
+                          ? "bg-green-500 text-white cursor-not-allowed"
+                          : isLowerPlan
+                          ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                          : isGold || plan.id === "premium"
+                          ? "bg-gray-800 text-white hover:bg-gray-900"
+                          : "bg-blue-100 text-[#6cabf3] border border-blue-300 hover:bg-[#88BDF2] hover:text-white"
                       }`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedPlan(plan.id);        // ✅ MUST come first
-                      setIsPaymentModalOpen(true);
+
+                      if (!isCurrent && !isLowerPlan) {
+                        openPlan(plan.id);
+                      }
                     }}
                   >
-                    Get Started
+                    {isCurrent
+                      ? "Current Active Plan"
+                      : isLowerPlan
+                      ? "Downgrade Not Available"
+                      : currentPlan
+                      ? `Upgrade to ${plan.name}`
+                      : "Upgrade Now"}
                   </button>
 
-                  {/* Web Package Info */}
+                  {/* Web Package */}
                   <div className={`mt-4 rounded-xl p-3.5 ${isGold ? "bg-white/30" : "bg-blue-50"}`}>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5 text-[#384959]">Included Web Package</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5 text-[#384959]">Included Web Package (paid)</p>
                     <div className="flex items-center gap-2 mb-1.5">
                       <Globe size={13} className="text-[#88BDF2] shrink-0" />
-                      <span className="text-xs font-semibold text-gray-700">{plan.webPackage.pages} + free domain</span>
+                      <span className="text-xs font-semibold text-gray-700">{plan.webPackage.pages} - domain</span>
                     </div>
                     <div className="flex items-center gap-2 mb-2">
                       <Mail size={13} className="text-[#88BDF2] shrink-0" />
                       <span className="text-xs text-gray-600">Professional emails — {plan.webPackage.emails}</span>
                     </div>
-                    <div className="flex items-start gap-1.5 pt-2 border-t border-blue-200/60">
-                      <Info size={11} className="text-[#6A89A7] mt-0.5 shrink-0" />
-                      <span className="text-[10px] leading-snug text-[#6A89A7]">{plan.webPackage.note}</span>
-                    </div>
+                    
                   </div>
                 </div>
               </div>
@@ -265,18 +357,70 @@ export default function PricingPage() {
           })}
         </div>
 
+        {/* ── Feature Comparison Table ──────────────────────────────────────── */}
+        <div className="rounded-2xl overflow-hidden shadow-lg bg-white border border-blue-100">
+          <div className="px-6 py-5 border-b border-blue-100">
+            <h2 className="text-lg font-black text-gray-800">Feature Comparison</h2>
+            <p className="text-xs mt-0.5 text-[#6A89A7]">Detailed breakdown of what's included in each plan</p>
+          </div>
 
+          {/* Table header */}
+          <div className="grid grid-cols-4 px-6 py-3 text-xs font-bold uppercase tracking-wider bg-blue-50 text-[#88BDF2]">
+            <div>Feature</div>
+            {plans.map((p) => <div key={p.id} className="text-center">{p.name}</div>)}
+          </div>
 
-        {/* Payment Modal */}
-        <PaymentModal
-          isOpen={isPaymentModalOpen}
-          onClose={() => {
-            setIsPaymentModalOpen(false);
-            setSelectedPlan(null); // ✅ ADD THIS
-          }}
-          selectedPlanId={selectedPlan}
-        />
+          {/* Rows */}
+          {visibleFeatures.map((feature, i) => (
+            <div
+              key={feature}
+              className={`grid grid-cols-4 px-6 py-3 items-center text-sm border-b border-blue-100 ${i % 2 === 0 ? "bg-white" : "bg-blue-50/40"}`}
+            >
+              <div className="font-medium text-xs text-gray-800">{feature}</div>
+              {plans.map((plan) => (
+                <div key={plan.id} className="flex items-center justify-center">
+                  {plan.features[feature] === true && (
+                    <Check size={16} className="text-[#88BDF2]" strokeWidth={2.5} />
+                  )}
+                  {plan.features[feature] === false && (
+                    <X size={14} className="text-gray-300" strokeWidth={2} />
+                  )}
+                  {plan.features[feature] === undefined && (
+                    <X size={14} className="text-gray-200" strokeWidth={2} />
+                  )}
+                  {typeof plan.features[feature] === "string" && (
+                    <span className="text-xs font-semibold text-[#6A89A7] text-center px-1">
+                      {plan.features[feature]}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+
+          {/* Show more toggle */}
+          <button
+            onClick={() => setShowAllFeatures(!showAllFeatures)}
+            className="w-full py-4 flex items-center justify-center gap-2 text-sm font-bold text-[#6A89A7] bg-blue-50 hover:bg-blue-100 transition-colors"
+          >
+            {showAllFeatures
+              ? <><ChevronUp size={16} /> Show Less</>
+              : <><ChevronDown size={16} /> Show All {allFeatureKeys.length} Features</>}
+          </button>
+        </div>
+
       </div>
+
+      {/* ── Payment Modal ─────────────────────────────────────────────────── */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setSelectedPlan(null);
+        }}
+        selectedPlanId={selectedPlan}
+        existingSubscription={currentPlan}
+      />
     </div>
   );
 }

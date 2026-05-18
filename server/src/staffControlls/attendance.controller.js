@@ -1,7 +1,13 @@
 // server/src/staffControlls/attendance.controller.js
 import { prisma } from "../config/db.js";
 import XLSX from "xlsx";
-
+import {
+  sendAttendanceWhatsApp,
+  generateMonthlyAttendanceReport,
+  uploadAttendanceReportToR2,
+  sendMonthlyAttendanceWhatsApp,
+} from "../whatsapp/attendanceWhatsAppService.js";
+import fs from "fs";
 export const getTeacherClasses = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -266,6 +272,54 @@ export const markAttendance = async (req, res) => {
         })
       )
     );
+
+    const school = await prisma.school.findUnique({
+      where: {
+        id: teacher.schoolId,
+      },
+      select: {
+        name: true,
+      },
+    });
+
+    for (const record of records) {
+      try {
+        const student = await prisma.student.findUnique({
+          where: {
+            id: record.studentId,
+          },
+          include: {
+            parentLinks: {
+              include: {
+                parent: true,
+              },
+            },
+          },
+        });
+
+        if (!student) continue;
+
+        for (const link of student.parentLinks || []) {
+          const parent = link.parent;
+
+          if (!parent?.phone) continue;
+
+          await sendAttendanceWhatsApp({
+            phone: parent.phone,
+            studentName: student.name,
+            status:
+              record.status === "PRESENT"
+                ? "Present"
+                : record.status === "ABSENT"
+                ? "Absent"
+                : record.status,
+            schoolName: school?.name || "School",
+          });
+        }
+      } catch (err) {
+        console.error("Attendance WhatsApp Send Error:", err);
+      }
+    }
 
     return res.json({ success: true, message: "Attendance saved successfully" });
   } catch (error) {
@@ -561,5 +615,98 @@ export const exportAttendanceExcel = async (req, res) => {
   } catch (err) {
     console.error("[exportAttendanceExcel]", err);
     res.status(500).json({ message: "Export failed", error: err.message });
+  }
+};
+
+export const sendMonthlyAttendanceReport = async (req, res) => {
+  try {
+    const { classSectionId, academicYearId, month, year } = req.body;
+
+    const userId = req.user.id;
+
+    const teacher = await prisma.teacherProfile.findUnique({ where: { userId } });
+    if (!teacher) {
+      return res.status(404).json({ success: false, message: "Teacher not found" });
+    }
+
+    const [school, academicYear] = await Promise.all([
+      prisma.school.findUnique({ where: { id: teacher.schoolId } }),
+      prisma.academicYear.findUnique({ where: { id: academicYearId } }), // ✅ fetch academic year
+    ]);
+
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: { classSectionId, academicYearId, status: "ACTIVE" },
+      include: {
+        classSection: true, // ✅ include so we can read classSection.name
+        student: {
+          include: {
+            parentLinks: { include: { parent: true } },
+          },
+        },
+      },
+    });
+
+    for (const enrollment of enrollments) {
+      const student = enrollment.student;
+
+      const attendanceRecords = await prisma.attendanceRecord.findMany({
+        where: {
+          studentId: student.id,
+          academicYearId,
+          date: {
+            gte: new Date(year, month - 1, 1),
+            lte: new Date(year, month, 0),
+          },
+        },
+      });
+
+      const presentDays = attendanceRecords.filter((r) => r.status === "PRESENT").length;
+      const absentDays  = attendanceRecords.filter((r) => r.status === "ABSENT").length;
+      const leaveDays = attendanceRecords.filter((r) => r.status === "HALF_DAY").length;
+      const totalDays   = attendanceRecords.length;
+      const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+
+      const monthName = new Date(year, month - 1).toLocaleString("default", { month: "long" });
+
+      const report = await generateMonthlyAttendanceReport({
+        studentName: student.name,
+        className:   enrollment.classSection?.name || "Class", // ✅ fixed
+        rollNumber:  enrollment.rollNumber || "-",
+        academicYear: academicYear?.name || "Academic Year",   // ✅ fixed
+        monthName,
+        presentDays,
+        absentDays,
+        leaveDays,
+        totalDays,
+        attendancePercentage,
+      });
+
+      // ✅ Upload to R2, get public URL — was completely missing before
+      const imageUrl = await uploadAttendanceReportToR2(
+        report.filePath,
+        report.fileName
+      );
+      if (!imageUrl) {
+        console.error("❌ R2 upload failed, skipping WhatsApp for", student.name);
+        continue;
+      }
+      for (const link of student.parentLinks || []) {
+        const parent = link.parent;
+        if (!parent?.phone) continue;
+
+        await sendMonthlyAttendanceWhatsApp({
+          phone: parent.phone,
+          imageUrl,       // ✅ now a real public R2 URL
+          studentName: student.name,
+          monthName,
+          schoolName: school?.name || "School",
+        });
+      }
+    }
+
+    return res.json({ success: true, message: "Monthly reports sent successfully" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Failed to send monthly reports" });
   }
 };

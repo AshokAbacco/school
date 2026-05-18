@@ -18,21 +18,6 @@ import {
   MessageCircle
 } from "lucide-react";
 
-const NAV = [
-  { icon: Home, label: "Dashboard", to: "/teacher/dashboard" },
-  { icon: User, label: "Profile", to: "/teacher/profile" },
-  { icon: CalendarDays, label: "Time Table", to: "/teacher/timetable" },
-  { icon: User, label: "Attendance", to: "/teacher/attendance" },
-  { icon: CalendarDays, label: "Holidays", to: "/teacher/holidays" },
-  { icon: Video, label: "Online Classes", to: "/teacher/online-classes" },
-  { icon: BookOpen, label: "Curriculum", to: "/teacher/curriculum" },
-  { icon: BookOpenCheck, label: "Assignments", to: "/teacher/assignments" },
-  { icon: Award, label: "Results", to: "/teacher/results" },
-  { icon: Medal, label: "Certificates", to: "/teacher/certificates" },
-  { icon: Zap, label: "Activities", to: "/teacher/activities" },
-  { icon: Trophy, label: "Awards", to: "/teacher/awards" },
-  { icon: MessageCircle, label: "Chat", to: "/teacher/chat" },
-];
 
 const initials = (name = "AU") =>
   name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
@@ -48,7 +33,88 @@ export default function Sidebar({ isOpen, onClose, user }) {
   const displayRole = user?.role || "Staff";
 
   const expanded = hovered;
+  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
 
+  const userPlan =
+    user?.planName ||
+    storedUser?.planName ||
+    "Silver";
+
+  console.log("TEACHER PLAN =", userPlan);
+
+  const NAV = [
+    { icon: Home,          label: "Dashboard",      to: "/teacher/dashboard" },
+    { icon: User,          label: "Profile",        to: "/teacher/profile" },
+    { icon: CalendarDays,  label: "Time Table",     to: "/teacher/timetable" },
+    { icon: User,          label: "Attendance",     to: "/teacher/attendance" },
+    { icon: CalendarDays,  label: "Holidays",       to: "/teacher/holidays" },
+
+    // ✅ Premium only
+    ...(userPlan === "Premium"
+      ? [{
+          icon: Video,
+          label: "Online Classes",
+          to: "/teacher/online-classes",
+        }]
+      : []),
+
+    // ✅ Gold + Premium
+    ...(userPlan !== "Silver"
+      ? [{
+          icon: BookOpen,
+          label: "Curriculum",
+          to: "/teacher/curriculum",
+        }]
+      : []),
+
+    // ✅ Gold + Premium
+    ...(userPlan !== "Silver"
+      ? [{
+          icon: BookOpenCheck,
+          label: "Assignments",
+          to: "/teacher/assignments",
+        }]
+      : []),
+
+    // ✅ Gold + Premium
+    ...(userPlan !== "Silver"
+      ? [{
+          icon: Award,
+          label: "Results",
+          to: "/teacher/results",
+        }]
+      : []),
+
+    // ✅ Premium only
+    ...(userPlan === "Premium"
+      ? [{
+          icon: Medal,
+          label: "Certificates",
+          to: "/teacher/certificates",
+        }]
+      : []),
+
+    // ✅ Gold + Premium
+    ...(userPlan !== "Silver"
+      ? [{
+          icon: Zap,
+          label: "Activities",
+          to: "/teacher/activities",
+        }]
+      : []),
+
+    { icon: Trophy, label: "Awards", to: "/teacher/awards" },
+
+    // ✅ Premium only
+    ...(userPlan === "Premium"
+      ? [{
+          icon: MessageCircle,
+          label: "Chat",
+          to: "/teacher/chat",
+        }]
+      : []),
+  ];
+  
   return (
     <>
       {isOpen && (

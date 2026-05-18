@@ -176,7 +176,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
       `}</style>
 
       {/* Backdrop */}
-      <div style={{ position: "fixed", inset: 0, background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }} onClick={onClose}>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}>
 
         {/* Modal */}
         <div style={{ background: C.white, borderRadius: 22, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 24px 64px rgba(56,73,89,0.22)", width: "100%", maxWidth: 520, maxHeight: "92vh", overflowY: "auto", fontFamily: "'Inter', sans-serif" }} onClick={e => e.stopPropagation()}>

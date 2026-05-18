@@ -28,6 +28,10 @@ function Sidebar({ isOpen, onClose }) {
   const auth = getAuth();
   const parentName = auth?.user?.name || "Parent";
 
+  const userPlan = auth?.user?.planName || "Silver";
+
+  console.log("PARENT PLAN =", userPlan);
+
   const initials = (name = "PA") =>
     name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 
@@ -37,11 +41,46 @@ function Sidebar({ isOpen, onClose }) {
     { icon: ClipboardCheck, label: "Attendance", href: `${base}/attendance` },
     { icon: BarChart2, label: "Results", href: `${base}/marks` },
     { icon: Calendar, label: "Time Table", href: `${base}/timetable` },
-    { icon: BookOpen, label: "Tutorial Help", href: `${base}/tutorial-recommendations` },
+
+    // ✅ Premium only
+    ...(userPlan === "Premium"
+      ? [{
+          icon: BookOpen,
+          label: "Tutorial Recommendations",
+          href: `${base}/tutorial-recommendations`,
+        }]
+      : []),
+
     { icon: Award, label: "Certificates", href: `${base}/certificates` },
-    { icon: Library, label: "curriculums", href: `${base}/syllabus-progress` },
-    { icon: CreditCard, label: "Fees & Payments", href: `${base}/fees-payments` },
-    { icon: MessageCircle, label: "Chat", href: `${base}/chat` },
+
+    // ✅ Silver hidden
+    ...(userPlan !== "Silver"
+      ? [{
+          icon: Library,
+          label: "Curriculum",
+          href: `${base}/syllabus-progress`,
+        }]
+      : []),
+
+    // ✅ Premium only
+    ...(userPlan === "Premium"
+      ? [{
+          icon: CreditCard,
+          label: "Fees & Payments",
+          href: `${base}/fees-payments`,
+        }]
+      : []),
+
+    // ✅ Premium only
+    ...(userPlan === "Premium"
+      ? [{
+          icon: MessageCircle,
+          label: "Chat",
+          href: `${base}/chat`,
+        }]
+      : []),
+
+ 
   ];
 
   const isActive = (href) =>

@@ -34,6 +34,7 @@
     "nanoid": "^5.1.6",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.7",
+    "pdfkit": "^0.18.0",
     "prisma": "^5.22.0",
     "puppeteer": "^24.43.0",
     "razorpay": "^2.9.6",

@@ -11,12 +11,13 @@ import {
   deleteStudent,
   viewStudentDocument,
   getMyStudent,
-  getMyParentStudents, // ← NEW
+  getMyParentStudents,
   createParentLogin,
   getProfileImage,
   bulkImportRow,
   bulkImportStudents,  
-  exportStudentsExcel 
+  exportStudentsExcel,
+  getStudentLimitStatus,
 } from "../staffControlls/StudentsControlls.js";
 
 const router = express.Router();
@@ -45,6 +46,8 @@ const upload = multer({
 });
 
 // ── Routes ─────────────────────────────────────────────────────────────────
+
+router.get("/limit-status", authMiddleware, getStudentLimitStatus);  // ← ADD THIS
 
 // ⚠️  Static routes MUST come before /:id to avoid conflicts
 router.get("/me", authMiddleware, getMyStudent);                        // Student self-profile

@@ -384,7 +384,7 @@ export default function Navbar({ onMenuClick, user }) {
                 </div>
 
                 <button
-                  onClick={() => { setDropdownOpen(false); navigate("/superadmin/profile"); }}
+                  onClick={() => { setDropdownOpen(false); navigate("/finance/profile"); }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors"
                   style={{ color: "#384959", background: "none", border: "none", cursor: "pointer", ...font }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f8fd")}

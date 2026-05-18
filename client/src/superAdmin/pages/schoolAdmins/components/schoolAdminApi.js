@@ -13,17 +13,30 @@ export async function getSchoolAdmins() {
   return res.data;
 }
 
+/**
+ * Create a new school admin.
+ * Sends JSON (not multipart) — document uploads handled separately if needed.
+ */
 export async function createSchoolAdmin(data) {
-  const res = await axios.post(`${API}/api/school-admins`, data, { headers: auth() });
+  const res = await axios.post(`${API}/api/school-admins`, data, {
+    headers: {
+      ...auth(),
+      "Content-Type": "application/json",
+    },
+  });
   return res.data;
 }
 
 export async function updateSchoolAdmin(id, data) {
-  const res = await axios.patch(`${API}/api/school-admins/${id}`, data, { headers: auth() });
+  const res = await axios.patch(`${API}/api/school-admins/${id}`, data, {
+    headers: auth(),
+  });
   return res.data;
 }
 
 export async function deleteSchoolAdmin(id) {
-  const res = await axios.delete(`${API}/api/school-admins/${id}`, { headers: auth() });
+  const res = await axios.delete(`${API}/api/school-admins/${id}`, {
+    headers: auth(),
+  });
   return res.data;
 }

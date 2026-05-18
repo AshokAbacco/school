@@ -24,16 +24,22 @@ const cleanText = (text) => {
  * with a startTime string like "01:37" or "13:05"
  * Returns a proper Date for that day + time.
  */
-const getMeetingDateTime = (meetingDate, startTime) => {
-  if (!startTime) return null;
-  const parts = startTime.trim().split(":");
-  if (parts.length < 2) return null;
-  const [hours, minutes] = parts.map(Number);
-  if (isNaN(hours) || isNaN(minutes)) return null;
-  const dt = new Date(meetingDate);
-  dt.setHours(hours, minutes, 0, 0);
-  return dt;
-};
+  const getMeetingDateTime = (meetingDate, startTime) => {
+    if (!startTime) return null;
+
+    const [hours, minutes] = startTime.split(":").map(Number);
+
+    // force IST date
+    const baseDate = new Date(
+      new Date(meetingDate).toLocaleString("en-US", {
+        timeZone: "Asia/Kolkata",
+      })
+    );
+
+    baseDate.setHours(hours, minutes, 0, 0);
+
+    return baseDate;
+  };
 
 /* ═══════════════════════════════════════════════════════════════
    CRON — runs every minute
@@ -50,12 +56,23 @@ cron.schedule("* * * * *", async () => {
   try {
     console.log("⏰ Running meeting reminder cron...");
 
-    const now    = new Date();
-    const in2Min = new Date(now.getTime() + 60 * 60 * 1000);
+  // IST time
+  const now = new Date(
+    new Date().toLocaleString("en-US", {
+      timeZone: "Asia/Kolkata",
+    })
+  );
+
+  // reminder exactly 1 hour before
+  const reminderWindowStart = new Date(now.getTime() + 59 * 60 * 1000);
+  const reminderWindowEnd   = new Date(now.getTime() + 61 * 60 * 1000);
 
     // Fetch today's meetings where schedule was sent but reminder was not
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
 
     const meetings = await prisma.meeting.findMany({
       where: {
@@ -103,11 +120,15 @@ cron.schedule("* * * * *", async () => {
 
       console.log(
         `🕐 "${meeting.title}" starts at ${meetingDateTime.toLocaleTimeString()} | ` +
-        `now=${now.toLocaleTimeString()} | window_end=${in2Min.toLocaleTimeString()}`
+        `now=${now.toLocaleTimeString()} | reminder_start=${reminderWindowStart.toLocaleTimeString()} | ` +
+        `reminder_end=${reminderWindowEnd.toLocaleTimeString()}`
       );
 
       // Only fire if meeting start is within the next 2 minutes
-      if (meetingDateTime < now || meetingDateTime > in2Min) {
+      if (
+          meetingDateTime < reminderWindowStart ||
+          meetingDateTime > reminderWindowEnd
+        ){
         console.log(`⏩ Skipping "${meeting.title}" — outside 2-minute window`);
         continue;
       }
@@ -116,7 +137,23 @@ cron.schedule("* * * * *", async () => {
 
       const schoolName = meeting.school?.name || "School";
       const date       = new Date(meeting.meetingDate).toLocaleDateString("en-IN");
-      const time       = meeting.startTime;
+      const formatTime12Hour = (time24) => {
+      if (!time24) return "";
+
+        const [hours, minutes] = time24.split(":");
+
+        const date = new Date();
+        date.setHours(hours);
+        date.setMinutes(minutes);
+
+        return date.toLocaleTimeString("en-IN", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+      };
+
+    const time = formatTime12Hour(meeting.startTime);
       const location   =
         meeting.venueType === "ONLINE"
           ? meeting.meetingLink || "Online"

@@ -81,4 +81,16 @@ router.delete(
   salaryController.deleteTeacherSalary
 );
 
+router.post(
+  "/salary/uploadSalarySlip/:id",
+  authMiddleware,
+  salaryController.uploadSalarySlip
+);
+
+router.post(
+  "/salary/sendSalarySlip/:salaryId",
+  authMiddleware,
+  salaryController.sendSalarySlip
+);
+
 export default router

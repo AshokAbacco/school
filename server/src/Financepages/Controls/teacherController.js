@@ -1,4 +1,12 @@
-import { prisma } from "../../config/db.js";
+// teacherController.js
+import { PrismaClient } from "@prisma/client";
+import { uploadSalarySlipPdfToR2 }
+from "../../utils/uploadSalarySlipPdfToR2.js";
+
+import { sendSalarySlipWhatsApp }
+from "../../whatsapp/sendSalarySlipWhatsApp.js";
+
+const prisma = new PrismaClient();
 
 // ── Per-day salary = (monthly × 12) / 365 ──────────────────────────────────
 const calcLeaveDeduction = (monthlySalary, leaveDays) => {
@@ -18,6 +26,11 @@ class TeacherSalaryController {
     this.deleteTeacherSalary        = this.deleteTeacherSalary.bind(this);
     this.holdSalary                 = this.holdSalary.bind(this);
     this.getAllSalaryHistoryBySchool = this.getAllSalaryHistoryBySchool.bind(this);
+    this.uploadSalarySlip =
+    this.uploadSalarySlip.bind(this);
+
+    this.sendSalarySlip =
+    this.sendSalarySlip.bind(this);
   }
 
   // =====================================================
@@ -385,6 +398,123 @@ class TeacherSalaryController {
       res.status(400).json({ message: e.message });
     }
   }
+
+  // =====================================================
+// 🔥 UPLOAD SALARY SLIP PDF
+// =====================================================
+
+async uploadSalarySlip(req, res) {
+
+  try {
+
+    const id = req.params.id;
+
+    const chunks = [];
+
+    req.on("data", chunk => chunks.push(chunk));
+
+    req.on("end", async () => {
+
+      try {
+
+        const pdfBuffer =
+          Buffer.concat(chunks);
+
+        const fileName =
+          `salary-slips/${id}_${Date.now()}.pdf`;
+
+        const pdfUrl =
+          await uploadSalarySlipPdfToR2(
+            pdfBuffer,
+            fileName
+          );
+
+        res.json({
+          success: true,
+          pdfUrl,
+        });
+
+      } catch (err) {
+
+        console.error(
+          "R2 upload error:",
+          err
+        );
+
+        res.status(500).json({
+          message: err.message,
+        });
+
+      }
+
+    });
+
+    req.on("error", err => {
+
+      console.error(
+        "Stream error:",
+        err
+      );
+
+      res.status(500).json({
+        message: err.message,
+      });
+
+    });
+
+  } catch (e) {
+
+    res.status(400).json({
+      message: e.message,
+    });
+
+  }
+
 }
 
+// =====================================================
+// 🔥 SEND SALARY SLIP WHATSAPP
+// =====================================================
+
+async sendSalarySlip(req, res) {
+  try {
+    const { salaryId } = req.params;
+
+    const salary = await prisma.teacherMonthlySalary.findUnique({
+      where: { id: salaryId },
+    });
+
+    if (!salary) return res.status(404).json({ message: "Salary not found" });
+
+    const teacher = await prisma.teacherProfile.findUnique({
+      where: { id: salary.teacherId },
+      select: { phone: true },   // ✅ ADDED: was missing!
+    });
+
+    const school = await prisma.school.findUnique({
+      where: { id: req.user.schoolId },
+    });
+
+    const pdfUrl = req.body.pdfUrl;
+
+    await sendSalarySlipWhatsApp({
+      phone:      teacher?.phone,
+      staffName:  salary.teacherName,
+      schoolName: school?.name || "School",
+      monthYear:  `${salary.month} ${salary.year}`,
+      netSalary:  salary.netSalary,   // ✅ ADDED: pass net salary too
+      pdfUrl,
+    });
+
+    res.json({ success: true, message: "Salary slip sent successfully" });
+  } catch (e) {
+    console.log(e);
+    res.status(400).json({ message: e.message });
+  }
+}
+}
+
+ 
 export default new TeacherSalaryController();
+
+

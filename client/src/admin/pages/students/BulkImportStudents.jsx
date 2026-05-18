@@ -329,8 +329,21 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
   const [expandedRow, setExpandedRow] = useState(null);
   const [step, setStep] = useState("upload"); // upload | preview | done
   const [unmappedCols, setUnmappedCols] = useState([]);
+  const [limitStatus, setLimitStatus] = useState(null); // { used, limit }
 
   const fileRef = useRef();
+
+  // ── Fetch live limit on mount ─────────────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(`${API}/api/students/limit-status`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        if (r.ok) setLimitStatus(await r.json());
+      } catch { /* non-critical */ }
+    })();
+  }, []);
 
   // ── Parse file ────────────────────────────────────────────────────────────
   const parseFile = useCallback((f) => {
@@ -477,13 +490,33 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
 
     if (hasSuccess) {
       onSuccess?.();
-}
+      // refresh limit counter
+      try {
+        const r = await fetch(`${API}/api/students/limit-status`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        if (r.ok) setLimitStatus(await r.json());
+      } catch { /* non-critical */ }
+    }
   };
 
   const validCount = rows.filter((r) => r.errors.length === 0).length;
   const invalidCount = rows.filter((r) => r.errors.length > 0).length;
   const successCount = rows.filter((r) => r.status === "success").length;
   const failCount = rows.filter((r) => r.status === "error").length;
+
+  // ── Limit helpers ──────────────────────────────────────────────────────────
+  const isUnlimited = limitStatus?.limit === null;
+  const remainingSlots = (limitStatus && !isUnlimited)
+    ? Math.max(0, limitStatus.limit - limitStatus.used)
+    : Infinity;
+  const limitPct = (limitStatus && !isUnlimited)
+    ? Math.round((limitStatus.used / limitStatus.limit) * 100)
+    : 0;
+  const atLimit = !isUnlimited && remainingSlots === 0;
+  const nearLimit = !isUnlimited && limitPct >= 80;
+  // If file has more valid rows than remaining slots, warn (but backend will block extras)
+  const exceedsSlots = !isUnlimited && validCount > remainingSlots;
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -523,12 +556,36 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
               <p className="text-xs text-white/60 hidden sm:block">Upload Excel / CSV to register multiple students at once</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all shrink-0"
-          >
-            <X size={15} />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* ── Live limit badge ─────────────────────────────────────── */}
+            {limitStatus && !isUnlimited && (
+              <div
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold"
+                style={{
+                  background: atLimit ? "rgba(239,68,68,0.25)" : nearLimit ? "rgba(245,158,11,0.25)" : "rgba(255,255,255,0.15)",
+                  color: "white",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                }}
+              >
+                <Users size={12} />
+                <span>{limitStatus.used} / {limitStatus.limit} students</span>
+              </div>
+            )}
+            {limitStatus && isUnlimited && (
+              <div
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold"
+                style={{ background: "rgba(255,255,255,0.15)", color: "white", border: "1px solid rgba(255,255,255,0.2)" }}
+              >
+                <Users size={12} /> Unlimited
+              </div>
+            )}
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all"
+            >
+              <X size={15} />
+            </button>
+          </div>
         </div>
 
         {/* Steps indicator */}
@@ -560,6 +617,52 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
         </div>
 
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1 overflow-y-auto" style={{ maxHeight: "calc(95vh - 180px)" }}>
+
+          {/* ── Live Student Limit Bar ─────────────────────────────────────── */}
+          {limitStatus && !isUnlimited && (
+            <div
+              className="rounded-xl p-3"
+              style={{
+                background: atLimit ? "#fef2f2" : nearLimit ? "#fffbeb" : "#f0fdf4",
+                border: `1px solid ${atLimit ? "#fecaca" : nearLimit ? "#fde68a" : "#bbf7d0"}`,
+              }}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Users size={13} style={{ color: atLimit ? "#dc2626" : nearLimit ? "#b45309" : "#15803d" }} />
+                  <span className="text-xs font-bold" style={{ color: atLimit ? "#dc2626" : nearLimit ? "#b45309" : "#15803d" }}>
+                    Student Slots Used
+                  </span>
+                </div>
+                <span className="text-xs font-extrabold" style={{ color: atLimit ? "#dc2626" : nearLimit ? "#b45309" : "#15803d" }}>
+                  {limitStatus.used} / {limitStatus.limit}
+                  {!isUnlimited && remainingSlots > 0 && (
+                    <span className="font-normal ml-1">({remainingSlots} remaining)</span>
+                  )}
+                </span>
+              </div>
+              <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: atLimit ? "#fecaca" : nearLimit ? "#fde68a" : "#bbf7d0" }}>
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min(limitPct, 100)}%`,
+                    background: atLimit ? "#dc2626" : nearLimit ? "#b45309" : "#15803d",
+                  }}
+                />
+              </div>
+              {atLimit && (
+                <p className="text-[11px] font-semibold mt-1.5" style={{ color: "#dc2626" }}>
+                  ⚠ Student limit reached. You cannot import any more students. Please upgrade your plan.
+                </p>
+              )}
+              {exceedsSlots && !atLimit && (
+                <p className="text-[11px] font-semibold mt-1.5" style={{ color: "#b45309" }}>
+                  ⚠ Your file has {validCount} valid students but only {remainingSlots} slot{remainingSlots !== 1 ? "s" : ""} remain. Only the first {remainingSlots} will be imported; the rest will fail.
+                </p>
+              )}
+            </div>
+          )}
+          {/* ──────────────────────────────────────────────────────────────── */}
 
           {/* ── STEP 1: Upload ────────────────────────────────────────────── */}
           {step === "upload" && (
@@ -939,12 +1042,15 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
             {step === "preview" && (
               <button
                 onClick={handleImport}
-                disabled={importing || validCount === 0}
+                disabled={importing || validCount === 0 || atLimit}
+                title={atLimit ? "Student limit reached — upgrade your plan to import more" : undefined}
                 className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
-                style={{ background: COLORS.primary }}
+                style={{ background: atLimit ? "#9ca3af" : COLORS.primary }}
               >
                 {importing ? (
                   <><Loader2 size={15} className="animate-spin" /> Importing…</>
+                ) : atLimit ? (
+                  <><AlertCircle size={15} /> Limit Reached</>
                 ) : (
                   <><Users size={15} /> Import {validCount} Student{validCount !== 1 ? "s" : ""}</>
                 )}

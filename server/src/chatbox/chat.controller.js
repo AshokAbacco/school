@@ -67,27 +67,73 @@ export const getUsersByRole = async (req, res) => {
       });
     }
 
-    // ADMIN + TEACHER
-    if (role === "ADMIN" || role === "TEACHER") {
-      users = await prisma.user.findMany({
-        where: {
-          role,
-          schoolId: req.user.schoolId, // ✅ FIXED
-        },
-        select: { id: true, name: true, email: true, role: true },
-      });
-    }
+// ADMIN + TEACHER
+if (role === "ADMIN" || role === "TEACHER") {
 
-    // FINANCE
-    if (role === "FINANCE") {
-      users = await prisma.user.findMany({
-        where: {
-          role: "FINANCE",
-          schoolId: req.user.schoolId,
-        },
-        select: { id: true, name: true, email: true },
-      });
-    }
+  let where = {
+    role,
+  };
+
+  // ✅ SUPER ADMIN -> same university schools only
+  if (req.user.role === "SUPER_ADMIN") {
+
+    where.school = {
+      universityId: req.user.universityId,
+    };
+
+  }
+
+  // ✅ NORMAL SCHOOL USERS
+  else {
+
+    where.schoolId = req.user.schoolId;
+
+  }
+
+  users = await prisma.user.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  });
+}
+
+// FINANCE
+if (role === "FINANCE") {
+
+  let where = {
+    role: "FINANCE",
+  };
+
+  // ✅ SUPER ADMIN -> same university schools only
+  if (req.user.role === "SUPER_ADMIN") {
+
+    where.school = {
+      universityId: req.user.universityId,
+    };
+
+  }
+
+  // ✅ NORMAL USERS
+  else {
+
+    where.schoolId = req.user.schoolId;
+
+  }
+
+  users = await prisma.user.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  });
+}
 
      
       // PARENT
@@ -143,20 +189,52 @@ export const getUsersByRole = async (req, res) => {
           users = Array.from(map.values());
         }
 
-        // ADMIN / SUPER_ADMIN / FINANCE sees all parents
+        // ADMIN / SUPER_ADMIN / FINANCE sees only same school parents
         else {
-          users = await prisma.parent.findMany({
+
+          // 🔥 get students of this school
+          const students = await prisma.student.findMany({
+            where: {
+              schoolId: req.user.schoolId,
+            },
             select: {
               id: true,
-              name: true,
-              email: true,
             },
           });
 
-          users = users.map((u) => ({
-            ...u,
-            role: "PARENT",
-          }));
+          const studentIds = students.map((s) => s.id);
+
+          // 🔥 get parent links
+          const parentLinks = await prisma.studentParent.findMany({
+            where: {
+              studentId: {
+                in: studentIds,
+              },
+            },
+            include: {
+              parent: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          });
+
+          // 🔥 remove duplicates
+          const map = new Map();
+
+          parentLinks.forEach((p) => {
+            if (p.parent) {
+              map.set(p.parent.id, {
+                ...p.parent,
+                role: "PARENT",
+              });
+            }
+          });
+
+          users = Array.from(map.values());
         }
       }
 

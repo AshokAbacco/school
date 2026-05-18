@@ -176,6 +176,21 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const [showParentPw, setShowParentPw] = useState(false);
   const [showMotherPw, setShowMotherPw] = useState(false);
   const [toast, setToast] = useState(null);
+  const [limitError, setLimitError] = useState(null);
+  const [limitStatus, setLimitStatus] = useState(null); // { used, limit }
+
+  // ── Fetch live student limit status ─────────────────────────────────────────
+  const fetchLimitStatus = async () => {
+    try {
+      const r = await fetch(`${API}/api/students/limit-status`, { headers: auth() });
+      if (r.ok) {
+        const d = await r.json();
+        setLimitStatus(d); // { used, limit }
+      }
+    } catch {
+      /* non-critical */
+    }
+  };
 
   const showToast = (type, msg) => {
     setToast({ type, msg });
@@ -214,6 +229,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const setToggle = (k) => (val) => setF((p) => ({ ...p, [k]: val }));
 
   // ── Fetch dropdowns ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isEdit) fetchLimitStatus();
+  }, [isEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     (async () => {
       setLoadingDropdowns(true);
@@ -672,10 +691,21 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         }),
       });
       const d = await r.json();
+      // ── ✅ Plan limit check ──────────────────────────────────────────────
+      if (r.status === 403 && d.code === "STUDENT_LIMIT_REACHED") {
+        setLimitError({
+          message: d.message,
+          used:    d.used,
+          limit:   d.limit,
+        });
+        throw new Error(d.message); // stops saveCore, shows toast
+      }
+      // ────────────────────────────────────────────────────────────────────
       if (!r.ok) throw new Error(d.message || "Registration failed");
       id = d.student?.id || d.id;
       if (!id) throw new Error("No ID returned");
       setSid(id);
+      fetchLimitStatus(); // refresh live counter after adding
     }
 
     const fd = new FormData();
@@ -1450,13 +1480,58 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
             </p>
           </div>
         </div>
-        <button
-          onClick={doClose}
-          className="p-2 rounded-lg hover:bg-white/60 transition-colors"
-          style={{ color: COLORS.secondary }}
-        >
-          <X size={20} />
-        </button>
+
+        <div className="flex items-center gap-3">
+          {/* ── Live Student Limit Badge ─────────────────────────────────── */}
+          {!isEdit && limitStatus && (
+            (() => {
+              const { used, limit } = limitStatus;
+              const isUnlimited = limit === null;
+              const pct = isUnlimited ? 0 : Math.round((used / limit) * 100);
+              const atLimit = !isUnlimited && used >= limit;
+              const nearLimit = !isUnlimited && pct >= 80;
+              const badgeBg   = atLimit   ? "#fef2f2" : nearLimit ? "#fffbeb" : "#f0fdf4";
+              const badgeBdr  = atLimit   ? "#fecaca" : nearLimit ? "#fde68a" : "#bbf7d0";
+              const badgeClr  = atLimit   ? "#dc2626" : nearLimit ? "#b45309" : "#15803d";
+              return (
+                <div
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold"
+                  style={{ background: badgeBg, border: `1px solid ${badgeBdr}`, color: badgeClr }}
+                  title={isUnlimited ? "Unlimited students on your plan" : `${used} of ${limit} students used`}
+                >
+                  <Users size={13} />
+                  {isUnlimited ? (
+                    <span>Unlimited</span>
+                  ) : (
+                    <>
+                      <span>{used} / {limit}</span>
+                      {/* mini progress bar */}
+                      <div
+                        className="w-16 h-1.5 rounded-full overflow-hidden"
+                        style={{ background: atLimit ? "#fecaca" : nearLimit ? "#fde68a" : "#bbf7d0" }}
+                      >
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(pct, 100)}%`,
+                            background: badgeClr,
+                          }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()
+          )}
+          <button
+            onClick={doClose}
+            className="p-2 rounded-lg hover:bg-white/60 transition-colors"
+            style={{ color: COLORS.secondary }}
+          >
+            <X size={20} />
+          </button>
+        </div>
       </div>
 
       {/* Body */}
@@ -1496,6 +1571,89 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 pb-32 md:pb-24"
           style={{ maxHeight: isModal ? "75vh" : "80vh" }}
         >
+
+          {/* ── ✅ Live Student Limit Banner (mobile-visible full bar) ───── */}
+          {!isEdit && limitStatus && (() => {
+            const { used, limit } = limitStatus;
+            const isUnlimited = limit === null;
+            const pct = isUnlimited ? 0 : Math.round((used / limit) * 100);
+            const atLimit = !isUnlimited && used >= limit;
+            const nearLimit = !isUnlimited && pct >= 80;
+            if (isUnlimited) return null; // no bar for unlimited
+            const barBg  = atLimit ? "#fef2f2" : nearLimit ? "#fffbeb" : "#f0fdf4";
+            const barBdr = atLimit ? "#fecaca" : nearLimit ? "#fde68a" : "#bbf7d0";
+            const barClr = atLimit ? "#dc2626" : nearLimit ? "#b45309" : "#15803d";
+            return (
+              <div
+                className="rounded-xl p-3 mb-1"
+                style={{ background: barBg, border: `1px solid ${barBdr}` }}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Users size={13} style={{ color: barClr }} />
+                    <span className="text-xs font-bold" style={{ color: barClr }}>
+                      Student Slots
+                    </span>
+                  </div>
+                  <span className="text-xs font-extrabold" style={{ color: barClr }}>
+                    {used} / {limit}
+                  </span>
+                </div>
+                {/* progress bar */}
+                <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: `${barClr}22` }}>
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(pct, 100)}%`, background: barClr }}
+                  />
+                </div>
+                {atLimit && (
+                  <p className="text-[11px] font-semibold mt-1.5" style={{ color: barClr }}>
+                    ⚠ You've reached your plan's student limit. Upgrade your plan to add more students.
+                  </p>
+                )}
+                {nearLimit && !atLimit && (
+                  <p className="text-[11px] font-semibold mt-1.5" style={{ color: barClr }}>
+                    You're nearing your student limit ({limit - used} slot{limit - used !== 1 ? "s" : ""} left).
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+          {/* ─────────────────────────────────────────────────────────────── */}
+
+          {/* ── ✅ Student Limit Banner ─────────────────────────────── */}
+          {limitError && (
+            <div
+              className="flex items-start gap-3 p-4 rounded-xl mb-3"
+              style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+              }}
+            >
+              <AlertCircle size={18} className="shrink-0 mt-0.5" style={{ color: "#dc2626" }} />
+              <div className="flex-1">
+                <p className="text-sm font-bold" style={{ color: "#dc2626" }}>
+                  Student Limit Reached
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "#ef4444" }}>
+                  {limitError.message}
+                </p>
+                {limitError.limit != null && (
+                  <p className="text-xs mt-1 font-medium" style={{ color: "#b91c1c" }}>
+                    {limitError.used} / {limitError.limit} students used on your plan
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setLimitError(null)}
+                className="shrink-0 p-0.5 rounded hover:bg-red-100 transition-colors"
+              >
+                <X size={14} style={{ color: "#dc2626" }} />
+              </button>
+            </div>
+          )}
+          {/* ─────────────────────────────────────────────────────────── */}
+          
           {/* Global error */}
           {err._g && (
             <div
@@ -2325,9 +2483,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     {isLast ? (
       <button
         onClick={handleDocSave}
-        disabled={busy}
+        disabled={busy || (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit)}
         className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-        style={{ background: COLORS.primary }}
+        style={{ background: (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "#9ca3af" : COLORS.primary }}
+        title={(!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "Student limit reached — upgrade your plan" : undefined}
       >
         {busy ? (
           <Loader2 size={15} className="animate-spin" />
@@ -2345,9 +2504,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     ) : (
       <button
         onClick={handleSave}
-        disabled={busy}
+        disabled={busy || (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit)}
         className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-        style={{ background: COLORS.primary }}
+        style={{ background: (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "#9ca3af" : COLORS.primary }}
+        title={(!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "Student limit reached — upgrade your plan" : undefined}
       >
         {busy ? (
           <Loader2 size={15} className="animate-spin" />

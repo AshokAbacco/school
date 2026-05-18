@@ -24,26 +24,7 @@ import {
   BookMarked
 } from "lucide-react";
 
-const NAV = [
-  { icon: LayoutDashboard, label: "Dashboard",  to: "/admin/dashboard" },
-  { icon: BookOpen,         label: "Classes",     to: "/admin/classes" },
-  { icon: Users,           label: "Students",    to: "/admin/students" },
-  { icon: GraduationCap,   label: "Teachers",    to: "/admin/teachers" },
-  {icon: BookMarked,       label: "Tutorial Teachers",to: "/admin/tutorial-teachers"},
-  { icon: Users,           label: "Staff",       to: "/admin/staff" },
-  { icon: ClipboardCheck,  label: "Attendance",  to: "/admin/attendance" },
-  { icon: FileText,        label: "Exams",       to: "/admin/exams" },
-  { icon: Library,         label: "Curriculum",  to: "/admin/curriculum" },
-  { icon: CalendarDays,    label: "Holidays",    to: "/admin/holidays" },
-  { icon: Medal,          label: "Activities",  to: "/admin/activities" },
-  { icon: Trophy,          label: "Awards",      to: "/admin/awards" },
-  { icon: CalendarCheck,   label: "Meetings",    to: "/admin/meetings" },
-  { icon: Images,          label: "Gallery",     to: "/admin/gallery" },
-  { icon: Bus,             label: "Transport", to: "/admin/transport" },
-  { icon: MessageCircle,        label: "Chat",    to: "/admin/chat" },
-  { icon: MapPinned, label: "Tracking", to: "/admin/tracking" },
-];
-
+ 
 const initials = (name = "AU") =>
   name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 
@@ -55,6 +36,8 @@ const PANEL_LABEL = {
 };
 
 export default function Sidebar({ isOpen, onClose, user }) {
+
+  
   const { pathname } = useLocation();
   const [hovered, setHovered] = useState(false);
   const logoUrl = useSchoolLogo();   // ← ADD
@@ -66,6 +49,101 @@ export default function Sidebar({ isOpen, onClose, user }) {
   const panelLabel  = PANEL_LABEL[user?.role] ?? "Admin Panel";
 
   const expanded = hovered;
+  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+
+    const userPlan =
+      user?.planName ||
+      storedUser?.planName ||
+      "Silver";
+
+    console.log("ADMIN PLAN =", userPlan);
+
+const NAV = [
+  { icon: LayoutDashboard, label: "Dashboard",   to: "/admin/dashboard" },
+  { icon: BookOpen,        label: "Classes",     to: "/admin/classes" },
+  { icon: Users,           label: "Students",    to: "/admin/students" },
+  { icon: GraduationCap,   label: "Teachers",    to: "/admin/teachers" },
+  { icon: Users,           label: "Staff",       to: "/admin/staff" },
+  { icon: ClipboardCheck,  label: "Attendance",  to: "/admin/attendance" },
+
+  // ✅ Premium only
+  ...(userPlan === "Premium"
+    ? [{
+        icon: BookMarked,
+        label: "Tutorial Teachers",
+        to: "/admin/tutorial-teachers",
+      }]
+    : []),
+
+  // ✅ Gold + Premium
+  ...(userPlan !== "Silver"
+    ? [{
+        icon: FileText,
+        label: "Exams",
+        to: "/admin/exams",
+      }]
+    : []),
+
+  // ✅ Gold + Premium
+  ...(userPlan !== "Silver"
+    ? [{
+        icon: Library,
+        label: "Curriculum",
+        to: "/admin/curriculum",
+      }]
+    : []),
+
+  { icon: CalendarDays, label: "Holidays", to: "/admin/holidays" },
+
+  // ✅ Gold + Premium
+  ...(userPlan !== "Silver"
+    ? [{
+        icon: Medal,
+        label: "Activities",
+        to: "/admin/activities",
+      }]
+    : []),
+
+  { icon: Trophy, label: "Awards", to: "/admin/awards" },
+
+  // ✅ Premium only
+  ...(userPlan === "Premium"
+    ? [{
+        icon: CalendarCheck,
+        label: "Meetings",
+        to: "/admin/meetings",
+      }]
+    : []),
+
+  { icon: Images, label: "Gallery", to: "/admin/gallery" },
+
+  // ✅ Premium only
+  ...(userPlan === "Premium"
+    ? [{
+        icon: Bus,
+        label: "Transport",
+        to: "/admin/transport",
+      }]
+    : []),
+
+  // ✅ Premium only
+  ...(userPlan === "Premium"
+    ? [{
+        icon: MessageCircle,
+        label: "Chat",
+        to: "/admin/chat",
+      }]
+    : []),
+
+  // ✅ Premium only
+  ...(userPlan === "Premium"
+    ? [{
+        icon: MapPinned,
+        label: "Tracking",
+        to: "/admin/tracking",
+      }]
+    : []),
+];
 
   return (
     <>

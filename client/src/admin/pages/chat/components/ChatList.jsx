@@ -5,7 +5,7 @@ import GroupMessageModal from "./GroupMessage";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-const TABS = ["SUPER_ADMIN", "TEACHER", "FINANCE", "PARENT", "STUDENT"];
+const TABS = ["SUPER_ADMIN", "TEACHER", "FINANCE", "PARENT"];
 
 const COLORS = ["#384959", "#6A89A7", "#88BDF2", "#BDDDFC", "#5a7a94"];
 

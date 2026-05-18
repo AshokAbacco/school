@@ -10,6 +10,70 @@ const VALID_SCHOOL_TYPES = [
   "SCHOOL", "PUC", "DIPLOMA", "DEGREE", "POSTGRADUATE", "OTHER",
 ];
 
+// ============================================================
+// 🔧 HELPER: Get latest SUCCESS payment with live plan data
+// (mirrors schoolAdmin.controller.js — single source of truth)
+// ============================================================
+async function getActivePlan(superAdminId) {
+  return prisma.payment.findFirst({
+    where:   { superAdminId, status: "SUCCESS" },
+    orderBy: { createdAt: "desc" },
+    include: { plan: true },
+  });
+}
+
+function resolvePlanLimit(payment, field) {
+  // field = "maxSchools" | "maxStudents" | "maxTeachers" | "maxSchoolAdmins"
+  const raw = payment.plan?.[field] ?? payment[field] ?? null;
+  const isUnlimited = raw === null || raw === -1;
+  return { limit: raw, isUnlimited };
+}
+
+/**
+ * GET /api/schools/usage
+ * Returns school count + plan limit in one call.
+ * Frontend uses this instead of fetching schools + payment separately.
+ */
+export const getSchoolUsage = async (req, res) => {
+  try {
+    const universityId = req.user.universityId;
+    const superAdminId = req.user.id;
+
+    const used = await prisma.school.count({ where: { universityId } });
+
+    const payment = await getActivePlan(superAdminId);
+
+    if (!payment) {
+      return res.json({
+        used,
+        limit: 0,
+        isUnlimited: false,
+        planName: null,
+        planExpired: false,
+        hasActivePlan: false,
+      });
+    }
+
+    const { limit, isUnlimited } = resolvePlanLimit(payment, "maxSchools");
+    const planExpired = payment.planEndDate
+      ? new Date() > new Date(payment.planEndDate)
+      : false;
+
+    return res.json({
+      used,
+      limit:         isUnlimited ? null : limit,
+      isUnlimited,
+      planName:      payment.plan?.name ?? payment.planName,
+      planEndDate:   payment.planEndDate,
+      planExpired,
+      hasActivePlan: true,
+    });
+  } catch (err) {
+    console.error("getSchoolUsage error:", err);
+    return res.status(500).json({ message: "Failed to fetch school usage" });
+  }
+};
+
 /**
  * ============================================================
  * ✅ CREATE SCHOOL (Super Admin Only)
@@ -19,41 +83,77 @@ const VALID_SCHOOL_TYPES = [
 export const createSchool = async (req, res) => {
   try {
     const { name, code, type, address, city, state, phone, email } = req.body;
-
-    // University ID comes from token middleware
     const universityId = req.user.universityId;
 
     // ✅ Validate required fields
     if (!name || !code || !type) {
-      return res.status(400).json({
-        message: "Name, Code, and Type are required",
-      });
+      return res.status(400).json({ message: "Name, Code, and Type are required" });
     }
 
-    // ✅ Validate that type is a valid Prisma SchoolType enum value
     if (!VALID_SCHOOL_TYPES.includes(type)) {
       return res.status(400).json({
         message: `Invalid school type. Must be one of: ${VALID_SCHOOL_TYPES.join(", ")}`,
       });
     }
 
-    // Check if school code already exists
+    // ============================================================
+    // ✅ CHECK ACTIVE PAYMENT PLAN (replaces subscription check)
+    // ============================================================
+    const payment = await getActivePlan(req.user.id);
+
+    if (!payment) {
+      return res.status(403).json({
+        message: "No active plan found. Please purchase a plan first.",
+      });
+    }
+
+    // ✅ Check plan expiry
+    if (payment.planEndDate && new Date() > new Date(payment.planEndDate)) {
+      return res.status(403).json({
+        message: "Your plan has expired. Please renew to add schools.",
+      });
+    }
+
+    // ============================================================
+    // ✅ RESOLVE SCHOOL LIMIT FROM LIVE PLAN
+    // ============================================================
+    const { limit: planLimit, isUnlimited } = resolvePlanLimit(payment, "maxSchools");
+    const planName = payment.plan?.name ?? payment.planName ?? "your plan";
+
+    // ============================================================
+    // ✅ COUNT EXISTING SCHOOLS
+    // ============================================================
+    const existingSchoolsCount = await prisma.school.count({ where: { universityId } });
+
+    // ============================================================
+    // ✅ ENFORCE SCHOOL LIMIT
+    // ============================================================
+    if (!isUnlimited && existingSchoolsCount >= planLimit) {
+      return res.status(403).json({
+        message: `School limit reached. Your ${planName} plan allows only ${planLimit} school(s). Please upgrade your plan.`,
+        usage: { used: existingSchoolsCount, limit: planLimit, planName },
+      });
+    }
+
+    // ============================================================
+    // ✅ CHECK SCHOOL CODE UNIQUENESS
+    // ============================================================
     const existingSchool = await prisma.school.findUnique({
       where: { code: code.toUpperCase() },
     });
 
     if (existingSchool) {
-      return res.status(409).json({
-        message: "School code already exists",
-      });
+      return res.status(409).json({ message: "School code already exists" });
     }
 
-    // ✅ Create School — type is a valid SchoolType enum, Prisma accepts it
+    // ============================================================
+    // ✅ CREATE SCHOOL
+    // ============================================================
     const school = await prisma.school.create({
       data: {
         name:        name.trim(),
         code:        code.trim().toUpperCase(),
-        type,               // SchoolType enum value e.g. "PRIMARY", "HIGH_SCHOOL"
+        type,
         address:     address?.trim() || null,
         city:        city?.trim()    || null,
         state:       state?.trim()   || null,
@@ -63,24 +163,25 @@ export const createSchool = async (req, res) => {
       },
     });
 
-    // Clear Redis Cache after creating school
     await redisClient.del(`schools:${universityId}`);
 
     return res.status(201).json({
       message: "School created successfully ✅",
       school,
+      usage: {
+        used:        existingSchoolsCount + 1,
+        limit:       isUnlimited ? null : planLimit,
+        isUnlimited,
+        planName,
+      },
     });
+
   } catch (error) {
     console.error("Create School Error:", error);
-
-    // ✅ Surface Prisma enum errors clearly in development
     if (error.code === "P2002") {
       return res.status(409).json({ message: "School code already exists" });
     }
-
-    return res.status(500).json({
-      message: "Internal Server Error",
-    });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -95,29 +196,17 @@ export const getAllSchools = async (req, res) => {
     const universityId = req.user.universityId;
     const cacheKey = `schools:${universityId}`;
 
-    // 1️⃣ Check Redis Cache First
     const cachedSchools = await redisClient.get(cacheKey);
     if (cachedSchools) {
-      console.log("✅ Schools Loaded from Redis Cache");
-      return res.status(200).json({
-        source: "cache",
-        schools: JSON.parse(cachedSchools),
-      });
+      return res.status(200).json({ source: "cache", schools: JSON.parse(cachedSchools) });
     }
 
-    // 2️⃣ Fetch from Database
-    console.log("⚡ Schools Loaded from Database");
     const schools = await prisma.school.findMany({
-      where: { universityId },
+      where:   { universityId },
       orderBy: { createdAt: "desc" },
     });
 
-    // 3️⃣ Cache result (TTL = 10 minutes)
-    // await redisClient.setEx(cacheKey, 600, JSON.stringify(schools));
-
-    if (schools.length > 0) {
-  await redisClient.setEx(cacheKey, 600, JSON.stringify(schools));
-}
+    await redisClient.setEx(cacheKey, 600, JSON.stringify(schools));
 
     return res.status(200).json({ source: "db", schools });
   } catch (error) {
@@ -137,9 +226,7 @@ export const getSchoolById = async (req, res) => {
     const { id } = req.params;
     const school = await prisma.school.findUnique({ where: { id } });
 
-    if (!school) {
-      return res.status(404).json({ message: "School not found" });
-    }
+    if (!school) return res.status(404).json({ message: "School not found" });
 
     return res.status(200).json(school);
   } catch (error) {
@@ -159,25 +246,17 @@ export const updateSchool = async (req, res) => {
     const { id } = req.params;
     const universityId = req.user.universityId;
 
-    // ✅ If type is being updated, validate enum value
     if (req.body.type && !VALID_SCHOOL_TYPES.includes(req.body.type)) {
       return res.status(400).json({
         message: `Invalid school type. Must be one of: ${VALID_SCHOOL_TYPES.join(", ")}`,
       });
     }
 
-    const updatedSchool = await prisma.school.update({
-      where: { id },
-      data: req.body,
-    });
+    const updatedSchool = await prisma.school.update({ where: { id }, data: req.body });
 
-    // Clear Redis Cache after update
     await redisClient.del(`schools:${universityId}`);
 
-    return res.status(200).json({
-      message: "School updated successfully ✅",
-      updatedSchool,
-    });
+    return res.status(200).json({ message: "School updated successfully ✅", updatedSchool });
   } catch (error) {
     console.error("Update School Error:", error);
     return res.status(500).json({ message: "Update failed" });
@@ -204,7 +283,6 @@ await prisma.school.update({
   },
 });
 
-    // Clear Redis Cache after delete
     await redisClient.del(`schools:${universityId}`);
 
     return res.status(200).json({ message: "School deleted successfully ✅" });

@@ -16,22 +16,9 @@ import {
   Video,
   BookOpen,
   CalendarDays,
-  ClipboardList,   // ← NEW: for Exam Timetable
+  ClipboardList,
 } from "lucide-react";
-
-const NAV = [
-  { icon: Home,          label: "Dashboard",      to: "/student/dashboard" },
-  { icon: User,          label: "Profile",         to: "/student/profile" },
-  { icon: CalendarCheck, label: "Attendance",      to: "/student/attendance" },
-  { icon: CalendarDays,  label: "Holidays",        to: "/student/holidays" },
-  { icon: BarChart3,     label: "Marks & Results", to: "/student/marks" },
-  { icon: ClipboardList, label: "Exam Timetable",  to: "/student/exam-timetable" }, // ← NEW
-  { icon: Clock,         label: "Time Table",      to: "/student/time-table" },
-  { icon: BookOpen,      label: "Homework",        to: "/student/homework" },
-  { icon: Activity,      label: "Activities",      to: "/student/activites" },
-  { icon: Award,         label: "Certificates",    to: "/student/my-certificates" },
-  { icon: Video,         label: "Online Classes",  to: "/student/online-classes" },
-];
+ 
 
 const initials = (name = "AU") =>
   name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2);
@@ -47,7 +34,52 @@ export default function Sidebar({ isOpen, onClose, user }) {
   const displayRole = user?.role || "Student";
 
   const expanded = hovered;
+  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
 
+  const userPlan =
+    user?.planName ||
+    storedUser?.planName ||
+    "Silver";
+
+  console.log("STUDENT PLAN =", userPlan);
+
+  const NAV = [
+    { icon: Home,          label: "Dashboard",       to: "/student/dashboard" },
+    { icon: User,          label: "Profile",         to: "/student/profile" },
+    { icon: Clock,         label: "Time Table",      to: "/student/time-table" },
+    { icon: CalendarCheck, label: "Attendance",      to: "/student/attendance" },
+    { icon: CalendarDays,  label: "Holidays",        to: "/student/holidays" },
+    { icon: BarChart3,     label: "Marks & Results", to: "/student/marks" },
+    { icon: ClipboardList, label: "Exam Timetable",  to: "/student/exam-timetable" },
+    { icon: BookOpen,      label: "Homework",        to: "/student/homework" },
+
+    // ✅ Gold + Premium
+    ...(userPlan !== "Silver"
+      ? [{
+          icon: Activity,
+          label: "Activities",
+          to: "/student/activites",
+        }]
+      : []),
+
+    // ✅ Premium only
+    ...(userPlan === "Premium"
+      ? [{
+          icon: Award,
+          label: "Certificates",
+          to: "/student/my-certificates",
+        }]
+      : []),
+
+    // ✅ Premium only
+    ...(userPlan === "Premium"
+      ? [{
+          icon: Video,
+          label: "Online Classes",
+          to: "/student/online-classes",
+        }]
+      : []),
+  ];
   return (
     <>
       {isOpen && (

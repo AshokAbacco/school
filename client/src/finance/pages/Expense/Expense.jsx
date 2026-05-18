@@ -177,62 +177,7 @@ export default function Expense() {
   }, []);
 
   // ── salary load ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const fetchAllSalaries = async () => {
-      const token = localStorage.getItem("token");
-      const savedSchool = localStorage.getItem("selectedSchoolId");
-
-      let groupATotal = 0, groupAItems = [];
-      if (savedSchool && token) {
-        try {
-          const res = await fetch(`${API_URL}/api/teachers/salary/list/${savedSchool}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data) && data.length) {
-              groupATotal = data.reduce((s, t) => s + Number(t.netSalary || 0), 0);
-              groupAItems = data.map((t) => ({
-                label: `${t.teacher?.firstName || ""} ${t.teacher?.lastName || ""}`.trim() || "Teacher",
-                amount: Number(t.netSalary || 0),
-                icon: "GraduationCap",
-              }));
-            }
-          }
-        } catch (e) { console.log("Group A error:", e); }
-      }
-
-      const fetchGroup = async (url) => {
-        try {
-          const res = await fetch(url, { credentials: "include" });
-          if (!res.ok) return { total: 0, items: [] };
-          const data = await res.json();
-          if (!Array.isArray(data) || !data.length) return { total: 0, items: [] };
-          const total = data.reduce((s, t) => s + Number(t.basicSalary || 0) + Number(t.allowances || 0), 0);
-          const items = data.map((t) => ({
-            label: t.name || t.designation || t.role || t.position || "Staff",
-            amount: Number(t.basicSalary || 0) + Number(t.allowances || 0),
-            icon: "Users",
-          }));
-          return { total, items };
-        } catch { return { total: 0, items: [] }; }
-      };
-
-      const [B, C, D] = await Promise.all([
-        fetchGroup(`${API_URL}/api/groupb/salary/list/all`),
-        fetchGroup(`${API_URL}/api/groupc/salary/list/all`),
-        fetchGroup(`${API_URL}/api/groupd/salary/list/all`),
-      ]);
-
-      const combined = [];
-      if (groupATotal > 0) combined.push({ key: "sal_a", label: "Teaching Staff Salaries", icon: "GraduationCap", color: "#3c5d74", total: groupATotal, items: groupAItems });
-      if (B.total > 0) combined.push({ key: "sal_b", label: "Group B Staff Salaries", icon: "Users", color: "#2b4557", total: B.total, items: B.items });
-      if (C.total > 0) combined.push({ key: "sal_c", label: "Group C Staff Salaries", icon: "Users", color: "#527a91", total: C.total, items: C.items });
-      if (D.total > 0) combined.push({ key: "sal_d", label: "Group D Staff Salaries", icon: "Users", color: "#1c3040", total: D.total, items: D.items });
-      if (combined.length) setSalarySections(combined);
-    };
-    fetchAllSalaries();
-  }, []);
+ 
 
   const handleEditCategory = async (id, name) => {
   try {

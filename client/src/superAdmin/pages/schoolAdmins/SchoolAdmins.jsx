@@ -54,9 +54,7 @@ function StatCard({ IconComp, label, value, loading, delay = 0 }) {
         fontFamily: "'Inter', sans-serif",
       }}
     >
-      {/* Top accent stripe */}
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${C.sky}, ${C.slate}, ${C.deep})`, borderRadius: "22px 22px 0 0", opacity: hov ? 1 : 0.6, transition: "opacity 0.3s" }} />
-      {/* Bg glow */}
       <div style={{ position: "absolute", right: -20, bottom: -20, width: 90, height: 90, borderRadius: "50%", background: `radial-gradient(circle, ${C.mist}33, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ width: 40, height: 40, borderRadius: 14, background: `linear-gradient(135deg, ${C.sky}22, ${C.mist}44)`, display: "flex", alignItems: "center", justifyContent: "center", border: `1.5px solid ${C.borderLight}` }}>
         <IconComp size={18} color={C.deep} strokeWidth={1.8} />
@@ -85,8 +83,8 @@ function Panel({ children, style = {} }) {
   );
 }
 
-/* ── Deactivate Confirm Dialog ──────────────────────────────────────────────── */
-function DeactivateDialog({ admin, onConfirm, onCancel, loading }) {
+/* ── FIX: Permanent Delete Confirm Dialog ── */
+function DeleteDialog({ admin, onConfirm, onCancel, loading }) {
   useEffect(() => {
     const h = (e) => e.key === "Escape" && onCancel();
     window.addEventListener("keydown", h);
@@ -115,16 +113,16 @@ function DeactivateDialog({ admin, onConfirm, onCancel, loading }) {
           {/* Icon */}
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
             <div style={{ width: 56, height: 56, borderRadius: 18, background: "linear-gradient(135deg, #fef2f2, #fee2e2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <AlertTriangle size={26} color="#D95C5C" />
+              <Trash2 size={26} color="#D95C5C" />
             </div>
           </div>
 
           {/* Text */}
           <h3 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: C.text, textAlign: "center" }}>
-            Deactivate Admin?
+            Delete Admin Permanently?
           </h3>
           <p style={{ margin: "0 0 4px", fontSize: 13, color: C.textLight, textAlign: "center" }}>
-            You're about to deactivate
+            You're about to permanently delete
           </p>
           <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: C.text, textAlign: "center" }}>
             {admin.name}
@@ -132,8 +130,10 @@ function DeactivateDialog({ admin, onConfirm, onCancel, loading }) {
           <p style={{ margin: "0 0 16px", fontSize: 12, color: C.textLight, textAlign: "center" }}>
             {admin.email}
           </p>
+
+          {/* Warning box */}
           <div style={{ padding: "10px 16px", borderRadius: 12, fontSize: 12, textAlign: "center", marginBottom: 20, background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
-            The admin will lose access to their school dashboard immediately.
+            ⚠️ This action cannot be undone. The admin account and all associated data will be permanently removed.
           </div>
 
           {/* Buttons */}
@@ -158,7 +158,9 @@ function DeactivateDialog({ admin, onConfirm, onCancel, loading }) {
                 fontFamily: "'Inter', sans-serif",
               }}
             >
-              {loading ? <><Loader2 size={14} className="animate-spin" /> Deactivating…</> : <><ShieldX size={14} /> Deactivate</>}
+              {loading
+                ? <><Loader2 size={14} className="animate-spin" /> Deleting…</>
+                : <><Trash2 size={14} /> Delete Permanently</>}
             </button>
           </div>
         </div>
@@ -167,7 +169,7 @@ function DeactivateDialog({ admin, onConfirm, onCancel, loading }) {
   );
 }
 
-/* ── Main Component ─────────────────────────────────────────────────────────── */
+/* ── Main Component ── */
 export default function SchoolAdmins() {
   const [admins, setAdmins]   = useState([]);
   const [loading, setLoading] = useState(true);
@@ -177,9 +179,9 @@ export default function SchoolAdmins() {
   // Modal: null | { mode: "add" } | { mode: "edit", admin: {...} }
   const [modal, setModal] = useState(null);
 
-  // Deactivate dialog: null | { admin: {...} }
-  const [deactivateDialog, setDeactivateDialog]   = useState(null);
-  const [deactivateLoading, setDeactivateLoading] = useState(false);
+  // FIX: Renamed from deactivateDialog → deleteDialog
+  const [deleteDialog, setDeleteDialog]   = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchAdmins = async () => {
@@ -187,7 +189,7 @@ export default function SchoolAdmins() {
     setError("");
     try {
       const data = await getSchoolAdmins();
-      setAdmins(data.admins || []);
+      setAdmins((data.admins || []).filter(Boolean));
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load admins.");
     } finally {
@@ -199,42 +201,49 @@ export default function SchoolAdmins() {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleCreated = (newAdmin) => {
-    setAdmins((prev) => [newAdmin, ...prev]);
-  };
-
-  const handleUpdated = (updatedAdmin) => {
-    setAdmins((prev) =>
-      prev.map((a) => {
-        if (a.id !== updatedAdmin.id) return a;
-        // Deep-merge school so existing school.type is never lost
-        return {
-          ...a,
-          ...updatedAdmin,
-          school: { ...a.school, ...(updatedAdmin.school || {}) },
-        };
-      })
+    setAdmins((prev = []) =>
+      [newAdmin, ...prev].filter(Boolean)
     );
   };
 
-  const handleDeactivateConfirm = async () => {
-    if (!deactivateDialog) return;
-    setDeactivateLoading(true);
+  const handleUpdated = (updatedAdmin) => {
+    setAdmins((prev = []) =>
+      prev
+        .filter(Boolean)
+        .map((a) => {
+          if (a?.id !== updatedAdmin?.id) return a;
+
+          return {
+            ...a,
+            ...updatedAdmin,
+            school: {
+              ...(a?.school || {}),
+              ...(updatedAdmin?.school || {}),
+            },
+          };
+        })
+    );
+  };
+
+  // FIX: Hard delete — remove admin from list instead of setting isActive: false
+  const handleDeleteConfirm = async () => {
+    if (!deleteDialog) return;
+    setDeleteLoading(true);
     try {
-      await deleteSchoolAdmin(deactivateDialog.admin.id);
-      setAdmins((prev) =>
-        prev.map((a) => a.id === deactivateDialog.admin.id ? { ...a, isActive: false } : a)
-      );
-      setDeactivateDialog(null);
+      await deleteSchoolAdmin(deleteDialog.admin.id);
+      // Remove from list permanently
+      setAdmins((prev) => prev.filter((a) => a.id !== deleteDialog.admin.id));
+      setDeleteDialog(null);
     } catch {
       // Keep dialog open on error — user can retry
     } finally {
-      setDeactivateLoading(false);
+      setDeleteLoading(false);
     }
   };
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const filtered = admins.filter((a) =>
-    a.name.toLowerCase().includes(search.toLowerCase()) ||
+const filtered = admins?.filter(Boolean).filter((a) =>
+      a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.email.toLowerCase().includes(search.toLowerCase()) ||
     (a.school?.name || "").toLowerCase().includes(search.toLowerCase())
   );
@@ -329,7 +338,6 @@ export default function SchoolAdmins() {
         <Panel>
           {/* Panel header + search */}
           <div style={{ padding: "15px 20px", borderBottom: `1.5px solid ${C.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, background: `linear-gradient(90deg, ${C.bg} 0%, ${C.white} 100%)` }}>
-            {/* Title */}
             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
               <div style={{ width: 32, height: 32, borderRadius: 10, background: `${C.sky}22`, display: "flex", alignItems: "center", justifyContent: "center", border: `1.5px solid ${C.sky}33` }}>
                 <UserCog size={15} color={C.slate} strokeWidth={2} />
@@ -403,7 +411,7 @@ export default function SchoolAdmins() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((admin, i) => (
+                  {filtered?.filter(Boolean).map((admin, i) => (
                     <tr
                       key={admin.id}
                       className="admin-row"
@@ -441,6 +449,7 @@ export default function SchoolAdmins() {
                       <td style={{ textAlign: "center" }}><StatusBadge isActive={admin.isActive} /></td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                          {/* Edit button */}
                           <button
                             className="act-btn"
                             onClick={() => setModal({ mode: "edit", admin })}
@@ -450,16 +459,16 @@ export default function SchoolAdmins() {
                           >
                             <Edit size={14} color={C.slate} strokeWidth={2} />
                           </button>
+
+                          {/* FIX: Delete button — enabled for ALL admins (no isActive check) */}
                           <button
                             className="act-btn"
-                            onClick={() => setDeactivateDialog({ admin })}
-                            title={admin.isActive ? "Deactivate admin" : "Already inactive"}
-                            disabled={!admin.isActive}
-                            style={{ opacity: admin.isActive ? 1 : 0.35, cursor: admin.isActive ? "pointer" : "not-allowed" }}
-                            onMouseEnter={e => { if (admin.isActive) { e.currentTarget.style.background = "#fee8e8"; e.currentTarget.style.borderColor = C.danger; } }}
-                            onMouseLeave={e => { if (admin.isActive) { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.borderLight; } }}
+                            onClick={() => setDeleteDialog({ admin })}
+                            title="Delete admin permanently"
+                            onMouseEnter={e => { e.currentTarget.style.background = "#fee8e8"; e.currentTarget.style.borderColor = C.danger; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.borderLight; }}
                           >
-                            <Trash2 size={14} color={admin.isActive ? C.danger : C.textLight} strokeWidth={2} />
+                            <Trash2 size={14} color={C.danger} strokeWidth={2} />
                           </button>
                         </div>
                       </td>
@@ -508,13 +517,13 @@ export default function SchoolAdmins() {
         />
       )}
 
-      {/* ── Deactivate Dialog ── */}
-      {deactivateDialog && (
-        <DeactivateDialog
-          admin={deactivateDialog.admin}
-          loading={deactivateLoading}
-          onConfirm={handleDeactivateConfirm}
-          onCancel={() => setDeactivateDialog(null)}
+      {/* ── FIX: Permanent Delete Dialog ── */}
+      {deleteDialog && (
+        <DeleteDialog
+          admin={deleteDialog.admin}
+          loading={deleteLoading}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteDialog(null)}
         />
       )}
     </>

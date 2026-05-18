@@ -17,7 +17,7 @@ const getAuthSchool = () => {
       return { schoolId: "", schoolName: "Your School" };
     }
     const auth = JSON.parse(raw);
-    console.log("[Addstudent] auth object:", JSON.stringify(auth, null, 2));
+    // console.log("[Addstudent] auth object:", JSON.stringify(auth, null, 2));
 
     // Check every path the API might place schoolId
     const schoolId =

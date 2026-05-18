@@ -1,15 +1,25 @@
+// src/finance/pages/Teachersfinance/GroupBSalary.jsx
 import {
     Search, IndianRupee, Pencil, Trash2, History, Eye,
-    GraduationCap, TrendingUp, TrendingDown, Users, ClipboardList,
+    TrendingUp, TrendingDown, Users, ClipboardList,
     Banknote, Building2, CheckCircle2, Printer, ListOrdered,
     Plus, X, Sparkles, BadgeCheck, AlertTriangle,
     User, Mail, BookOpen, ChevronDown, Pause, FileText, Wrench
 } from "lucide-react";
 import React, { useState, useEffect, useRef } from "react";
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { FaWhatsapp } from "react-icons/fa";
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+const getPlan = () => {
+    try {
+        const auth = JSON.parse(localStorage.getItem("auth"));
+        return auth?.user?.planName || auth?.planName || "Silver";
+    } catch {
+        return "Silver";
+    }
+};
 
 const getAuthSchool = () => {
     try {
@@ -39,6 +49,7 @@ const statusStyle = (s) => {
 };
 
 export default function GroupBSalary() {
+    const isPremium = getPlan() === "Premium";
     const [search, setSearch] = useState("");
     const [tableStatusFilter, setTableStatusFilter] = useState("ALL");
     const [showStatusDropdown, setShowStatusDropdown] = useState(false);
@@ -64,8 +75,11 @@ export default function GroupBSalary() {
     const [historyStatusFilter, setHistoryStatusFilter] = useState("ALL");
     const [authSchool, setAuthSchool] = useState({ schoolId: "", schoolName: "Your School" });
     const [loading, setLoading] = useState(false);
-    const pdfRef = useRef();
     const dropdownRef = useRef();
+    const [waConfirmModal, setWaConfirmModal] = useState(false);
+
+    const [selectedWhatsAppSalary, setSelectedWhatsAppSalary] = useState(null);
+
     const tok = () => {
         try {
             const raw = localStorage.getItem("auth");
@@ -87,14 +101,12 @@ export default function GroupBSalary() {
         }
     }, []);
 
-    // When a staff member is selected in the dropdown, populate their details
     useEffect(() => {
         if (!selectedStaff) { setStaffDetail(null); return; }
         const found = dropdownStaff.find(s => s.id === selectedStaff);
         setStaffDetail(found || null);
     }, [selectedStaff, dropdownStaff]);
 
-    // Auto-calculate leave deduction when leaveDays or staffDetail changes
     useEffect(() => {
         if (staffDetail && leaveDays > 0)
             setDeduction(calcLeaveDeduction(staffDetail.basicSalary || 0, leaveDays));
@@ -111,7 +123,6 @@ export default function GroupBSalary() {
 
     // ── API Calls ─────────────────────────────────────────────────────────────
 
-    // Fetch all Group B staff from StaffProfile
     const fetchGroupBStaff = async (id) => {
         try {
             const res = await fetch(`${API_URL}/api/groupb/staff/${id}`, {
@@ -122,7 +133,6 @@ export default function GroupBSalary() {
         } catch { setDropdownStaff([]); }
     };
 
-    // Build placeholder rows for staff who don't yet have a salary this month
     const buildPlaceholderRows = (historyList, targetMonth, targetYear, prefix) => {
         const byStaff = {};
         historyList.forEach(r => {
@@ -152,23 +162,107 @@ export default function GroupBSalary() {
         setSalaryList(Array.isArray(data) ? data.filter(r => r.salaryId !== null) : []);
     };
 
-    const fetchAllHistory = async (id) => {
-        try {
-            const res = await fetch(`${API_URL}/api/groupb/salary/history-by-school/${id}`, {
-                headers: { Authorization: `Bearer ${tok()}` }
-            });
-            if (!res.ok) { setAllSalaryHistory([]); return; }
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : [];
-            setAllSalaryHistory(list);
-            const now = new Date();
-            const curM = now.getMonth() + 1, curY = now.getFullYear();
-            setCurrentMonthPlaceholders(buildPlaceholderRows(list, curM, curY, "cur"));
-        } catch (err) {
-            console.error("fetchAllHistory error:", err);
-            setAllSalaryHistory([]);
-        }
-    };
+const fetchAllHistory = async (id) => {
+    try {
+
+        // ✅ FETCH HISTORY
+        const historyRes = await fetch(
+            `${API_URL}/api/groupb/salary/history-by-school/${id}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${tok()}`
+                }
+            }
+        );
+
+        // ✅ FETCH ALL STAFF
+        const staffRes = await fetch(
+            `${API_URL}/api/groupb/staff/${id}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${tok()}`
+                }
+            }
+        );
+
+        const historyData =
+            historyRes.ok
+                ? await historyRes.json()
+                : [];
+
+        const staffData =
+            staffRes.ok
+                ? await staffRes.json()
+                : [];
+
+        const historyList =
+            Array.isArray(historyData)
+                ? historyData
+                : [];
+
+        setAllSalaryHistory(historyList);
+
+        const now = new Date();
+        const curM = now.getMonth() + 1;
+        const curY = now.getFullYear();
+
+        // ✅ EXISTING SALARY STAFF IDS
+        const existingIds = new Set(
+            historyList.map(
+                r => String(r.staff?.id || r.staffId)
+            )
+        );
+
+        // ✅ CREATE PLACEHOLDER FOR NEW STAFF ALSO
+        const placeholders = staffData.map((staff) => {
+
+            const old =
+                historyList.find(
+                    h =>
+                        String(h.staff?.id || h.staffId) ===
+                        String(staff.id)
+                );
+
+            return {
+                id: `cur-${staff.id}`,
+                salaryId: old?.salaryId || null,
+                staffId: staff.id,
+                staff,
+                staffName:
+                    `${staff.firstName} ${staff.lastName || ""}`,
+
+                staffEmail: staff.email,
+                staffRole: staff.role,
+
+                month: curM,
+                year: curY,
+
+                basicSalary:
+                    Number(staff.basicSalary || 0),
+
+                bonus: 0,
+                deductions: 0,
+                leaveDays: 0,
+
+                netSalary:
+                    Number(staff.basicSalary || 0),
+
+                status: "PENDING",
+                paymentDate: null,
+                _isPlaceholder: true,
+            };
+        });
+
+        setCurrentMonthPlaceholders(placeholders);
+
+    } catch (err) {
+
+        console.log(err);
+
+        setAllSalaryHistory([]);
+        setCurrentMonthPlaceholders([]);
+    }
+};
 
     const createSalary = async () => {
         if (!selectedStaff) { alert("Please select a staff member"); return; }
@@ -259,7 +353,6 @@ export default function GroupBSalary() {
         setEditModal(true);
     };
 
-    // For placeholder rows: create a fresh salary record then open edit modal
     const createThenEdit = async (row) => {
         const staffId = row.staff?.id || row.staffId;
         if (!staffId) return;
@@ -299,18 +392,343 @@ export default function GroupBSalary() {
 
     const openSlipModal = (salary) => { setSelectedSalary(salary); setSlipModal(true); };
 
-    const downloadPayslip = async () => {
-        if (!selectedSalary) return;
-        const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true });
-        const imgData = canvas.toDataURL("image/png");
-        const pdf = new jsPDF("p", "mm", "a4");
-        const pw = pdf.internal.pageSize.getWidth();
-        pdf.addImage(imgData, "PNG", 0, 10, pw, (canvas.height * pw) / canvas.width);
-        pdf.save(`Payslip-GroupB-${selectedSalary.staffName || selectedSalary.staff?.firstName || "staff"}.pdf`);
+    // ── Build full jsPDF payslip (same quality as Group A) ──────────────────
+    const buildPayslipPDF = (salary) => {
+        const doc = new jsPDF("p", "mm", "a4");
+        const W = 210, M = 14, CW = 210 - M * 2;
+        let y = 0;
+
+        // Header background
+        doc.setFillColor(28, 48, 64);
+        doc.rect(0, 0, W, 44, "F");
+
+        // School name
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(18);
+        doc.setTextColor(255, 255, 255);
+        doc.text(authSchool.schoolName, M, 16);
+
+        // Group label
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(160, 185, 200);
+        doc.text("Group B — Non-Teaching Staff", M, 23);
+
+        // "SALARY SLIP" label (right)
+        doc.setFontSize(7.5);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(140, 170, 190);
+        doc.text("SALARY SLIP", W - M, 13, { align: "right" });
+
+        // Month / Year (right)
+        doc.setFontSize(15);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`${monthName(salary.month)} ${salary.year}`, W - M, 22, { align: "right" });
+
+        // Divider
+        doc.setDrawColor(255, 255, 255, 0.15);
+        doc.setLineWidth(0.3);
+        doc.line(M, 30, W - M, 30);
+
+        // Generated date
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(140, 170, 190);
+        doc.text(`Generated: ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`, M, 38);
+
+        // Confidential badge
+        doc.setDrawColor(140, 170, 190);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(W - M - 28, 33, 28, 7, 1, 1, "S");
+        doc.setTextColor(140, 170, 190);
+        doc.setFontSize(7);
+        doc.text("Confidential", W - M - 14, 37.5, { align: "center" });
+
+        y = 44;
+
+        // Employee info strip
+        doc.setFillColor(234, 241, 246);
+        doc.rect(0, y, W, 24, "F");
+        doc.setDrawColor(200, 220, 236);
+        doc.setLineWidth(0.3);
+        doc.line(0, y + 24, W, y + 24);
+
+        const staffName = salary.staffName || `${salary.staff?.firstName || ""} ${salary.staff?.lastName || ""}`.trim() || "—";
+        const staffEmail = salary.staffEmail || salary.staff?.email || "—";
+        const staffRole = salary.staffRole || salary.staff?.role || "—";
+
+        const infoFields = [
+            { label: "EMPLOYEE NAME", val: staffName },
+            { label: "ROLE",          val: staffRole },
+            { label: "PAY PERIOD",    val: `${monthName(salary.month)} ${salary.year}` },
+            { label: "EMAIL",         val: staffEmail },
+        ];
+        const colW = CW / 4;
+        infoFields.forEach((f, i) => {
+            const x = M + i * colW;
+            doc.setFontSize(7);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(82, 122, 145);
+            doc.text(f.label, x, y + 8);
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(28, 48, 64);
+            const maxChars = 20;
+            const display = f.val.length > maxChars ? f.val.slice(0, maxChars - 1) + "…" : f.val;
+            doc.text(display, x, y + 17);
+        });
+        y += 28;
+
+        // Earnings & Deductions tables
+        const tW = (CW - 6) / 2;
+        const leaveDed = calcLeaveDeduction(salary?.basicSalary || 0, salary?.leaveDays || 0);
+        const otherDed = Math.max(0, Number(salary?.deductions || 0) - leaveDed);
+
+        const sections = [
+            {
+                title: "EARNINGS",
+                color: [43, 69, 87],
+                rows: [
+                    ["Basic Salary", `Rs.${Number(salary?.basicSalary || 0).toLocaleString("en-IN")}`],
+                    ["Bonus",        `Rs.${Number(salary?.bonus || 0).toLocaleString("en-IN")}`],
+                    ["HRA",          "Rs.0"],
+                    ["Other",        "Rs.0"],
+                ],
+                footLabel: "Gross Earnings",
+                foot: `Rs.${(Number(salary?.basicSalary || 0) + Number(salary?.bonus || 0)).toLocaleString("en-IN")}`,
+            },
+            {
+                title: "DEDUCTIONS",
+                color: [28, 48, 64],
+                rows: [
+                    ["Leave Deduction",  `${salary?.leaveDays ?? 0}d -> Rs.${leaveDed.toLocaleString("en-IN")}`],
+                    ["Other Deductions", `Rs.${otherDed.toLocaleString("en-IN")}`],
+                    ["PF",               "Rs.0"],
+                    ["Tax (TDS)",        "Rs.0"],
+                ],
+                footLabel: "Total Deductions",
+                foot: `Rs.${Number(salary?.deductions || 0).toLocaleString("en-IN")}`,
+            },
+        ];
+
+        const ROW_H = 9;
+        sections.forEach((sec, si) => {
+            const x = M + si * (tW + 6);
+
+            doc.setFillColor(...sec.color);
+            doc.rect(x, y, tW, 9, "F");
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(255, 255, 255);
+            doc.text(sec.title, x + 4, y + 6);
+
+            sec.rows.forEach((row, ri) => {
+                const ry = y + 9 + ri * ROW_H;
+                doc.setFillColor(ri % 2 === 0 ? 255 : 248, ri % 2 === 0 ? 255 : 251, ri % 2 === 0 ? 255 : 253);
+                doc.rect(x, ry, tW, ROW_H, "F");
+                doc.setDrawColor(238, 245, 250);
+                doc.setLineWidth(0.2);
+                doc.line(x, ry + ROW_H, x + tW, ry + ROW_H);
+                doc.setFontSize(9);
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(74, 104, 120);
+                doc.text(row[0], x + 4, ry + 6);
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(60, 93, 116);
+                doc.text(row[1], x + tW - 3, ry + 6, { align: "right" });
+            });
+
+            const fy = y + 9 + sec.rows.length * ROW_H;
+            doc.setFillColor(234, 241, 246);
+            doc.rect(x, fy, tW, 10, "F");
+            doc.setDrawColor(212, 228, 238);
+            doc.setLineWidth(0.5);
+            doc.line(x, fy, x + tW, fy);
+            doc.setFontSize(9.5);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(60, 93, 116);
+            doc.text(sec.footLabel, x + 4, fy + 7);
+            doc.text(sec.foot, x + tW - 3, fy + 7, { align: "right" });
+            doc.setDrawColor(200, 220, 236);
+            doc.setLineWidth(0.3);
+            doc.rect(x, y + 9, tW, sec.rows.length * ROW_H + 10, "S");
+        });
+
+        y += 9 + sections[0].rows.length * ROW_H + 10 + 8;
+
+        // Net Salary banner
+        doc.setFillColor(28, 48, 64);
+        doc.roundedRect(M, y, CW, 20, 2, 2, "F");
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(140, 170, 190);
+        doc.text("NET SALARY PAYABLE", M + 8, y + 8);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(120, 155, 175);
+        doc.text(`For ${monthName(salary.month)} ${salary.year}`, M + 8, y + 15);
+        doc.setFontSize(20);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(255, 255, 255);
+        doc.text(`Rs.${Number(salary?.netSalary || 0).toLocaleString("en-IN")}`, W - M - 8, y + 13, { align: "right" });
+        y += 28;
+
+        // Footer strip
+        doc.setFillColor(234, 241, 246);
+        doc.rect(0, y, W, 12, "F");
+        doc.setDrawColor(200, 220, 236);
+        doc.setLineWidth(0.3);
+        doc.line(0, y, W, y);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(82, 122, 145);
+        doc.text(
+            "This is a system-generated payslip and does not require a physical signature.",
+            W / 2, y + 8, { align: "center" }
+        );
+
+        return doc;
     };
 
-    // ── Derived / filtered lists ──────────────────────────────────────────────
+    const downloadPayslip = () => {
+        if (!selectedSalary) return;
+        const staffName = selectedSalary.staffName || selectedSalary.staff?.firstName || "staff";
+        const doc = buildPayslipPDF(selectedSalary);
+        doc.save(`Payslip-GroupB-${staffName}-${monthName(selectedSalary.month)}-${selectedSalary.year}.pdf`);
+    };
 
+    // ── WhatsApp send (same flow as Group A) ─────────────────────────────────
+    const handleSendSalarySlip = async (salary) => {
+        
+    try {
+
+        const auth =
+            JSON.parse(
+                localStorage.getItem("auth")
+            );
+
+        const token = auth?.token;
+
+        const doc =
+            buildPayslipPDF(salary);
+
+        // ✅ CORRECT PDF BASE64
+        const pdfBase64 =
+            doc.output("datauristring");
+
+        console.log(
+            "PDF BASE64 =>",
+            pdfBase64
+        );
+
+        // STEP 1 → Upload PDF
+        const uploadRes =
+            await fetch(
+                `${API_URL}/api/groupb/salary/uploadSalarySlip/${salary.id}`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+
+                        Authorization:
+                            `Bearer ${token}`,
+                    },
+
+                    body: JSON.stringify({
+                        pdfBase64,
+                    }),
+                }
+            );
+
+        const uploadData =
+            await uploadRes.json();
+
+        console.log(
+            "UPLOAD DATA =>",
+            uploadData
+        );
+
+        if (!uploadRes.ok) {
+
+            alert(
+                uploadData.message
+            );
+
+            return;
+        }
+
+        // STEP 2 → Send WhatsApp
+        const sendRes =
+            await fetch(
+                `${API_URL}/api/groupb/salary/sendSalarySlip/${salary.id}`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+
+                        Authorization:
+                            `Bearer ${token}`,
+                    },
+
+                    body: JSON.stringify({
+                        pdfUrl:
+                            uploadData.pdfUrl,
+                    }),
+                }
+            );
+
+        const sendData =
+            await sendRes.json();
+
+        console.log(
+            "SEND DATA =>",
+            sendData
+        );
+
+        if (!sendRes.ok) {
+
+            alert(
+                sendData.message
+            );
+
+            return;
+        }
+
+        alert(
+            "Salary slip sent successfully"
+        );
+
+    } catch (error) {
+
+        console.log(
+            "SEND ERROR =>",
+            error
+        );
+
+        alert(
+            "Failed to send salary slip"
+        );
+
+    }
+    };
+
+    const confirmWhatsAppSend = async () => {
+
+        if (!selectedWhatsAppSalary) return;
+
+        await handleSendSalarySlip(selectedWhatsAppSalary);
+
+        setWaConfirmModal(false);
+
+        setSelectedWhatsAppSalary(null);
+    };
+
+
+    // ── Derived / filtered lists ──────────────────────────────────────────────
     const searchFn = (r) => {
         const name = r.staffName || `${r.staff?.firstName || ""} ${r.staff?.lastName || ""}`;
         return name.toLowerCase().includes(search.toLowerCase()) ||
@@ -363,7 +781,7 @@ export default function GroupBSalary() {
                     <div className="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center shadow-lg"><IndianRupee size={22} color="#fff" /></div>
                     <div>
                         <h1 className="text-[22px] font-bold text-white tracking-tight m-0">Group B — Salary Management</h1>
-                        <p className="text-[12px] text-white/55 italic m-0">{authSchool.schoolName} • Support Staff</p>
+                        <p className="text-[12px] text-white/55 italic m-0">{authSchool.schoolName} • Non-Teaching Staff</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3 relative z-10">
@@ -459,41 +877,59 @@ export default function GroupBSalary() {
                             ) : filtered.map((r, idx) => (
                                 <tr key={r.id || idx} className={`border-b border-[#EAF1F6] hover:bg-[#F5FAFE] transition-colors ${r._isPlaceholder ? "bg-[#FAFCFE]" : ""}`}>
                                     <td className="px-3 sm:px-4 py-2.5 sm:py-3 font-semibold text-[#1A2E3D]">{rowName(r)}</td>
-                                    <td className="px-4 py-3 text-[#4A6B80] text-[12px]">{rowEmail(r)}</td>
-                                    <td className="px-4 py-3"><span className="bg-[#EAF1F6] text-[#27435B] text-[11px] font-bold px-2.5 py-1 rounded-full">{rowRole(r)}</span></td>
-                                    <td className="px-4 py-3 font-semibold text-[#27435B]">₹{Number(r.basicSalary || 0).toLocaleString("en-IN")}</td>
-                                    <td className="px-4 py-3 text-[#1E7E4E] font-semibold">{r._isPlaceholder ? "₹0" : `₹${Number(r.bonus || 0).toLocaleString("en-IN")}`}</td>
-                                    <td className="px-4 py-3 text-[#B83232] font-semibold">{r._isPlaceholder ? "₹0" : `₹${Number(r.deductions || 0).toLocaleString("en-IN")}`}</td>
-                                    <td className="px-4 py-3 text-[#4A6B80]">{r._isPlaceholder ? "0 days" : `${r.leaveDays ?? 0} days`}</td>
-                                    <td className="px-4 py-3">
+                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-[#4A6B80]">{rowEmail(r)}</td>
+                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3"><span className="bg-[#EAF1F6] text-[#27435B] text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-full">{rowRole(r)}</span></td>
+                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 font-semibold text-[#27435B]">₹{Number(r.basicSalary || 0).toLocaleString("en-IN")}</td>
+                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-[#1E7E4E] font-semibold">{r._isPlaceholder ? "₹0" : `₹${Number(r.bonus || 0).toLocaleString("en-IN")}`}</td>
+                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-[#B83232] font-semibold">{r._isPlaceholder ? "₹0" : `₹${Number(r.deductions || 0).toLocaleString("en-IN")}`}</td>
+                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-[#4A6B80]">{r._isPlaceholder ? "0 days" : `${r.leaveDays ?? 0} days`}</td>
+                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3">
                                         <div className="flex flex-col gap-1.5">
                                             <span className="font-bold text-[#1A2E3D]">₹{Number(r._isPlaceholder ? r.basicSalary : r.netSalary || 0).toLocaleString("en-IN")}</span>
                                             {!r._isPlaceholder && (r.status === "PENDING" ? (
-                                                <button onClick={() => requestPay(r.salaryId || r.id)} className="text-[11px] font-bold px-3 py-1 rounded-lg bg-gradient-to-r from-[#27435B] to-[#1C3044] text-white hover:opacity-80 transition-opacity">Pay Now</button>
+                                                <button onClick={() => requestPay(r.salaryId || r.id)} className="text-[10px] sm:text-[11px] font-bold px-2 sm:px-3 py-1 rounded-lg bg-gradient-to-r from-[#27435B] to-[#1C3044] text-white hover:opacity-80 transition-opacity">Pay Now</button>
                                             ) : r.status === "HOLD" ? (
-                                                <button onClick={() => requestPay(r.salaryId || r.id)} className="text-[11px] font-bold px-3 py-1 rounded-lg bg-gradient-to-r from-orange-500 to-orange-700 text-white hover:opacity-80 transition-opacity">Pay (Hold)</button>
+                                                <button onClick={() => requestPay(r.salaryId || r.id)} className="text-[10px] sm:text-[11px] font-bold px-2 sm:px-3 py-1 rounded-lg bg-gradient-to-r from-orange-500 to-orange-700 text-white hover:opacity-80 transition-opacity">Pay (Hold)</button>
                                             ) : (
-                                                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-700 w-fit">✓ Paid</span>
+                                                <span className="text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-full bg-green-100 text-green-700 w-fit">✓ Paid</span>
                                             ))}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3">
+                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3">
                                         {r._isPlaceholder
-                                            ? <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#EAF1F6] text-[#8AAFC4]">Not Created</span>
-                                            : <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${statusStyle(r.status)}`}>{r.status || "PENDING"}</span>
+                                            ? <span className="text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-full bg-[#EAF1F6] text-[#8AAFC4]">Not Created</span>
+                                            : <span className={`text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-full ${statusStyle(r.status)}`}>{r.status || "PENDING"}</span>
                                         }
                                     </td>
-                                    <td className="px-4 py-3">
+                                    <td className="px-3 sm:px-4 py-2.5 sm:py-3">
                                         <div className="flex items-center gap-1">
                                             {[
-                                                { icon: Pencil, fn: () => r._isPlaceholder ? createThenEdit(r) : openEditModal(r), color: "text-[#27435B] hover:bg-[#EAF1F6]", disabled: false },
-                                                { icon: Trash2, fn: () => openDeleteModal(r), color: r._isPlaceholder ? "text-[#C8DCEC] cursor-not-allowed" : "text-red-500 hover:bg-red-50", disabled: r._isPlaceholder },
-                                                { icon: History, fn: () => openHistoryModal(r), color: "text-[#4A6B80] hover:bg-[#EAF1F6]", disabled: false },
-                                                { icon: Eye, fn: () => !r._isPlaceholder && openSlipModal(r), color: r._isPlaceholder ? "text-[#C8DCEC] cursor-not-allowed" : "text-[#27435B] hover:bg-[#EAF1F6]", disabled: r._isPlaceholder },
-                                            ].map(({ icon: Ic, fn, color, disabled }, i) => (
-                                                <button key={i} onClick={disabled ? undefined : fn} disabled={disabled}
-                                                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${color}`}>
-                                                    <Ic size={13} />
+                                                { icon: Pencil, fn: () => r._isPlaceholder ? createThenEdit(r) : openEditModal(r), color: "text-[#27435B] hover:bg-[#EAF1F6]", title: r._isPlaceholder ? "Set Bonus & Leaves" : "Edit", disabled: false },
+                                                { icon: Trash2, fn: () => openDeleteModal(r), color: r._isPlaceholder ? "text-[#C8DCEC] cursor-not-allowed" : "text-red-500 hover:bg-red-50", title: "Delete", disabled: r._isPlaceholder },
+                                                { icon: History, fn: () => openHistoryModal(r), color: "text-[#4A6B80] hover:bg-[#EAF1F6]", title: "History", disabled: false },
+                                                { icon: Eye, fn: () => !r._isPlaceholder && openSlipModal(r), color: r._isPlaceholder ? "text-[#C8DCEC] cursor-not-allowed" : "text-[#27435B] hover:bg-[#EAF1F6]", title: "View Slip", disabled: r._isPlaceholder },
+                                                // ✅ WHATSAPP BUTTON
+                                                ...(isPremium ? [{
+                                                    icon: FaWhatsapp,
+                                                    fn: () => {
+                                                        if (r._isPlaceholder) return;
+
+                                                        setSelectedWhatsAppSalary(r);
+
+                                                        setWaConfirmModal(true);
+                                                    },
+                                                    color: r._isPlaceholder
+                                                        ? "text-[#C8DCEC] cursor-not-allowed"
+                                                        : "text-green-600 hover:bg-green-50",
+
+                                                    title: "Send WhatsApp",
+
+                                                    disabled: r._isPlaceholder,
+                                                }] : []),
+                                             ].map(({ icon: Ic, fn, color, title, disabled }, i) => (
+                                                <button key={i} onClick={disabled ? undefined : fn} title={title} disabled={disabled}
+                                                    className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center transition-colors ${color}`}>
+                                                    <Ic size={12} />
                                                 </button>
                                             ))}
                                         </div>
@@ -504,8 +940,6 @@ export default function GroupBSalary() {
                     </table>
                 </div>
             </div>
-
-            
 
             {/* ── PAY CONFIRM MODAL ── */}
             {payConfirmModal && (
@@ -541,12 +975,11 @@ export default function GroupBSalary() {
                         <div className="bg-gradient-to-r from-[#1A2E3D] via-[#27435B] to-[#3A5E78] rounded-t-3xl px-7 py-6 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center"><Sparkles size={18} color="#fff" /></div>
-                                <div><div className="text-white font-bold text-[17px]">Add Salary Record</div><div className="text-white/55 text-[11.5px]">Group B • Support Staff</div></div>
+                                <div><div className="text-white font-bold text-[17px]">Add Salary Record</div><div className="text-white/55 text-[11.5px]">Group B • Non-Teaching Staff</div></div>
                             </div>
                             <button onClick={() => setShowModal(false)} className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors"><X size={16} /></button>
                         </div>
                         <div className="p-6 flex flex-col gap-5">
-                            {/* School info */}
                             <div>
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-[#4A6B80] mb-2">School</p>
                                 <div className="flex items-center gap-3 bg-gradient-to-r from-[#EAF1F6] to-[#F5FAFE] border border-[#C8DCEC] rounded-2xl p-3.5">
@@ -554,7 +987,6 @@ export default function GroupBSalary() {
                                     <div><div className="text-[13.5px] font-semibold text-[#1A2E3D]">{authSchool.schoolName}</div><div className="text-[10.5px] text-[#4A6B80] mt-0.5">Auto-detected from your login session</div></div>
                                 </div>
                             </div>
-                            {/* Staff selector */}
                             <div>
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-[#4A6B80] mb-2">Select Group B Staff Member</p>
                                 <div className="relative">
@@ -571,7 +1003,6 @@ export default function GroupBSalary() {
                                     <p className="text-[11px] text-amber-600 mt-1.5">⚠ No Group B staff found. Add staff with Group Type "Group B" first.</p>
                                 )}
                             </div>
-                            {/* Staff detail card */}
                             {staffDetail && (
                                 <div className="bg-gradient-to-br from-[#EAF1F6] to-[#F5FAFE] border border-[#C8DCEC] rounded-2xl p-4">
                                     <div className="flex items-center gap-3 mb-3">
@@ -597,7 +1028,6 @@ export default function GroupBSalary() {
                                     </div>
                                 </div>
                             )}
-                            {/* Bonus / Leave / Deduction inputs */}
                             <div className="grid grid-cols-3 gap-3">
                                 {[
                                     { label: "Bonus (₹)", color: "text-[#1E7E4E]", prefix: "+", val: bonus, set: setBonus },
@@ -619,7 +1049,6 @@ export default function GroupBSalary() {
                                     <span><span className="font-bold">{leaveDays} leave day(s)</span> × ₹{Math.round((Number(staffDetail.basicSalary || 0) * 12) / 365).toLocaleString("en-IN")}/day = <span className="font-bold">₹{leaveDedPreview.toLocaleString("en-IN")}</span> auto-deducted</span>
                                 </div>
                             )}
-                            {/* Net preview */}
                             <div className="bg-gradient-to-r from-[#27435B] to-[#1A2E3D] rounded-2xl px-5 py-3.5 flex items-center justify-between">
                                 <div><div className="text-[10.5px] font-bold uppercase tracking-wider text-white/55">Net Salary Preview</div><div className="text-[10.5px] text-white/35 mt-0.5">Basic + Bonus − All Deductions</div></div>
                                 <div className="text-[22px] font-bold text-white">₹{Math.max(0, netPreview).toLocaleString("en-IN")}</div>
@@ -756,85 +1185,162 @@ export default function GroupBSalary() {
             {/* ── PAYSLIP MODAL ── */}
             {slipModal && selectedSalary && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSlipModal(false)}>
-                    <div className="bg-white rounded-3xl w-full max-w-[560px] max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="bg-gradient-to-r from-[#1A2E3D] to-[#27435B] rounded-t-3xl px-6 py-5 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center"><FileText size={16} color="#fff" /></div>
-                                <div><div className="text-white font-bold text-[16px]">Salary Slip</div><div className="text-white/55 text-[11px]">{monthName(selectedSalary.month)} {selectedSalary.year}</div></div>
+                    <div className="bg-white rounded-3xl w-full max-w-[640px] max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div style={{ background: "linear-gradient(135deg,#1c3040,#3c5d74,#527a91)", borderRadius: "24px 24px 0 0", padding: "22px 24px 18px" }}>
+                            <div className="flex justify-between mb-3">
+                                <div>
+                                    <div className="text-[17px] sm:text-[20px] font-bold text-white">{authSchool.schoolName}</div>
+                                    <div className="text-[10px] sm:text-[11.5px] text-white/55 mt-1">Group B — Non-Teaching Staff</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-[9px] sm:text-[10px] font-bold tracking-[3px] uppercase text-white/50 mb-1">Salary Slip</div>
+                                    <div className="text-[14px] sm:text-[16px] font-bold text-white">{monthName(selectedSalary.month)} {selectedSalary.year}</div>
+                                </div>
                             </div>
-                            <button onClick={() => setSlipModal(false)} className="w-8 h-8 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors"><X size={15} /></button>
+                            <div className="h-px bg-white/20 mb-3" />
+                            <div className="flex justify-between">
+                                <span className="text-[10px] sm:text-[11px] text-white/50 uppercase">Generated: {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                                <span className="text-[9px] sm:text-[10px] text-white/40 border border-white/20 px-2 sm:px-3 py-0.5 rounded">Confidential</span>
+                            </div>
                         </div>
-                        <div className="p-6">
-                            <div className="bg-[#EAF1F6] rounded-2xl p-4 mb-4 grid grid-cols-2 gap-3">
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#EAF1F6] border-b border-[#C8DCEC] px-5 sm:px-9 py-4 sm:py-5">
+                            {[
+                                { key: "Employee Name", val: rowName(selectedSalary) },
+                                { key: "Role", val: rowRole(selectedSalary) },
+                                { key: "Pay Period", val: `${monthName(selectedSalary.month)} ${selectedSalary.year}` },
+                                { key: "Email", val: rowEmail(selectedSalary) },
+                            ].map((f, i) => (
+                                <div key={i}>
+                                    <div className="text-[9px] sm:text-[9.5px] font-bold uppercase tracking-wide text-[#527a91] mb-1">{f.key}</div>
+                                    <div className="text-[11px] sm:text-[12.5px] font-semibold text-[#1c3040] break-all">{f.val}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="px-5 sm:px-9 py-4 sm:py-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 mb-4 sm:mb-5">
                                 {[
-                                    { label: "Employee", val: rowName(selectedSalary) },
-                                    { label: "Role", val: rowRole(selectedSalary) },
-                                    { label: "Pay Period", val: `${monthName(selectedSalary.month)} ${selectedSalary.year}` },
-                                    { label: "Group", val: "Group B" },
-                                ].map((f, i) => (
-                                    <div key={i}>
-                                        <div className="text-[10px] font-bold text-[#527a91] uppercase tracking-wide mb-0.5">{f.label}</div>
-                                        <div className="text-[13px] font-semibold text-[#1A2E3D]">{f.val}</div>
+                                    {
+                                        title: "Earnings", bg: "linear-gradient(135deg,#2b4557,#3c5d74)", rows: [
+                                            { label: "Basic Salary", val: `₹${Number(selectedSalary?.basicSalary || 0).toLocaleString("en-IN")}` },
+                                            { label: "Bonus", val: `₹${Number(selectedSalary?.bonus || 0).toLocaleString("en-IN")}` },
+                                            { label: "HRA", val: "₹0" },
+                                            { label: "Other", val: "₹0" },
+                                        ], foot: `₹${(Number(selectedSalary?.basicSalary || 0) + Number(selectedSalary?.bonus || 0)).toLocaleString("en-IN")}`, footLabel: "Gross Earnings"
+                                    },
+                                    {
+                                        title: "Deductions", bg: "linear-gradient(135deg,#1c3040,#2b4557)", rows: [
+                                            { label: "Leave Deduction", val: `${selectedSalary?.leaveDays ?? 0}d → ₹${calcLeaveDeduction(selectedSalary?.basicSalary || 0, selectedSalary?.leaveDays || 0).toLocaleString("en-IN")}` },
+                                            { label: "Other Deductions", val: `₹${Math.max(0, Number(selectedSalary?.deductions || 0) - calcLeaveDeduction(selectedSalary?.basicSalary || 0, selectedSalary?.leaveDays || 0)).toLocaleString("en-IN")}` },
+                                            { label: "PF", val: "₹0" },
+                                            { label: "Tax (TDS)", val: "₹0" },
+                                        ], foot: `₹${Number(selectedSalary?.deductions || 0).toLocaleString("en-IN")}`, footLabel: "Total Deductions"
+                                    },
+                                ].map((section, si) => (
+                                    <div key={si}>
+                                        <div style={{ background: section.bg, padding: "7px 12px", borderRadius: "8px 8px 0 0" }}>
+                                            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white">{section.title}</span>
+                                        </div>
+                                        <div className="border border-[#C8DCEC] border-t-0 rounded-b-xl overflow-hidden">
+                                            {section.rows.map((row, i) => (
+                                                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", fontSize: 12, background: i % 2 === 1 ? "#f8fbfd" : "#fff", borderBottom: "1px solid #eef5fa" }}>
+                                                    <span style={{ color: "#4A6878" }}>{row.label}</span>
+                                                    <span style={{ color: "#3c5d74", fontWeight: 600 }}>{row.val}</span>
+                                                </div>
+                                            ))}
+                                            <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 12px", fontSize: 12, fontWeight: 700, borderTop: "2px solid #d4e4ee", background: "#eaf1f6" }}>
+                                                <span style={{ color: "#3c5d74" }}>{section.footLabel}</span>
+                                                <span style={{ color: "#3c5d74" }}>{section.foot}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
-                            <div className="grid grid-cols-3 gap-3 mb-4">
-                                {[
-                                    { label: "Basic Salary", val: `₹${Number(selectedSalary.basicSalary || 0).toLocaleString("en-IN")}`, color: "text-[#1A2E3D]" },
-                                    { label: "Bonus", val: `+₹${Number(selectedSalary.bonus || 0).toLocaleString("en-IN")}`, color: "text-green-600" },
-                                    { label: "Deductions", val: `-₹${Number(selectedSalary.deductions || 0).toLocaleString("en-IN")}`, color: "text-red-500" },
-                                ].map((f, i) => (
-                                    <div key={i} className="bg-[#F5FAFE] border border-[#EAF1F6] rounded-xl p-3">
-                                        <div className="text-[9.5px] font-bold text-[#8AAFC4] uppercase tracking-wide mb-1">{f.label}</div>
-                                        <div className={`text-[13px] font-semibold ${f.color}`}>{f.val}</div>
-                                    </div>
-                                ))}
+
+                            <div style={{ background: "linear-gradient(135deg,#1c3040,#3c5d74)", borderRadius: 12, padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                                <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: "rgba(255,255,255,.6)", marginBottom: 3 }}>Net Salary Payable</div>
+                                    <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)" }}>For {monthName(selectedSalary.month)} {selectedSalary.year}</div>
+                                </div>
+                                <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: "-1px" }}>₹{Number(selectedSalary?.netSalary || 0).toLocaleString("en-IN")}</div>
                             </div>
-                            <div className="bg-gradient-to-r from-[#1c3040] to-[#3c5d74] rounded-2xl px-5 py-4 flex justify-between items-center mb-4">
-                                <div><div className="text-[11px] font-bold text-white/60 uppercase tracking-wide mb-1">Net Salary Payable</div><div className="text-[11px] text-white/40">For {monthName(selectedSalary.month)} {selectedSalary.year}</div></div>
-                                <div className="text-[28px] font-bold text-white">₹{Number(selectedSalary.netSalary || 0).toLocaleString("en-IN")}</div>
-                            </div>
-                            <div className="text-[10.5px] text-[#527a91] text-center italic mb-4">This is a system-generated payslip and does not require a physical signature.</div>
-                            <div className="flex justify-end gap-3">
-                                <button onClick={() => setSlipModal(false)} className="px-5 py-2.5 border border-[#C8DCEC] rounded-xl text-[13px] font-semibold text-[#4A6B80] hover:border-[#27435B] transition-colors">Close</button>
-                                <button onClick={downloadPayslip} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#27435B] to-[#1A2E3D] text-white text-[13px] font-bold hover:opacity-90 transition-opacity"><Printer size={14} /> Download PDF</button>
-                            </div>
+                        </div>
+
+                        <div className="bg-[#EAF1F6] border-t border-[#C8DCEC] px-5 sm:px-9 py-2.5 sm:py-3 text-[10px] sm:text-[10.5px] text-[#527a91] text-center italic">
+                            This is a system-generated payslip and does not require a physical signature.
+                        </div>
+
+                        <div className="px-4 sm:px-6 py-3 sm:py-4 flex justify-end gap-3 border-t border-[#C8DCEC]">
+                            <button onClick={() => setSlipModal(false)} className="px-4 sm:px-5 py-2.5 border border-[#C8DCEC] rounded-xl text-[12px] sm:text-[13px] font-semibold text-[#4A6B80] hover:border-[#27435B] transition-colors">Close</button>
+                            {/* ✅ WhatsApp send button inside slip modal */}
+                             
+                            <button onClick={downloadPayslip} className="flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#27435B] to-[#1A2E3D] text-white text-[12px] sm:text-[13px] font-bold hover:opacity-90 transition-opacity">
+                                <Printer size={13} /> Download PDF
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
+        {/* WhatsApp Confirm Modal */}
+            {waConfirmModal && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                    onClick={() => {
+                        setWaConfirmModal(false);
+                        setSelectedWhatsAppSalary(null);
+                    }}
+                >
+                    <div
+                        className="bg-white rounded-3xl w-full max-w-[420px] shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="p-6 flex flex-col items-center text-center gap-4">
 
-            {/* Hidden PDF template */}
-            <div ref={pdfRef} style={{ position: "absolute", left: "-9999px", top: 0 }}>
-                <div style={{ width: "794px", background: "#fff", fontFamily: "Arial, sans-serif" }}>
-                    <div style={{ background: "linear-gradient(135deg,#1c3040,#3c5d74)", padding: "32px 40px 24px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <div className="w-16 h-16 rounded-2xl bg-green-100 flex items-center justify-center">
+                                <FaWhatsapp size={28} className="text-green-600" />
+                            </div>
+
                             <div>
-                                <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 4 }}>{authSchool.schoolName}</div>
-                                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Group B — Support Staff</div>
+                                <div className="text-[18px] font-bold text-[#1A2E3D]">
+                                    Send WhatsApp Salary Slip?
+                                </div>
+
+                                <div className="text-[13px] text-[#4A6B80] mt-2">
+                                    Are you sure you want to send salary slip to
+                                    <span className="font-bold text-[#1A2E3D]">
+                                        {" "}
+                                        {selectedWhatsAppSalary?.admin?.name ||
+                                            selectedWhatsAppSalary?.adminName ||
+                                            "Staff"}
+                                    </span>
+                                    ?
+                                </div>
                             </div>
-                            <div style={{ textAlign: "right" }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,.5)", marginBottom: 5 }}>SALARY SLIP</div>
-                                <div style={{ fontSize: 17, fontWeight: 700, color: "#fff" }}>{selectedSalary ? `${monthName(selectedSalary.month)} ${selectedSalary.year}` : ""}</div>
+
+                            <div className="flex gap-3 w-full">
+                                <button
+                                    onClick={() => {
+                                        setWaConfirmModal(false);
+                                        setSelectedWhatsAppSalary(null);
+                                    }}
+                                    className="flex-1 py-3 border border-[#C8DCEC] rounded-xl text-[14px] font-semibold text-[#4A6B80]"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    onClick={confirmWhatsAppSend}
+                                    className="flex-1 py-3 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] text-white text-[14px] font-bold"
+                                >
+                                    Send
+                                </button>
                             </div>
-                        </div>
-                    </div>
-                    <div style={{ padding: "28px 40px" }}>
-                        <div style={{ marginBottom: 20 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "#8AAFC4", textTransform: "uppercase", marginBottom: 4 }}>Employee</div>
-                            <div style={{ fontSize: 17, fontWeight: 700, color: "#1c3040" }}>{selectedSalary ? rowName(selectedSalary) : ""}</div>
-                            <div style={{ fontSize: 13, color: "#4A6B80" }}>{selectedSalary ? rowRole(selectedSalary) : ""}</div>
-                        </div>
-                        <div style={{ background: "linear-gradient(135deg,#1c3040,#3c5d74)", borderRadius: 12, padding: "22px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <div>
-                                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "rgba(255,255,255,.6)", marginBottom: 4 }}>Net Salary Payable</div>
-                                <div style={{ fontSize: 12, color: "rgba(255,255,255,.4)" }}>{selectedSalary ? `${monthName(selectedSalary.month)} ${selectedSalary.year}` : ""}</div>
-                            </div>
-                            <div style={{ fontSize: 32, fontWeight: 800, color: "#fff" }}>₹{Number(selectedSalary?.netSalary || 0).toLocaleString("en-IN")}</div>
+
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }

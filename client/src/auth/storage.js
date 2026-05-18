@@ -13,7 +13,7 @@
 // };
 export const saveAuth = (data) => {
   const role = data.user?.role;
-  localStorage.setItem("user", JSON.stringify(data.user)); 
+
   let accountType = data.user?.userType;
 
   if (role === "SUPER_ADMIN") accountType = "superAdmin";
@@ -23,14 +23,25 @@ export const saveAuth = (data) => {
   if (role === "STUDENT") accountType = "student";
   if (role === "PARENT") accountType = "parent";
 
+  const normalizedUser = {
+    ...data.user,
+
+    // ✅ IMPORTANT
+    planName: data.user?.planName || "Silver",
+  };
+
   const normalized = {
     token: data.token,
     accountType,
     role,
-    user: data.user,
+    user: normalizedUser,
   };
 
+  // ✅ SAVE BOTH
   localStorage.setItem("auth", JSON.stringify(normalized));
+  localStorage.setItem("user", JSON.stringify(normalizedUser));
+
+  console.log("SAVED USER =", normalizedUser);
 };
 
 export const getAuth = () => {

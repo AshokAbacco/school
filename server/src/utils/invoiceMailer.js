@@ -25,6 +25,7 @@ transporter.verify((error) => {
 });
 
 // ─── Plan metadata ──────────────────────────────────────────────────────────
+// Keyed by lowercase plan name (matches planName stored in DB: "Silver", "Gold", "Premium")
 const PLAN_META = {
   silver:  { label: "Silver",  pricePerUser: 300 },
   gold:    { label: "Gold",    pricePerUser: 500 },
@@ -40,17 +41,29 @@ function buildInvoiceHTML({
   email,
   phone,
   address,
-  planId,
+  planName,       // ✅ human-readable: "Silver" / "Gold" / "Premium"
+  studentCount,
+  teacherCount,
   userCount,
   amount,
   razorpayPaymentId,
   razorpayOrderId,
 }) {
-  const plan         = PLAN_META[planId] || { label: planId, pricePerUser: 0 };
+  // Look up by lowercase planName — never by UUID
+  const key          = (planName || "").toLowerCase();
+  const plan         = PLAN_META[key] || { label: planName || "—", pricePerUser: 0 };
   const pricePerUser = plan.pricePerUser;
-  const subtotal     = pricePerUser * userCount;
-  const gst          = Math.round(subtotal * 0.12);
-  const total        = subtotal + gst;
+
+  // Use individual counts if available, else fall back to userCount
+  const students     = Number(studentCount) || 0;
+  const teachers     = Number(teacherCount) || 0;
+  const totalUsers   = students + teachers || Number(userCount) || 0;
+
+  const studentSubtotal = pricePerUser * students;
+  const teacherSubtotal = pricePerUser * teachers;
+  const subtotal        = pricePerUser * totalUsers;
+  const gst             = Math.round(subtotal * 0.12);
+  const total           = subtotal + gst;
 
   return /* html */ `
 <!DOCTYPE html>
@@ -172,15 +185,32 @@ function buildInvoiceHTML({
                   <td style="font-size:11px; font-weight:600; color:#6A89A7; letter-spacing:0.8px; text-transform:uppercase; padding:10px 8px; text-align:center;">Unit Price</td>
                   <td style="font-size:11px; font-weight:600; color:#6A89A7; letter-spacing:0.8px; text-transform:uppercase; padding:10px 14px; text-align:right; border-radius:0 8px 8px 0;">Amount</td>
                 </tr>
-                <!-- Row -->
+                <!-- Row: Students -->
                 <tr>
-                  <td style="padding:16px 14px 8px;">
-                    <div style="font-size:14px; font-weight:600; color:#384959;">${plan.label} Plan — Annual Subscription</div>
-                    <div style="font-size:12px; color:#88BDF2; margin-top:3px;">School CRM · Per user per year</div>
+                  <td style="padding:16px 14px 6px;">
+                    <div style="font-size:14px; font-weight:600; color:#384959;">${plan.label} Plan — Students</div>
+                    <div style="font-size:12px; color:#88BDF2; margin-top:3px;">School CRM · Per student per year</div>
                   </td>
-                  <td style="padding:16px 8px 8px; text-align:center; font-size:14px; color:#384959; font-weight:500;">${userCount}</td>
-                  <td style="padding:16px 8px 8px; text-align:center; font-size:14px; color:#384959;">₹${pricePerUser.toLocaleString("en-IN")}</td>
-                  <td style="padding:16px 14px 8px; text-align:right; font-size:14px; color:#384959; font-weight:600;">₹${subtotal.toLocaleString("en-IN")}</td>
+                  <td style="padding:16px 8px 6px; text-align:center; font-size:14px; color:#384959; font-weight:500;">${students}</td>
+                  <td style="padding:16px 8px 6px; text-align:center; font-size:14px; color:#384959;">₹${pricePerUser.toLocaleString("en-IN")}</td>
+                  <td style="padding:16px 14px 6px; text-align:right; font-size:14px; color:#384959; font-weight:600;">₹${studentSubtotal.toLocaleString("en-IN")}</td>
+                </tr>
+                <!-- Row: Teachers -->
+                <tr style="background:#fafcfe;">
+                  <td style="padding:6px 14px 16px;">
+                    <div style="font-size:14px; font-weight:600; color:#384959;">${plan.label} Plan — Teachers</div>
+                    <div style="font-size:12px; color:#88BDF2; margin-top:3px;">School CRM · Per teacher per year</div>
+                  </td>
+                  <td style="padding:6px 8px 16px; text-align:center; font-size:14px; color:#384959; font-weight:500;">${teachers}</td>
+                  <td style="padding:6px 8px 16px; text-align:center; font-size:14px; color:#384959;">₹${pricePerUser.toLocaleString("en-IN")}</td>
+                  <td style="padding:6px 14px 16px; text-align:right; font-size:14px; color:#384959; font-weight:600;">₹${teacherSubtotal.toLocaleString("en-IN")}</td>
+                </tr>
+                <!-- Total Users summary row -->
+                <tr>
+                  <td colspan="3" style="padding:4px 14px 8px; font-size:12px; color:#6A89A7;">
+                    Total Users: <strong style="color:#384959;">${totalUsers}</strong> (${students} students + ${teachers} teachers)
+                  </td>
+                  <td></td>
                 </tr>
               </table>
 
@@ -274,16 +304,19 @@ export async function sendInvoiceEmail(paymentData) {
     schoolName,
     phone,
     address,
-    planId,
+    planName,         // ✅ "Silver" / "Gold" / "Premium" — stored in DB as planName
     userCount,
+    studentCount,
+    teacherCount,
     amount,
     razorpayPaymentId,
     razorpayOrderId,
   } = paymentData;
 
   // ✅ Guard: skip if critical fields are missing
-  if (!email || !fullName || !planId) {
-    console.error("❌ sendInvoiceEmail: Missing required fields (email, fullName, or planId). Skipping.");
+  if (!email || !fullName || !planName) {
+    console.error("❌ sendInvoiceEmail: Missing required fields (email, fullName, or planName). Skipping.");
+    console.error("   Received:", { email, fullName, planName });
     return;
   }
 
@@ -304,8 +337,10 @@ export async function sendInvoiceEmail(paymentData) {
     email,
     phone,
     address,
-    planId,
-    userCount,
+    planName,                               // ✅ pass planName, never UUID
+    studentCount: Number(studentCount) || 0,
+    teacherCount: Number(teacherCount) || 0,
+    userCount:    Number(userCount)    || 0,
     amount,
     razorpayPaymentId,
     razorpayOrderId,

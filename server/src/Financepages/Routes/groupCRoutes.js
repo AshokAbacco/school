@@ -9,6 +9,8 @@ import {
   payGroupCSalary,
   holdGroupCSalary,
   deleteGroupCSalary,
+  uploadSalarySlip,
+  sendSalarySlip,
 } from "../Controls/groupCController.js";
 import authMiddleware from "../../middlewares/authMiddleware.js";
 
@@ -26,5 +28,17 @@ router.put("/salary/update/:salaryId", authMiddleware, updateGroupCSalary);
 router.patch("/salary/pay/:salaryId", authMiddleware, payGroupCSalary);
 router.patch("/salary/hold/:salaryId", authMiddleware, holdGroupCSalary);
 router.delete("/salary/delete/:salaryId", authMiddleware, deleteGroupCSalary);
+
+router.post(
+"/salary/uploadSalarySlip/:id",
+authMiddleware,
+uploadSalarySlip
+);
+
+router.post(
+"/salary/sendSalarySlip/:salaryId",
+authMiddleware,
+sendSalarySlip
+);
 
 export default router;
