@@ -1,4 +1,4 @@
-import { Twitter, Facebook, Linkedin, Youtube, ArrowUpRight } from "lucide-react";
+import { Instagram, Facebook, Linkedin, Youtube, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const FOOTER_LINKS = [
@@ -9,10 +9,10 @@ const FOOTER_LINKS = [
 ];
 
 const SOCIAL = [
-  { Icon: Twitter, href: "#", label: "Twitter" },
+  { Icon: Linkedin, href: "https://www.linkedin.com/in/education-management-software-a5711440b", label: "LinkedIn" },
+  { Icon: Youtube, href: "https://www.youtube.com/@EducationManagementSoftware", label: "YouTube" },
+  { Icon: Instagram, href: "https://www.instagram.com/education_app_/", label: "Instagram" },
   { Icon: Facebook, href: "#", label: "Facebook" },
-  { Icon: Linkedin, href: "#", label: "LinkedIn" },
-  { Icon: Youtube, href: "http://youtube.com/@EducationManagementCRM", label: "YouTube" },
 ];
 
 export default function Footer({ onScrollTo }) {
@@ -83,7 +83,14 @@ export default function Footer({ onScrollTo }) {
 
             <div className="footer-social-wrap">
               {SOCIAL.map(({ Icon, href, label }) => (
-                <a key={label} href={href} aria-label={label} className="footer-social">
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  className="footer-social"
+                >
                   <Icon size={15} color="#6A89A7" />
                 </a>
               ))}
@@ -96,7 +103,7 @@ export default function Footer({ onScrollTo }) {
           {/* Tagline + pills */}
           <div style={{ padding: "24px 0", textAlign: "center" }}>
             <p style={{ fontSize: 13, color: "#506979", margin: 0, letterSpacing: "0.02em" }}>
-              Empowering 3,000+ schools worldwide · Built with ❤️ for modern education
+              Empowering All schools worldwide · Built with ❤️ for modern education
             </p>
             <div className="footer-pills">
               <Link to="/faq" className="footer-pill">

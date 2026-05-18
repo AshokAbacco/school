@@ -1317,15 +1317,24 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   };
 
   // ── Parent login card ─────────────────────────────────────────────────────
-  const ParentLoginCard = ({
-    emailKey,
-    pwKey,
-    nmKey,
-    phKey,
-    relation,
-    showPwState,
-    toggleShowPw,
-  }) => (
+// ── Place this OUTSIDE AddStudent, near the top of the file ──────────────────
+const ParentLoginCard = ({
+  emailKey,
+  pwKey,
+  nmKey,
+  phKey,
+  relation,
+  showPwState,
+  toggleShowPw,
+  f,
+  setF,
+  // ❌ removed: set
+}) => {
+  const handleChange = (key) => (e) => {
+    setF((p) => ({ ...p, [key]: e.target.value }));
+  };
+
+  return (
     <div
       className="rounded-xl overflow-hidden"
       style={{ border: `1px solid ${COLORS.border}` }}
@@ -1334,8 +1343,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         className="flex items-center justify-between px-4 py-3"
         style={{
           background: COLORS.bgSoft,
-          borderBottom:
-            f[emailKey] !== null ? `1px solid ${COLORS.border}` : "none",
+          borderBottom: f[emailKey] !== null ? `1px solid ${COLORS.border}` : "none",
         }}
       >
         <div className="flex items-center gap-2">
@@ -1359,9 +1367,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         {f[emailKey] === null ? (
           <button
             type="button"
-            onClick={() =>
-              setF((p) => ({ ...p, [emailKey]: p[phKey] || "", [pwKey]: "" }))
-            }
+            onClick={() => setF((p) => ({ ...p, [emailKey]: p[phKey] || "", [pwKey]: "" }))}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
             style={{ background: COLORS.primary }}
           >
@@ -1370,9 +1376,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         ) : (
           <button
             type="button"
-            onClick={() =>
-              setF((p) => ({ ...p, [emailKey]: null, [pwKey]: "" }))
-            }
+            onClick={() => setF((p) => ({ ...p, [emailKey]: null, [pwKey]: "" }))}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
             style={{
               border: `1px solid ${COLORS.border}`,
@@ -1391,8 +1395,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
               label="Login Email"
               icon={Mail}
               type="email"
-              value={f[emailKey]}
-              onChange={set(emailKey)}
+              value={f[emailKey] ?? ""}
+              onChange={handleChange(emailKey)}  // ✅
               placeholder="parent@example.com"
             />
             <div className="relative">
@@ -1401,7 +1405,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 type={showPwState ? "text" : "password"}
                 icon={Lock}
                 value={f[pwKey]}
-                onChange={set(pwKey)}
+                onChange={handleChange(pwKey)}   // ✅
                 placeholder="Min. 6 characters"
               />
               <button
@@ -1418,6 +1422,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       )}
     </div>
   );
+};
 
   // ── Shell ─────────────────────────────────────────────────────────────────
   const shell = (
@@ -2121,15 +2126,18 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                       />
                     </div>
                   </div>
-                  <ParentLoginCard
-                    emailKey="pLoginEmail"
-                    pwKey="pLoginPw"
-                    nmKey="pNm"
-                    phKey="pEm"
-                    relation="Father"
-                    showPwState={showParentPw}
-                    toggleShowPw={() => setShowParentPw((v) => !v)}
-                  />
+                    <ParentLoginCard
+                      emailKey="pLoginEmail"
+                      pwKey="pLoginPw"
+                      nmKey="pNm"
+                      phKey="pEm"
+                      relation="Father"
+                      showPwState={showParentPw}
+                      toggleShowPw={() => setShowParentPw((v) => !v)}
+                      f={f}
+                      setF={setF}
+                      // no set prop ✅
+                    />
                 </>
               )}
 
@@ -2167,15 +2175,18 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                       placeholder="e.g. Teacher"
                     />
                   </div>
-                  <ParentLoginCard
-                    emailKey="mLoginEmail"
-                    pwKey="mLoginPw"
-                    nmKey="mNm"
-                    phKey="mEm"
-                    relation="Mother"
-                    showPwState={showMotherPw}
-                    toggleShowPw={() => setShowMotherPw((v) => !v)}
-                  />
+                    <ParentLoginCard
+                      emailKey="mLoginEmail"
+                      pwKey="mLoginPw"
+                      nmKey="mNm"
+                      phKey="mEm"
+                      relation="Mother"
+                      showPwState={showMotherPw}
+                      toggleShowPw={() => setShowMotherPw((v) => !v)}
+                      f={f}
+                      setF={setF}
+                      // no set prop ✅
+                    />
                 </>
               )}
 

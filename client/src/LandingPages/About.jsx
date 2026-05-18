@@ -371,7 +371,7 @@ export default function About() {
           </p>
 
           <div className="fade-up d3" style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
-            <button className="btn-primary">
+            <button className="btn-primary" onClick={() => (window.location.href = "/login")} >
               Get Started Today <ArrowRight style={{ width: 16, height: 16 }} />
             </button>
  

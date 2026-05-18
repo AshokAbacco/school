@@ -1,5 +1,5 @@
 // src/LandingPages/pricing/Payment.jsx
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { X, Shield, Zap, Crown, Users, CheckCircle2, ChevronRight, Sparkles, ArrowLeft, Lock, GraduationCap, BookOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -209,60 +209,78 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
   };
 
   // Counter component
-  const Counter = ({ label, icon: Icon, value, setValue, errorKey, minVal = MIN_COUNT }) => (
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-1.5 mb-2">
-        <Icon size={11} className="text-blue-300/70" />
-        <span className="text-[10px] font-semibold text-blue-200/70 uppercase tracking-widest">
-          {label}
-        </span>
+  const Counter = ({ label, icon: Icon, value, setValue, errorKey, errors, setErrors, minVal }) => {
+    const [inputVal, setInputVal] = useState(String(value));
+    const isFocused = useRef(false);
+
+    // Only sync from parent when user isn't actively typing
+    useEffect(() => {
+      if (!isFocused.current) {
+        setInputVal(String(value));
+      }
+    }, [value]);
+
+    return (
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Icon size={11} className="text-blue-300/70" />
+          <span className="text-[10px] font-semibold text-blue-200/70 uppercase tracking-widest">
+            {label}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const next = Math.max(minVal, value - 1);
+              setValue(next);
+              if (errors[errorKey]) setErrors({ ...errors, [errorKey]: "" });
+            }}
+            aria-label={`Decrease ${label}`}
+            className="w-8 h-8 rounded-lg border border-blue-300/30 bg-blue-300/10 text-blue-200 text-lg font-light flex items-center justify-center hover:bg-blue-300/20 hover:border-blue-300/50 transition-all duration-150 flex-shrink-0"
+          >−</button>
+
+          <input
+            type="number"
+            min={minVal}
+            value={inputVal}
+            onFocus={() => { isFocused.current = true; }}
+            onChange={(e) => {
+              setInputVal(e.target.value); // ✅ only local state — no parent re-render
+              if (errors[errorKey]) setErrors({ ...errors, [errorKey]: "" });
+            }}
+            onBlur={() => {
+              isFocused.current = false;
+              const num = parseInt(inputVal, 10);
+              const clamped = isNaN(num) || num < minVal ? minVal : num;
+              setValue(clamped);           // ✅ parent update only on blur
+              setInputVal(String(clamped));
+            }}
+            aria-label={`${label} count`}
+            className={`w-14 h-8 rounded-lg border text-center text-sm font-semibold text-white outline-none transition-all duration-150
+              [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none
+              focus:border-blue-300/70 focus:bg-white/12
+              ${errors[errorKey] ? "border-red-400/70" : "border-blue-300/30"}
+            `}
+            style={{ background: "rgba(255,255,255,0.08)" }}
+          />
+
+          <button
+            type="button"
+            onClick={() => {
+              setValue(value + 1);
+              if (errors[errorKey]) setErrors({ ...errors, [errorKey]: "" });
+            }}
+            aria-label={`Increase ${label}`}
+            className="w-8 h-8 rounded-lg border border-blue-300/30 bg-blue-300/10 text-blue-200 text-lg font-light flex items-center justify-center hover:bg-blue-300/20 hover:border-blue-300/50 transition-all duration-150 flex-shrink-0"
+          >+</button>
+        </div>
+        {errors[errorKey] && (
+          <p className="text-[10px] text-red-400 mt-1.5">⚠ {errors[errorKey]}</p>
+        )}
       </div>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setValue((n) => Math.max(minVal, n - 1));
-            if (errors[errorKey]) setErrors({ ...errors, [errorKey]: "" });
-          }}
-          aria-label={`Decrease ${label}`}
-          className="w-8 h-8 rounded-lg border border-blue-300/30 bg-blue-300/10 text-blue-200 text-lg font-light flex items-center justify-center hover:bg-blue-300/20 hover:border-blue-300/50 transition-all duration-150 flex-shrink-0"
-        >
-          −
-        </button>
-        <input
-          type="number"
-          min={minVal}
-          value={value}
-          onChange={(e) => {
-            const val = Number(e.target.value);
-            setValue(isNaN(val) || val < minVal ? minVal : val);
-            if (errors[errorKey]) setErrors({ ...errors, [errorKey]: "" });
-          }}
-          aria-label={`${label} count`}
-          className={`w-14 h-8 rounded-lg border text-center text-sm font-semibold text-white bg-white/8 outline-none transition-all duration-150
-            [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none
-            focus:border-blue-300/70 focus:bg-white/12
-            ${errors[errorKey] ? "border-red-400/70" : "border-blue-300/30"}
-          `}
-          style={{ background: "rgba(255,255,255,0.08)" }}
-        />
-        <button
-          type="button"
-          onClick={() => {
-            setValue((n) => n + 1);
-            if (errors[errorKey]) setErrors({ ...errors, [errorKey]: "" });
-          }}
-          aria-label={`Increase ${label}`}
-          className="w-8 h-8 rounded-lg border border-blue-300/30 bg-blue-300/10 text-blue-200 text-lg font-light flex items-center justify-center hover:bg-blue-300/20 hover:border-blue-300/50 transition-all duration-150 flex-shrink-0"
-        >
-          +
-        </button>
-      </div>
-      {errors[errorKey] && (
-        <p className="text-[10px] text-red-400 mt-1.5">⚠ {errors[errorKey]}</p>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <>
@@ -353,6 +371,9 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
                     value={studentCount}
                     setValue={setStudentCount}
                     errorKey="studentCount"
+                    errors={errors}          // ← add
+                    setErrors={setErrors}    // ← add
+                    minVal={MIN_COUNT}
                   />
                   <Counter
                     label="Teachers"
@@ -360,6 +381,9 @@ export default function PaymentModal({ isOpen, onClose, selectedPlanId }) {
                     value={teacherCount}
                     setValue={setTeacherCount}
                     errorKey="teacherCount"
+                    errors={errors}          // ← add
+                    setErrors={setErrors}    // ← add
+                    minVal={MIN_COUNTS}
                   />
                 </div>
 
