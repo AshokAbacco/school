@@ -245,9 +245,9 @@ model SuperAdmin {
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
 
   schoolAccess SuperAdminSchoolAccess[]
-  schoolId     String?
-  school       School?                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  Payment      Payment[]
+
+  Payment Payment[]
+  schools School[]
 
   @@index([universityId])
   @@map("super_admins")
@@ -286,45 +286,47 @@ model School {
 
   universityId String
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  superAdminId String?
 
-  superAdminAccess       SuperAdminSchoolAccess[]
-  users                  User[]
-  students               Student[]
-  parents                Parent[]
-  teachers               TeacherProfile[]
-  academicYears          AcademicYear[]
-  classSections          ClassSection[]
-  subjects               Subject[]
-  timetableConfigs       TimetableConfig[]
-  assessmentTerms        AssessmentTerm[]
-  assessmentGroups       AssessmentGroup[]
-  FinanceProfile         FinanceProfile[]
-  TeacherMonthlySalary   TeacherMonthlySalary[]
-  Stream                 Stream[]
-  Course                 Course[]
-  SchoolPromotionConfig  SchoolPromotionConfig?
-  PromotionLog           PromotionLog[]
-  ExtraClass             ExtraClass[]
-  Meeting                Meeting[]
-  TeacherAttendance      TeacherAttendance[]
-  TimetableEntry         TimetableEntry[]
-  subjectSyllabus        SubjectSyllabus[]
-  portionProgress        SectionPortionProgress[]
-  galleryAlbums          GalleryAlbum[]
-  holidays               SchoolHoliday[]
-  activities             Activity[]
-  activityEvents         ActivityEvent[]
-  Award                  Award[]
-  liveClasses            LiveClass[]
-  StaffProfile           StaffProfile[]
-  assignments            Assignment[]
-  transportRoutes        TransportRoute[]
-  transportStops         TransportStop[]
-  StudentTransport       StudentTransport[]
-  ClassFee               ClassFee[]
-  TransportFeePlan       TransportFeePlan[]
-  Subscription           Subscription[]
-  SuperAdmin             SuperAdmin[]
+  superAdmin            SuperAdmin?              @relation(fields: [superAdminId], references: [id], onDelete: Cascade)
+  superAdminAccess      SuperAdminSchoolAccess[]
+  users                 User[]                   @relation("SchoolUsers")
+  students              Student[]
+  parents               Parent[]
+  teachers              TeacherProfile[]
+  academicYears         AcademicYear[]
+  classSections         ClassSection[]
+  subjects              Subject[]
+  timetableConfigs      TimetableConfig[]
+  assessmentTerms       AssessmentTerm[]
+  assessmentGroups      AssessmentGroup[]
+  FinanceProfile        FinanceProfile[]
+  TeacherMonthlySalary  TeacherMonthlySalary[]
+  Stream                Stream[]
+  Course                Course[]
+  SchoolPromotionConfig SchoolPromotionConfig?
+  PromotionLog          PromotionLog[]
+  ExtraClass            ExtraClass[]
+  Meeting               Meeting[]
+  TeacherAttendance     TeacherAttendance[]
+  TimetableEntry        TimetableEntry[]
+  subjectSyllabus       SubjectSyllabus[]
+  portionProgress       SectionPortionProgress[]
+  galleryAlbums         GalleryAlbum[]
+  holidays              SchoolHoliday[]
+  activities            Activity[]
+  activityEvents        ActivityEvent[]
+  Award                 Award[]
+  liveClasses           LiveClass[]
+  StaffProfile          StaffProfile[]
+  assignments           Assignment[]
+  transportRoutes       TransportRoute[]
+  transportStops        TransportStop[]
+  StudentTransport      StudentTransport[]
+  ClassFee              ClassFee[]
+  TransportFeePlan      TransportFeePlan[]
+  Subscription          Subscription[]
+
   StudentFinance         StudentFinance[]
   StudentList            StudentList[]
   GroupDStaffSalary      GroupDStaffSalary[]
@@ -336,6 +338,7 @@ model School {
   @@index([universityId])
   @@index([type])
   @@index([code])
+  @@index([superAdminId])
   @@map("schools")
 }
 
@@ -512,7 +515,7 @@ model StudentParent {
 model User {
   id          String    @id @default(uuid())
   name        String
-  email       String
+  email       String    @unique
   password    String
   role        StaffRole
   deletedAt   DateTime?
@@ -520,9 +523,10 @@ model User {
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-
-  schoolId String
-  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  planId      String?
+  maxSchools  Int       @default(1)
+  schoolId    String?
+  school      School?   @relation("SchoolUsers", fields: [schoolId], references: [id], onDelete: Cascade)
 
   organizedMeetings        Meeting[]            @relation("MeetingOrganizer")
   teacherProfile           TeacherProfile?
@@ -556,8 +560,8 @@ model User {
 model SchoolAdminProfile {
   id String @id @default(cuid())
 
-  userId   String @unique
-  schoolId String
+  userId   String  @unique
+  schoolId String?
 
   // ADMIN DETAILS
   adminName   String?
@@ -591,8 +595,8 @@ model SchoolAdminProfile {
   updatedAt DateTime @updatedAt
 
   // RELATIONS
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 }
 
 model Student {
@@ -1419,12 +1423,12 @@ model StreamCombination {
 }
 
 model FinanceProfile {
-  id       String @id @default(uuid())
-  userId   String @unique
-  schoolId String
-
-  name  String?
-  email String?
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  schoolId  String
+  deletedAt DateTime?
+  name      String?
+  email     String?
 
   // ── Core ──
   employeeCode String?

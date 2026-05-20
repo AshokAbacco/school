@@ -40,3 +40,28 @@ export async function deleteSchoolAdmin(id) {
   });
   return res.data;
 }
+// export async function toggleSchoolAdminStatus(id, isActive) {
+//   const res = await axios.patch(
+//     `${API}/api/school-admins/${id}`,
+//     { isActive },
+//     { headers: auth() }
+//   );
+
+//   return res.data;
+// }
+
+ 
+export async function toggleSchoolAdminStatus(id, isActive) {
+  const res = await axios.patch(
+    `${API}/api/school-admins/${id}`,
+    {
+      isActive,
+    },
+    {
+      headers: auth(),
+    }
+  );
+
+  return res.data;
+}
+ 

@@ -290,9 +290,53 @@ const findUserByIdentifier = async (identifier) => {
   return null;
 };
 
-export const loginStaffService = async ({ email, password, selectedRole }) => {
+
+export const loginStaffService = async ({
+  email,
+  password,
+  selectedRole,
+}) => {
+
+  // ─────────────────────────────────────────────
+  // CHECK INACTIVE ACCOUNT FIRST
+  // ─────────────────────────────────────────────
+  const inactiveUser = await prisma.user.findFirst({
+    where: {
+      email,
+      isActive: false,
+    },
+  });
+
+  if (inactiveUser) {
+    const roleMessages = {
+      ADMIN:
+        "Your Admin account is inactive. Contact administrator.",
+
+      TEACHER:
+        "Your Teacher account is inactive. Contact administrator.",
+
+      FINANCE:
+        "Your Finance account is inactive. Contact administrator.",
+    };
+
+    throw {
+      status: 403,
+
+      message:
+        roleMessages[inactiveUser.role] ||
+        "Your account is inactive. Contact administrator.",
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // ACTIVE USER
+  // ─────────────────────────────────────────────
   const user = await prisma.user.findFirst({
-    where: { email, isActive: true },
+    where: {
+      email,
+      isActive: true,
+    },
+
     include: {
       school: {
         include: {
@@ -302,7 +346,9 @@ export const loginStaffService = async ({ email, password, selectedRole }) => {
                 orderBy: {
                   createdAt: "desc",
                 },
+
                 take: 1,
+
                 include: {
                   payment: {
                     select: {
@@ -315,6 +361,7 @@ export const loginStaffService = async ({ email, password, selectedRole }) => {
           },
         },
       },
+
       teacherProfile: {
         select: {
           id: true,
@@ -326,44 +373,107 @@ export const loginStaffService = async ({ email, password, selectedRole }) => {
         },
       },
     },
-    orderBy: { createdAt: "desc" },
+
+    orderBy: {
+      createdAt: "desc",
+    },
   });
 
+  // ─────────────────────────────────────────────
+  // USER NOT FOUND
+  // ─────────────────────────────────────────────
   if (!user) {
     const portal = await detectPortalByEmail(email);
-    if (portal)
+
+    if (portal) {
       throw {
         status: 403,
-        message: `This email is registered as a ${portal}. Please use the ${portal} login.`,
-      };
-    throw { status: 401, message: "Invalid email or password" };
-  }
 
-  // Enforce selected role
-  if (selectedRole && user.role !== selectedRole) {
-    const roleLabel = { ADMIN: "Admin", TEACHER: "Teacher", FINANCE: "Financer" };
-    const actualLabel = roleLabel[user.role] || user.role;
+        message:
+          `This email is registered as a ${portal}. ` +
+          `Please use the ${portal} login.`,
+      };
+    }
+
     throw {
-      status: 403,
-      message: `This account is registered as ${actualLabel}. Please use the ${actualLabel} login tab.`,
+      status: 401,
+      message: "Invalid email or password",
     };
   }
 
-  // ✅ School deactivated check (before isActive check so message is clear)
- if (user.school?.university?.isDeactivated)
-    throw { status: 403, message: DEACTIVATED_MSG };
+  // ─────────────────────────────────────────────
+  // ENFORCE SELECTED ROLE
+  // ─────────────────────────────────────────────
+  if (selectedRole && user.role !== selectedRole) {
+    const roleLabel = {
+      ADMIN: "Admin",
+      TEACHER: "Teacher",
+      FINANCE: "Financer",
+    };
 
-  if (!user.school || user.school.isActive === false)
-    throw { status: 403, message: "School is inactive" };
+    const actualLabel =
+      roleLabel[user.role] || user.role;
 
-  const isValid = await bcrypt.compare(password, user.password);
-  if (!isValid) throw { status: 401, message: "Invalid email or password" };
+    throw {
+      status: 403,
 
+      message:
+        `This account is registered as ${actualLabel}. ` +
+        `Please use the ${actualLabel} login tab.`,
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // UNIVERSITY DEACTIVATED
+  // ─────────────────────────────────────────────
+  if (user.school?.university?.isDeactivated) {
+    throw {
+      status: 403,
+      message: DEACTIVATED_MSG,
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // SCHOOL INACTIVE
+  // ─────────────────────────────────────────────
+  if (!user.school || user.school.isActive === false) {
+    throw {
+      status: 403,
+      message: "School is inactive",
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // PASSWORD CHECK
+  // ─────────────────────────────────────────────
+  const isValid = await bcrypt.compare(
+    password,
+    user.password
+  );
+
+  if (!isValid) {
+    throw {
+      status: 401,
+      message: "Invalid email or password",
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // UPDATE LAST LOGIN
+  // ─────────────────────────────────────────────
   await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
+    where: {
+      id: user.id,
+    },
+
+    data: {
+      lastLoginAt: new Date(),
+    },
   });
 
+  // ─────────────────────────────────────────────
+  // TOKEN
+  // ─────────────────────────────────────────────
   const token = generateToken({
     id: user.id,
     role: user.role,
@@ -374,20 +484,27 @@ export const loginStaffService = async ({ email, password, selectedRole }) => {
 
   return {
     token,
+
     user: {
       id: user.id,
       name: user.name,
       email: user.email,
+
       role: user.role,
       userType: "staff",
+
       school: user.school,
-      teacherProfile: user.teacherProfile || null,
+
+      teacherProfile:
+        user.teacherProfile || null,
 
       planName:
-        user.school?.university?.Subscription?.[0]?.payment?.planName || "Silver",
+        user.school?.university?.Subscription?.[0]
+          ?.payment?.planName || "Silver",
     },
   };
 };
+
 
 // ── Student ────────────────────────────────────────────────────────────────
 
@@ -604,11 +721,41 @@ export const loginParentService = async ({ email, password }) => {
 
 export async function loginFinanceService({ email, password }) {
   if (!email || !password) {
-    throw { status: 400, message: "Email and password required" };
+    throw {
+      status: 400,
+      message: "Email and password required",
+    };
   }
 
+  // ─────────────────────────────────────────────
+  // CHECK INACTIVE ACCOUNT FIRST
+  // ─────────────────────────────────────────────
+  const inactiveFinance = await prisma.user.findFirst({
+    where: {
+      email,
+      role: "FINANCE",
+      isActive: false,
+    },
+  });
+
+  if (inactiveFinance) {
+    throw {
+      status: 403,
+      message:
+        "Your finance account is inactive. Contact administrator.",
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // ACTIVE USER
+  // ─────────────────────────────────────────────
   const user = await prisma.user.findFirst({
-    where: { email, role: "FINANCE" },
+    where: {
+      email,
+      role: "FINANCE",
+      isActive: true,
+    },
+
     include: {
       school: {
         include: {
@@ -619,6 +766,7 @@ export async function loginFinanceService({ email, password }) {
                   createdAt: "desc",
                 },
                 take: 1,
+
                 include: {
                   payment: {
                     select: {
@@ -634,37 +782,44 @@ export async function loginFinanceService({ email, password }) {
     },
   });
 
+  // ─────────────────────────────────────────────
+  // USER NOT FOUND
+  // ─────────────────────────────────────────────
   if (!user) {
-    const student = await prisma.student.findFirst({ where: { email } });
-    if (student)
-      throw {
-        status: 403,
-        message: "This email is registered as a Student. Please use the Student login.",
-      };
-    const parent = await prisma.parent.findFirst({ where: { email } });
-    if (parent)
-      throw {
-        status: 403,
-        message: "This email is registered as a Parent. Please use the Parent login.",
-      };
-    const otherStaff = await prisma.user.findFirst({ where: { email } });
-    if (otherStaff) {
-      const label = { ADMIN: "Admin", TEACHER: "Teacher" }[otherStaff.role] || "Staff";
-      throw {
-        status: 403,
-        message: `This email is registered as ${label}. Please use the Staff → ${label} login.`,
-      };
-    }
-    throw { status: 401, message: "Invalid email or password" };
+    throw {
+      status: 401,
+      message: "Invalid email or password",
+    };
   }
 
-  // ✅ School deactivated check
- if (user.school?.university?.isDeactivated)
-    throw { status: 403, message: DEACTIVATED_MSG };
+  // ─────────────────────────────────────────────
+  // SCHOOL DEACTIVATED
+  // ─────────────────────────────────────────────
+  if (user.school?.university?.isDeactivated) {
+    throw {
+      status: 403,
+      message: DEACTIVATED_MSG,
+    };
+  }
 
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) throw { status: 401, message: "Invalid email or password" };
+  // ─────────────────────────────────────────────
+  // PASSWORD CHECK
+  // ─────────────────────────────────────────────
+  const valid = await bcrypt.compare(
+    password,
+    user.password
+  );
 
+  if (!valid) {
+    throw {
+      status: 401,
+      message: "Invalid email or password",
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // TOKEN
+  // ─────────────────────────────────────────────
   const token = generateToken({
     id: user.id,
     role: user.role,
@@ -674,19 +829,22 @@ export async function loginFinanceService({ email, password }) {
 
   return {
     token,
+
     user: {
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
       userType: "staff",
+
       school: user.school,
+
       planName:
-          user.school?.university?.Subscription?.[0]?.payment?.planName || "Silver",
+        user.school?.university?.Subscription?.[0]
+          ?.payment?.planName || "Silver",
     },
   };
 }
-
 // ── Forgot Password / OTP / Reset ─────────────────────────────────────────
 
 export const sendOtp = async (identifier) => {

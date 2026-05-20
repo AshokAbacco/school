@@ -265,7 +265,7 @@ export async function createSchoolAdmin(req, res) {
     // ✅ 8. DUPLICATE EMAIL CHECK
     // ============================================================
     const existing = await prisma.user.findUnique({
-      where: { email_schoolId: { email, schoolId } },
+      where: { email },
     });
 
     if (existing) {
@@ -361,6 +361,7 @@ export async function createSchoolAdmin(req, res) {
  * PATCH /api/school-admins/:id
  * Updates User fields AND schoolAdminProfile fields
  */
+ 
 export async function updateSchoolAdmin(req, res) {
   try {
     const { id } = req.params;
@@ -383,77 +384,146 @@ export async function updateSchoolAdmin(req, res) {
       aadharNumber,
     } = req.body;
 
-    /* ── Build User-level update data ── */
-    const userData = {};
-    if (name     !== undefined) userData.name     = name;
-    if (email    !== undefined) userData.email    = email;
-    if (isActive !== undefined) userData.isActive = isActive;
-    if (password) userData.password = await bcrypt.hash(password, SALT_ROUNDS);
-
-    /* ── Build SchoolAdminProfile update data ── */
-    const toFloat = (v) => {
-      const n = parseFloat(v);
-      return isNaN(n) ? undefined : n;
-    };
-
-    const profileData = {};
-    if (name          !== undefined) profileData.adminName     = name;
-    if (email         !== undefined) profileData.email         = email;
-    if (employeeId    !== undefined) profileData.employeeId    = employeeId;
-    if (designation   !== undefined) profileData.designation   = designation;
-    if (phoneNumber   !== undefined) profileData.phoneNumber   = phoneNumber;
-    if (address       !== undefined) profileData.address       = address;
-    if (salary        !== undefined) profileData.basicSalary   = toFloat(salary) ?? 0;
-    if (bankName      !== undefined) profileData.bankName      = bankName;
-    if (accountNumber !== undefined) profileData.accountNumber = accountNumber;
-    if (ifscCode      !== undefined) profileData.ifscCode      = ifscCode;
-    if (panNumber     !== undefined) profileData.panNumber     = panNumber;
-    if (aadharNumber  !== undefined) profileData.aadharNumber  = aadharNumber;
-
-    const hasProfileUpdates = Object.keys(profileData).length > 0;
-
-    const updated = await prisma.user.update({
+    // ─────────────────────────────────────────────
+    // CHECK EXISTING ADMIN
+    // ─────────────────────────────────────────────
+    const existingAdmin = await prisma.user.findUnique({
       where: { id },
-      data: {
-        ...userData,
-        ...(hasProfileUpdates && {
-          schoolAdminProfile: {
-            upsert: {
-              create: {
-                schoolId: (
-                  await prisma.user.findUnique({
-                    where: { id },
-                    select: { schoolId: true },
-                  })
-                ).schoolId,
-                adminName: name || "",
-                email: email || "",
-                ...profileData,
-                joiningDate: new Date(),
-              },
-              update: profileData,
-            },
-          },
-        }),
+      include: {
+        schoolAdminProfile: true,
       },
+    });
+
+    if (!existingAdmin) {
+      return res.status(404).json({
+        message: "Admin not found",
+      });
+    }
+
+    // ─────────────────────────────────────────────
+    // CHECK DUPLICATE EMAIL
+    // ─────────────────────────────────────────────
+    if (email && email !== existingAdmin.email) {
+      const emailExists = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (emailExists) {
+        return res.status(409).json({
+          message: "Email already in use",
+        });
+      }
+    }
+
+    // ─────────────────────────────────────────────
+    // USER UPDATE DATA
+    // ─────────────────────────────────────────────
+    const userData = {};
+
+    if (name !== undefined) userData.name = name;
+    if (email !== undefined) userData.email = email;
+    if (isActive !== undefined) userData.isActive = isActive;
+
+    if (password && password.trim() !== "") {
+      userData.password = await bcrypt.hash(password, SALT_ROUNDS);
+    }
+
+    // ─────────────────────────────────────────────
+    // PROFILE UPDATE DATA
+    // ─────────────────────────────────────────────
+    const profileData = {};
+
+    if (name !== undefined) profileData.adminName = name;
+    if (email !== undefined) profileData.email = email;
+    if (employeeId !== undefined) profileData.employeeId = employeeId;
+    if (designation !== undefined) profileData.designation = designation;
+    if (phoneNumber !== undefined) profileData.phoneNumber = phoneNumber;
+    if (address !== undefined) profileData.address = address;
+
+    if (salary !== undefined) {
+      profileData.basicSalary = parseFloat(salary) || 0;
+    }
+
+    if (bankName !== undefined) profileData.bankName = bankName;
+    if (accountNumber !== undefined)
+      profileData.accountNumber = accountNumber;
+
+    if (ifscCode !== undefined) profileData.ifscCode = ifscCode;
+
+    if (panNumber !== undefined) profileData.panNumber = panNumber;
+
+    if (aadharNumber !== undefined)
+      profileData.aadharNumber = aadharNumber;
+
+    // ─────────────────────────────────────────────
+    // UPDATE USER
+    // ─────────────────────────────────────────────
+    await prisma.user.update({
+      where: { id },
+      data: userData,
+    });
+
+    // ─────────────────────────────────────────────
+    // UPDATE PROFILE
+    // ─────────────────────────────────────────────
+    if (existingAdmin.schoolAdminProfile) {
+      await prisma.schoolAdminProfile.update({
+        where: {
+          userId: id,
+        },
+        data: profileData,
+      });
+    } else {
+      await prisma.schoolAdminProfile.create({
+        data: {
+          userId: id,
+          schoolId: existingAdmin.schoolId,
+          joiningDate: new Date(),
+          ...profileData,
+        },
+      });
+    }
+
+    // ─────────────────────────────────────────────
+    // FETCH UPDATED DATA
+    // ─────────────────────────────────────────────
+    const updatedAdmin = await prisma.user.findUnique({
+      where: { id },
       select: {
         id: true,
         name: true,
         email: true,
         isActive: true,
         schoolId: true,
-        school: { select: { id: true, name: true, code: true, type: true } },
+        school: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            type: true,
+          },
+        },
         schoolAdminProfile: true,
       },
     });
 
     await bustCache(universityId);
-    return res.json({ message: "Admin updated ✅", admin: updated });
+
+    return res.json({
+      message: "Admin updated successfully ✅",
+      admin: updatedAdmin,
+    });
   } catch (err) {
     console.error("[updateSchoolAdmin]", err);
-    return res.status(500).json({ message: "Failed to update admin" });
+
+    return res.status(500).json({
+      message: "Failed to update admin",
+      error: err.message,
+    });
   }
 }
+
+
 
 /**
  * DELETE /api/school-admins/:id

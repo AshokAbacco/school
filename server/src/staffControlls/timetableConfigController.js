@@ -264,14 +264,24 @@ export const saveTimetableConfig = async (req, res) => {
       // ── Step 4: Upsert each PeriodDefinition ─────────────
       // UPDATE if exists (timing change) → entries auto reflect ✅
       // CREATE if new period added
-      for (const def of allNewDefs) {
-        const key = `${def.periodNumber}:${def.dayType}`;
-        const existing = existingMap.get(key);
+     const operations = [];
 
-        if (existing) {
-          // ✅ Just update timing — TimetableEntry untouched
-          await tx.periodDefinition.update({
+    for (const def of allNewDefs) {
+
+      const key =
+        `${def.periodNumber}:${def.dayType}`;
+
+      const existing =
+        existingMap.get(key);
+
+      if (existing) {
+
+        operations.push(
+
+          tx.periodDefinition.update({
+
             where: { id: existing.id },
+
             data: {
               label: def.label,
               slotType: def.slotType,
@@ -279,10 +289,15 @@ export const saveTimetableConfig = async (req, res) => {
               endTime: def.endTime,
               order: def.order,
             },
-          });
-        } else {
-          // New period — create fresh
-          await tx.periodDefinition.create({
+          })
+        );
+
+      } else {
+
+        operations.push(
+
+          tx.periodDefinition.create({
+
             data: {
               configId: config.id,
               periodNumber: def.periodNumber,
@@ -293,9 +308,12 @@ export const saveTimetableConfig = async (req, res) => {
               endTime: def.endTime,
               order: def.order,
             },
-          });
-        }
+          })
+        );
       }
+    }
+
+    await Promise.all(operations);
 
       // ── Step 5: Return full config with definitions ───────
       return tx.timetableConfig.findUnique({

@@ -72,7 +72,9 @@ export async function getSchoolsBackups(req, res) {
   try {
 
     const data =
-      await listSchoolBackups();
+      await listSchoolBackups(
+        req.user.id
+      );
 
     res.json({
       success: true,
@@ -80,6 +82,8 @@ export async function getSchoolsBackups(req, res) {
     });
 
   } catch (err) {
+
+    console.log("BACKUP LIST ERROR:", err);
 
     res.status(500).json({
       success: false,
@@ -89,17 +93,18 @@ export async function getSchoolsBackups(req, res) {
   }
 
 }
-
 export async function restoreSchoolBackup(req, res) {
 
   try {
 
     const { schoolId } = req.params;
-
-    await restoreEntireSchool(schoolId);
-await cacheService.invalidateSchool(
-  Number(schoolId)
-);
+    await restoreEntireSchool(
+      schoolId,
+      req.user.id
+    );
+    await cacheService.invalidateSchool(
+      schoolId
+    );
     res.json({
       success: true,
       message: "School restored",

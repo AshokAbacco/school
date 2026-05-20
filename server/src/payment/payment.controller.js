@@ -52,9 +52,12 @@ export const createOrder = async (req, res) => {
 
     const tempUserId = crypto.randomUUID();
 
-    const selectedPlan = await prisma.plan.findUnique({
+    const selectedPlan = await prisma.plan.findFirst({
       where: {
-        id: planId,
+        name: {
+          equals: planName,
+          mode: "insensitive",
+        },
       },
     });
 

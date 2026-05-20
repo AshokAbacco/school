@@ -6,7 +6,11 @@ import {
   X, AlertTriangle, Loader2,
 } from "lucide-react";
 import AddSchoolAdminModal from "./AddScholAdmin";
-import { getSchoolAdmins, deleteSchoolAdmin, updateSchoolAdmin } from "./components/schoolAdminApi";
+import {
+  getSchoolAdmins,
+  updateSchoolAdmin,
+  toggleSchoolAdminStatus,
+} from "./components/schoolAdminApi";
 
 /* ── Design tokens — Stormy Morning ── */
 const C = {
@@ -27,7 +31,7 @@ const SCHOOL_TYPE_LABELS = {
 const StatusBadge = ({ isActive }) => {
   const s = isActive
     ? { bg: "#e2f5ee", fg: "#236644", dot: C.success, label: "Active" }
-    : { bg: "#fce8e8", fg: "#8b1c1c", dot: C.danger,  label: "Inactive" };
+    : { bg: "#fce8e8", fg: "#8b1c1c", dot: C.danger, label: "Inactive" };
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 20, fontSize: 10, fontWeight: 700, fontFamily: "'Inter', sans-serif", background: s.bg, color: s.fg, letterSpacing: "0.04em", textTransform: "uppercase" }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
@@ -83,105 +87,18 @@ function Panel({ children, style = {} }) {
   );
 }
 
-/* ── FIX: Permanent Delete Confirm Dialog ── */
-function DeleteDialog({ admin, onConfirm, onCancel, loading }) {
-  useEffect(() => {
-    const h = (e) => e.key === "Escape" && onCancel();
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onCancel]);
 
-  return (
-    <>
-      <div
-        style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)" }}
-        onClick={onCancel}
-      />
-      <div
-        style={{
-          position: "fixed", zIndex: 50,
-          top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-          width: 420, maxWidth: "92vw",
-          background: C.white, borderRadius: 22,
-          boxShadow: "0 24px 64px rgba(56,73,89,0.22)",
-          animation: "fadeUp 0.18s ease",
-          fontFamily: "'Inter', sans-serif",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ padding: "28px 24px 24px" }}>
-          {/* Icon */}
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
-            <div style={{ width: 56, height: 56, borderRadius: 18, background: "linear-gradient(135deg, #fef2f2, #fee2e2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Trash2 size={26} color="#D95C5C" />
-            </div>
-          </div>
-
-          {/* Text */}
-          <h3 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: C.text, textAlign: "center" }}>
-            Delete Admin Permanently?
-          </h3>
-          <p style={{ margin: "0 0 4px", fontSize: 13, color: C.textLight, textAlign: "center" }}>
-            You're about to permanently delete
-          </p>
-          <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: C.text, textAlign: "center" }}>
-            {admin.name}
-          </p>
-          <p style={{ margin: "0 0 16px", fontSize: 12, color: C.textLight, textAlign: "center" }}>
-            {admin.email}
-          </p>
-
-          {/* Warning box */}
-          <div style={{ padding: "10px 16px", borderRadius: 12, fontSize: 12, textAlign: "center", marginBottom: 20, background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
-            ⚠️ This action cannot be undone. The admin account and all associated data will be permanently removed.
-          </div>
-
-          {/* Buttons */}
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              onClick={onCancel}
-              disabled={loading}
-              style={{ flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700, background: C.bg, color: C.textMid, border: `1.5px solid ${C.borderLight}`, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onConfirm}
-              disabled={loading}
-              style={{
-                flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700,
-                background: "linear-gradient(135deg, #D95C5C, #b91c1c)",
-                color: "#fff", border: "none",
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                fontFamily: "'Inter', sans-serif",
-              }}
-            >
-              {loading
-                ? <><Loader2 size={14} className="animate-spin" /> Deleting…</>
-                : <><Trash2 size={14} /> Delete Permanently</>}
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
 
 /* ── Main Component ── */
 export default function SchoolAdmins() {
-  const [admins, setAdmins]   = useState([]);
+  const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState("");
-  const [search, setSearch]   = useState("");
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
 
   // Modal: null | { mode: "add" } | { mode: "edit", admin: {...} }
   const [modal, setModal] = useState(null);
 
-  // FIX: Renamed from deactivateDialog → deleteDialog
-  const [deleteDialog, setDeleteDialog]   = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchAdmins = async () => {
@@ -225,32 +142,35 @@ export default function SchoolAdmins() {
     );
   };
 
-  // FIX: Hard delete — remove admin from list instead of setting isActive: false
-  const handleDeleteConfirm = async () => {
-    if (!deleteDialog) return;
-    setDeleteLoading(true);
+  const handleStatusToggle = async (id, isActive) => {
     try {
-      await deleteSchoolAdmin(deleteDialog.admin.id);
-      // Remove from list permanently
-      setAdmins((prev) => prev.filter((a) => a.id !== deleteDialog.admin.id));
-      setDeleteDialog(null);
-    } catch {
-      // Keep dialog open on error — user can retry
-    } finally {
-      setDeleteLoading(false);
+      await toggleSchoolAdminStatus(id, isActive);
+
+      setAdmins((prev) =>
+        prev.map((admin) =>
+          admin.id === id
+            ? { ...admin, isActive }
+            : admin
+        )
+      );
+
+      alert(`Admin ${isActive ? "activated" : "deactivated"} successfully`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update admin status");
     }
   };
 
   // ── Derived ────────────────────────────────────────────────────────────────
-const filtered = admins?.filter(Boolean).filter((a) =>
-      a.name.toLowerCase().includes(search.toLowerCase()) ||
+  const filtered = admins?.filter(Boolean).filter((a) =>
+    a.name.toLowerCase().includes(search.toLowerCase()) ||
     a.email.toLowerCase().includes(search.toLowerCase()) ||
     (a.school?.name || "").toLowerCase().includes(search.toLowerCase())
   );
 
   const totals = {
-    total:    admins.length,
-    active:   admins.filter((a) => a.isActive).length,
+    total: admins.length,
+    active: admins.filter((a) => a.isActive).length,
     inactive: admins.filter((a) => !a.isActive).length,
   };
 
@@ -329,9 +249,9 @@ const filtered = admins?.filter(Boolean).filter((a) =>
 
         {/* ══ STAT CARDS ══ */}
         <div className="admins-grid fade-up" style={{ marginBottom: 20, animationDelay: "60ms" }}>
-          <StatCard IconComp={UserCog}     label="Total Admins" value={totals.total}    delay={0}   loading={loading} />
-          <StatCard IconComp={ShieldCheck} label="Active"        value={totals.active}   delay={60}  loading={loading} />
-          <StatCard IconComp={ShieldX}     label="Inactive"      value={totals.inactive} delay={120} loading={loading} />
+          <StatCard IconComp={UserCog} label="Total Admins" value={totals.total} delay={0} loading={loading} />
+          <StatCard IconComp={ShieldCheck} label="Active" value={totals.active} delay={60} loading={loading} />
+          <StatCard IconComp={ShieldX} label="Inactive" value={totals.inactive} delay={120} loading={loading} />
         </div>
 
         {/* ══ TABLE PANEL ══ */}
@@ -454,8 +374,14 @@ const filtered = admins?.filter(Boolean).filter((a) =>
                             className="act-btn"
                             onClick={() => setModal({ mode: "edit", admin })}
                             title="Edit admin"
-                            onMouseEnter={e => { e.currentTarget.style.background = `${C.mist}55`; e.currentTarget.style.borderColor = C.slate; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.borderLight; }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.background = `${C.mist}55`;
+                              e.currentTarget.style.borderColor = C.slate;
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = C.bg;
+                              e.currentTarget.style.borderColor = C.borderLight;
+                            }}
                           >
                             <Edit size={14} color={C.slate} strokeWidth={2} />
                           </button>
@@ -463,12 +389,20 @@ const filtered = admins?.filter(Boolean).filter((a) =>
                           {/* FIX: Delete button — enabled for ALL admins (no isActive check) */}
                           <button
                             className="act-btn"
-                            onClick={() => setDeleteDialog({ admin })}
-                            title="Delete admin permanently"
-                            onMouseEnter={e => { e.currentTarget.style.background = "#fee8e8"; e.currentTarget.style.borderColor = C.danger; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.borderLight; }}
+                            onClick={() =>
+                              handleStatusToggle(admin.id, !admin.isActive)
+                            }
+                            title={admin.isActive ? "Deactivate Admin" : "Activate Admin"}
+                            style={{
+                              background: admin.isActive ? "#fef2f2" : "#ecfdf5",
+                              borderColor: admin.isActive ? "#fecaca" : "#bbf7d0",
+                            }}
                           >
-                            <Trash2 size={14} color={C.danger} strokeWidth={2} />
+                            {admin.isActive ? (
+                              <ShieldX size={14} color="#dc2626" strokeWidth={2} />
+                            ) : (
+                              <ShieldCheck size={14} color="#16a34a" strokeWidth={2} />
+                            )}
                           </button>
                         </div>
                       </td>
@@ -518,14 +452,7 @@ const filtered = admins?.filter(Boolean).filter((a) =>
       )}
 
       {/* ── FIX: Permanent Delete Dialog ── */}
-      {deleteDialog && (
-        <DeleteDialog
-          admin={deleteDialog.admin}
-          loading={deleteLoading}
-          onConfirm={handleDeleteConfirm}
-          onCancel={() => setDeleteDialog(null)}
-        />
-      )}
+
     </>
   );
 }

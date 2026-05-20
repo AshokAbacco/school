@@ -6,6 +6,9 @@ import cacheService from "../utils/cacheService.js";
 import { getExpiryByRole } from "../utils/fileAccessPolicy.js";
 import { uploadToCloud } from "../utils/cloud.service.js";
 import XLSX from "xlsx";
+import {
+  createFullSchoolBackup
+} from "../modules/backup/backup.service.js";
 
 
 import { prisma } from "../config/db.js";
@@ -237,13 +240,9 @@ export const createParentLogin = async (req, res) => {
           schoolId,
         },
       });
-await saveSchoolBackup({
-  schoolId,
-  module: "studentList",
-  recordId: String(student.id),
-  data: student,
-  action: "create",
-});
+        await createFullSchoolBackup(
+          schoolId
+        );
     }
 
     const link = await prisma.studentParent.create({
@@ -266,13 +265,13 @@ await saveSchoolBackup({
         },
       },
     });
-await saveSchoolBackup({
-  schoolId,
-  module: "studentList",
-  recordId: String(student.id),
-  data: student,
-  action: "create",
-});
+// await saveSchoolBackup({
+//   schoolId,
+//   module: "studentList",
+//   recordId: String(student.id),
+//   data: student,
+//   action: "create",
+// });
     await bustStudentCache(schoolId);
     return res.status(201).json({
       parent: link.parent,
@@ -1077,12 +1076,9 @@ export const bulkImportStudents = async (req, res) => {
             schoolId,
           },
         });
-        await uploadBackup({
-          schoolId: student.schoolId,
-          model: "students",
-          recordId: student.id,
-          data: student,
-        });
+        await createFullSchoolBackup(
+          student.schoolId
+        );
         // create personal info
         await prisma.studentPersonalInfo.create({
           data: {

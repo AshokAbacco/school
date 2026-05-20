@@ -1,12 +1,30 @@
 // src/superAdmin/pages/Finance/Finance.jsx
 import { useEffect, useState } from "react";
-import { getFinances, deleteFinance } from "./components/financeApi";
-import AddFinancers from "./AddFinancers";
 import {
-  Users, RefreshCw, Plus, Search, Mail, School,
-  Pencil, Trash2, BadgeCheck, ShieldOff, TrendingUp,
-  X, AlertTriangle, Loader2,
+  getFinances,
+  toggleFinanceStatus,
+} from "./components/financeApi";
+
+import AddFinancers from "./AddFinancers";
+
+
+import {
+  Users,
+  RefreshCw,
+  Plus,
+  Search,
+  Mail,
+  School,
+  Pencil,
+  BadgeCheck,
+  ShieldOff,
+  TrendingUp,
+  ShieldCheck,
+  ShieldX,
+  X,
 } from "lucide-react";
+
+
 
 /* ── Design tokens — Stormy Morning ── */
 const C = {
@@ -21,7 +39,7 @@ const C = {
 const StatusBadge = ({ active }) => {
   const s = active
     ? { bg: "#e2f5ee", fg: "#236644", dot: C.success, label: "Active" }
-    : { bg: "#fce8e8", fg: "#8b1c1c", dot: C.danger,  label: "Inactive" };
+    : { bg: "#fce8e8", fg: "#8b1c1c", dot: C.danger, label: "Inactive" };
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 20, fontSize: 10, fontWeight: 700, fontFamily: "'Inter', sans-serif", background: s.bg, color: s.fg, letterSpacing: "0.04em", textTransform: "uppercase" }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
@@ -88,63 +106,15 @@ function Avatar({ name }) {
   );
 }
 
-/* ── Delete Confirm Dialog ── */
-function DeleteConfirmDialog({ finance, onConfirm, onCancel, loading }) {
-  useEffect(() => {
-    const h = (e) => e.key === "Escape" && onCancel();
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onCancel]);
-
-  return (
-    <>
-      <div style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)" }} onClick={onCancel} />
-      <div style={{
-        position: "fixed", zIndex: 50,
-        top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-        width: 420, maxWidth: "92vw",
-        background: C.white, borderRadius: 22,
-        boxShadow: "0 24px 64px rgba(56,73,89,0.22)",
-        animation: "fadeUp 0.18s ease",
-        fontFamily: "'Inter', sans-serif", overflow: "hidden",
-      }}>
-        <div style={{ padding: "28px 24px 24px" }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
-            <div style={{ width: 56, height: 56, borderRadius: 18, background: "linear-gradient(135deg, #fef2f2, #fee2e2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <AlertTriangle size={26} color="#D95C5C" />
-            </div>
-          </div>
-          <h3 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: C.text, textAlign: "center" }}>Delete Finance Account?</h3>
-          <p style={{ margin: "0 0 4px", fontSize: 13, color: C.textLight, textAlign: "center" }}>You're about to permanently delete</p>
-          <p style={{ margin: "0 0 16px", fontSize: 13, fontWeight: 700, color: C.text, textAlign: "center" }}>"{finance?.user?.name}"</p>
-          <div style={{ padding: "10px 16px", borderRadius: 12, fontSize: 12, textAlign: "center", marginBottom: 20, background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
-            This action cannot be undone. All associated data will be lost.
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={onCancel} disabled={loading}
-              style={{ flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700, background: C.bg, color: C.textMid, border: `1.5px solid ${C.borderLight}`, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}>
-              Cancel
-            </button>
-            <button onClick={onConfirm} disabled={loading}
-              style={{ flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700, background: "linear-gradient(135deg, #D95C5C, #b91c1c)", color: "#fff", border: "none", cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "'Inter', sans-serif" }}>
-              {loading ? <><Loader2 size={14} className="animate-spin" /> Deleting…</> : <><Trash2 size={14} /> Delete</>}
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
 
 /* ══ MAIN PAGE ══ */
 export default function FinanceListPage() {
-  const [finances,      setFinances]      = useState([]);
-  const [loading,       setLoading]       = useState(true);
-  const [showModal,     setShowModal]     = useState(false);
-  const [editFinance,   setEditFinance]   = useState(null);
-  const [search,        setSearch]        = useState("");
-  const [deleteDialog,  setDeleteDialog]  = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [finances, setFinances] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editFinance, setEditFinance] = useState(null);
+  const [search, setSearch] = useState("");
+
 
   const fetchData = async () => {
     setLoading(true);
@@ -160,22 +130,39 @@ export default function FinanceListPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const handleEdit  = (f) => { setEditFinance(f); setShowModal(true); };
-  const handleDelete = (id) => setDeleteDialog({ id });
+  const handleEdit = (f) => { setEditFinance(f); setShowModal(true); };
 
-  const handleDeleteConfirm = async () => {
-    if (!deleteDialog) return;
-    setDeleteLoading(true);
+
+  const handleStatusToggle = async (id, isActive) => {
     try {
-      await deleteFinance(deleteDialog.id);
-      setFinances((prev) => prev.filter((f) => f.id !== deleteDialog.id));
-      setDeleteDialog(null);
+      await toggleFinanceStatus(id, isActive);
+
+      setFinances((prev) =>
+        prev.map((finance) =>
+          finance.user?.id === id
+            ? {
+              ...finance,
+              user: {
+                ...finance.user,
+                isActive,
+              },
+            }
+            : finance
+        )
+      );
+
+      alert(
+        `Finance account ${isActive ? "activated" : "deactivated"
+        } successfully`
+      );
     } catch (err) {
       console.error(err);
-    } finally {
-      setDeleteLoading(false);
+      alert("Failed to update finance status");
     }
   };
+
+
+
 
   const handleModalClose = () => { setShowModal(false); setEditFinance(null); };
 
@@ -184,8 +171,8 @@ export default function FinanceListPage() {
       .some((v) => v?.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const total    = finances.length;
-  const active   = finances.filter((f) => f.user?.isActive !== false).length;
+  const total = finances.length;
+  const active = finances.filter((f) => f.user?.isActive !== false).length;
   const inactive = total - active;
 
   return (
@@ -251,9 +238,9 @@ export default function FinanceListPage() {
 
         {/* ══ STAT CARDS ══ */}
         <div className="finance-grid fade-up" style={{ marginBottom: 20, animationDelay: "60ms" }}>
-          <StatCard IconComp={TrendingUp} label="Total Accounts" value={total}    delay={0}   loading={loading} />
-          <StatCard IconComp={BadgeCheck} label="Active"         value={active}   delay={60}  loading={loading} />
-          <StatCard IconComp={ShieldOff}  label="Inactive"       value={inactive} delay={120} loading={loading} />
+          <StatCard IconComp={TrendingUp} label="Total Accounts" value={total} delay={0} loading={loading} />
+          <StatCard IconComp={BadgeCheck} label="Active" value={active} delay={60} loading={loading} />
+          <StatCard IconComp={ShieldOff} label="Inactive" value={inactive} delay={120} loading={loading} />
         </div>
 
         {/* ══ TABLE PANEL ══ */}
@@ -377,18 +364,15 @@ export default function FinanceListPage() {
                           <StatusBadge active={f.user?.isActive !== false} />
                         </td>
                         <td>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                            <button className="act-btn" onClick={() => handleEdit(f)} title="Edit"
-                              onMouseEnter={e => { e.currentTarget.style.background = `${C.mist}55`; e.currentTarget.style.borderColor = C.slate; }}
-                              onMouseLeave={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.borderLight; }}>
-                              <Pencil size={14} color={C.slate} strokeWidth={2} />
-                            </button>
-                            <button className="act-btn" onClick={() => handleDelete(f.id)} title="Delete"
-                              onMouseEnter={e => { e.currentTarget.style.background = "#fee8e8"; e.currentTarget.style.borderColor = C.danger; }}
-                              onMouseLeave={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.borderLight; }}>
-                              <Trash2 size={14} color={C.danger} strokeWidth={2} />
+
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, }} > {/* Edit */}
+                            <button className="act-btn" onClick={() => handleEdit(f)} title="Edit" onMouseEnter={(e) => { e.currentTarget.style.background = `${C.mist}55`; e.currentTarget.style.borderColor = C.slate; }} onMouseLeave={(e) => { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.borderLight; }} > <Pencil size={14} color={C.slate} strokeWidth={2} /> </button>
+                            {/* Activate / Deactivate */}
+
+                            <button className="act-btn" onClick={() => handleStatusToggle(f.id, !(f.user?.isActive !== false))} title={f.user?.isActive !== false ? "Deactivate Finance" : "Activate Finance"} style={{ background: f.user?.isActive !== false ? "#fef2f2" : "#ecfdf5", borderColor: f.user?.isActive !== false ? "#fecaca" : "#bbf7d0", }} > {f.user?.isActive !== false ? (<ShieldOff size={14} color="#dc2626" strokeWidth={2} />) : (<ShieldCheck size={14} color="#16a34a" strokeWidth={2} />)}
                             </button>
                           </div>
+
                         </td>
                       </tr>
                     ))
@@ -415,15 +399,7 @@ export default function FinanceListPage() {
         />
       )}
 
-      {/* ── Delete Confirm Dialog ── */}
-      {deleteDialog && (
-        <DeleteConfirmDialog
-          finance={finances.find((f) => f.id === deleteDialog.id)}
-          loading={deleteLoading}
-          onConfirm={handleDeleteConfirm}
-          onCancel={() => setDeleteDialog(null)}
-        />
-      )}
+
     </>
   );
 }

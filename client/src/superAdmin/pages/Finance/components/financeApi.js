@@ -72,3 +72,12 @@ export async function getSchools() {
   });
   return res;
 }
+export async function toggleFinanceStatus(id, isActive) {
+  const res = await axios.patch(
+    `${API}/api/finance-profiles/${id}`,
+    { isActive },
+    { headers: authHeaders() }
+  );
+
+  return res.data;
+}

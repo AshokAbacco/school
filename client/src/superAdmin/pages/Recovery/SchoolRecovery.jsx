@@ -1,3 +1,5 @@
+// superadmin/schoolrecovary.jsx
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
     ArrowLeft,
@@ -294,7 +296,7 @@ export default function SchoolRecovery() {
 
                     return (
                         <div
-                            key={backup.id}
+                            key={backup.schoolId}
                             className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 hover:shadow-md transition"
                         >
                             <div className="flex items-start justify-between gap-4">
@@ -314,9 +316,11 @@ export default function SchoolRecovery() {
                                         <CalendarDays size={15} />
 
                                         Backup on{" "}
-                                        {new Date(
-                                            backup.createdAt
-                                        ).toLocaleDateString()}
+                                        {backup.createdAt
+                                            ? new Date(
+                                                backup.createdAt
+                                            ).toLocaleDateString()
+                                            : "No Backup Yet"}
                                     </div>
 
                                     <div className="flex gap-3 mt-4">

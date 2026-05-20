@@ -240,172 +240,81 @@ export const restoreSingleRecord = async ({
   recordId,
 }) => {
 
-  if (!prisma[model]) {
-    throw new Error("Invalid model");
-  }
+  try {
 
-  // =========================
-  // STAFF RESTORE
-  // =========================
-
-  if (model === "staffProfile") {
-
-    const restoredStaff =
-      await prisma.staffProfile.update({
-
-        where: {
-        id: Number(recordId),
-        },
-
-        data: {
-          deletedAt: null,
-          status: "ACTIVE",
-        },
-      });
-
-    // restore linked user
-    if (restoredStaff.userId) {
-
-      await prisma.user.update({
-
-        where: {
-          id: restoredStaff.userId,
-        },
-
-        data: {
-          deletedAt: null,
-          isActive: true,
-        },
-      });
-
+    if (!prisma[model]) {
+      throw new Error(`Invalid model: ${model}`);
     }
 
-    return restoredStaff;
-  }
-
-  // =========================
-  // TUTORIAL TEACHER RESTORE
-  // =========================
-
-  if (model === "teacherTutorialProfile") {
-
-    const restoredTutorial =
-      await prisma.teacherTutorialProfile.update({
-
-        where: {
-         id: Number(recordId),
-        },
-
-        data: {
-          deletedAt: null,
-          isActive: true,
-        },
-      });
-
-    return restoredTutorial;
-  }
-
-  // =========================
-  // CLASS SECTION RESTORE
-  // =========================
-
-  if (model === "classSection") {
-
-    const restoredClass =
-      await prisma.classSection.update({
-
-        where: {
-        id: Number(recordId),
-        },
-
-        data: {
-          deletedAt: null,
-        },
-      });
-
-    return restoredClass;
-  }
-
-  // =========================
-  // HOLIDAY RESTORE
-  // =========================
-
-  if (model === "schoolHoliday") {
-
-    const restoredHoliday =
-      await prisma.schoolHoliday.update({
-
-        where: {
-         id: Number(recordId),
-        },
-
-        data: {
-          deletedAt: null,
-        },
-      });
-
-    return restoredHoliday;
-  }
-
-  // =========================
-  // GALLERY IMAGE RESTORE
-  // =========================
-
-  if (model === "galleryImage") {
-
-    const restoredImage =
-      await prisma.galleryImage.update({
-
-        where: {
-id: Number(recordId),
-        },
-
-        data: {
-          deletedAt: null,
-        },
-      });
-
-    return restoredImage;
-  }
-// =========================
-// FINANCE STUDENT RESTORE
-// =========================
-
-if (model === "studentList") {
-
-  const restoredStudent =
-    await prisma.studentList.update({
-
-      where: {
-        id: Number(recordId),
-      },
-
-      data: {
-        deletedAt: null,
-      },
+    console.log("RESTORE REQUEST:", {
+      model,
+      recordId,
+      type: typeof recordId,
     });
 
-  return restoredStudent;
-}
-  // =========================
-  // NORMAL RESTORE
-  // =========================
+    // =========================
+    // STAFF RESTORE
+    // =========================
 
-  const restoredRecord =
-    await prisma[model].update({
+    if (model === "staffProfile") {
 
-      where: {
-      id: Number(recordId),
-      },
+      const restoredStaff =
+        await prisma.staffProfile.update({
 
-      data: {
-        deletedAt: null,
-      },
-    });
+          where: {
+            id: recordId,
+          },
 
-  return restoredRecord;
+          data: {
+            deletedAt: null,
+            status: "ACTIVE",
+          },
+        });
+
+      if (restoredStaff.userId) {
+
+        await prisma.user.update({
+
+          where: {
+            id: restoredStaff.userId,
+          },
+
+          data: {
+            deletedAt: null,
+            isActive: true,
+          },
+        });
+
+      }
+
+      return restoredStaff;
+    }
+
+    // =========================
+    // NORMAL RESTORE
+    // =========================
+
+    const restoredRecord =
+      await prisma[model].update({
+
+        where: {
+          id: recordId,
+        },
+
+        data: {
+          deletedAt: null,
+        },
+      });
+
+    return restoredRecord;
+
+  } catch (error) {
+
+    console.log("❌ RESTORE ERROR:", error);
+
+    throw error;
+  }
 };
-
 /* =========================================================
    LIST SCHOOL BACKUPS
 ========================================================= */
@@ -417,7 +326,7 @@ if (model === "studentList") {
 ========================================================= */
 
 export const restoreEntireSchool =
-  async (schoolId) => {
+  async (schoolId, superAdminId) => {
 
     try {
 
@@ -429,7 +338,7 @@ export const restoreEntireSchool =
   new ListObjectsV2Command({
     Bucket: process.env.R2_BUCKET,
   Prefix:
-`CloudBackup/school-backups/${schoolId}/`,
+`CloudBackup/super-admins/${superAdminId}/schools/${schoolId}/`,
   });
 
 
@@ -476,7 +385,9 @@ export const restoreEntireSchool =
 
       const backup =
         JSON.parse(jsonString);
-
+if (!backup || !backup.school) {
+  throw new Error("Invalid backup data");
+}
       const school =
         backup.school;
 
@@ -538,9 +449,66 @@ await prisma.school.upsert({
       }
 
 
+/* =========================================================
+   FINANCE PROFILE RESTORE
+========================================================= */
 
+for (const finance of backup.financeProfiles || []) {
+
+  // RESTORE USER FIRST
+  if (finance.userId) {
+
+    const financeUser =
+      backup.users?.find(
+        (u) => u.id === finance.userId
+      );
+
+    if (financeUser) {
+
+      await prisma.user.upsert({
+
+        where: {
+          id: financeUser.id,
+        },
+
+        update: {
+          deletedAt: null,
+          isActive: true,
+        },
+
+        create: {
+          ...financeUser,
+          deletedAt: null,
+          isActive: true,
+        },
+      });
+    }
+  }
+
+  // RESTORE FINANCE PROFILE
+  await prisma.financeProfile.upsert({
+
+    where: {
+      id: finance.id,
+    },
+
+    update: {
+      deletedAt: null,
+    },
+
+    create: {
+      ...finance,
+      deletedAt: null,
+    },
+  });
+}
 /* =========================================================
    USERS
+========================================================= */
+
+ 
+/* =========================================================
+   USERS RESTORE
 ========================================================= */
 
 for (const user of backup.users || []) {
@@ -551,11 +519,118 @@ for (const user of backup.users || []) {
       id: user.id,
     },
 
-    update: {},
+    update: {
+      deletedAt: null,
+      isActive: true,
+    },
 
-    create: user,
+    create: {
+      ...user,
+      deletedAt: null,
+      isActive: true,
+    },
   });
 }
+ 
+
+
+/* =========================================================
+   SCHOOL ADMINS
+========================================================= */
+
+ /* =========================================================
+   SCHOOL ADMINS
+========================================================= */
+
+for (const admin of backup.schoolAdminProfiles || []) {
+
+  // restore linked user first
+  if (admin.userId) {
+
+    const adminUser =
+      backup.users?.find(
+        (u) => u.id === admin.userId
+      );
+
+    if (adminUser) {
+
+      await prisma.user.upsert({
+
+        where: {
+          id: adminUser.id,
+        },
+
+        update: {
+          deletedAt: null,
+          isActive: true,
+        },
+
+        create: {
+          ...adminUser,
+          deletedAt: null,
+          isActive: true,
+        },
+      });
+    }
+  }
+
+  // restore school admin profile
+  await prisma.schoolAdminProfile.upsert({
+
+    where: {
+      id: admin.id,
+    },
+
+    update: {},
+
+    create: {
+      id: admin.id,
+      userId: admin.userId,
+      schoolId: admin.schoolId,
+      adminName: admin.adminName,
+      email: admin.email,
+      phoneNumber: admin.phoneNumber,
+      address: admin.address,
+      employeeId: admin.employeeId,
+      designation: admin.designation,
+      basicSalary: admin.basicSalary,
+      bankName: admin.bankName,
+      accountNumber: admin.accountNumber,
+      ifscCode: admin.ifscCode,
+      panNumber: admin.panNumber,
+      aadharNumber: admin.aadharNumber,
+      photoUrl: admin.photoUrl,
+      panDocumentUrl: admin.panDocumentUrl,
+      aadharDocumentUrl: admin.aadharDocumentUrl,
+      joiningDate: admin.joiningDate,
+      createdAt: admin.createdAt,
+      updatedAt: admin.updatedAt,
+    },
+  });
+}
+
+/* =========================================================
+   PARENTS
+========================================================= */
+
+for (const parent of backup.parents || []) {
+
+  await prisma.parent.upsert({
+
+    where: {
+      id: parent.id,
+    },
+
+ 
+    update: {},
+ 
+
+
+    create: parent,
+  });
+}
+ 
+
 
 
 /* =========================================================
@@ -591,9 +666,7 @@ for (const teacher of backup.teachers || []) {
       id: teacher.id,
     },
 
-    update: {
-      deletedAt: null,
-    },
+    update: {},
 
     create: teacher,
   });
@@ -612,11 +685,16 @@ for (const student of backup.students || []) {
       id: student.id,
     },
 
-    update: {
-      deletedAt: null,
-    },
+   update: {},
 
-    create: student,
+    create: {
+  id: student.id,
+  name: student.name,
+  email: student.email,
+  password: student.password,
+  schoolId: student.schoolId,
+  deletedAt: null,
+},
   });
 }
 
@@ -1154,349 +1232,832 @@ const streamToString = async (stream) => {
     }
   );
 };
+
 export const listSchoolBackups =
-  async () => {
+  async (superAdminId) => {
 
-    const command =
-      new ListObjectsV2Command({
+    const schools =
+  await prisma.school.findMany({
 
-        Bucket:
-          process.env.R2_BUCKET,
+    where: {
+      superAdminId,
 
-        Prefix:
-          "CloudBackup/school-backups/",
-      });
+    
+    },
 
-    const response =
-      await r2.send(command);
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      type: true,
+    },
+  });
 
-    const files =
-      response.Contents || [];
+    const backups = [];
 
-    const grouped = {};
+  for (const school of schools) {
 
-    files.forEach((file) => {
+  const command =
+    new ListObjectsV2Command({
 
-      const parts =
-        file.Key.split("/");
+      Bucket: process.env.R2_BUCKET,
 
-      // CloudBackup/school-backups/{schoolId}/backup.json
-
-      if (parts.length < 4) return;
-
-      const schoolId =
-        parts[2];
-
-      if (!grouped[schoolId]) {
-        grouped[schoolId] = [];
-      }
-
-      grouped[schoolId].push(file);
-
+      Prefix:
+`CloudBackup/super-admins/${superAdminId}/schools/${school.id}/`,
     });
 
-    const result =
-      await Promise.all(
-
-        Object.entries(grouped).map(
-          async ([schoolId, backups]) => {
-
-            const latest =
-              backups.sort(
-                (a, b) =>
-                  new Date(b.LastModified) -
-                  new Date(a.LastModified)
-              )[0];
-
-            const getCommand =
-              new GetObjectCommand({
-
-                Bucket:
-                  process.env.R2_BUCKET,
-
-                Key: latest.Key,
-              });
-
-            const response =
-              await r2.send(getCommand);
-
-            const jsonString =
-              await streamToString(
-                response.Body
-              );
-
-            const backup =
-              JSON.parse(jsonString);
-return {
-
-  id: schoolId,
-
-  schoolId,
-
-  school: backup.school,
-
-  createdAt: latest.LastModified,
-
-  backupsCount: backups.length,
-
-  // CORE
-  users: backup.users || [],
-  students: backup.students || [],
-  parents: backup.parents || [],
-  teachers: backup.teachers || [],
-
-  // ATTENDANCE
-  attendanceRecords:
-    backup.attendanceRecords || [],
-
-  // EXAMS
-  assessmentTerms:
-    backup.assessmentTerms || [],
-
-  marks:
-    backup.marks || [],
-
-  // TIMETABLE
-  timetableEntries:
-    backup.timetableEntries || [],
-
-  // FEES
-  feePayments:
-    backup.feePayments || [],
-
-  // GALLERY
-  galleryAlbums:
-    backup.galleryAlbums || [],
-
-  // EVENTS
-  activities:
-    backup.activities || [],
-
-  // HOLIDAYS
-  schoolHolidays:
-    backup.schoolHolidays || [],
-
-  // CERTIFICATES
-  certificates:
-    backup.certificates || [],
-
-  // NOTIFICATIONS
-  notifications:
-    backup.notifications || [],
-
-  // SALARIES
-  teacherMonthlySalaries:
-    backup.teacherMonthlySalaries || [],
-};
-          }
-        )
-      );
-
-    return result;
-};
-
-export const createFullSchoolBackup =
-  async (schoolId) => {
-
-    // =========================
-    // LOAD COMPLETE SCHOOL
-    // =========================
-
-    const school =
-      await prisma.school.findUnique({
-
-        where: {
-          id: schoolId,
-        },
-include: {
-
-  // CORE
-  users: true,
-  students: true,
-  parents: true,
-  teacherProfiles: true,
-  staffProfiles: true,
-  studentLists: true,
-
-  // ACADEMICS
-  subjects: true,
-  classSections: true,
-  academicYears: true,
-  studentEnrollments: true,
-  teacherAssignments: true,
-  classSubjects: true,
-
-  // ATTENDANCE
-  attendanceRecords: true,
-  teacherAttendances: true,
-
-  // EXAMS
-  assessmentTerms: true,
-  assessmentGroups: true,
-  assessmentSchedules: true,
-  marks: true,
-
-  // TIMETABLE
-  timetableConfigs: true,
-  timetableEntries: true,
-
-  // FEES
-  feeStructures: true,
-  feeAssignments: true,
-  feePayments: true,
-
-  // EVENTS
-  activities: true,
-  activityEvents: true,
-  eventTeams: true,
-  eventParticipants: true,
-
-  // GALLERY
-  galleryAlbums: {
-    include: {
-      images: true,
-    },
-  },
-
-  // HOLIDAYS
-  schoolHolidays: true,
-
-  // CERTIFICATES
-  certificates: true,
-
-  // TRANSPORT
-  transportRoutes: true,
-
-  // EXPENSES
-  expenses: true,
-},
-      });
-
-    if (!school) {
-      throw new Error("School not found");
-    }
-
-    // =========================
-    // CREATE BACKUP JSON
-    // =========================
-
-const backupData = {
-
-  school,
-
-  users: school.users || [],
-  students: school.students || [],
-  parents: school.parents || [],
-  teachers: school.teacherProfiles || [],
-  staffProfiles: school.staffProfiles || [],
-  studentLists: school.studentLists || [],
-
-  subjects: school.subjects || [],
-  classSections: school.classSections || [],
-  academicYears: school.academicYears || [],
-
-  studentEnrollments:
-    school.studentEnrollments || [],
-
-  teacherAssignments:
-    school.teacherAssignments || [],
-
-  classSubjects:
-    school.classSubjects || [],
-
-  attendanceRecords:
-    school.attendanceRecords || [],
-
-  teacherAttendances:
-    school.teacherAttendances || [],
-
-  assessmentTerms:
-    school.assessmentTerms || [],
-
-  assessmentGroups:
-    school.assessmentGroups || [],
-
-  assessmentSchedules:
-    school.assessmentSchedules || [],
-
-  marks: school.marks || [],
-
-  timetableConfigs:
-    school.timetableConfigs || [],
-
-  timetableEntries:
-    school.timetableEntries || [],
-
-  feeStructures:
-    school.feeStructures || [],
-
-  feeAssignments:
-    school.feeAssignments || [],
-
-  feePayments:
-    school.feePayments || [],
-
-  activities:
-    school.activities || [],
-
-  activityEvents:
-    school.activityEvents || [],
-
-  galleryAlbums:
-    school.galleryAlbums || [],
-
-  schoolHolidays:
-    school.schoolHolidays || [],
-
-  certificates:
-    school.certificates || [],
-
-  transportRoutes:
-    school.transportRoutes || [],
-
-  expenses:
-    school.expenses || [],
-};
-
-    // =========================
-    // R2 PATH
-    // =========================
-
-    const key =
-      `CloudBackup/school-backups/${schoolId}/backup-${Date.now()}.json`;
-
-    // =========================
-    // UPLOAD TO R2
-    // =========================
-
-    const command =
-      new PutObjectCommand({
-
-        Bucket:
-          process.env.R2_BUCKET,
-
-        Key: key,
-
-        Body:
-          JSON.stringify(
-            backupData,
-            null,
-            2
-          ),
-
-        ContentType:
-          "application/json",
-      });
-
+  const response =
     await r2.send(command);
 
-    console.log(
-      "✅ School backup created:",
-      key
-    );
+  const files =
+    response.Contents || [];
 
-    return {
-      success: true,
-      key,
-    };
+  const latest =
+    files.length > 0
+      ? files.sort(
+          (a, b) =>
+            new Date(b.LastModified) -
+            new Date(a.LastModified)
+        )[0]
+      : null;
+
+  backups.push({
+    schoolId: school.id,
+
+    school: {
+      name: school.name,
+      code: school.code,
+      type: school.type,
+      deletedAt: school.deletedAt,
+    },
+
+    hasBackup: files.length > 0,
+
+    createdAt:
+      latest?.LastModified || null,
+  });
+}
+
+    return backups;
+};
+
+export const createFullSchoolBackup = async (schoolId) => {
+
+  // =========================
+  // VALIDATE SCHOOL
+  // =========================
+
+  const school = await prisma.school.findUnique({
+    where: {
+      id: schoolId,
+    },
+  });
+
+  if (!school) {
+    throw new Error("School not found");
+  }
+console.log("SCHOOL:", school);
+console.log("SUPER ADMIN ID:", school.superAdminId);
+
+if (!school.superAdminId) {
+  throw new Error(
+    `School ${school.name} has no superAdminId`
+  );
+}
+  // =========================
+  // CORE DATA
+  // =========================
+
+  const [
+    users,
+    students,
+    parents,
+    teachers,
+    staffProfiles,
+    studentLists,
+
+    // ACADEMICS
+    subjects,
+    classSections,
+    academicYears,
+    classSectionAcademicYears,
+    streams,
+    streamCombinations,
+    courses,
+    courseBranches,
+
+    // ENROLLMENTS
+    studentEnrollments,
+    classSubjects,
+    teacherAssignments,
+
+    // ATTENDANCE
+    attendanceRecords,
+    teacherAttendances,
+
+    // EXAMS
+    assessmentTerms,
+    assessmentGroups,
+    assessmentSchedules,
+    marks,
+    resultSummaries,
+
+    // TIMETABLE
+    timetableConfigs,
+    periodDefinitions,
+    timetableEntries,
+
+    // SYLLABUS
+    subjectSyllabus,
+    sectionPortionProgress,
+
+    // EVENTS
+    activities,
+    activityClasses,
+    activityEvents,
+    eventClasses,
+    eventTeams,
+    eventTeamMembers,
+    eventParticipants,
+    eventResults,
+
+    // AWARDS
+    awards,
+    studentAwards,
+    certificates,
+
+    // GALLERY
+    galleryAlbums,
+
+    // HOLIDAYS
+    holidays,
+
+    // LIVE CLASSES
+    liveClasses,
+    liveClassSections,
+    liveClassAttendance,
+
+    // ASSIGNMENTS
+    assignments,
+    assignmentSections,
+
+    // TRANSPORT
+    transportRoutes,
+    transportStops,
+    studentTransports,
+    transportFeePlans,
+
+    // FEES
+    classFees,
+    studentFinance,
+
+    // MEETINGS
+    meetings,
+    meetingParticipants,
+    meetingClasses,
+    meetingStudents,
+
+    // EXTRA CLASSES
+    extraClasses,
+
+    // FINANCE
+    financeProfiles,
+    schoolAdminProfiles,
+    financeMonthlySalary,
+    adminMonthlySalary,
+
+    // STAFF SALARIES
+    groupBStaffSalary,
+    groupCStaffSalary,
+    groupDStaffSalary,
+    
+  ] = await Promise.all([
+
+    // =========================
+    // CORE
+    // =========================
+
+    prisma.user.findMany({
+      where: { schoolId },
+    }),
+
+    prisma.student.findMany({
+      where: { schoolId },
+    }),
+
+    prisma.parent.findMany({
+      where: { schoolId },
+    }),
+
+    prisma.teacherProfile.findMany({
+      where: { schoolId },
+    }),
+
+    prisma.staffProfile.findMany({
+      where: { schoolId },
+    }),
+
+    prisma.studentList.findMany({
+      where: { schoolId },
+    }),
+
+    // =========================
+    // ACADEMICS
+    // =========================
+
+    prisma.subject.findMany({
+      where: { schoolId },
+    }),
+
+    prisma.classSection.findMany({
+      where: { schoolId },
+    }),
+
+    prisma.academicYear.findMany({
+      where: { schoolId },
+    }),
+
+    prisma.classSectionAcademicYear.findMany({
+      where: {
+        classSection: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.stream.findMany({
+      where: { schoolId },
+    }),
+
+    prisma.streamCombination.findMany({
+      where: {
+        stream: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.course.findMany({
+      where: { schoolId },
+    }),
+
+    prisma.courseBranch.findMany({
+      where: {
+        course: {
+          schoolId,
+        },
+      },
+    }),
+
+    // =========================
+    // ENROLLMENTS
+    // =========================
+
+    prisma.studentEnrollment.findMany({
+      where: {
+        student: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.classSubject.findMany({
+      where: {
+        classSection: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.teacherAssignment.findMany({
+      where: {
+        classSection: {
+          schoolId,
+        },
+      },
+    }),
+
+    // =========================
+    // ATTENDANCE
+    // =========================
+
+    prisma.attendanceRecord.findMany({
+      where: {
+        classSection: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.teacherAttendance.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    // =========================
+    // EXAMS
+    // =========================
+
+    prisma.assessmentTerm.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.assessmentGroup.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.assessmentSchedule.findMany({
+      where: {
+        classSection: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.marks.findMany({
+      where: {
+        student: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.resultSummary.findMany({
+      where: {
+        student: {
+          schoolId,
+        },
+      },
+    }),
+
+    // =========================
+    // TIMETABLE
+    // =========================
+
+    prisma.timetableConfig.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.periodDefinition.findMany({
+      where: {
+        config: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.timetableEntry.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    // =========================
+    // SYLLABUS
+    // =========================
+
+    prisma.subjectSyllabus.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.sectionPortionProgress.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    // =========================
+    // EVENTS
+    // =========================
+
+    prisma.activity.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.activityClass.findMany({
+      where: {
+        activity: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.activityEvent.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.eventClass.findMany({
+      where: {
+        event: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.eventTeam.findMany({
+      where: {
+        event: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.eventTeamMember.findMany({
+      where: {
+        team: {
+          event: {
+            schoolId,
+          },
+        },
+      },
+    }),
+
+    prisma.eventParticipant.findMany({
+      where: {
+        event: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.eventResult.findMany({
+      where: {
+        event: {
+          schoolId,
+        },
+      },
+    }),
+
+    // =========================
+    // AWARDS
+    // =========================
+
+    prisma.award.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.studentAward.findMany({
+      where: {
+        student: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.certificate.findMany({
+      where: {
+        student: {
+          schoolId,
+        },
+      },
+    }),
+
+    // =========================
+    // GALLERY
+    // =========================
+
+    prisma.galleryAlbum.findMany({
+      where: {
+        schoolId,
+      },
+      include: {
+        images: true,
+      },
+    }),
+
+    // =========================
+    // HOLIDAYS
+    // =========================
+
+    prisma.schoolHoliday.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    // =========================
+    // LIVE CLASSES
+    // =========================
+
+    prisma.liveClass.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.liveClassSection.findMany({
+      where: {
+        liveClass: {
+          schoolId,
+        },
+      },
+    }),
+
+    prisma.liveClassAttendance.findMany({
+      where: {
+        student: {
+          schoolId,
+        },
+      },
+    }),
+
+    // =========================
+    // ASSIGNMENTS
+    // =========================
+
+    prisma.assignment.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.assignmentSection.findMany({
+      where: {
+        assignment: {
+          schoolId,
+        },
+      },
+    }),
+
+    // =========================
+    // TRANSPORT
+    // =========================
+
+    prisma.transportRoute.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.transportStop.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.studentTransport.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.transportFeePlan.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    // =========================
+    // FEES
+    // =========================
+
+    prisma.classFee.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.studentFinance.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    // =========================
+    // MEETINGS
+    // =========================
+
+    prisma.meeting.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.meetingParticipant.findMany(),
+
+    prisma.meetingClass.findMany(),
+
+    prisma.meetingStudent.findMany(),
+
+    // =========================
+    // EXTRA CLASSES
+    // =========================
+
+    prisma.extraClass.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    // =========================
+    // FINANCE
+    // =========================
+
+    prisma.financeProfile.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.schoolAdminProfile.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.financeMonthlySalary.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.adminMonthlySalary.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    // =========================
+    // STAFF SALARY
+    // =========================
+
+    prisma.groupBStaffSalary.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.groupCStaffSalary.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+    prisma.groupDStaffSalary.findMany({
+      where: {
+        schoolId,
+      },
+    }),
+
+  ]);
+
+  // =========================
+  // BACKUP JSON
+  // =========================
+
+  const backupData = {
+
+    metadata: {
+      backupType: "FULL_SCHOOL_BACKUP",
+      schoolId,
+      schoolName: school.name,
+      createdAt: new Date(),
+      version: "2.0.0",
+    },
+
+    school,
+
+    users,
+    students,
+    parents,
+    teachers,
+    staffProfiles,
+    studentLists,
+
+    subjects,
+    classSections,
+    academicYears,
+    classSectionAcademicYears,
+
+    streams,
+    streamCombinations,
+    courses,
+    courseBranches,
+
+    studentEnrollments,
+    classSubjects,
+    teacherAssignments,
+
+    attendanceRecords,
+    teacherAttendances,
+
+    assessmentTerms,
+    assessmentGroups,
+    assessmentSchedules,
+    marks,
+    resultSummaries,
+
+    timetableConfigs,
+    periodDefinitions,
+    timetableEntries,
+
+    subjectSyllabus,
+    sectionPortionProgress,
+
+    activities,
+    activityClasses,
+    activityEvents,
+    eventClasses,
+    eventTeams,
+    eventTeamMembers,
+    eventParticipants,
+    eventResults,
+
+    awards,
+    studentAwards,
+    certificates,
+
+    galleryAlbums,
+
+    holidays,
+
+    liveClasses,
+    liveClassSections,
+    liveClassAttendance,
+
+    assignments,
+    assignmentSections,
+
+    transportRoutes,
+    transportStops,
+    studentTransports,
+    transportFeePlans,
+
+    classFees,
+    studentFinance,
+
+    meetings,
+    meetingParticipants,
+    meetingClasses,
+    meetingStudents,
+
+    extraClasses,
+
+    financeProfiles,
+    schoolAdminProfiles,
+    financeMonthlySalary,
+    adminMonthlySalary,
+
+    groupBStaffSalary,
+    groupCStaffSalary,
+    groupDStaffSalary,
+  };
+
+  // =========================
+  // R2 PATH
+  // =========================
+
+
+
+const key =
+`CloudBackup/super-admins/${school.superAdminId}/schools/${schoolId}/backup-${Date.now()}.json`;
+
+  // =========================
+  // UPLOAD
+  // =========================
+
+  const command = new PutObjectCommand({
+
+    Bucket: process.env.R2_BUCKET,
+
+    Key: key,
+
+    Body: JSON.stringify(
+      backupData,
+      null,
+      2
+    ),
+
+    ContentType:
+      "application/json",
+
+  });
+
+  await r2.send(command);
+
+  console.log(
+    "✅ Full school backup created:",
+    key
+  );
+
+  return {
+    success: true,
+    key,
+  };
+
 };

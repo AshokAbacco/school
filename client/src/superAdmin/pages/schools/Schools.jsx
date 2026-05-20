@@ -1,8 +1,11 @@
 // client/src/superAdmin/pages/schools/Schools.jsx
 import React, { useState, useEffect } from "react";
-import { Plus, Search, Edit, Trash2, Building2, CheckCircle, Ban, RefreshCw, X, AlertTriangle, Loader2 } from "lucide-react";
+
+import { Plus, Search, Edit, Building2, CheckCircle, Ban, RefreshCw, X, ShieldCheck, ShieldX, } from "lucide-react";
+
 import AddSchoolModal from "./AddSchool";
-import { getSchools, deleteSchool } from "./components/SchoolsApi";
+
+import { getSchools, toggleSchoolStatus, } from "./components/SchoolsApi";
 
 /* ── Design tokens — Stormy Morning ── */
 const C = {
@@ -14,20 +17,20 @@ const C = {
 };
 
 const SCHOOL_TYPE_LABELS = {
-  PRIMARY:       "Primary (1–5)",
+  PRIMARY: "Primary (1–5)",
   UPPER_PRIMARY: "Upper Primary (6–8)",
-  HIGH_SCHOOL:   "High School (9–10)",
-  PUC:           "PUC (11–12)",
-  DEGREE:        "Degree",
-  POSTGRADUATE:  "Postgraduate",
-  OTHER:         "Other",
+  HIGH_SCHOOL: "High School (9–10)",
+  PUC: "PUC (11–12)",
+  DEGREE: "Degree",
+  POSTGRADUATE: "Postgraduate",
+  OTHER: "Other",
 };
 
 /* ── Status Badge ── */
 const StatusBadge = ({ isActive }) => {
   const s = isActive
     ? { bg: "#e2f5ee", fg: "#236644", dot: C.success, label: "Active" }
-    : { bg: "#fce8e8", fg: "#8b1c1c", dot: C.danger,  label: "Inactive" };
+    : { bg: "#fce8e8", fg: "#8b1c1c", dot: C.danger, label: "Inactive" };
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 20, fontSize: 10, fontWeight: 700, fontFamily: "'Inter', sans-serif", background: s.bg, color: s.fg, letterSpacing: "0.04em", textTransform: "uppercase" }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
@@ -85,94 +88,15 @@ function Panel({ children, style = {} }) {
   );
 }
 
-/* ── Delete Confirm Dialog ── */
-function DeleteConfirmDialog({ school, onConfirm, onCancel, loading }) {
-  useEffect(() => {
-    const h = (e) => e.key === "Escape" && onCancel();
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onCancel]);
 
-  return (
-    <>
-      <div
-        style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)" }}
-        onClick={onCancel}
-      />
-      <div
-        style={{
-          position: "fixed", zIndex: 50,
-          top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-          width: 420, maxWidth: "92vw",
-          background: C.white, borderRadius: 22,
-          boxShadow: "0 24px 64px rgba(56,73,89,0.22)",
-          animation: "fadeUp 0.18s ease",
-          fontFamily: "'Inter', sans-serif",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ padding: "28px 24px 24px" }}>
-          {/* Icon */}
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
-            <div style={{ width: 56, height: 56, borderRadius: 18, background: "linear-gradient(135deg, #fef2f2, #fee2e2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <AlertTriangle size={26} color="#D95C5C" />
-            </div>
-          </div>
-
-          {/* Text */}
-          <h3 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: C.text, textAlign: "center" }}>
-            Delete School?
-          </h3>
-          <p style={{ margin: "0 0 4px", fontSize: 13, color: C.textLight, textAlign: "center" }}>
-            You're about to permanently delete
-          </p>
-          <p style={{ margin: "0 0 16px", fontSize: 13, fontWeight: 700, color: C.text, textAlign: "center" }}>
-            "{school.name}"
-          </p>
-          <div style={{ padding: "10px 16px", borderRadius: 12, fontSize: 12, textAlign: "center", marginBottom: 20, background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" }}>
-            This action cannot be undone. All associated data will be lost.
-          </div>
-
-          {/* Buttons */}
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              onClick={onCancel}
-              disabled={loading}
-              style={{ flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700, background: C.bg, color: C.textMid, border: `1.5px solid ${C.borderLight}`, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onConfirm}
-              disabled={loading}
-              style={{
-                flex: 1, padding: "10px 0", borderRadius: 12, fontSize: 13, fontWeight: 700,
-                background: "linear-gradient(135deg, #D95C5C, #b91c1c)",
-                color: "#fff", border: "none",
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                fontFamily: "'Inter', sans-serif",
-              }}
-            >
-              {loading ? <><Loader2 size={14} className="animate-spin" /> Deleting…</> : <><Trash2 size={14} /> Delete</>}
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
 
 /* ── Main Component ── */
 export default function Schools() {
-  const [schools, setSchools]           = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState("");
-  const [search, setSearch]             = useState("");
-  const [modal, setModal]               = useState(null);
-  const [deleteDialog, setDeleteDialog] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [schools, setSchools] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [modal, setModal] = useState(null);
 
   /* ── Fetch ── */
   const fetchSchools = async () => {
@@ -202,21 +126,38 @@ export default function Schools() {
   };
 
   const openEdit = (school) => setModal({ mode: "edit", school });
-  const openDeleteDialog = (school) => setDeleteDialog({ school });
 
-  const handleDeleteConfirm = async () => {
-    if (!deleteDialog) return;
-    setDeleteLoading(true);
+
+  const handleStatusToggle = async (
+    id,
+    isActive
+  ) => {
     try {
-      await deleteSchool(deleteDialog.school.id);
-      setSchools((prev) => prev.filter((s) => s.id !== deleteDialog.school.id));
-      setDeleteDialog(null);
+      await toggleSchoolStatus(id, isActive);
+
+      setSchools((prev) =>
+        prev.map((school) =>
+          school.id === id
+            ? {
+              ...school,
+              isActive,
+            }
+            : school
+        )
+      );
+
+      alert(
+        `School ${isActive ? "activated" : "deactivated"
+        } successfully`
+      );
     } catch (err) {
-      console.error("Delete failed:", err);
-    } finally {
-      setDeleteLoading(false);
+      console.error(err);
+
+      alert("Failed to update school status");
     }
   };
+
+
 
   /* ── Derived ── */
   const filtered = schools.filter((s) =>
@@ -225,8 +166,8 @@ export default function Schools() {
   );
 
   const totals = {
-    total:    schools.length,
-    active:   schools.filter((s) => s.isActive).length,
+    total: schools.length,
+    active: schools.filter((s) => s.isActive).length,
     inactive: schools.filter((s) => !s.isActive).length,
   };
 
@@ -305,9 +246,9 @@ export default function Schools() {
 
         {/* ══ STAT CARDS ══ */}
         <div className="schools-grid fade-up" style={{ marginBottom: 20, animationDelay: "60ms" }}>
-          <StatCard IconComp={Building2}   label="Total Schools" value={totals.total}    delay={0}   loading={loading} />
-          <StatCard IconComp={CheckCircle} label="Active"        value={totals.active}   delay={60}  loading={loading} />
-          <StatCard IconComp={Ban}         label="Inactive"      value={totals.inactive} delay={120} loading={loading} />
+          <StatCard IconComp={Building2} label="Total Schools" value={totals.total} delay={0} loading={loading} />
+          <StatCard IconComp={CheckCircle} label="Active" value={totals.active} delay={60} loading={loading} />
+          <StatCard IconComp={Ban} label="Inactive" value={totals.inactive} delay={120} loading={loading} />
         </div>
 
         {/* ══ TABLE PANEL ══ */}
@@ -426,15 +367,46 @@ export default function Schools() {
                           >
                             <Edit size={14} color={C.slate} strokeWidth={2} />
                           </button>
+
                           <button
                             className="act-btn"
-                            onClick={() => openDeleteDialog(s)}
-                            title="Delete school"
-                            onMouseEnter={e => { e.currentTarget.style.background = "#fee8e8"; e.currentTarget.style.borderColor = C.danger; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = C.bg; e.currentTarget.style.borderColor = C.borderLight; }}
+                            onClick={() =>
+                              handleStatusToggle(
+                                s.id,
+                                !s.isActive
+                              )
+                            }
+                            title={
+                              s.isActive
+                                ? "Deactivate School"
+                                : "Activate School"
+                            }
+                            style={{
+                              background: s.isActive
+                                ? "#fef2f2"
+                                : "#ecfdf5",
+
+                              borderColor: s.isActive
+                                ? "#fecaca"
+                                : "#bbf7d0",
+                            }}
                           >
-                            <Trash2 size={14} color={C.danger} strokeWidth={2} />
+                            {s.isActive ? (
+                              <ShieldX
+                                size={14}
+                                color="#dc2626"
+                                strokeWidth={2}
+                              />
+                            ) : (
+                              <ShieldCheck
+                                size={14}
+                                color="#16a34a"
+                                strokeWidth={2}
+                              />
+                            )}
                           </button>
+
+
                         </div>
                       </td>
                     </tr>
@@ -482,15 +454,7 @@ export default function Schools() {
         />
       )}
 
-      {/* ── Delete Confirm Dialog ── */}
-      {deleteDialog && (
-        <DeleteConfirmDialog
-          school={deleteDialog.school}
-          loading={deleteLoading}
-          onConfirm={handleDeleteConfirm}
-          onCancel={() => setDeleteDialog(null)}
-        />
-      )}
+
     </>
   );
 }

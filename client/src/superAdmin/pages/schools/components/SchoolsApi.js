@@ -42,3 +42,20 @@ export async function deleteSchool(id) {
   });
   return res.data;
 }
+
+ 
+export async function toggleSchoolStatus(
+  id,
+  isActive
+) {
+  const res = await axios.patch(
+    `${API}/api/schools/${id}`,
+    { isActive },
+    {
+      headers: auth(),
+    }
+  );
+
+  return res.data;
+}
+ 

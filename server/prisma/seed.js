@@ -1488,6 +1488,11 @@ async function seedSchool(university, password) {
       phone:      "080-11111111",
       email:      "school@springfield.edu",
       university: { connect: { id: university.id } },
+      superAdmin: {
+  connect: {
+    id: superAdminUser.id,
+  },
+},
     },
   });
 
@@ -1824,7 +1829,25 @@ async function seedTeacherTutorialProfiles({ school, teachers, subjects }) {
 async function main() {
   console.log("🌱  Springfield Seed Starting…\n");
   const password = await bcrypt.hash(DEFAULT_PASSWORD, SALT_ROUNDS);
+const hashedPassword =
+  await bcrypt.hash(DEFAULT_PASSWORD, SALT_ROUNDS);
 
+const superAdminUser =
+  await prisma.user.upsert({
+
+    where: {
+      email: "superadmin@gmail.com",
+    },
+
+    update: {},
+
+    create: {
+      name: "Gold User",
+      email: "superadmin@gmail.com",
+      password: hashedPassword,
+      role: "SUPER_ADMIN",
+    },
+});
   // ── University ─────────────────────────────────────────────────────────────
   const university = await prisma.university.upsert({
     where:  { code: "SPRINGFIELD_UNI" },

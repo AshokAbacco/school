@@ -5,6 +5,9 @@ import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
+import {
+  createFullSchoolBackup
+} from "../../modules/backup/backup.service.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -150,7 +153,13 @@ export const getFinanceProfiles = async (req, res) => {
     }
 
     const profiles = await prisma.financeProfile.findMany({
-      where: { school: { universityId } },
+     where: {
+  deletedAt: null,
+
+  school: {
+    universityId,
+  },
+},
       include: { user: true, school: true },
       orderBy: { createdAt: "desc" },
     });
@@ -177,7 +186,11 @@ export const getFinanceProfile = async (req, res) => {
     }
 
     const profile = await prisma.financeProfile.findUnique({
-      where: { id },
+     where: {
+  id,
+
+  deletedAt: null,
+},
       include: { user: true, school: true },
     });
 
@@ -281,43 +294,76 @@ export const updateFinanceProfile = async (req, res) => {
  * ═══════════════════════════════════════════════════════════ */
 export const deleteFinanceProfile = async (req, res) => {
   try {
-    const { id } = req.params;
-    const universityId = req.user?.universityId;
 
-   prisma.financeProfile.update({
+    const { id } = req.params;
+    const universityId =
+      req.user?.universityId;
+
+    const financeProfile =
+      await prisma.financeProfile.findUnique({
+        where: { id },
+
+        include: {
+          user: true,
+        },
+      });
+
+    if (!financeProfile) {
+      return res.status(404).json({
+        message:
+          "Finance profile not found",
+      });
+    }
+
+    // ✅ CREATE BACKUP FIRST
+    await createFullSchoolBackup(
+      financeProfile.schoolId
+    );
+
+    // ✅ SOFT DELETE PROFILE
+    await prisma.financeProfile.update({
       where: { id },
 
       data: {
         deletedAt: new Date(),
       },
     });
-    prisma.user.update({
+
+    // ✅ SOFT DELETE USER
+    await prisma.user.update({
+      where: {
+        id: financeProfile.userId,
+      },
+
       data: {
         deletedAt: new Date(),
         isActive: false,
-      }
-    })
-    const uid = universityId ?? (await getUniversityIdForProfile(id));
-
-    await prisma.$transaction(async (tx) => {
-      const fp = await tx.financeProfile.findUnique({
-        where: { id },
-        select: { userId: true },
-      });
-      if (!fp) throw new Error("Finance profile not found");
-      await tx.financeProfile.delete({ where: { id } });
-      await tx.user.delete({ where: { id: fp.userId } });
+      },
     });
 
-    await bustCache(uid);
-    await redisClient.del(CACHE_ONE(id));
+    await bustCache(universityId);
 
-    res.json({ success: true, message: "Finance profile deleted successfully" });
+    await redisClient.del(
+      CACHE_ONE(id)
+    );
+
+    return res.json({
+      success: true,
+
+      message:
+        "Finance profile deleted successfully",
+    });
+
   } catch (error) {
-    console.error("Delete Finance Error:", error);
-    if (error.message === "Finance profile not found") {
-      return res.status(404).json({ message: "Finance profile not found" });
-    }
-    res.status(500).json({ message: "Server error" });
+
+    console.error(
+      "Delete Finance Error:",
+      error
+    );
+
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };

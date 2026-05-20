@@ -1,10 +1,10 @@
 import express from "express";
+
 import {
   createFinanceProfile,
   getFinanceProfiles,
   getFinanceProfile,
   updateFinanceProfile,
-  deleteFinanceProfile
 } from "../controllers/financeProfile.controller.js";
 
 import authMiddleware from "../../middlewares/authMiddleware.js";
@@ -13,7 +13,7 @@ import { authorizeRoles } from "../../middlewares/roleMiddleware.js";
 const router = express.Router();
 
 /**
- * Only SUPER_ADMIN and ADMIN can create
+ * CREATE
  */
 router.post(
   "/",
@@ -23,7 +23,7 @@ router.post(
 );
 
 /**
- * Get all
+ * GET ALL
  */
 router.get(
   "/",
@@ -33,7 +33,7 @@ router.get(
 );
 
 /**
- * Get single
+ * GET SINGLE
  */
 router.get(
   "/:id",
@@ -42,7 +42,7 @@ router.get(
 );
 
 /**
- * Update
+ * UPDATE
  */
 router.put(
   "/:id",
@@ -52,13 +52,13 @@ router.put(
 );
 
 /**
- * Delete
+ * ACTIVATE / DEACTIVATE
  */
-router.delete(
+router.patch(
   "/:id",
   authMiddleware,
-  authorizeRoles("SUPER_ADMIN"),
-  deleteFinanceProfile
+  authorizeRoles("SUPER_ADMIN", "ADMIN"),
+  updateFinanceProfile
 );
 
 export default router;

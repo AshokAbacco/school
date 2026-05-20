@@ -2,8 +2,9 @@
 
 import { prisma } from "../../config/db.js";
 import redisClient from "../../utils/redis.js";
-
-
+import {
+  createFullSchoolBackup,
+} from "../../modules/backup/backup.service.js";
 
 // ✅ Valid SchoolType enum values — must match schema.prisma exactly
 const VALID_SCHOOL_TYPES = [
@@ -159,10 +160,14 @@ export const createSchool = async (req, res) => {
         state:       state?.trim()   || null,
         phone:       phone?.trim()   || null,
         email:       email?.trim()   || null,
-        universityId,
+         universityId:
+      req.user.universityId,
+        superAdminId: req.user.id,
       },
     });
-
+await createFullSchoolBackup(
+  school.id
+);
     await redisClient.del(`schools:${universityId}`);
 
     return res.status(201).json({
@@ -251,7 +256,7 @@ export const updateSchool = async (req, res) => {
         message: `Invalid school type. Must be one of: ${VALID_SCHOOL_TYPES.join(", ")}`,
       });
     }
-
+await createFullSchoolBackup(id);
     const updatedSchool = await prisma.school.update({ where: { id }, data: req.body });
 
     await redisClient.del(`schools:${universityId}`);
