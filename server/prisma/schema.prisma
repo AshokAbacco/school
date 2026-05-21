@@ -334,6 +334,7 @@ model School {
   TeacherTutorialProfile TeacherTutorialProfile[]
   adminProfiles          SchoolAdminProfile[]
   AdminMonthlySalary     AdminMonthlySalary[]
+  Expense                Expense[]
 
   @@index([universityId])
   @@index([type])
@@ -2276,11 +2277,16 @@ model ExpenseCategory {
 }
 
 model Expense {
-  id        String    @id @default(uuid())
+  id String @id @default(uuid())
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
   deletedAt DateTime?
-  label     String
-  amount    Float
-  icon      String?
+
+  label  String
+  amount Float
+  icon   String?
 
   createdAt DateTime @default(now())
 

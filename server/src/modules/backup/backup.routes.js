@@ -6,6 +6,7 @@ import {
   restoreRecord,
   getSchoolsBackups,
   restoreSchoolBackup,
+  getSchoolBackupDetails,
 } from "./backup.controller.js";
 import {
   createFullSchoolBackup,
@@ -13,6 +14,9 @@ import {
 const router = express.Router();
 import { prisma } from "../../config/db.js";
 // ADMIN
+
+
+
 router.get(
   "/deleted",
   requireAuth,
@@ -104,5 +108,10 @@ router.get(
     }
 
   }
+);
+router.get(
+  "/schools/:schoolId/details",
+  requireAuth,
+  getSchoolBackupDetails
 );
 export default router;

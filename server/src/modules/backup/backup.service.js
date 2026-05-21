@@ -406,19 +406,22 @@ await prisma.school.upsert({
     code: school.code,
     type: school.type,
     universityId: school.universityId,
+    superAdminId: school.superAdminId,
   },
 
-  create: {
-    id: school.id,
-    name: school.name,
-    code: school.code,
-    type: school.type,
-    university: {
-      connect: {
-        id: school.universityId,
-      },
+create: {
+  id: school.id,
+  name: school.name,
+  code: school.code,
+  type: school.type,
+  superAdminId: school.superAdminId,
+
+  university: {
+    connect: {
+      id: school.universityId,
     },
   },
+},
 });
 
       // ====================================
@@ -1236,22 +1239,21 @@ const streamToString = async (stream) => {
 export const listSchoolBackups =
   async (superAdminId) => {
 
-    const schools =
-  await prisma.school.findMany({
+const schools = await prisma.school.findMany({
+where: {
+  superAdminId,
+  isActive: false,
+},
 
-    where: {
-      superAdminId,
-
-    
-    },
-
-    select: {
-      id: true,
-      name: true,
-      code: true,
-      type: true,
-    },
-  });
+  select: {
+    id: true,
+    name: true,
+    code: true,
+    type: true,
+    superAdminId: true,
+    deletedAt: true,
+  },
+});
 
     const backups = [];
 
@@ -2060,4 +2062,46 @@ const key =
     key,
   };
 
+};
+export const getSchoolBackupDetailsService =
+async (schoolId, superAdminId) => {
+
+  const listCommand =
+    new ListObjectsV2Command({
+      Bucket: process.env.R2_BUCKET,
+
+      Prefix:
+`CloudBackup/super-admins/${superAdminId}/schools/${schoolId}/`,
+    });
+
+  const listResponse =
+    await r2.send(listCommand);
+
+  const files =
+    listResponse.Contents || [];
+
+  if (!files.length) {
+    throw new Error("No backup found");
+  }
+
+  const latest =
+    files.sort(
+      (a, b) =>
+        new Date(b.LastModified) -
+        new Date(a.LastModified)
+    )[0];
+
+  const getCommand =
+    new GetObjectCommand({
+      Bucket: process.env.R2_BUCKET,
+      Key: latest.Key,
+    });
+
+  const response =
+    await r2.send(getCommand);
+
+  const jsonString =
+    await streamToString(response.Body);
+
+  return JSON.parse(jsonString);
 };

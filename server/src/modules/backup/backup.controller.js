@@ -3,6 +3,7 @@ import {
   restoreSingleRecord,
   listSchoolBackups,
   restoreEntireSchool,
+    getSchoolBackupDetailsService,
 } from "./backup.service.js";
 import cacheService from "../../utils/cacheService.js";
 
@@ -119,4 +120,30 @@ export async function restoreSchoolBackup(req, res) {
 
   }
 
+}
+export async function getSchoolBackupDetails(req, res) {
+
+  try {
+
+    const { schoolId } = req.params;
+
+    const data =
+      await getSchoolBackupDetailsService(
+        schoolId,
+        req.user.id
+      );
+
+    res.json({
+      success: true,
+      data,
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+
+  }
 }

@@ -93,8 +93,32 @@ export default function SchoolRecovery() {
             setRestoringId(null);
         }
     };
-    const handleViewBackup = (backup) => {
-        setSelectedBackup(backup);
+    const handleViewBackup = async (backup) => {
+
+        try {
+
+            const res = await fetch(
+                `${API_URL}/api/backups/schools/${backup.schoolId}/details`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${getAuth()?.token}`,
+                    },
+                }
+            );
+
+            const data = await res.json();
+
+            if (data.success) {
+                setSelectedBackup(data.data);
+            } else {
+                toast.error(data.message);
+            }
+
+        } catch (err) {
+
+            console.log(err);
+            toast.error("Failed to load backup details");
+        }
     };
     /* =========================================================
           FILTERED DATA
@@ -427,9 +451,13 @@ export default function SchoolRecovery() {
 
                                             <div>
                                                 <span className="font-medium">Backup Date:</span>{" "}
-                                                {new Date(
-                                                    selectedBackup.createdAt
-                                                ).toLocaleString()}
+                                                {
+                                                    selectedBackup?.metadata?.createdAt
+                                                        ? new Date(
+                                                            selectedBackup.metadata.createdAt
+                                                        ).toLocaleString()
+                                                        : "No Backup Date"
+                                                }
                                             </div>
 
                                         </div>

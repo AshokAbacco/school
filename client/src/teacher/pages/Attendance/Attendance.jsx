@@ -52,11 +52,11 @@ function Pulse({ w = "100%", h = 13, r = 8 }) {
 
 // ── Toast System ──────────────────────────────────────────────
 const TOAST_CFG = {
-  success: { bg: "#f0fdf4", border: "#86efac", color: "#15803d", icon: CheckCircle,  iconColor: "#22c55e" },
-  error:   { bg: "#fef2f2", border: "#fca5a5", color: "#b91c1c", icon: XCircle,      iconColor: "#ef4444" },
-  info:    { bg: `${C.mist}55`, border: C.sky,  color: C.deep,   icon: Info,          iconColor: C.sky    },
-  absent:  { bg: "#fef2f2", border: "#fca5a5", color: "#b91c1c", icon: XCircle,      iconColor: "#ef4444" },
-  present: { bg: "#f0fdf4", border: "#86efac", color: "#15803d", icon: CheckCircle,  iconColor: "#22c55e" },
+  success: { bg: "#f0fdf4", border: "#86efac", color: "#15803d", icon: CheckCircle, iconColor: "#22c55e" },
+  error: { bg: "#fef2f2", border: "#fca5a5", color: "#b91c1c", icon: XCircle, iconColor: "#ef4444" },
+  info: { bg: `${C.mist}55`, border: C.sky, color: C.deep, icon: Info, iconColor: C.sky },
+  absent: { bg: "#fef2f2", border: "#fca5a5", color: "#b91c1c", icon: XCircle, iconColor: "#ef4444" },
+  present: { bg: "#f0fdf4", border: "#86efac", color: "#15803d", icon: CheckCircle, iconColor: "#22c55e" },
 };
 
 function ToastContainer({ toasts, onRemove }) {
@@ -153,29 +153,29 @@ function ProgressBar({ pct }) {
 }
 
 export default function Attendance() {
-  const [classes, setClasses]               = useState([]);
+  const [classes, setClasses] = useState([]);
   const [activeAcademicYear, setActiveAcademicYear] = useState(null);
   const [selectedClassId, setSelectedClassId] = useState("");
-  const [academicYearId, setAcademicYearId]   = useState("");
-  const [date, setDate]                       = useState(new Date().toISOString().split("T")[0]);
-  const [students, setStudents]               = useState([]);
-  const [loading, setLoading]                 = useState(false);
-  const [saving, setSaving]                   = useState(false);
-  const [searchQuery, setSearchQuery]         = useState("");
-  const [initError, setInitError]             = useState(null);
-  const { toasts, toast, remove }             = useToast();
+  const [academicYearId, setAcademicYearId] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [initError, setInitError] = useState(null);
+  const { toasts, toast, remove } = useToast();
   const [sendingMonthlyReport, setSendingMonthlyReport] = useState(false);
   const [sendingReport, setSendingReport] = useState(false);
   const filteredStudents = searchQuery.trim()
     ? students.filter((s) => {
-        const q = searchQuery.trim().toLowerCase();
-        return (
-          (s.name || "").toLowerCase().includes(q) ||
-          (s.fatherName || "").toLowerCase().includes(q) ||
-          (s.rollNumber != null && String(s.rollNumber).includes(q)) ||
-          (s.tempIndex  != null && String(s.tempIndex).includes(q))
-        );
-      })
+      const q = searchQuery.trim().toLowerCase();
+      return (
+        (s.name || "").toLowerCase().includes(q) ||
+        (s.fatherName || "").toLowerCase().includes(q) ||
+        (s.rollNumber != null && String(s.rollNumber).includes(q)) ||
+        (s.tempIndex != null && String(s.tempIndex).includes(q))
+      );
+    })
     : students;
 
   const duplicateNames = useMemo(() => {
@@ -234,7 +234,7 @@ export default function Attendance() {
   const handleStatusChange = (studentId, status, studentName) => {
     setStudents((p) => p.map((s) => (s.studentId === studentId ? { ...s, status } : s)));
     if (status === "PRESENT") toast(`${studentName} marked Present`, "present", 2000);
-    if (status === "ABSENT")  toast(`${studentName} marked Absent`,  "absent",  2000);
+    if (status === "ABSENT") toast(`${studentName} marked Absent`, "absent", 2000);
   };
 
   const handleRemarksChange = (studentId, remarks) =>
@@ -255,12 +255,12 @@ export default function Attendance() {
   }, [students]);
 
   const hasEmptyStatus = students.some((s) => !s.status || s.status === "");
-  const completionPct  = students.length
+  const completionPct = students.length
     ? Math.round((summary.PRESENT / students.length) * 100)
     : 0;
 
-  const getClassLabel  = (cls) => cls.name || `${cls.grade}${cls.section ? `-${cls.section}` : ""}`;
-  const selectedClass  = classes.find((c) => c.classSectionId === selectedClassId);
+  const getClassLabel = (cls) => cls.name || `${cls.grade}${cls.section ? `-${cls.section}` : ""}`;
+  const selectedClass = classes.find((c) => c.classSectionId === selectedClassId);
 
   const handleSave = async () => {
     if (!students.length) return;
@@ -454,7 +454,7 @@ export default function Attendance() {
         {students.length > 0 && (
           <div className="stat-grid fade-up" style={{ marginBottom: 14 }}>
             <StatCard label="Present" value={summary.PRESENT} icon={UserCheck} accent="#22c55e" />
-            <StatCard label="Absent"  value={summary.ABSENT}  icon={UserX}    accent="#ef4444" />
+            <StatCard label="Absent" value={summary.ABSENT} icon={UserX} accent="#ef4444" />
           </div>
         )}
 
@@ -586,7 +586,7 @@ export default function Attendance() {
                   <CheckCircle2 size={13} /> Mark All Present
                 </button>
 
-                
+
 
                 {/* Submit — hidden on mobile (sticky footer handles it) */}
                 <div style={{ display: "none" }} className="desktop-submit">
@@ -680,7 +680,7 @@ export default function Attendance() {
                     </>
                   )}
                 </button>
-                
+
                 <style>{`@media (min-width: 640px) { .desktop-submit { display: block !important; } }`}</style>
               </div>
             </div>
@@ -696,7 +696,7 @@ export default function Attendance() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "9px 36px 9px 32px", fontSize: 13, fontWeight: 500, color: C.text, background: C.white, outline: "none", fontFamily: "'DM Sans', sans-serif" }}
                   onFocus={(e) => (e.target.style.borderColor = C.sky)}
-                  onBlur={(e)  => (e.target.style.borderColor = C.border)}
+                  onBlur={(e) => (e.target.style.borderColor = C.border)}
                 />
                 {searchQuery && (
                   <button onClick={() => setSearchQuery("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: C.textLight, padding: 0, display: "flex" }}>
@@ -714,8 +714,8 @@ export default function Attendance() {
             {/* ── Student rows ── */}
             <div>
               {filteredStudents.map((student, idx) => {
-                const isPresent  = student.status === "PRESENT";
-                const isAbsent   = student.status === "ABSENT";
+                const isPresent = student.status === "PRESENT";
+                const isAbsent = student.status === "ABSENT";
                 const isUnmarked = !student.status;
                 const isDuplicate = duplicateNames.has((student.name || "").trim().toLowerCase());
 
@@ -793,7 +793,7 @@ export default function Attendance() {
                       placeholder="Add remark…"
                       style={{ padding: "8px 12px", borderRadius: 10, border: "1.5px solid transparent", background: `${C.mist}33`, color: C.text, fontSize: 12, fontWeight: 500, outline: "none", fontFamily: "'DM Sans', sans-serif", transition: "border-color 0.15s, background 0.15s", flexShrink: 0 }}
                       onFocus={(e) => { e.target.style.borderColor = C.sky; e.target.style.background = C.white; }}
-                      onBlur={(e)  => { e.target.style.borderColor = "transparent"; e.target.style.background = `${C.mist}33`; }}
+                      onBlur={(e) => { e.target.style.borderColor = "transparent"; e.target.style.background = `${C.mist}33`; }}
                     />
                   </div>
                 );
