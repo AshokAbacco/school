@@ -25,28 +25,48 @@ import dotenv from "dotenv";
 dotenv.config();
 const PORT = process.env.PORT || 5000;
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://eduabaccotech.com",
-  "https://www.eduabaccotech.com",
-  "https://school-crm.onrender.com",
-  "https://cqw6v494-5173.inc1.devtunnels.ms",
-];
+// const allowedOrigins = [
+//   "http://localhost:5173",
+//   "https://localhost",
+//   "capacitor://localhost",
+//   "ionic://localhost",
+//   "https://eduabaccotech.com",
+//   "https://www.eduabaccotech.com",
+//   "https://school-crm.onrender.com",
+//   "https://cqw6v494-5173.inc1.devtunnels.ms",
+// ];
+
+const allowedOrigins = process.env.CLIENT_ORIGIN.split(",");
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin) return callback(null, true); // mobile/postman
+      if (!origin) return callback(null, true);
 
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
+      console.log("Blocked Origin:", origin);
       return callback(new Error("CORS not allowed: " + origin));
     },
     credentials: true,
   })
 );
+// app.use(
+//   cors({
+//     origin: function (origin, callback) {
+//       if (!origin) return callback(null, true); // mobile/postman
+
+//       if (allowedOrigins.includes(origin)) {
+//         return callback(null, true);
+//       }
+
+//       return callback(new Error("CORS not allowed: " + origin));
+//     },
+//     credentials: true,
+//   })
+// );
 
 // CORS
 // app.use(cors({
@@ -70,15 +90,16 @@ app.use(
 //   credentials: true
 // }));
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      callback(null, origin);
-    },
-    credentials: true,
-  }),
-);
+// app.use(
+//   cors({
+//     origin: (origin, callback) => {
+//       if (!origin) return callback(null, true);
+//       callback(null, origin);
+//     },
+//     credentials: true,
+//   }),
+// );
+
 
 app.get("/api/image-proxy", async (req, res) => {
   try {
@@ -121,19 +142,19 @@ app.use("/api/exam-timetable-whatsapp", examTimetableRoutes);
 app.use("/api/contact", contactRoutes);
 const server = createServer(app);
 
-// Socket
-// const io = new Server(server, {
-//   cors: {
-//     origin: allowedOrigins,
-//     credentials: true
-//   }
-// });
 const io = new Server(server, {
   cors: {
-    origin: "*", // 🔥 important for mobile
+    origin: allowedOrigins,
     credentials: true,
   },
 });
+
+// const io = new Server(server, {
+//   cors: {
+//     origin: "*", // 🔥 important for mobile
+//     credentials: true,
+//   },
+// });
 
 global.io = io;
 
@@ -147,12 +168,12 @@ io.on("connection", (socket) => {
   console.log("Socket connected:", userId);
 });
 
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
+// app.use(
+//   cors({
+//     origin: true,
+//     credentials: true,
+//   })
+// );
 
 // Start server
 server.listen(PORT, () => {
