@@ -66,6 +66,20 @@ async function incrementStudentCount(subscriptionId, by = 1) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const toEnum = (v) => (v ? v.toUpperCase().replace(/\s+/g, "_") : undefined);
 
+/**
+ * Strips spaces/hyphens and ensures a "91" country-code prefix.
+ * "91 98765-43210" → "919876543210"
+ * "98765-43210"    → "919876543210"
+ * "919876543210"   → "919876543210"
+ */
+const normalizePhone = (v) => {
+  if (!v) return v;
+  const stripped = String(v).replace(/[\s\-]/g, "");
+  if (/^91\d{10}$/.test(stripped)) return stripped;
+  if (/^\d{10}$/.test(stripped)) return "91" + stripped;
+  return stripped;
+};
+
 const bloodGroupMap = {
   A_PLUS: "A_POS",
   A_MINUS: "A_NEG",
@@ -235,7 +249,7 @@ export const createParentLogin = async (req, res) => {
           name,
           email,
           password: hashed,
-          phone: phone || null,
+          phone: normalizePhone(phone) || null,
           occupation: occupation || null,
           schoolId,
         },
@@ -415,14 +429,14 @@ export const savePersonalInfo = async (req, res) => {
     const data = compact({
       firstName,
       lastName,
-      phone,
+      phone: normalizePhone(phone),
       address,
       city,
       state,
       zipCode,
       parentName,
       parentEmail,
-      parentPhone,
+      parentPhone: normalizePhone(parentPhone),
       emergencyContact,
       bloodGroup: fixedBloodGroup,
       medicalConditions,

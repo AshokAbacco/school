@@ -42,6 +42,26 @@ const toBlood = (v) =>
 const frBlood = (v) =>
   v ? v.replace("_PLUS", "+").replace("_MINUS", "-") : "";
 
+/**
+ * Normalizes a phone number to the format: 91XXXXXXXXXX
+ * Strips all spaces and hyphens, then ensures the "91" country code prefix.
+ * Examples:
+ *   "91 98765-43210"  → "9198765-43210"  wait — we strip hyphens too → "919876543210"
+ *   "98765-43210"     → "919876543210"
+ *   "919876543210"    → "919876543210"
+ */
+const normalizePhone = (v) => {
+  if (!v) return v;
+  // Remove all spaces and hyphens
+  const stripped = v.replace(/[\s\-]/g, "");
+  // If already starts with 91 and is 12 digits, keep it
+  if (/^91\d{10}$/.test(stripped)) return stripped;
+  // If it's a 10-digit number, prepend 91
+  if (/^\d{10}$/.test(stripped)) return "91" + stripped;
+  // Otherwise return as-is (let backend validate)
+  return stripped;
+};
+
 const BLOODS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 const MOTHER_TONGUES = [
@@ -713,7 +733,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       // Personal
       firstName: f.fn,
       lastName: f.ln,
-      phone: f.phone,
+      phone: normalizePhone(f.phone),
       dateOfBirth: f.dob,
       gender: f.gender,
       zipCode: f.zip,
@@ -735,7 +755,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       lateralEntry: f.lateralEntry,
       // Parent
       parentName: f.pNm,
-      parentPhone: f.pPh,
+      parentPhone: normalizePhone(f.pPh),
       parentEmail: f.pEm,
       emergencyContact: f.emg,
       // Identity
@@ -782,7 +802,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           name: f.pNm?.trim() || `Father of ${f.fn} ${f.ln}`.trim(),
           email: f.pLoginEmail.trim(),
           password: f.pLoginPw,
-          phone: f.pPh?.trim() || undefined,
+          phone: normalizePhone(f.pPh?.trim()) || undefined,
           occupation: f.pOc?.trim() || undefined,
           relation: "FATHER",
         }),
@@ -801,7 +821,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           name: f.mNm?.trim() || `Mother of ${f.fn} ${f.ln}`.trim(),
           email: f.mLoginEmail.trim(),
           password: f.mLoginPw,
-          phone: f.mPh?.trim() || undefined,
+          phone: normalizePhone(f.mPh?.trim()) || undefined,
           occupation: f.mOc?.trim() || undefined,
           relation: "MOTHER",
         }),

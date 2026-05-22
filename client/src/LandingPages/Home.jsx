@@ -669,7 +669,7 @@ export default function Home() {
             </section>
 
             {/* ── TESTIMONIALS ── */}
-            <section
+            {/* <section
                 className="py-24 bg-cover bg-center"
                 style={{
                     backgroundImage:
@@ -727,7 +727,7 @@ export default function Home() {
                     </div>
                    
                 </div>
-            </section>
+            </section> */}
 
             <section
                 className="py-20 bg-cover bg-center"

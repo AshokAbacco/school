@@ -318,12 +318,13 @@ export const markAttendance = async (req, res) => {
                 : record.status,
             schoolName: school?.name || "School",
           });
-          await sendAttendanceSMS({
-            mobile: parent.phone,
-            studentName: student.name,
-            status: record.status, // "PRESENT" | "ABSENT" | etc.
-            schoolName: school?.name || "School",
-          });
+          if (record.status === "ABSENT") {
+            await sendAttendanceSMS({
+              mobile: parent.phone,
+              studentName: student.name,
+              schoolName: school?.name || "School",
+            });
+          }
         }
       } catch (err) {
         console.error("Attendance WhatsApp Send Error:", err);
@@ -714,12 +715,13 @@ export const sendMonthlyAttendanceReport = async (req, res) => {
         });
 
         // SMS — monthly summary (present/absent derived from percentage)
-        await sendAttendanceSMS({
-          mobile: parent.phone,
-          studentName: student.name,
-          status: attendancePercentage >= 75 ? "PRESENT" : "ABSENT",
-          schoolName: school?.name || "School",
-        });
+        if (attendancePercentage < 75) {
+          await sendAttendanceSMS({
+            mobile: parent.phone,
+            studentName: student.name,
+            schoolName: school?.name || "School",
+          });
+        }
       }
     }
 
