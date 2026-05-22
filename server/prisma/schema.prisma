@@ -620,6 +620,7 @@ model Student {
   enrollments                   StudentEnrollment[]
   marks                         Marks[]
   resultSummaries               ResultSummary[]
+  revaluationRequests           RevaluationRequest[]
   parentLinks                   StudentParent[]
   meetings                      MeetingStudent[]
   attendanceRecords             AttendanceRecord[]
@@ -774,6 +775,7 @@ model Subject {
   liveClasses                   LiveClass[]
   assignments                   Assignment[]
   StudentTutorialRecommendation StudentTutorialRecommendation[]
+  revaluationRequests           RevaluationRequest[]
 
   @@unique([code, schoolId])
   @@index([schoolId])
@@ -1177,9 +1179,11 @@ model Marks {
   studentId  String
   student    Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  marksObtained Float?
-  isAbsent      Boolean @default(false)
-  remarks       String?
+  marksObtained       Float?
+  revaluationRequests RevaluationRequest[]
+
+  isAbsent Boolean @default(false)
+  remarks  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1214,6 +1218,39 @@ model ResultSummary {
   @@index([studentId])
   @@index([academicYearId])
   @@map("result_summaries")
+}
+
+enum RevaluationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model RevaluationRequest {
+  id String @id @default(uuid())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  markId String
+  mark   Marks  @relation(fields: [markId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  requestedMarks Float?
+  currentMarks   Float?
+
+  reason String?
+
+  status RevaluationStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([status])
 }
 
 model ExtraClass {

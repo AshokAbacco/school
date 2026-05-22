@@ -134,7 +134,8 @@ export const getReportCard = async (req, res) => {
   try {
     const parentId           = req.user?.id;
     const studentId          = req.query.studentId;
-    const { assessmentGroupId } = req.params;
+    const assessmentGroupId =
+  req.params.assessmentGroupId || req.params.groupId;
 
     if (!parentId)  return res.status(401).json({ success: false, message: "Unauthorized" });
     if (!studentId) return res.status(400).json({ success: false, message: "studentId is required" });

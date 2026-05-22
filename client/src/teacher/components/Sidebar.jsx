@@ -15,7 +15,8 @@ import {
   Medal,
   BookOpenCheck,
   Award,
-  MessageCircle
+  MessageCircle,
+  ClipboardList
 } from "lucide-react";
 
 
@@ -64,7 +65,12 @@ export default function Sidebar({ isOpen, onClose, user }) {
           icon: BookOpen,
           label: "Curriculum",
           to: "/teacher/curriculum",
-        }]
+        },
+      {
+        icon: ClipboardList,
+        label: "Revaluation",
+        to: "/teacher/revaluation",
+      },]
       : []),
 
     // ✅ Gold + Premium

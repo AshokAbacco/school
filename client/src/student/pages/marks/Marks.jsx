@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   ChevronDown, AlertCircle, FileText,
-  EyeOff, Loader2, Download, Lock,
+  EyeOff, Loader2, Download, Lock, X, Send,
 } from "lucide-react";
 
 import { getToken }        from "../../../auth/storage.js";
@@ -16,10 +16,14 @@ import { downloadReportPDF } from "./utils/downloadPDF.js";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
 
-async function apiFetch(path) {
+async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
-    headers: { Authorization: `Bearer ${getToken()}` },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`,
+    },
+    ...options,
   });
   const ct = res.headers.get("content-type") ?? "";
   if (!ct.includes("application/json"))
@@ -39,6 +43,158 @@ function useWindowWidth() {
     return () => window.removeEventListener("resize", handle);
   }, []);
   return w;
+}
+
+/* ── Revaluation Modal ── */
+function RevaluationModal({ subject, studentId, onClose, onSuccess }) {
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const submit = async () => {
+    if (!reason.trim()) { setError("Please provide a reason."); return; }
+    setLoading(true); setError(null);
+    try {
+      await apiFetch("/revaluation", {
+        method: "POST",
+        body: JSON.stringify({
+          studentId,
+          markId:       subject.markId,
+          subjectId:    subject.subjectId,
+          currentMarks: subject.marksObtained,
+          reason:       reason.trim(),
+        }),
+      });
+      onSuccess?.();
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 999,
+      background: "rgba(36,51,64,0.55)",
+      backdropFilter: "blur(4px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 16,
+      animation: "fadeUp 0.2s ease",
+    }}>
+      <div className="mrk-card" style={{
+        width: "100%", maxWidth: 420,
+        padding: 0, overflow: "hidden",
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: "16px 20px",
+          background: `linear-gradient(90deg, ${C.bg} 0%, ${C.white} 100%)`,
+          borderBottom: `1.5px solid rgba(136,189,242,0.20)`,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <div>
+            <p style={{ margin: 0, fontWeight: 800, fontSize: 14, color: C.dark, fontFamily: FONT.sans }}>
+              Apply for Revaluation
+            </p>
+            <p style={{ margin: "2px 0 0", fontSize: 11, color: C.mid, fontWeight: 500 }}>
+              {subject.subjectName}
+            </p>
+          </div>
+          <button onClick={onClose} style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: C.mid, padding: 4, borderRadius: 6,
+            display: "flex", alignItems: "center",
+          }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={{ padding: "18px 20px" }}>
+          {/* Current marks pill */}
+          <div style={{
+            display: "flex", gap: 8, marginBottom: 16,
+          }}>
+            {[
+              { label: "Obtained", value: subject.marksObtained ?? "—" },
+              { label: "Max",      value: subject.maxMarks ?? "—" },
+              { label: "Pass",     value: subject.passingMarks ?? "—" },
+            ].map(({ label, value }) => (
+              <div key={label} style={{
+                flex: 1, textAlign: "center",
+                background: `${C.bg}`,
+                border: `1.5px solid rgba(136,189,242,0.22)`,
+                borderRadius: 10, padding: "8px 6px",
+              }}>
+                <div style={{ fontSize: 9, color: C.textLight, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 3 }}>
+                  {label}
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: C.dark, fontFamily: FONT.sans }}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Reason textarea */}
+          <label style={{ fontSize: 11, fontWeight: 700, color: C.mid, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+            Reason for Revaluation
+          </label>
+          <textarea
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            rows={4}
+            placeholder="Explain why you believe your marks should be reviewed…"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              border: `1.5px solid ${error ? C.red : C.borderLight}`,
+              borderRadius: 11, padding: "10px 13px",
+              fontSize: 13, fontFamily: FONT.sans,
+              color: C.text, background: C.white,
+              outline: "none", resize: "vertical",
+              lineHeight: 1.6,
+              transition: "border-color 0.15s",
+            }}
+            onFocus={e => e.target.style.borderColor = C.light}
+            onBlur={e => e.target.style.borderColor = error ? C.red : C.borderLight}
+          />
+
+          {error && (
+            <p style={{ margin: "6px 0 0", fontSize: 11, color: C.red, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+              <AlertCircle size={11} /> {error}
+            </p>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <button onClick={onClose} style={{
+              flex: 1, padding: "10px", borderRadius: 10,
+              border: `1.5px solid ${C.borderLight}`,
+              background: C.white, color: C.mid,
+              fontSize: 13, fontWeight: 600, cursor: "pointer",
+              fontFamily: FONT.sans,
+            }}>
+              Cancel
+            </button>
+            <button onClick={submit} disabled={loading} style={{
+              flex: 1, padding: "10px", borderRadius: 10,
+              border: "none",
+              background: loading ? C.mid : C.dark,
+              color: C.white,
+              fontSize: 13, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer",
+              fontFamily: FONT.sans,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+              transition: "background 0.15s",
+            }}>
+              {loading
+                ? <Loader2 size={13} style={{ animation: "spin 0.9s linear infinite" }} />
+                : <Send size={13} />}
+              {loading ? "Submitting…" : "Submit"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ── Not published state ── */
@@ -160,6 +316,11 @@ export default function Marks() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [notPublished, setNotPublished] = useState(false);
 
+  // ── Revaluation modal state ──
+  const [revalSubject, setRevalSubject] = useState(null);  // the subject row clicked
+  const [studentId,   setStudentId]   = useState(null);
+  const [successMsg,  setSuccessMsg]  = useState(null);
+
   useEffect(() => {
     (async () => {
       setLoadingGroups(true); setErrorGroups(null);
@@ -168,12 +329,9 @@ export default function Marks() {
         const groups = data.examGroups ?? [];
         setExamGroups(groups);
         setEnrollment(data.enrollment ?? null);
+        setStudentId(data.studentId ?? null);
 
         if (groups.length > 0) {
-          // ✅ FIX: Default to the last PUBLISHED exam group so students
-          // don't immediately land on "Results Not Published Yet" when
-          // published exams exist alongside unpublished ones.
-          // Falls back to the last group overall if nothing is published yet.
           const publishedGroups = groups.filter((g) => g.isPublished);
           const defaultGroup =
             publishedGroups.length > 0
@@ -216,7 +374,12 @@ export default function Marks() {
     finally { setTimeout(() => setPdfLoading(false), 600); }
   }, [reportData, enrollment]);
 
-  // ✅ FIX: Split groups so the dropdown is grouped and clearly labelled
+  // ── Open revaluation modal ──
+  const applyRevaluation = useCallback((subject) => {
+    setSuccessMsg(null);
+    setRevalSubject(subject);
+  }, []);
+
   const publishedGroups   = examGroups.filter((g) => g.isPublished);
   const unpublishedGroups = examGroups.filter((g) => !g.isPublished);
 
@@ -224,7 +387,34 @@ export default function Marks() {
     <>
       <style>{GLOBAL_CSS}</style>
 
+      {/* ── Revaluation Modal ── */}
+      {revalSubject && (
+        <RevaluationModal
+          subject={revalSubject}
+          studentId={studentId}
+          onClose={() => setRevalSubject(null)}
+          onSuccess={() => setSuccessMsg(`Revaluation request submitted for ${revalSubject.subjectName}.`)}
+        />
+      )}
+
       <div className="mrk-page">
+
+        {/* ─── SUCCESS TOAST ─── */}
+        {successMsg && (
+          <div style={{
+            background: "rgba(5,150,105,0.10)", border: "1.5px solid rgba(5,150,105,0.28)",
+            borderRadius: 13, padding: "11px 16px", marginBottom: 14,
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+            animation: "fadeUp 0.3s ease",
+          }}>
+            <p style={{ margin: 0, fontSize: 13, color: "#065f46", fontWeight: 600, fontFamily: FONT.sans }}>
+              ✓ {successMsg}
+            </p>
+            <button onClick={() => setSuccessMsg(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#059669" }}>
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         {/* ─── HEADER ROW ─── */}
         <div className="anim-1" style={{
@@ -243,8 +433,6 @@ export default function Marks() {
           }}>
             {!loadingGroups && examGroups.length > 0 && (
               <div style={{ position: "relative", flex: isMobile ? "1" : "unset" }}>
-                {/* ✅ FIX: Use <optgroup> to separate published from pending exams.
-                    Students can instantly see which exams have results ready. */}
                 <select
                   className="mrk-select"
                   value={selectedId ?? ""}
@@ -260,7 +448,6 @@ export default function Marks() {
                       ))}
                     </optgroup>
                   )}
-
                   {unpublishedGroups.length > 0 && (
                     <optgroup label="Not Yet Published">
                       {unpublishedGroups.map((g) => (
@@ -341,6 +528,7 @@ export default function Marks() {
                 loading={loadingReport}
                 isLocked={selectedGroup?.isLocked}
                 isMobile={isMobile}
+                onApplyRevaluation={applyRevaluation}
               />
               <PerformanceInsights
                 subjects={reportData?.subjectResults}

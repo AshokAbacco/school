@@ -93,7 +93,7 @@ function PanelHeader({ icon: Icon, title, subtitle, right }) {
 }
 
 /* ── Mobile card per subject ── */
-function MobileSubjectCard({ s, idx, total }) {
+function MobileSubjectCard({ s, idx, total ,onApplyRevaluation }) {
   const absent = s.isAbsent;
   const pct    = s.percentage;
   const color  = absent ? C.mid : pctColor(pct ?? 0);
@@ -152,6 +152,25 @@ function MobileSubjectCard({ s, idx, total }) {
           <GradeBadge grade={s.grade} />
         </div>
       )}
+      {onApplyRevaluation && (
+  <button
+    onClick={() => onApplyRevaluation(s)}
+    style={{
+      marginTop: 10,
+      width: "100%",
+      border: "none",
+      background: "#3f556b",
+      color: "#fff",
+      padding: "10px",
+      borderRadius: "10px",
+      fontSize: "12px",
+      fontWeight: 700,
+      cursor: "pointer",
+    }}
+  >
+    Apply Revaluation
+  </button>
+)}
     </div>
   );
 }
@@ -165,9 +184,11 @@ const COLS = [
   { key: "overall",  label: "Overall %",  flex: "0 0 80px",  align: "center" },
   { key: "grade",    label: "Grade",      flex: "0 0 70px",  align: "center" },
   { key: "result",   label: "Result",     flex: "0 0 82px",  align: "center" },
+    { key: "revaluation", label: "Revaluation", flex: "0 0 110px", align: "center" },
+
 ];
 
-export default function SubjectTable({ subjects, summary, loading, isLocked, isMobile }) {
+export default function SubjectTable({ subjects, summary, loading, isLocked, isMobile ,onApplyRevaluation,}) {
   return (
     <div className="mrk-card anim-3" style={{ minWidth: 0 }}>
       {/* Header */}
@@ -205,7 +226,7 @@ export default function SubjectTable({ subjects, summary, loading, isLocked, isM
       {!loading && subjects && subjects.length > 0 && isMobile && (
         <>
           {subjects.map((s, idx) => (
-            <MobileSubjectCard key={s.subjectId} s={s} idx={idx} total={subjects.length} />
+            <MobileSubjectCard key={s.subjectId} s={s} idx={idx} total={subjects.length} onApplyRevaluation={onApplyRevaluation} />
           ))}
           {/* Mobile totals */}
           <div style={{
@@ -313,6 +334,25 @@ export default function SubjectTable({ subjects, summary, loading, isLocked, isM
                 <div style={{ flex: "0 0 82px", textAlign: "center" }}>
                   <ResultBadge status={s.resultStatus} />
                 </div>
+                <div style={{ flex: "0 0 110px", textAlign: "center" }}>
+                {onApplyRevaluation && (
+                  <button
+                    onClick={() => onApplyRevaluation(s)}
+                    style={{
+                      border: "none",
+                      background: "#3f556b",
+                      color: "#fff",
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Apply
+                  </button>
+                )}
+              </div>
               </div>
             );
           })}
