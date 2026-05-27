@@ -1451,10 +1451,18 @@ async function seedExpenses({ school }) {
   for (const def of EXPENSE_DEFS) {
     const existing = await prisma.expense.findFirst({ where: { label: def.label } });
     if (existing) continue;
+const expense = await prisma.expense.create({
+  data: {
+    label: def.label,
+    amount: def.amount,
 
-    const expense = await prisma.expense.create({
-      data: { label: def.label, amount: def.amount },
-    });
+    school: {
+      connect: {
+        id: school.id,
+      },
+    },
+  },
+});
     await prisma.expenseCategoryMap.create({
       data: {
         category: { connect: { id: categories[def.catIdx].id } },
@@ -1469,7 +1477,7 @@ async function seedExpenses({ school }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MAIN SCHOOL SEEDER
 // ═══════════════════════════════════════════════════════════════════════════════
-async function seedSchool(university, password) {
+async function seedSchool(university, password,  superAdminUser) {
   console.log("\n╔══════════════════════════════════════╗");
   console.log("║   🏫  Springfield High School        ║");
   console.log("╚══════════════════════════════════════╝");
@@ -1482,17 +1490,18 @@ async function seedSchool(university, password) {
       name:       "Springfield High School",
       code:       "SPRINGFIELD_HIGH",
       type:       "SCHOOL",
+
       address:    "456 School Lane",
       city:       "Bengaluru",
       state:      "Karnataka",
       phone:      "080-11111111",
       email:      "school@springfield.edu",
-      university: { connect: { id: university.id } },
-      superAdmin: {
-  connect: {
-    id: superAdminUser.id,
-  },
-},
+
+      university: {
+        connect: {
+          id: university.id,
+        },
+      },
     },
   });
 
@@ -1866,22 +1875,34 @@ const superAdminUser =
   console.log("📚  Springfield University ready");
 
   // Seed school first (SuperAdmin needs a schoolId)
-  const schoolResult = await seedSchool(university, password);
+  const schoolResult = await seedSchool(university, password, superAdminUser);
   const { school } = schoolResult;
 
   // ── SuperAdmin ─────────────────────────────────────────────────────────────
   let sa = await prisma.superAdmin.findUnique({ where: { email: "superadmin@gmail.com" } });
   if (!sa) {
-    sa = await prisma.superAdmin.create({
-      data: {
-        name:       "Super Admin",
-        email:      "superadmin@gmail.com",
-        password,
-        phone:      "9000000000",
-        university: { connect: { id: university.id } },
-        school:     { connect: { id: school.id } },
+sa = await prisma.superAdmin.create({
+  data: {
+    name:       "Super Admin",
+    email:      "superadmin@gmail.com",
+    password,
+    phone:      "9000000000",
+
+    university: {
+      connect: {
+        id: university.id,
       },
-    });
+    },
+
+    schools: {
+      connect: [
+        {
+          id: school.id,
+        },
+      ],
+    },
+  },
+});
   }
   console.log("👑  Super Admin ready  (superadmin@gmail.com)");
 
@@ -1894,7 +1915,206 @@ const superAdminUser =
       school:     { connect: { id: school.id } },
     },
   });
+// ─────────────────────────────────────────────
+// PREMIUM PAYMENT + SUBSCRIPTION
+// ─────────────────────────────────────────────
 
+let premiumPlan =
+  await prisma.plan.findFirst({
+    where: {
+      name: "Premium",
+    },
+});
+
+if (!premiumPlan) {
+  premiumPlan =
+    await prisma.plan.create({
+      data: {
+        name: "Premium",
+
+        price: 800,
+
+        maxSchools: 100,
+        maxStudents: 100000,
+        maxTeachers: 10000,
+        maxSchoolAdmins: 500,
+
+        isActive: true,
+      },
+    });
+}
+
+if (!premiumPlan) {
+  throw new Error(
+    "Premium plan not found"
+  );
+}
+
+// remove old data before reseed
+await prisma.subscription.deleteMany({
+  where: {
+    universityId: university.id,
+  },
+});
+
+await prisma.payment.deleteMany({
+  where: {
+    universityId: university.id,
+  },
+});
+
+// create payment
+const payment =
+  await prisma.payment.create({
+    data: {
+
+      // 👤 Buyer Details
+      fullName:
+        "Springfield High School",
+
+      schoolName:
+        school.name,
+
+      email:
+        "superadmin@gmail.com",
+
+      phone:
+        "9000000000",
+
+      address:
+        "Springfield High School Address",
+
+      // 📦 Plan Snapshot
+      planName:
+        premiumPlan.name,
+
+      planPrice:
+        premiumPlan.price,
+
+      maxSchools:
+        premiumPlan.maxSchools,
+
+      maxStudents:
+        premiumPlan.maxStudents,
+
+      maxTeachers:
+        premiumPlan.maxTeachers,
+
+      maxSchoolAdmins:
+        premiumPlan.maxSchoolAdmins,
+
+      // 👥 Counts
+      userCount: 100,
+      studentCount: 1000,
+      teacherCount: 100,
+
+      // 🏫 Relations
+      university: {
+        connect: {
+          id: university.id,
+        },
+      },
+
+      School: {
+        connect: {
+          id: school.id,
+        },
+      },
+
+      plan: {
+        connect: {
+          id: premiumPlan.id,
+        },
+      },
+
+      superAdmin: {
+        connect: {
+          id: sa.id,
+        },
+      },
+
+      // 💰 Payment
+      amount:
+        premiumPlan.price,
+
+      // 🔗 Razorpay
+      razorpayOrderId:
+        `seed_order_${Date.now()}`,
+
+      razorpayPaymentId:
+        `seed_payment_${Date.now()}`,
+
+      razorpaySignature:
+        "seed_signature",
+
+      // 📅 Plan Dates
+      planStartDate:
+        new Date(),
+
+      planEndDate:
+        new Date(
+          Date.now() +
+          365 * 24 * 60 * 60 * 1000
+        ),
+
+      // 📊 Status
+      status: "SUCCESS",
+    },
+  });
+
+// create subscription
+await prisma.subscription.create({
+  data: {
+
+    university: {
+      connect: {
+        id: university.id,
+      },
+    },
+
+    School: {
+      connect: {
+        id: school.id,
+      },
+    },
+
+    payment: {
+      connect: {
+        id: payment.id,
+      },
+    },
+
+    plan: {
+      connect: {
+        id: premiumPlan.id,
+      },
+    },
+
+    startDate:
+      payment.planStartDate,
+
+    endDate:
+      payment.planEndDate,
+
+    status: "ACTIVE",
+
+    maxSchools:
+      premiumPlan.maxSchools,
+
+    maxStudents:
+      premiumPlan.maxStudents,
+
+    maxTeachers:
+      premiumPlan.maxTeachers,
+
+    maxSchoolAdmins:
+      premiumPlan.maxSchoolAdmins,
+  },
+});
+
+console.log(
+  "💳 Premium payment + subscription seeded"
+);
   // ── Expenses ───────────────────────────────────────────────────────────────
   await seedExpenses({ school });
 
