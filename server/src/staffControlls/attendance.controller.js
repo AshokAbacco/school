@@ -208,7 +208,8 @@ export const getClassStudentsForAttendance = async (req, res) => {
  */
 export const markAttendance = async (req, res) => {
   try {
-    const { classSectionId, academicYearId, date, records } = req.body;
+    const { classSectionId, academicYearId, date, records, notifyChannel } = req.body;
+    // notifyChannel: "whatsapp" | "sms" | undefined (undefined = save only, no notification)
 
     if (!classSectionId || !academicYearId || !date || !records) {
       return res.status(400).json({
@@ -307,18 +308,23 @@ export const markAttendance = async (req, res) => {
 
           if (!parent?.phone) continue;
 
-          await sendAttendanceWhatsApp({
-            phone: parent.phone,
-            studentName: student.name,
-            status:
-              record.status === "PRESENT"
-                ? "Present"
-                : record.status === "ABSENT"
-                ? "Absent"
-                : record.status,
-            schoolName: school?.name || "School",
-          });
-          if (record.status === "ABSENT") {
+          // ── WhatsApp: only if channel is "whatsapp" ──────────────
+          if (notifyChannel === "whatsapp") {
+            await sendAttendanceWhatsApp({
+              phone: parent.phone,
+              studentName: student.name,
+              status:
+                record.status === "PRESENT"
+                  ? "Present"
+                  : record.status === "ABSENT"
+                  ? "Absent"
+                  : record.status,
+              schoolName: school?.name || "School",
+            });
+          }
+
+          // ── SMS: only if channel is "sms" ────────────────────────
+          if (notifyChannel === "sms" && record.status === "ABSENT") {
             await sendAttendanceSMS({
               mobile: parent.phone,
               studentName: student.name,
@@ -327,7 +333,7 @@ export const markAttendance = async (req, res) => {
           }
         }
       } catch (err) {
-        console.error("Attendance WhatsApp Send Error:", err);
+        console.error("Attendance Notification Send Error:", err);
       }
     }
 

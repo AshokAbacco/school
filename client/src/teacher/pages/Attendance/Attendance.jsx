@@ -166,7 +166,8 @@ export default function Attendance() {
   const [initError, setInitError] = useState(null);
   const { toasts, toast, remove } = useToast();
   const [sendingMonthlyReport, setSendingMonthlyReport] = useState(false);
-  const [sendingReport, setSendingReport] = useState(false);
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [sendingSMS, setSendingSMS] = useState(false);
   const filteredStudents = searchQuery.trim()
     ? students.filter((s) => {
       const q = searchQuery.trim().toLowerCase();
@@ -280,31 +281,39 @@ export default function Attendance() {
     }
   };
 
-  const handleSendAttendanceReport = async () => {
+  const handleSendWhatsApp = async () => {
     try {
-      setSendingReport(true);
-
+      setSendingWhatsApp(true);
       await saveAttendance({
         classSectionId: selectedClassId,
         academicYearId,
         date,
         records: students.filter((s) => s.status),
-        sendWhatsApp: true,
+        notifyChannel: "whatsapp",
       });
-
-      toast(
-        "Attendance report sent to parents successfully",
-        "success",
-        4000
-      );
-    } catch (err) {
-      toast(
-        "Failed to send attendance report",
-        "error",
-        4000
-      );
+      toast("WhatsApp notifications sent to parents", "success", 4000);
+    } catch {
+      toast("Failed to send WhatsApp notifications", "error", 4000);
     } finally {
-      setSendingReport(false);
+      setSendingWhatsApp(false);
+    }
+  };
+
+  const handleSendSMS = async () => {
+    try {
+      setSendingSMS(true);
+      await saveAttendance({
+        classSectionId: selectedClassId,
+        academicYearId,
+        date,
+        records: students.filter((s) => s.status),
+        notifyChannel: "sms",
+      });
+      toast("SMS notifications sent to parents", "success", 4000);
+    } catch {
+      toast("Failed to send SMS notifications", "error", 4000);
+    } finally {
+      setSendingSMS(false);
     }
   };
 
@@ -594,9 +603,11 @@ export default function Attendance() {
                   <SubmitButton />
                 </div>
 
+                {/* WhatsApp notify button */}
                 <button
-                  disabled={sendingReport || hasEmptyStatus}
-                  onClick={handleSendAttendanceReport}
+                  disabled={sendingWhatsApp || hasEmptyStatus}
+                  onClick={handleSendWhatsApp}
+                  title="Send WhatsApp notification only"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -606,36 +617,90 @@ export default function Attendance() {
                     borderRadius: 12,
                     border: "none",
                     background:
-                      sendingReport || hasEmptyStatus
+                      sendingWhatsApp || hasEmptyStatus
                         ? C.borderLight
-                        : "linear-gradient(135deg, #22c55e, #15803d)",
+                        : "linear-gradient(135deg, #25d366, #128c7e)",
                     color:
-                      sendingReport || hasEmptyStatus
+                      sendingWhatsApp || hasEmptyStatus
                         ? C.textLight
                         : "#fff",
                     fontSize: 12,
                     fontWeight: 700,
                     cursor:
-                      sendingReport || hasEmptyStatus
+                      sendingWhatsApp || hasEmptyStatus
                         ? "not-allowed"
                         : "pointer",
                     fontFamily: "'DM Sans', sans-serif",
                     whiteSpace: "nowrap",
                     boxShadow:
-                      sendingReport || hasEmptyStatus
+                      sendingWhatsApp || hasEmptyStatus
                         ? "none"
-                        : "0 4px 14px rgba(34,197,94,0.25)",
+                        : "0 4px 14px rgba(37,211,102,0.30)",
                   }}
                 >
-                  {sendingReport ? (
+                  {sendingWhatsApp ? (
                     <>
                       <Loader2 size={13} className="animate-spin" />
-                      Sending...
+                      Sending…
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 size={13} />
-                      Send Attendance Report
+                      {/* WhatsApp icon inline SVG */}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                      </svg>
+                      WhatsApp
+                    </>
+                  )}
+                </button>
+
+                {/* SMS notify button */}
+                <button
+                  disabled={sendingSMS || hasEmptyStatus}
+                  onClick={handleSendSMS}
+                  title="Send SMS notification only"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    padding: "9px 14px",
+                    borderRadius: 12,
+                    border: "none",
+                    background:
+                      sendingSMS || hasEmptyStatus
+                        ? C.borderLight
+                        : "linear-gradient(135deg, #f59e0b, #d97706)",
+                    color:
+                      sendingSMS || hasEmptyStatus
+                        ? C.textLight
+                        : "#fff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor:
+                      sendingSMS || hasEmptyStatus
+                        ? "not-allowed"
+                        : "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                    whiteSpace: "nowrap",
+                    boxShadow:
+                      sendingSMS || hasEmptyStatus
+                        ? "none"
+                        : "0 4px 14px rgba(245,158,11,0.30)",
+                  }}
+                >
+                  {sendingSMS ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      Sending…
+                    </>
+                  ) : (
+                    <>
+                      {/* Message/SMS icon */}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                      </svg>
+                      Send SMS
                     </>
                   )}
                 </button>

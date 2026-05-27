@@ -147,6 +147,7 @@ const E0 = {
   pPh: "",
   pEm: "",
   pOc: "",
+  pAnniversary: "",
   pRl: "FATHER",
   pLoginEmail: null,
   pLoginPw: "",
@@ -154,6 +155,7 @@ const E0 = {
   mPh: "",
   mEm: "",
   mOc: "",
+  mAnniversary: "",
   mLoginEmail: null,
   mLoginPw: "",
   // Guardian
@@ -341,6 +343,9 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           pPh: fatherLink?.parent?.phone || pi.parentPhone || "",
           pEm: fatherLink?.parent?.email || pi.parentEmail || "",
           pOc: fatherLink?.parent?.occupation || "",
+          pAnniversary: fatherLink?.parent?.anniversaryDate
+            ? fatherLink.parent.anniversaryDate.slice(0, 10)
+            : "",
           pRl: "FATHER",
           pLoginEmail: null,
           pLoginPw: "",
@@ -349,6 +354,9 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           mPh: motherLink?.parent?.phone || "",
           mEm: motherLink?.parent?.email || "",
           mOc: motherLink?.parent?.occupation || "",
+          mAnniversary: motherLink?.parent?.anniversaryDate
+            ? motherLink.parent.anniversaryDate.slice(0, 10)
+            : "",
           mLoginEmail: null,
           mLoginPw: "",
           // Guardian
@@ -804,6 +812,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           password: f.pLoginPw,
           phone: normalizePhone(f.pPh?.trim()) || undefined,
           occupation: f.pOc?.trim() || undefined,
+          anniversaryDate: f.pAnniversary || undefined,
           relation: "FATHER",
         }),
       });
@@ -823,6 +832,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           password: f.mLoginPw,
           phone: normalizePhone(f.mPh?.trim()) || undefined,
           occupation: f.mOc?.trim() || undefined,
+          anniversaryDate: f.mAnniversary || undefined,
           relation: "MOTHER",
         }),
       });
@@ -2073,7 +2083,7 @@ const ParentLoginCard = ({
             </div>
           )}
 
-          {/* ═══ PARENT ═══ */}
+          {/* ═══ PARENT ═══ */} 
           {tab === "parent" && (
             <div className="space-y-3">
               <div
@@ -2135,6 +2145,12 @@ const ParentLoginCard = ({
                       onChange={set("pOc")}
                       placeholder="e.g. Engineer"
                     />
+                    <InputField
+                      label="Anniversary Date (Optional)"
+                      type="date"
+                      value={f.pAnniversary}
+                      onChange={set("pAnniversary")}
+                    />
                     <div className="col-span-1 sm:col-span-2">
                       <InputField
                         label="Emergency Contact"
@@ -2193,6 +2209,12 @@ const ParentLoginCard = ({
                       value={f.mOc}
                       onChange={set("mOc")}
                       placeholder="e.g. Teacher"
+                    />
+                    <InputField
+                      label="Anniversary Date (Optional)"
+                      type="date"
+                      value={f.mAnniversary}
+                      onChange={set("mAnniversary")}
                     />
                   </div>
                     <ParentLoginCard
@@ -2411,145 +2433,79 @@ const ParentLoginCard = ({
         </div>
       </div>
 
-      {/* Footer */}
-      {/* <div
-        className="flex items-center justify-between px-4 md:px-6 py-4 rounded-b-2xl"
-        style={{
-          background: COLORS.bgSoft,
-          borderTop: `1px solid ${COLORS.border}`,
-        }}
-      >
-        <button
-          onClick={doClose}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-white/70"
+        
+        <div
+          className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 px-4 md:px-6 py-3 md:py-4 rounded-b-2xl"
           style={{
-            border: `1px solid ${COLORS.border}`,
-            color: COLORS.secondary,
+            background: COLORS.bgSoft,
+            borderTop: `1px solid ${COLORS.border}`,
           }}
         >
-          <X size={14} /> Cancel
-        </button>
-        <div className="flex items-center gap-3">
-          {!isLast && (
-            <button
-              onClick={() => setTab(TABS[tabIdx + 1].id)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-white/70"
-              style={{
-                border: `1px solid ${COLORS.border}`,
-                color: COLORS.primary,
-              }}
-            >
-              Next <ChevronRight size={15} />
-            </button>
-          )}
-          {isLast ? (
-            <button
-              onClick={handleDocSave}
-              disabled={busy}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{ background: COLORS.primary }}
-            >
-              {busy ? (
-                <Loader2 size={15} className="animate-spin" />
-              ) : (
-                <Save size={15} />
-              )}
-              {busy
-                ? "Saving…"
-                : totalUploads > 0
-                  ? `Save with Documents (${totalUploads})`
-                  : "Save Student"}
-            </button>
-          ) : (
-            <button
-              onClick={handleSave}
-              disabled={busy}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{ background: COLORS.primary }}
-            >
-              {busy ? (
-                <Loader2 size={15} className="animate-spin" />
-              ) : (
-                <Save size={15} />
-              )}
-              {busy ? "Saving…" : isEdit ? "Save Changes" : "Save Student"}
-            </button>
-          )}
-        </div>
-      </div> */}
-      {/* Footer */}
-<div
-  className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2 px-4 md:px-6 py-3 md:py-4 rounded-b-2xl"
-  style={{
-    background: COLORS.bgSoft,
-    borderTop: `1px solid ${COLORS.border}`,
-  }}
->
-  {/* Cancel */}
-  <button
-    onClick={doClose}
-    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-white/70 w-full sm:w-auto"
-    style={{
-      border: `1px solid ${COLORS.border}`,
-      color: COLORS.secondary,
-    }}
-  >
-    <X size={14} /> Cancel
-  </button>
+          {/* Cancel */}
+          <button
+            onClick={doClose}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-white/70 w-full sm:w-auto"
+            style={{
+              border: `1px solid ${COLORS.border}`,
+              color: COLORS.secondary,
+            }}
+          >
+            <X size={14} /> Cancel
+          </button>
 
-  {/* Next + Save */}
-  <div className="flex items-center gap-2 w-full sm:w-auto">
-    {!isLast && (
-      <button
-        onClick={() => setTab(TABS[tabIdx + 1].id)}
-        className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-white/70"
-        style={{
-          border: `1px solid ${COLORS.border}`,
-          color: COLORS.primary,
-        }}
-      >
-        Next <ChevronRight size={15} />
-      </button>
-    )}
-    {isLast ? (
-      <button
-        onClick={handleDocSave}
-        disabled={busy || (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit)}
-        className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-        style={{ background: (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "#9ca3af" : COLORS.primary }}
-        title={(!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "Student limit reached — upgrade your plan" : undefined}
-      >
-        {busy ? (
-          <Loader2 size={15} className="animate-spin" />
-        ) : (
-          <Save size={15} />
-        )}
-        <span className="truncate">
-          {busy
-            ? "Saving…"
-            : totalUploads > 0
-              ? `Save & Docs (${totalUploads})`
-              : "Save Student"}
-        </span>
-      </button>
-    ) : (
-      <button
-        onClick={handleSave}
-        disabled={busy || (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit)}
-        className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-        style={{ background: (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "#9ca3af" : COLORS.primary }}
-        title={(!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "Student limit reached — upgrade your plan" : undefined}
-      >
-        {busy ? (
-          <Loader2 size={15} className="animate-spin" />
-        ) : (
-          <Save size={15} />
-        )}
-        {busy ? "Saving…" : isEdit ? "Save Changes" : "Save Student"}
-      </button>
-    )}
-  </div>
-</div>
+          {/* Next + Save */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {!isLast && (
+              <button
+                onClick={() => setTab(TABS[tabIdx + 1].id)}
+                className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-white/70"
+                style={{
+                  border: `1px solid ${COLORS.border}`,
+                  color: COLORS.primary,
+                }}
+              >
+                Next <ChevronRight size={15} />
+              </button>
+            )}
+            {isLast ? (
+              <button
+                onClick={handleDocSave}
+                disabled={busy || (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit)}
+                className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ background: (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "#9ca3af" : COLORS.primary }}
+                title={(!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "Student limit reached — upgrade your plan" : undefined}
+              >
+                {busy ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Save size={15} />
+                )}
+                <span className="truncate">
+                  {busy
+                    ? "Saving…"
+                    : totalUploads > 0
+                      ? `Save & Docs (${totalUploads})`
+                      : "Save Student"}
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={handleSave}
+                disabled={busy || (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit)}
+                className="flex items-center justify-center gap-2 flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ background: (!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "#9ca3af" : COLORS.primary }}
+                title={(!isEdit && limitStatus && limitStatus.limit !== null && limitStatus.used >= limitStatus.limit) ? "Student limit reached — upgrade your plan" : undefined}
+              >
+                {busy ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Save size={15} />
+                )}
+                {busy ? "Saving…" : isEdit ? "Save Changes" : "Save Student"}
+              </button>
+            )}
+          </div>
+        </div>
     </div>
   );
 

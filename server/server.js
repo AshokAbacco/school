@@ -17,6 +17,8 @@ import paymentRoutes from "./src/payment/payment.routes.js";
 import whatsappRoutes from "./src/whatsapp/whatsapp.routes.js";
 import "./src/whatsapp/birthdayCron.js";
 import "./src/whatsapp/meetingReminderCron.js";
+import "./src/whatsapp/anniversaryCron.js";
+
 import contactRoutes from "./src/contactUs/contact.route.js";
 import subscriptionRoutes from "./src/payment/Upgrade.routes.js";
 import examTimetableRoutes from "./src/whatsapp/Exams/examTimetable.routes.js";

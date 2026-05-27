@@ -1,3 +1,4 @@
+// server/src/whatsapp/WhatsApp.Controlls.js
 import axios from "axios";
 import { prisma } from "../config/db.js";
 
@@ -194,5 +195,104 @@ export const sendTodayBirthdays = async (req, res) => {
       success: false,
       error: error.response?.data || error.message
     });
+  }
+};
+
+
+// ================= TODAY ANNIVERSARIES =================
+export const sendTodayAnniversaries = async (req, res) => {
+  try {
+
+    const today = new Date();
+    const month = today.getMonth() + 1;
+    const day = today.getDate();
+
+    const parents = await prisma.parent.findMany({
+      where: {
+        anniversaryDate: {
+          not: null
+        }
+      },
+      include: {
+        school: true
+      }
+    });
+
+    let total = 0;
+
+    for (const parent of parents) {
+
+      const ann = new Date(parent.anniversaryDate);
+
+      if (
+        ann.getMonth() + 1 === month &&
+        ann.getDate() === day
+      ) {
+
+        const cleanPhone = formatPhone(parent.phone);
+
+        if (!cleanPhone) continue;
+
+        const parentName = parent.name || "Parent";
+
+        const schoolName =
+          parent.school?.name || "Your School";
+
+        await axios.post(
+          `https://graph.facebook.com/v23.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+          {
+            messaging_product: "whatsapp",
+            to: cleanPhone,
+            type: "template",
+            template: {
+              name: "anniversary_message",
+              language: {
+                code: "en"
+              },
+              components: [
+                {
+                  type: "body",
+                  parameters: [
+                    {
+                      type: "text",
+                      text: parentName
+                    },
+                    {
+                      type: "text",
+                      text: schoolName
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+              "Content-Type": "application/json"
+            }
+          }
+        );
+
+        console.log(
+          `✅ Anniversary wish sent to ${parentName}`
+        );
+
+        total++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${total} anniversary wishes sent`
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+      success: false,
+      error: error.response?.data || error.message
+    });
+
   }
 };

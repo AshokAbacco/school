@@ -1,5 +1,3 @@
-// SMS Service: Handles sending SMS notifications using SMSGatewayHub / BSNL DLT
-
 import axios from "axios";
 
 export const sendSMS = async ({
@@ -7,7 +5,6 @@ export const sendSMS = async ({
   message,
   templateId,
 }) => {
-
   try {
 
     console.log("📤 Sending SMS...");
@@ -19,32 +16,28 @@ export const sendSMS = async ({
       process.env.SMS_API_URL,
       {
         params: {
-          user: process.env.SMS_USER,
-          password: process.env.SMS_PASSWORD,
-
+          APIKey: process.env.SMS_API_KEY,
           senderid: process.env.SMS_SENDER_ID,
 
-          channel: "Trans",
+          channel: 2,
 
           DCS: 0,
-
           flashsms: 0,
 
           number: mobile,
 
           text: message,
 
-          route: 1,
+          route: process.env.SMS_ROUTE,
+
+          EntityId: process.env.SMS_ENTITY_ID,
 
           dlttemplateid: templateId,
         },
       }
     );
 
-    console.log(
-      `✅ SMS Sent To ${mobile}`
-    );
-
+    console.log(`✅ SMS Sent To ${mobile}`);
     console.log("📨 SMS Response:", response.data);
 
     return response.data;

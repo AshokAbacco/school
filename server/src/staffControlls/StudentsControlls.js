@@ -208,7 +208,7 @@ export const registerStudent = async (req, res) => {
 export const createParentLogin = async (req, res) => {
   try {
     const { id: studentId } = req.params;
-    const { name, email, password, phone, occupation, relation } = req.body;
+    const { name, email, password, phone, occupation, relation,  anniversaryDate, } = req.body;
 
     if (!name || !email || !password || !relation)
       return res
@@ -251,6 +251,9 @@ export const createParentLogin = async (req, res) => {
           password: hashed,
           phone: normalizePhone(phone) || null,
           occupation: occupation || null,
+          anniversaryDate: anniversaryDate
+            ? new Date(anniversaryDate)
+            : null,
           schoolId,
         },
       });
@@ -275,6 +278,7 @@ export const createParentLogin = async (req, res) => {
             email: true,
             phone: true,
             occupation: true,
+            anniversaryDate: true,
           },
         },
       },
@@ -1618,4 +1622,4 @@ export const getStudentLimitStatus = async (req, res) => {
     console.error("[getStudentLimitStatus]", err);
     return res.status(500).json({ message: "Server error" });
   }
-};
+}; 
