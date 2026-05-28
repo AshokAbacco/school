@@ -324,11 +324,12 @@ export const markAttendance = async (req, res) => {
           }
 
           // ── SMS: only if channel is "sms" ────────────────────────
-          if (notifyChannel === "sms" && record.status === "ABSENT") {
+          if (notifyChannel === "sms" && (record.status === "ABSENT" || record.status === "PRESENT")) {
             await sendAttendanceSMS({
               mobile: parent.phone,
               studentName: student.name,
               schoolName: school?.name || "School",
+              status: record.status,   // ← pass status
             });
           }
         }

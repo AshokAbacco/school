@@ -19,7 +19,8 @@ export const sendSMS = async ({
           APIKey: process.env.SMS_API_KEY,
           senderid: process.env.SMS_SENDER_ID,
 
-          channel: 2,
+          // channel: 1,
+          channel: process.env.SMS_CHANNEL,
 
           DCS: 0,
           flashsms: 0,
