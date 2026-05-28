@@ -35,6 +35,8 @@ import TrackingPage from "./pages/tracking/TrackingPage";
 import TutorialTeachersPage from "./pages/tutorials/TutorialTeachersPage";
 import DeletedRecords from "./pages/settings/DeletedRecords";
 import Profile from "./components/Profile.jsx"
+import ReEvaluationSettings from "./pages/ReEvaluation/ReEvaluationSettings";
+import ReEvaluationRequests from "./pages/ReEvaluation/ReEvaluationRequests";
 function AdminRoutes() {
   return (
     <PageLayout>
@@ -87,6 +89,15 @@ function AdminRoutes() {
           path="deleted-records"
           element={<DeletedRecords />}
         />
+        <Route
+          path="re-evaluation-settings"
+          element={<ReEvaluationSettings />}
+        />
+        <Route
+          path="re-evaluation-request"
+          element={<ReEvaluationRequests  />}
+        />
+        
       </Routes>
     </PageLayout>
   );
