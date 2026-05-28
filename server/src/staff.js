@@ -41,6 +41,8 @@ import resultRoutes from "./staffRoutes/resultRoutes.js";
 import teacherAssignmentRoute from "./staffRoutes/teacherAssignmentRoute.js";
 import chatRoutes from "../src/chatbox/chat.routes.js";
 import staffNotificationRoutes from "./staffRoutes/staffNotificationRoutes.js";
+import reEvaluationRoutes from "./staffRoutes/reEvaluationRoutes.js";
+import reEvaluationRequestRoutes from "./staffRoutes/reEvaluationRequestRoutes.js";
 import logoRoutes from "./utils/logoRoutes.js";
 import { requireAuth } from "./middlewares/auth.middleware.js";
 import deleteAccountRoutes from "./superAdmin/routes/DeleteAccount.routes.js";
@@ -136,6 +138,11 @@ staff.use("/api/teacher/assignments", teacherAssignmentRoute);
 staff.use("/api/admin/transport", adminTransportRoute);
 staff.use("/api/superadmin/profile", superAdminProfileRoutes);
 staff.use("/api/notifications", staffNotificationRoutes);
+staff.use( "/api/re-evaluation",reEvaluationRoutes);
+staff.use(
+  "/api/re-evaluation",
+  reEvaluationRequestRoutes
+);
 staff.use("/api/admin/tutorials", tutorialRoutes);
 staff.use("/api/chat", chatRoutes);
 staff.use("/api", logoRoutes(requireAuth));

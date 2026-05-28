@@ -335,6 +335,8 @@ model School {
   adminProfiles          SchoolAdminProfile[]
   AdminMonthlySalary     AdminMonthlySalary[]
   Expense                Expense[]
+  reEvaluationSettings   ReEvaluationSetting[]
+  reEvaluationRequests   ReEvaluationRequest[]
 
   @@index([universityId])
   @@index([type])
@@ -487,6 +489,7 @@ model Parent {
 
   studentLinks          StudentParent[]
   meetingParticipations MeetingParticipant[]
+  reEvaluationRequests  ReEvaluationRequest[]
 
   @@unique([email, schoolId])
   @@index([schoolId])
@@ -551,6 +554,7 @@ model User {
   schoolAdminProfile   SchoolAdminProfile?
   AdminMonthlySalary   AdminMonthlySalary[]
   FinanceMonthlySalary FinanceMonthlySalary[]
+  reEvaluationRequests ReEvaluationRequest[]
 
   @@unique([email, schoolId])
   @@index([role])
@@ -638,6 +642,7 @@ model Student {
   assignmentSubmissions         AssignmentSubmission[]
   StudentTutorialRecommendation StudentTutorialRecommendation[]
   assignmentDrafts              AssignmentDraft[]
+  reEvaluationRequests          ReEvaluationRequest[]
 
   @@unique([email, schoolId])
   @@index([schoolId])
@@ -776,6 +781,8 @@ model Subject {
   liveClasses                   LiveClass[]
   assignments                   Assignment[]
   StudentTutorialRecommendation StudentTutorialRecommendation[]
+  reEvaluationSettings          ReEvaluationSetting[]
+  reEvaluationRequests          ReEvaluationRequest[]
 
   @@unique([code, schoolId])
   @@index([schoolId])
@@ -916,34 +923,35 @@ model AcademicYear {
   endDate   DateTime
   isActive  Boolean  @default(false)
 
-  schoolId            String
-  school              School                      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  deletedAt           DateTime?
-  classSectionYears   ClassSectionAcademicYear[]
-  timetableConfigs    TimetableConfig[]
-  classSubjects       ClassSubject[]
-  teacherAssignments  TeacherAssignment[]
-  assessmentTerms     AssessmentTerm[]
-  assessmentGroups    AssessmentGroup[]
-  resultSummaries     ResultSummary[]
-  studentEnrollments  StudentEnrollment[]
-  extraClasses        ExtraClass[]
-  meetings            Meeting[]
-  attendanceRecords   AttendanceRecord[]
-  TeacherAttendance   TeacherAttendance[]
-  TimetableEntry      TimetableEntry[]
-  subjectSyllabus     SubjectSyllabus[]
-  portionProgress     SectionPortionProgress[]
-  holidays            SchoolHoliday[]
-  activities          Activity[]
-  activityEvents      ActivityEvent[]
-  activityEnrollments StudentActivityEnrollment[]
-  StudentAward        StudentAward[]
-  liveClasses         LiveClass[]
-  assignments         Assignment[]
-  transportFeePlans   TransportFeePlan[]
-  studentTransports   StudentTransport[]
-  classFees           ClassFee[]
+  schoolId             String
+  school               School                      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  deletedAt            DateTime?
+  classSectionYears    ClassSectionAcademicYear[]
+  timetableConfigs     TimetableConfig[]
+  classSubjects        ClassSubject[]
+  teacherAssignments   TeacherAssignment[]
+  assessmentTerms      AssessmentTerm[]
+  assessmentGroups     AssessmentGroup[]
+  resultSummaries      ResultSummary[]
+  studentEnrollments   StudentEnrollment[]
+  extraClasses         ExtraClass[]
+  meetings             Meeting[]
+  attendanceRecords    AttendanceRecord[]
+  TeacherAttendance    TeacherAttendance[]
+  TimetableEntry       TimetableEntry[]
+  subjectSyllabus      SubjectSyllabus[]
+  portionProgress      SectionPortionProgress[]
+  holidays             SchoolHoliday[]
+  activities           Activity[]
+  activityEvents       ActivityEvent[]
+  activityEnrollments  StudentActivityEnrollment[]
+  StudentAward         StudentAward[]
+  liveClasses          LiveClass[]
+  assignments          Assignment[]
+  transportFeePlans    TransportFeePlan[]
+  studentTransports    StudentTransport[]
+  classFees            ClassFee[]
+  reEvaluationSettings ReEvaluationSetting[]
 
   @@unique([name, schoolId])
   @@index([schoolId])
@@ -972,23 +980,24 @@ model ClassSection {
   branchId String?
   branch   CourseBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
-  academicYearLinks   ClassSectionAcademicYear[]
-  classSubjects       ClassSubject[]
-  teacherAssignments  TeacherAssignment[]
-  assessmentSchedules AssessmentSchedule[]
-  studentEnrollments  StudentEnrollment[]
-  extraClasses        ExtraClass[]
-  meetings            MeetingClass[]
-  attendanceRecords   AttendanceRecord[]
-  timetableEntries    TimetableEntry[]
-  portionProgress     SectionPortionProgress[]
-  activityClasses     ActivityClass[]
-  eventClasses        EventClass[]
-  StudentAward        StudentAward[]
-  liveClasses         LiveClass[]
-  liveClassSections   LiveClassSection[]
-  assignmentSections  AssignmentSection[]
-  classFees           ClassFee[]
+  academicYearLinks    ClassSectionAcademicYear[]
+  classSubjects        ClassSubject[]
+  teacherAssignments   TeacherAssignment[]
+  assessmentSchedules  AssessmentSchedule[]
+  studentEnrollments   StudentEnrollment[]
+  extraClasses         ExtraClass[]
+  meetings             MeetingClass[]
+  attendanceRecords    AttendanceRecord[]
+  timetableEntries     TimetableEntry[]
+  portionProgress      SectionPortionProgress[]
+  activityClasses      ActivityClass[]
+  eventClasses         EventClass[]
+  StudentAward         StudentAward[]
+  liveClasses          LiveClass[]
+  liveClassSections    LiveClassSection[]
+  assignmentSections   AssignmentSection[]
+  classFees            ClassFee[]
+  reEvaluationSettings ReEvaluationSetting[]
 
   @@index([schoolId])
   @@index([grade, schoolId])
@@ -1135,9 +1144,10 @@ model AssessmentGroup {
   termId String?
   term   AssessmentTerm? @relation(fields: [termId], references: [id], onDelete: SetNull)
 
-  schedules     AssessmentSchedule[]
-  ResultSummary ResultSummary[]
-  createdAt     DateTime             @default(now())
+  schedules            AssessmentSchedule[]
+  ResultSummary        ResultSummary[]
+  reEvaluationRequests ReEvaluationRequest[]
+  createdAt            DateTime              @default(now())
 
   @@index([schoolId])
   @@index([academicYearId])
@@ -1184,6 +1194,8 @@ model Marks {
   isAbsent Boolean @default(false)
   remarks  String?
 
+  reEvaluationRequests ReEvaluationRequest[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1217,13 +1229,6 @@ model ResultSummary {
   @@index([studentId])
   @@index([academicYearId])
   @@map("result_summaries")
-}
-
-enum RevaluationStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  COMPLETED
 }
 
 model ExtraClass {
@@ -3253,4 +3258,88 @@ model AssignmentDraft {
   @@index([assignmentId])
   @@index([studentId])
   @@map("assignment_drafts")
+}
+
+model ReEvaluationSetting {
+  id String @id @default(cuid())
+
+  schoolId       String
+  academicYearId String
+  classSectionId String
+  subjectId      String
+
+  amount Decimal @db.Decimal(10, 2)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  classSection ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  requests ReEvaluationRequest[]
+
+  @@unique([academicYearId, classSectionId, subjectId])
+}
+
+model ReEvaluationRequest {
+  id String @id @default(cuid())
+
+  schoolId          String
+  parentId          String
+  studentId         String
+  marksId           String
+  assessmentGroupId String
+  subjectId         String
+
+  reEvaluationSettingId String?
+
+  requestedAmount Decimal? @db.Decimal(10, 2)
+
+  isPaid Boolean @default(false)
+
+  status ReEvaluationStatus @default(PENDING)
+
+  parentRemarks String?
+  adminRemarks  String?
+
+  answerSheetFileKey    String?
+  answerSheetUploadedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  parent Parent @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  marks Marks @relation(fields: [marksId], references: [id], onDelete: Cascade)
+
+  assessmentGroup AssessmentGroup @relation(fields: [assessmentGroupId], references: [id], onDelete: Cascade)
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  setting ReEvaluationSetting? @relation(fields: [reEvaluationSettingId], references: [id], onDelete: SetNull)
+  User    User?                @relation(fields: [userId], references: [id])
+  userId  String?
+
+  @@unique([studentId, marksId])
+  @@index([schoolId])
+  @@index([parentId])
+  @@index([studentId])
+  @@index([status])
+}
+
+enum ReEvaluationStatus {
+  PENDING
+  PAYMENT_PENDING
+  PAID
+  ANSWER_SHEET_UPLOADED
+  COMPLETED
+  REJECTED
 }

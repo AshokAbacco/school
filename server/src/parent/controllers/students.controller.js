@@ -1,8 +1,3 @@
-// server/src/parent/controllers/students_controller.js
-// ═══════════════════════════════════════════════════════════════
-//  Parent — Students List Controller + Redis caching
-// ═══════════════════════════════════════════════════════════════
-
 import { prisma } from "../../config/db.js";
 import cache from "../../utils/cacheService.js";
 
@@ -14,12 +9,11 @@ export const getParentStudents = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    // ── Cache check ──────────────────────────────────────────
     const cacheKey = `parent:students:${parentId}`;
     const cached = await cache.get(cacheKey);
     if (cached) return res.json(JSON.parse(cached));
 
-    const students = await prisma.studentParent.findMany({
+    const studentLinks = await prisma.studentParent.findMany({
       where: { parentId },
       include: {
         student: {
@@ -29,36 +23,39 @@ export const getParentStudents = async (req, res) => {
               orderBy: { createdAt: "desc" },
               take: 1,
             },
-            attendanceRecords:   true,
-            resultSummaries:     true,
-            activityEnrollments: true,
           },
         },
       },
     });
 
-    const result = students.map((link) => {
-      const s          = link.student;
+    const result = studentLinks.map((link) => {
+      const s = link.student;
       const enrollment = s.enrollments?.[0];
+      const info = s.personalInfo;
+
+      // Build display name with multiple fallbacks
+      const firstName = info?.firstName || s.name?.split(" ")[0] || "";
+      const lastName = info?.lastName || s.name?.split(" ").slice(1).join(" ") || "";
 
       return {
-        ...s,
-        personalInfo:    s.personalInfo,
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        firstName,
+        lastName,
+        profileImage: info?.profileImage || null,
         admissionNumber: enrollment?.admissionNumber || null,
-        rollNumber:      enrollment?.rollNumber      || null,
-        attendance:      s.attendanceRecords?.length  || 0,
-        gpa:             s.resultSummaries?.[0]?.gpa  || 0,
-        subjects:        s.enrollments?.length         || 0,
-        activities:      s.activityEnrollments?.length || 0,
+        rollNumber: enrollment?.rollNumber || null,
+        personalInfo: info,
       };
     });
 
     const response = { success: true, data: result };
-    await cache.set(cacheKey, response);
+    await cache.set(cacheKey, JSON.stringify(response));
 
     return res.json(response);
   } catch (err) {
-    console.error(err);
+    console.error("GET PARENT STUDENTS ERROR:", err);
     return res.status(500).json({ success: false, message: "Failed to fetch students" });
   }
 };
