@@ -86,16 +86,42 @@ export const getTimetable = async (req, res) => {
       where: {
         classSectionId: enrollment.classSectionId,
         academicYearId: enrollment.academicYearId,
+        deletedAt: null,
       },
-      deletedAt: null,
+
       include: {
-        subject:          { select: { id: true, name: true, code: true } },
-        teacher:          { select: { id: true, firstName: true, lastName: true } },
-        periodDefinition: { select: { startTime: true, endTime: true, slotType: true } },
+        subject: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+
+        periodDefinition: {
+          select: {
+            startTime: true,
+            endTime: true,
+            slotType: true,
+          },
+        },
       },
+
       orderBy: [
         { day: "asc" },
-        { periodDefinition: { startTime: "asc" } },
+        {
+          periodDefinition: {
+            startTime: "asc",
+          },
+        },
       ],
     });
 

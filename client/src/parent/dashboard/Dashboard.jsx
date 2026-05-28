@@ -36,11 +36,36 @@ const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
 
 const apiFetch = async (path, opts = {}) => {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`,
+    },
     ...opts,
   });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.message || `HTTP ${res.status}`);
+
+  const text = await res.text();
+
+  console.log("RAW RESPONSE:", text);
+
+  let json;
+
+  try {
+    json = JSON.parse(text);
+  } catch (err) {
+    console.error("JSON PARSE ERROR:", err);
+    throw new Error("Invalid JSON response");
+  }
+
+  console.log("PARSED RESPONSE:", json);
+
+  if (!res.ok) {
+    throw new Error(json?.message || `HTTP ${res.status}`);
+  }
+
+  if (json?.success === false) {
+    throw new Error(json.message || "Request failed");
+  }
+
   return json;
 };
 
@@ -754,15 +779,21 @@ export default function ParentDashboard() {
       try {
         const res = await apiFetch("/api/parent/students");
         const raw = Array.isArray(res.data) ? res.data : (res.data?.students ?? []);
-        const list = raw.map((s) => ({
-          studentId: s.id,
-          name: s.personalInfo
-            ? `${s.personalInfo.firstName} ${s.personalInfo.lastName}`.trim()
-            : s.name,
-          className: s.enrollments?.[0]?.classSection?.name
-            ?? s.enrollment?.className ?? null,
-          profileImage: s.personalInfo?.profileImage ?? null,
-        }));
+          const list = raw.map((s) => ({
+            studentId: s.id,
+
+            name:
+              `${s.firstName || ""} ${s.lastName || ""}`.trim() ||
+              s.name ||
+              "Student",
+
+            className: s.className || null,
+
+            profileImage:
+              s.profileImage ||
+              s.personalInfo?.profileImage ||
+              null,
+          }));
         setChildren(list);
         if (list.length > 0) setSelectedChild(list[0].studentId);
       } catch (e) {

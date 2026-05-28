@@ -30,7 +30,15 @@ export const getDashboard = async (req, res) => {
     // ── Cache check ──────────────────────────────────────────
     const cacheKey = `parent:dashboard:${studentId}`;
     const cached = await cache.get(cacheKey);
-    if (cached) return res.json(JSON.parse(cached));
+
+    if (cached) {
+      const parsed = JSON.parse(cached);
+
+      // ensure old cache format doesn't break frontend
+      if (parsed?.success !== undefined) {
+        return res.json(parsed);
+      }
+    }
 
     // ── Student basic info ────────────────────────────────────
     const student = await prisma.student.findUnique({
