@@ -13,8 +13,8 @@ import Certificates from "./pages/Certificates/Certificates";
 import ParentChatPage from "./pages/chat/ParentChatPage";
 import ParentHolidayPage from "./pages/holidays/HolidayPage";
 import TutorialRecommendations from "./pages/TutorialRecommendations/TutorialRecommendations";
-import ParentReEvaluation from "./pages/ReEvaluation/ParentReEvaluation";
-import MyReEvaluationRequests from "./pages/ReEvaluation/MyReEvaluationRequests";
+import ParentScriptViewing from "./pages/ReEvaluation/ParentScriptViewing";
+import MyScriptViewRequests from "./pages/ReEvaluation/MyScriptViewRequests";
 
 // import CertificatesUploadPage from "../teacher/pages/Certificates/CertificatesUploadPage";
 
@@ -41,8 +41,8 @@ const ParentRoutes = () => {
         <Route path="chat" element={<ParentChatPage />} />
         <Route path="holidays" element={<ParentHolidayPage />} />
         <Route path="tutorial-recommendations" element={<TutorialRecommendations />} />
-        <Route path="re-evaluation" element={<ParentReEvaluation />} />
-        <Route path="my-re-evaluation-requests" element={<MyReEvaluationRequests  />} />
+        <Route path="parent-script-viewing" element={<ParentScriptViewing />} />
+        <Route path="my-myScript-view-requests" element={<MyScriptViewRequests  />} />
         <Route path="*" element={<Navigate to="dashboard" replace />} />
 
       </Route>

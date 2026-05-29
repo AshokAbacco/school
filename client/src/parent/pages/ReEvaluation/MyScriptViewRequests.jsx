@@ -8,7 +8,7 @@ const authHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
-const MyReEvaluationRequests = () => {
+const MyScriptViewRequests = () => {
   const [requests, setRequests] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false); // State for refresh loading
 
@@ -46,7 +46,7 @@ const MyReEvaluationRequests = () => {
       window.open(response.data.url, "_blank");
     } catch (error) {
       console.error(error);
-      alert("Answer sheet not uploaded yet");
+      alert("Answer script not uploaded yet");
     }
   };
 
@@ -56,7 +56,7 @@ const MyReEvaluationRequests = () => {
         {/* Header container with flex layout to place button on the right */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">
-            My Re-Evaluation Requests
+            My Script View Requests
           </h1>
           
           {/* Refresh Button */}
@@ -87,10 +87,10 @@ const MyReEvaluationRequests = () => {
             <thead>
               <tr className="bg-gray-100">
                 <th className="border p-3 text-left">Subject</th>
-                <th className="border p-3 text-left">Amount</th>
+                <th className="border p-3 text-left">Viewing Fee</th>
                 <th className="border p-3 text-left">Payment</th>
                 <th className="border p-3 text-left">Status</th>
-                <th className="border p-3 text-center">Answer Sheet</th>
+                <th className="border p-3 text-center">Answer Script</th>
               </tr>
             </thead>
 
@@ -98,7 +98,7 @@ const MyReEvaluationRequests = () => {
               {requests.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="border p-8 text-center text-gray-400 font-normal">
-                    No processing re-evaluation requests found.
+                    No active script view requests found.
                   </td>
                 </tr>
               ) : (
@@ -147,4 +147,4 @@ const MyReEvaluationRequests = () => {
   );
 };
 
-export default MyReEvaluationRequests;
+export default MyScriptViewRequests;

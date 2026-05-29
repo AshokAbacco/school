@@ -76,7 +76,7 @@ function Sidebar({ isOpen, onClose }) {
     ? [{
         icon: FileSearch,
         label: "Re-Evaluation",
-        href: `${base}/re-evaluation`,
+        href: `${base}/parent-script-viewing`,
       }]
     : []),
     // ✅ Premium only

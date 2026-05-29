@@ -120,16 +120,16 @@ const NAV = [
   ...(userPlan === "Premium"
     ? [{
         icon: ReceiptText,
-        label: "Re-Evaluation",
-        to: "/admin/re-evaluation-settings",
+        label: "Script Viewing",
+        to: "/admin/viewing-settings",
       }]
     : []),
     // ✅ Premium only
 ...(userPlan === "Premium"
   ? [{
       icon: FileSearch,
-      label: "Re-Evaluation Requests",
-      to: "/admin/re-evaluation-request",
+      label: "Script View Requests",
+      to: "/admin/script-view-requests",
     }]
   : []),
 

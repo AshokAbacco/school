@@ -8,20 +8,20 @@ const authHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
-const ReEvaluationSettings = () => {
+const ScriptViewingSettings = () => {
   const [academicYears, setAcademicYears] = useState([]);
   const [classSections, setClassSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [settings, setSettings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false); // Added for refresh spinner state
-const [formData, setFormData] = useState({
-  academicYearId: "",
-  selectedGrade: "",
-  classSectionId: "",
-  subjectId: "",
-  amount: "",
-});
+  const [formData, setFormData] = useState({
+    academicYearId: "",
+    selectedGrade: "",
+    classSectionId: "",
+    subjectId: "",
+    amount: "",
+  });
 
   const fetchInitialData = async () => {
     try {
@@ -80,21 +80,21 @@ const [formData, setFormData] = useState({
   };
 
   const groupedClasses = Object.values(
-  classSections.reduce((acc, item) => {
-    const grade = item.grade;
+    classSections.reduce((acc, item) => {
+      const grade = item.grade;
 
-    if (!acc[grade]) {
-      acc[grade] = {
-        grade,
-        sections: [],
-      };
-    }
+      if (!acc[grade]) {
+        acc[grade] = {
+          grade,
+          sections: [],
+        };
+      }
 
-    acc[grade].sections.push(item);
+      acc[grade].sections.push(item);
 
-    return acc;
-  }, {})
-);
+      return acc;
+    }, {})
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -109,13 +109,13 @@ const [formData, setFormData] = useState({
         { headers: authHeaders() }
       );
 
-    setFormData({
-      academicYearId: "",
-      selectedGrade: "",
-      classSectionId: "",
-      subjectId: "",
-      amount: "",
-    });
+      setFormData({
+        academicYearId: "",
+        selectedGrade: "",
+        classSectionId: "",
+        subjectId: "",
+        amount: "",
+      });
 
       fetchSettings();
       alert("Pricing saved successfully");
@@ -147,7 +147,7 @@ const [formData, setFormData] = useState({
       {/* SCREEN ROUTE TITLES */}
       <div className="pb-2 border-b border-[#cfdbe6]">
         <h1 className="text-3xl font-extrabold tracking-tight text-[#0f172a]">
-          Re-Evaluation Settings
+          Script Viewing Settings
         </h1>
         <p className="text-sm text-[#64748b] mt-1">
           Configure financial processing rules and structural pricing modules across standard parameters
@@ -160,7 +160,7 @@ const [formData, setFormData] = useState({
           <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m0 14v-6m0 6a2 2 0 100-4m0 4a2 2 0 110-4m0-6v2m6.5-2.5h-1.5m1.5 0a2 2 0 10-4 0m4 0a2 2 0 11-4 0m0 14v-6m0 6a2 2 0 100-4m0 4a2 2 0 110-4m0-6v2M4.5 7.5H3m1.5 0a2 2 0 104 0m-4 0a2 2 0 114 0m0 14v-6m0 6a2 2 0 100-4m0 4a2 2 0 110-4m0-6v2" />
           </svg>
-          Configure Re-Evaluation Fee Structure
+          Configure Script Viewing Fee Structure
         </h2>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5 items-end">
@@ -187,73 +187,51 @@ const [formData, setFormData] = useState({
             </div>
           </div>
 
-        {/* CLASS DROP DOWN */}
-        <div className="relative lg:col-span-2">
-          <label className="block text-xs font-bold uppercase tracking-wider text-[#64748b] mb-2">
-            Class / Grade
-          </label>
+          {/* CLASS DROP DOWN */}
+          <div className="relative lg:col-span-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-[#64748b] mb-2">
+              Class / Grade
+            </label>
 
-          <div className="relative">
-            <select
-              name="selectedGrade"
-              value={formData.selectedGrade}
-              onChange={(e) => {
-                const selectedGrade = e.target.value;
+            <div className="relative">
+              <select
+                name="selectedGrade"
+                value={formData.selectedGrade}
+                onChange={(e) => {
+                  const selectedGrade = e.target.value;
+                  const matchedClass = groupedClasses.find((g) => g.grade === selectedGrade);
 
-                const matchedClass =
-                  groupedClasses.find(
-                    (g) => g.grade === selectedGrade
-                  );
-
-                setFormData({
-                  ...formData,
-                  selectedGrade,
-
-                  // first section auto-selected internally
-                  classSectionId:
-                    matchedClass?.sections?.[0]?.id || "",
-                });
-              }}
-              className="w-full bg-[#f8fafc] border border-[#e2e8f0] text-[#334155] rounded-xl p-3.5 pl-4 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium text-sm"
-              required
-            >
-              <option value="">Select Class</option>
-
-              {groupedClasses.map((item) => (
-                <option
-                  key={item.grade}
-                  value={item.grade}
-                >
-                  Class {item.grade}
-                </option>
-              ))}
-            </select>
-
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-[#64748b]">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                viewBox="0 0 24 24"
+                  setFormData({
+                    ...formData,
+                    selectedGrade,
+                    classSectionId: matchedClass?.sections?.[0]?.id || "",
+                  });
+                }}
+                className="w-full bg-[#f8fafc] border border-[#e2e8f0] text-[#334155] rounded-xl p-3.5 pl-4 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium text-sm"
+                required
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
-          </div>
+                <option value="">Select Class</option>
+                {groupedClasses.map((item) => (
+                  <option key={item.grade} value={item.grade}>
+                    Class {item.grade}
+                  </option>
+                ))}
+              </select>
 
-          {/* AUTO SECTION INFO */}
-          {formData.selectedGrade && (
-            <p className="text-[11px] text-[#64748b] mt-2">
-              Applies automatically to all sections of Class{" "}
-              {formData.selectedGrade}
-            </p>
-          )}
-        </div>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-[#64748b]">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
+            </div>
+
+            {/* AUTO SECTION INFO */}
+            {formData.selectedGrade && (
+              <p className="text-[11px] text-[#64748b] mt-2">
+                Applies automatically to all sections of Class {formData.selectedGrade}
+              </p>
+            )}
+          </div>
 
           {/* SUBJECT DROPDOWN */}
           <div className="relative lg:col-span-3">
@@ -279,7 +257,7 @@ const [formData, setFormData] = useState({
 
           {/* NUMERIC AMOUNT INPUT */}
           <div className="relative lg:col-span-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-[#64748b] mb-2">Processing Fee</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-[#64748b] mb-2">Viewing Fee</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none font-bold text-[#64748b] text-sm">
                 ₹
@@ -350,7 +328,7 @@ const [formData, setFormData] = useState({
               {settings.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="p-8 text-center text-[#94a3b8] font-normal">
-                    No individual re-evaluation pricing rules configured yet.
+                    No individual script viewing pricing rules configured yet.
                   </td>
                 </tr>
               ) : (
@@ -388,4 +366,4 @@ const [formData, setFormData] = useState({
   );
 };
 
-export default ReEvaluationSettings;
+export default ScriptViewingSettings;
