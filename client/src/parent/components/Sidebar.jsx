@@ -75,7 +75,7 @@ function Sidebar({ isOpen, onClose }) {
   ...(userPlan === "Premium"
     ? [{
         icon: FileSearch,
-        label: "Re-Evaluation",
+        label: "Answer Sheet Viewing",
         href: `${base}/parent-script-viewing`,
       }]
     : []),

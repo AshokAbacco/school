@@ -147,7 +147,7 @@ const ScriptViewingSettings = () => {
       {/* SCREEN ROUTE TITLES */}
       <div className="pb-2 border-b border-[#cfdbe6]">
         <h1 className="text-3xl font-extrabold tracking-tight text-[#0f172a]">
-          Script Viewing Settings
+          Answer Sheets Fees 
         </h1>
         <p className="text-sm text-[#64748b] mt-1">
           Configure financial processing rules and structural pricing modules across standard parameters
@@ -158,9 +158,9 @@ const ScriptViewingSettings = () => {
       <div className="bg-white rounded-2xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.02)] p-6">
         <h2 className="text-base font-bold text-[#1e293b] mb-6 flex items-center gap-2">
           <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m0 14v-6m0 6a2 2 0 100-4m0 4a2 2 0 110-4m0-6v2m6.5-2.5h-1.5m1.5 0a2 2 0 10-4 0m4 0a2 2 0 11-4 0m0 14v-6m0 6a2 2 0 100-4m0 4a2 2 0 110-4m0-6v2M4.5 7.5H3m1.5 0a2 2 0 104 0m-4 0a2 2 0 114 0m0 14v-6m0 6a2 2 0 100-4m0 4a2 2 0 110-4m0-6v2" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m0 14v-6m0 6a2 2 0 100-4m0 4a2 2 0 110-4m0-6v2m6.5-2.5h-1.5m1.5 0a2 2 0 10-4 0m4 0a2 2 0 11-4 0m0 14v-6m0 6a2 2 0 100-4m0 4a2 2 0 110-4m0-6v2" />
           </svg>
-          Configure Script Viewing Fee Structure
+          Configure Answer Sheet Fee Structure
         </h2>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5 items-end">
@@ -328,7 +328,7 @@ const ScriptViewingSettings = () => {
               {settings.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="p-8 text-center text-[#94a3b8] font-normal">
-                    No individual script viewing pricing rules configured yet.
+                    No individual answer sheet viewing pricing rules configured yet.
                   </td>
                 </tr>
               ) : (

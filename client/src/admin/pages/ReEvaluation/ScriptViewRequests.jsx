@@ -331,7 +331,7 @@ const ScriptViewRequests = () => {
       <div className="pb-4 border-b border-[#cfdbe6] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#0f172a]">
-            Script View Requests
+            Answer Sheets Requests
           </h1>
           <p className="text-xs md:text-sm text-[#64748b] mt-1">
             Review submissions, approve payments, and dispatch digital answer scripts

@@ -56,7 +56,7 @@ const MyScriptViewRequests = () => {
         {/* Header container with flex layout to place button on the right */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">
-            My Script View Requests
+            My Answer Sheet Requests
           </h1>
           
           {/* Refresh Button */}
@@ -98,7 +98,7 @@ const MyScriptViewRequests = () => {
               {requests.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="border p-8 text-center text-gray-400 font-normal">
-                    No active script view requests found.
+                    No active answer sheet view requests found.
                   </td>
                 </tr>
               ) : (

@@ -120,7 +120,7 @@ const NAV = [
   ...(userPlan === "Premium"
     ? [{
         icon: ReceiptText,
-        label: "Script Viewing",
+        label: "Answer Sheet Management",
         to: "/admin/viewing-settings",
       }]
     : []),
@@ -128,7 +128,7 @@ const NAV = [
 ...(userPlan === "Premium"
   ? [{
       icon: FileSearch,
-      label: "Script View Requests",
+      label: "Answer Sheet Requests",
       to: "/admin/script-view-requests",
     }]
   : []),

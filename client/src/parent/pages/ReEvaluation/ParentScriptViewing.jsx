@@ -133,7 +133,7 @@ const ParentScriptViewing = () => {
         },
         { headers: authHeaders() }
       );
-      alert("Script view request submitted successfully");
+      alert("Answer sheet view request submitted successfully");
       fetchMyRequests();
       setSelectedSubjects([]);
       setRemarks("");
@@ -155,7 +155,7 @@ const ParentScriptViewing = () => {
       window.open(response.data.url, "_blank");
     } catch (error) {
       console.error(error);
-      alert("Answer script not uploaded yet");
+      alert("Answer sheet not uploaded yet");
     }
   };
 
@@ -165,10 +165,10 @@ const ParentScriptViewing = () => {
       {/* PAGE HEADER */}
       <div className="pb-2 border-b border-[#cfdbe6]">
         <h1 className="text-3xl font-extrabold tracking-tight text-[#0f172a]">
-          Answer Script Viewing
+          Answer Sheet Viewing
         </h1>
         <p className="text-sm text-[#64748b] mt-1">
-          Apply to view your child's final examination answer scripts and track your submissions
+          Apply to view your child's final examination answer sheets and track your submissions
         </p>
       </div>
 
@@ -178,7 +178,7 @@ const ParentScriptViewing = () => {
           <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
           </svg>
-          Script View Application
+          Answer Sheet View Application
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -323,7 +323,7 @@ const ParentScriptViewing = () => {
                 disabled={loading || selectedSubjects.length === 0}
                 className="w-full bg-blue-600 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-md shadow-blue-600/10 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 disabled:pointer-events-none transition-all"
               >
-                {loading ? "Submitting Request..." : "Submit Script View Request"}
+                {loading ? "Submitting Request..." : "Submit Answer Sheet View Request"}
               </button>
             </div>
           </div>
@@ -333,7 +333,7 @@ const ParentScriptViewing = () => {
       {/* MY REQUESTS TABLE */}
       <div className="bg-white rounded-2xl border border-[#e2e8f0] shadow-[0_8px_30px_rgb(0,0,0,0.01)] overflow-hidden">
         <div className="p-6 border-b border-[#f1f5f9] flex items-center justify-between">
-          <h2 className="text-xl font-bold text-[#0f172a]">My Script View Requests</h2>
+          <h2 className="text-xl font-bold text-[#0f172a]">My Answer Sheet Requests</h2>
           <button
             onClick={fetchMyRequests}
             disabled={isRefreshing}
@@ -368,7 +368,7 @@ const ParentScriptViewing = () => {
               {myRequests.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="p-8 text-center text-[#94a3b8] font-normal">
-                    No processing script view requests filed under this account profile.
+                    No processing answer sheet view requests filed under this account profile.
                   </td>
                 </tr>
               ) : (
@@ -397,7 +397,7 @@ const ParentScriptViewing = () => {
                           onClick={() => openAnswerSheet(item.id)}
                           className="bg-white border border-[#e2e8f0] hover:bg-[#f8fafc] text-blue-600 px-4 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         >
-                          View Script
+                          View Answer Sheet
                         </button>
                       ) : (
                         <span className="text-xs text-[#94a3b8] font-normal italic">Not Uploaded</span>
