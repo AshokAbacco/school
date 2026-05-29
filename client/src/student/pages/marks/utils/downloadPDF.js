@@ -1,12 +1,7 @@
 // client/src/student/pages/marks/utils/downloadPDF.js
-// Single-page A4 portrait — tight, formal, school mark sheet.
-//
-// FIX: Logo (and student photo) are converted to base64 data-URLs before
-//      being injected into the hidden iframe.  Browsers block cross-origin
-//      image loads inside doc.write() iframes, so a raw https:// signed URL
-//      never renders.  Converting to data: avoids that entirely.
+// Modern Dashboard A4 portrait — clean layout matching Stormy Morning theme.
 
-import { GRADE_SCALE } from "../tokens.js";
+import { GRADE_SCALE, C, FONT } from "../tokens.js";
 
 function rl(status) {
   if (status === "pass") return "P";
@@ -14,28 +9,6 @@ function rl(status) {
   return "AB";
 }
 
-// ── Convert any URL (https or data:) to a base64 data-URL ────────
-// Returns null on failure so the caller can show a placeholder.
-async function toDataUrl(url) {
-  if (!url) return null;
-  if (url.startsWith("data:")) return url; // already base64
-
-  try {
-    const res = await fetch(url, { mode: "cors", cache: "no-store" });
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror  = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
-
-// ── Build a one-line address string from parts ───────────────────
 function buildAddress(enrollment) {
   const parts = [
     enrollment?.schoolAddress,
@@ -45,7 +18,6 @@ function buildAddress(enrollment) {
   return parts.join(", ");
 }
 
-// ── Build a contact line: phone · email ──────────────────────────
 function buildContact(enrollment) {
   const parts = [
     enrollment?.schoolPhone  ? `Ph: ${enrollment.schoolPhone}`    : null,
@@ -54,37 +26,45 @@ function buildContact(enrollment) {
   return parts.join("  ·  ");
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Main export — now async so callers must await it
-// ═══════════════════════════════════════════════════════════════
+// Dynamically inject the html2pdf library script tag into the head if not present
+function loadHtml2Pdf() {
+  return new Promise((resolve, reject) => {
+    if (window.html2pdf) return resolve(window.html2pdf);
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    script.crossOrigin = "anonymous";
+    script.onload = () => resolve(window.html2pdf);
+    script.onerror = () => reject(new Error("Failed to load html2pdf library"));
+    document.head.appendChild(script);
+  });
+}
+
 export async function downloadReportPDF(reportData) {
   if (!reportData) return;
 
+  // 1. Ensure the download library is available
+  let html2pdf;
+  try {
+    html2pdf = await loadHtml2Pdf();
+  } catch (err) {
+    console.error(err);
+    alert("Could not load PDF generation library. Please check your internet connection.");
+    return;
+  }
+
   const { student, enrollment, exam, subjectResults, summary } = reportData;
 
-  // ── School ───────────────────────────────────────────────────
   const schoolName    = (enrollment?.schoolName   ?? "SCHOOL NAME").toUpperCase();
   const schoolAddr    = buildAddress(enrollment);
   const schoolContact = buildContact(enrollment);
 
-  // ── Convert logo & student photo to base64 ───────────────────
-  // This is the key fix: signed R2 URLs won't load inside a doc.write() iframe
-  // unless they're converted to data: URLs first.
-  const [logoDataUrl, studentPhotoDataUrl] = await Promise.all([
-    toDataUrl(enrollment?.schoolLogoUrl ?? null),
-    toDataUrl(student?.profileImage     ?? null),
-  ]);
-
-  // ── Exam / student meta ──────────────────────────────────────
   const className    = enrollment?.className    ?? "—";
   const academicYear = enrollment?.academicYear ?? "—";
-  const examName     = exam?.name              ?? "Examination";
-  const termName     = exam?.term?.name        ?? "";
+  const examName     = exam?.name               ?? "Examination";
+  const termName     = exam?.term?.name         ?? "";
   const studentName  = (student?.name          ?? "—").toUpperCase();
   const admNo        = student?.admissionNumber ?? "—";
   const rollNo       = student?.rollNumber      ?? "—";
-  const grade        = enrollment?.grade        ?? "";
-  const section      = enrollment?.section      ?? "";
   const dob          = student?.dateOfBirth
     ? new Date(student.dateOfBirth).toLocaleDateString("en-IN", {
         day: "2-digit", month: "2-digit", year: "numeric",
@@ -97,426 +77,130 @@ export async function downloadReportPDF(reportData) {
   const examTitle    = [termName, examName].filter(Boolean).join(" — ").toUpperCase();
   const overallResult = summary?.hasFail ? "FAIL" : "PASS";
 
-  // ── Subject rows ─────────────────────────────────────────────
-  const subjects    = subjectResults ?? [];
-  const subjectRows = subjects.map((s, i) => {
+  // Palette definitions mimicking your tokens.js
+  const palette = {
+    dark: C?.dark ?? "#1e293b",
+    mid: C?.mid ?? "#64748b",
+    light: C?.light ?? "#88bdf2",
+    bgLight: "rgba(237,243,250,0.7)",
+    border: "rgba(136,189,242,0.25)",
+    textLight: C?.textLight ?? "#94a3b8",
+    pass: "#10b981",
+    fail: "#ef4444"
+  };
+
+  const subjectRows = (subjectResults ?? []).map((s, i) => {
     const absent  = s.isAbsent;
-    const minMark = s.passingMarks != null ? Math.floor(s.maxMarks * 0.33) : "—";
-    const bg      = i % 2 === 0 ? "#f9f9f9" : "#fff";
+    const bg      = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
     return `
-      <tr style="background:${bg};${absent ? "color:#666;font-style:italic;" : ""}">
-        <td class="tc">${i + 1}</td>
-        <td class="tl" style="font-weight:600;">
-          ${s.subjectName}${s.subjectCode
-            ? `&nbsp;<span style="font-size:6pt;font-weight:400;color:#666;">(${s.subjectCode})</span>`
-            : ""}
-        </td>
+      <tr style="background:${bg}; ${absent ? "color:" + palette.textLight + "; font-style:italic;" : ""}">
+        <td class="tc" style="color: ${palette.mid};">${i + 1}</td>
+        <td class="tl" style="font-weight:600; color: ${palette.dark};">${s.subjectName}${s.subjectCode ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>` : ""}</td>
         <td class="tc">${s.maxMarks}</td>
         <td class="tc">${s.passingMarks ?? "—"}</td>
-        <td class="tc">${minMark}</td>
-        <td class="tc fw" style="font-size:9.5pt;">${absent ? "AB" : (s.marksObtained ?? "—")}</td>
+        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${absent ? "AB" : (s.marksObtained ?? "—")}</td>
         <td class="tc">${absent ? "—" : (s.percentage != null ? `${s.percentage}%` : "—")}</td>
-        <td class="tc fw" style="font-family:'Times New Roman',serif;font-size:9pt;">${absent ? "—" : (s.grade ?? "—")}</td>
-        <td class="tc fw">${rl(s.resultStatus)}</td>
+        <td class="tc fw" style="color: ${palette.dark};">${absent ? "—" : (s.grade ?? "—")}</td>
+        <td class="tc fw" style="color: ${s.resultStatus === 'fail' ? palette.fail : palette.pass};">${rl(s.resultStatus)}</td>
       </tr>`;
   }).join("");
 
-  // ── Grade scale rows ─────────────────────────────────────────
   const gradeRows = GRADE_SCALE.map(g => `
     <tr>
-      <td class="tc fw" style="font-family:'Times New Roman',serif;">${g.grade}</td>
-      <td class="tc">${g.min}–${g.max}%</td>
-      <td class="tl">${g.label}</td>
+      <td class="tc fw" style="color: ${palette.dark};">${g.grade}</td>
+      <td class="tc" style="color: ${palette.mid};">${g.min}–${g.max}%</td>
+      <td class="tl" style="color: ${palette.mid};">${g.label}</td>
     </tr>`).join("");
 
-  // ── Logo HTML (data-URL or placeholder) ─────────────────────
-  const logoHtml = logoDataUrl
-    ? `<img src="${logoDataUrl}" alt="Logo"
-         style="height:56px;width:56px;object-fit:contain;border-radius:4px;" />`
-    : `<div style="width:56px;height:56px;border:0.8px dashed #bbb;display:flex;
-         align-items:center;justify-content:center;font-size:5.5pt;color:#bbb;
-         font-style:italic;text-align:center;line-height:1.3;">School<br>Logo</div>`;
+  // Create a hidden wrapper container to assemble our print-ready layout out of the view viewport
+  const element = document.createElement("div");
+  element.style.width = "190mm";
+  element.style.padding = "0";
+  element.style.margin = "0";
+  element.style.backgroundColor = "#ffffff";
 
-  // ── Student photo HTML (data-URL or placeholder) ────────────
-  const studentPhotoHtml = studentPhotoDataUrl
-    ? `<img src="${studentPhotoDataUrl}" alt="Student"
-         style="width:48px;height:58px;object-fit:cover;border-radius:2px;border:0.8px solid #ccc;" />`
-    : `<div style="width:48px;height:58px;border:0.8px dashed #bbb;display:flex;
-         align-items:center;justify-content:center;font-size:5.5pt;color:#bbb;
-         font-style:italic;text-align:center;line-height:1.3;">Student<br>Photo</div>`;
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<title>Mark Sheet — ${studentName}</title>
-<style>
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-
-  @page{
-    size:A4 portrait;
-    margin:8mm 10mm;
-  }
-
-  html,body{
-    width:190mm;
-    font-family:'Times New Roman',Times,serif;
-    font-size:7.8pt;
-    color:#000;
-    background:#fff;
-    -webkit-print-color-adjust:exact;
-    print-color-adjust:exact;
-  }
-
-  /* ── Outer double-border frame ── */
-  .page{
-    width:190mm;
-    border:2.5px double #000;
-    position:relative;
-  }
-  .page::after{
-    content:'';
-    position:absolute;
-    inset:4px;
-    border:0.6px solid #888;
-    pointer-events:none;
-    z-index:0;
-  }
-  .page > * { position:relative; z-index:1; }
-
-  /* ══════════════════════════════════════
-     SCHOOL HEADER  (logo | text)
-  ══════════════════════════════════════ */
-  .hdr{
-    display:grid;
-    grid-template-columns:64px 1fr;
-    align-items:center;
-    gap:8px;
-    padding:6px 10px 5px;
-    border-bottom:2px solid #000;
-  }
-  .hdr-logo{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-  }
-  .hdr-body{ text-align:center; }
-  .hdr-name{
-    font-size:14pt;
-    font-weight:900;
-    letter-spacing:1.5px;
-    text-transform:uppercase;
-    line-height:1.1;
-  }
-  .hdr-addr{
-    font-size:6.5pt;
-    color:#444;
-    margin-top:2px;
-    line-height:1.4;
-  }
-  .hdr-contact{
-    font-size:6pt;
-    color:#555;
-    margin-top:1px;
-  }
-  .hdr-rule{
-    border:none;
-    border-top:0.8px solid #999;
-    margin:3px 20mm 2px;
-  }
-  .hdr-doc{
-    font-size:10pt;
-    font-weight:900;
-    letter-spacing:4px;
-    text-transform:uppercase;
-  }
-  .hdr-exam{
-    font-size:7pt;
-    color:#333;
-    margin-top:2px;
-    font-style:italic;
-    letter-spacing:0.3px;
-  }
-
-  /* ══════════════════════════════════════
-     STUDENT INFO
-  ══════════════════════════════════════ */
-  .info-table{
-    width:100%;
-    border-collapse:collapse;
-    border-bottom:1.5px solid #000;
-  }
-  .info-table td{
-    border:none;
-    border-right:1px solid #aaa;
-    padding:3px 6px;
-    vertical-align:top;
-  }
-  .info-table td:last-child{ border-right:none; }
-  .info-table .photo-cell{
-    width:64px;
-    border-left:1px solid #aaa;
-    border-right:none;
-    text-align:center;
-    vertical-align:middle;
-  }
-  .info-table tr.info-divider td{
-    border-top:1px solid #aaa;
-  }
-  .lbl{
-    font-size:5.8pt;
-    font-weight:700;
-    text-transform:uppercase;
-    letter-spacing:0.4px;
-    color:#444;
-  }
-  .val{
-    font-size:8pt;
-    font-weight:700;
-    margin-top:1px;
-    line-height:1.2;
-  }
-
-  /* ══════════════════════════════════════
-     SECTION HEADING
-  ══════════════════════════════════════ */
-  .sec-head{
-    font-size:7pt;
-    font-weight:800;
-    text-transform:uppercase;
-    letter-spacing:2.5px;
-    text-align:center;
-    background:#ececec;
-    border-bottom:1.5px solid #000;
-    padding:3px 0;
-  }
-
-  /* ══════════════════════════════════════
-     MARKS TABLE
-  ══════════════════════════════════════ */
-  table{ width:100%; border-collapse:collapse; }
-  th,td{
-    border:0.6px solid #bbb;
-    padding:2.8px 3px;
-    vertical-align:middle;
-    line-height:1.25;
-  }
-  th{
-    background:#ececec;
-    font-size:6.2pt;
-    font-weight:800;
-    text-transform:uppercase;
-    letter-spacing:0.3px;
-    text-align:center;
-    border-color:#888;
-  }
-  td{ font-size:7.8pt; }
-  .tc{ text-align:center; }
-  .tl{ text-align:left!important; padding-left:5px!important; }
-  .fw{ font-weight:700; }
-  .marks-table{ border:1.5px solid #000; }
-  .marks-table thead th{ border-bottom:1.5px solid #000; }
-
-  .tot-row td{
-    border-top:2px solid #000!important;
-    background:#ececec;
-    font-weight:800;
-    font-size:8.5pt;
-  }
-
-  /* ══════════════════════════════════════
-     SUMMARY STRIP
-  ══════════════════════════════════════ */
-  .sum-strip{
-    display:grid;
-    grid-template-columns:1fr 1fr 1fr 1fr 1fr;
-    border:1.5px solid #000;
-    border-top:none;
-  }
-  .sc{
-    padding:4px 5px;
-    border-right:1px solid #999;
-    text-align:center;
-  }
-  .sc:last-child{ border-right:none; }
-  .slbl{
-    font-size:5.5pt;
-    font-weight:800;
-    text-transform:uppercase;
-    letter-spacing:0.5px;
-    color:#444;
-  }
-  .sval{
-    font-size:12pt;
-    font-weight:900;
-    line-height:1.1;
-    margin-top:1px;
-  }
-  .ssub{ font-size:6pt; color:#555; margin-top:1px; }
-
-  /* ══════════════════════════════════════
-     BOTTOM 3-PANEL ROW
-  ══════════════════════════════════════ */
-  .bottom-row{
-    display:grid;
-    grid-template-columns:140px 1fr 150px;
-    border:1.5px solid #000;
-    border-top:none;
-  }
-  .panel-title{
-    font-size:6pt;
-    font-weight:800;
-    text-transform:uppercase;
-    letter-spacing:1.5px;
-    text-align:center;
-    background:#ececec;
-    border-bottom:1px solid #999;
-    padding:2.5px 0;
-  }
-  .grade-panel{ border-right:1px solid #999; }
-  .grade-inner{ padding:5px 6px; }
-  .grade-mini td{ border-color:#ccc; padding:2.5px 5px; font-size:7pt; }
-  .rem-panel{
-    border-right:1px solid #999;
-    display:flex;
-    flex-direction:column;
-  }
-  .rem-body{
-    flex:1;
-    padding:6px 10px;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
-  }
-  .rem-lines{
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-evenly;
-    padding:4px 0;
-  }
-  .rem-line{ border-bottom:0.7px solid #ccc; height:1px; }
-  .rem-sig{ border-top:0.8px solid #000; padding-top:3px; margin-top:8px; }
-  .rem-sig-lbl{ font-size:6pt; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
-  .sig-panel{
-    padding:6px 8px;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
-  }
-  .sig-block{ text-align:center; }
-  .sig-space{ height:28px; }
-  .sig-draw{ border-top:0.8px solid #000; margin:0 4px 2px; }
-  .sig-lbl{ font-size:6pt; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
-  .stamp-wrap{ text-align:center; }
-  .stamp-box{
-    border:0.8px dashed #aaa;
-    height:40px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:6pt;
-    color:#aaa;
-    font-style:italic;
-  }
-  .stamp-lbl{ font-size:5.5pt; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px; }
-
-  /* ══════════════════════════════════════
-     FOOTER
-  ══════════════════════════════════════ */
-  .doc-footer{
-    border-top:1.5px solid #000;
-    padding:3px 8px;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    font-size:6pt;
-    color:#444;
-    background:#fafafa;
-  }
-
-  @media print{
-    html,body{ overflow:hidden; }
-    .page{ page-break-after:avoid; page-break-inside:avoid; }
-  }
-</style>
-</head>
-<body>
-<div class="page">
-
-  <!-- ══════════════════ HEADER ══════════════════ -->
-  <div class="hdr">
-    <div class="hdr-logo">${logoHtml}</div>
-    <div class="hdr-body">
-      <div class="hdr-name">${schoolName}</div>
-      ${schoolAddr    ? `<div class="hdr-addr">${schoolAddr}</div>`       : ""}
-      ${schoolContact ? `<div class="hdr-contact">${schoolContact}</div>` : ""}
-      <hr class="hdr-rule"/>
-      <div class="hdr-doc">Student Mark Sheet</div>
-      <div class="hdr-exam">${examTitle}&nbsp;&nbsp;·&nbsp;&nbsp;Academic Year: ${academicYear}</div>
+  element.innerHTML = `
+<div style="font-family: ${FONT?.sans ?? "Inter, sans-serif"}; font-size: 8pt; color: ${palette.dark}; line-height: 1.4; padding: 4mm;">
+  
+  <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid ${palette.light}; padding-bottom: 12px; margin-bottom: 16px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 4px; height: 36px; border-radius: 99px; background: linear-gradient(180deg, ${palette.light} 0%, ${palette.dark} 100%);"></div>
+      <div>
+        <h1 style="font-size: 13.5pt; font-weight: 800; color: ${palette.dark}; margin: 0; letter-spacing: -0.5px;">${schoolName}</h1>
+        ${schoolAddr ? `<div style="font-size: 7pt; color: ${palette.mid}; margin-top: 1px;">${schoolAddr} ${schoolContact ? `· ${schoolContact}` : ""}</div>` : ""}
+      </div>
+    </div>
+    <div style="text-align: right;">
+      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.light}; letter-spacing: 1px;">REPORT CARD</div>
+      <div style="font-size: 7pt; color: ${palette.textLight}; font-weight: 500; margin-top: 1px;">${examTitle}</div>
     </div>
   </div>
 
-  <!-- ══════════════════ STUDENT INFO ══════════════════ -->
-  <table class="info-table">
-    <tbody>
-      <tr>
-        <td style="width:28%;">
-          <div class="lbl">Student Name</div>
-          <div class="val" style="font-size:8.5pt;letter-spacing:0.3px;">${studentName}</div>
-        </td>
-        <td style="width:15%;">
-          <div class="lbl">Roll No.</div>
-          <div class="val">${rollNo}</div>
-        </td>
-        <td style="width:19%;">
-          <div class="lbl">Admission No.</div>
-          <div class="val">${admNo}</div>
-        </td>
-        <td style="width:22%;">
-          <div class="lbl">Class &amp; Section</div>
-          <div class="val">${grade ? grade : ""}${section ? " – " + section : ""} ${className}</div>
-        </td>
-        <td class="photo-cell" rowspan="2">
-          ${studentPhotoHtml}
-        </td>
-      </tr>
-      <tr class="info-divider">
-        <td>
-          <div class="lbl">Date of Birth</div>
-          <div class="val">${dob}</div>
-        </td>
-        <td>
-          <div class="lbl">Gender</div>
-          <div class="val">${gender}</div>
-        </td>
-        <td>
-          <div class="lbl">Academic Year</div>
-          <div class="val">${academicYear}</div>
-        </td>
-        <td>
-          <div class="lbl">Exam</div>
-          <div class="val">${examName}</div>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px;">
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
+      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Student Name</div>
+      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">${studentName}</div>
+    </div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
+      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Class & Section</div>
+      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${className}</div>
+    </div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
+      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Roll Number</div>
+      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${rollNo}</div>
+    </div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
+      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Admission No.</div>
+      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${admNo}</div>
+    </div>
+  </div>
 
-  <!-- ══════════════════ MARKS TABLE ══════════════════ -->
-  <div class="sec-head">Subject-wise Marks Statement</div>
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px;">
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
+      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Date of Birth</div>
+      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${dob}</div>
+    </div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
+      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Gender</div>
+      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${gender}</div>
+    </div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
+      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Academic Year</div>
+      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${academicYear}</div>
+    </div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
+      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Date of Issue</div>
+      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${today}</div>
+    </div>
+  </div>
 
-  <table class="marks-table">
+  <div style="font-size: 7.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.dark}; letter-spacing: 1px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+     <span style="display:inline-block; width:6px; height:6px; background:${palette.light}; border-radius:50%;"></span>
+     Subject-wise Marks Statement
+  </div>
+
+  <style>
+    .pdf-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 20px; border-radius: 8px; overflow: hidden; border: 1px solid ${palette.border}; }
+    .pdf-table th { background: rgba(237,243,250,0.9); font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px; color: ${palette.dark}; padding: 7px 6px; border-bottom: 1.5px solid ${palette.border}; }
+    .pdf-table td { padding: 6px; border-bottom: 1px solid ${palette.border}; font-size: 8pt; color: ${palette.mid}; }
+    .pdf-table tr:last-child td { border-bottom: none; }
+    .tc { text-align: center; }
+    .tl { text-align: left !important; padding-left: 10px !important; }
+    .fw { font-weight: 700; }
+    .tot-row td { background: rgba(237,243,250,0.85) !important; font-weight: 800; font-size: 8.5pt; color: ${palette.dark} !important; border-top: 1.5px solid ${palette.light} !important; }
+  </style>
+
+  <table class="pdf-table">
     <thead>
       <tr>
-        <th style="width:22px;">#</th>
+        <th style="width:26px;">#</th>
         <th class="tl" style="width:auto;">Subject</th>
-        <th style="width:46px;">Max<br>Marks</th>
-        <th style="width:46px;">Pass<br>Marks</th>
-        <th style="width:46px;">Min<br>Marks</th>
-        <th style="width:56px;">Marks<br>Obtained</th>
-        <th style="width:50px;">Overall<br>%</th>
-        <th style="width:38px;">Grade</th>
-        <th style="width:38px;">Result</th>
+        <th style="width:60px;">Max Marks</th>
+        <th style="width:60px;">Pass Marks</th>
+        <th style="width:74px;">Marks Obtained</th>
+        <th style="width:64px;">Overall %</th>
+        <th style="width:54px;">Grade</th>
+        <th style="width:54px;">Result</th>
       </tr>
     </thead>
     <tbody>
@@ -528,150 +212,100 @@ export async function downloadReportPDF(reportData) {
         <td class="tl">Grand Total</td>
         <td class="tc">${summary?.totalMax ?? "—"}</td>
         <td class="tc">—</td>
-        <td class="tc">—</td>
-        <td class="tc" style="font-size:10pt;">${summary?.totalObtained ?? "—"}</td>
+        <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}</td>
         <td class="tc">${summary?.percentage ?? "—"}%</td>
-        <td class="tc" style="font-family:'Times New Roman',serif;font-size:10pt;">${summary?.grade ?? "—"}</td>
-        <td class="tc" style="font-size:9pt;letter-spacing:1px;">${overallResult}</td>
+        <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
+        <td class="tc" style="font-size:8pt; color:${summary?.hasFail ? palette.fail : palette.pass} !important;">${overallResult}</td>
       </tr>
     </tfoot>
   </table>
 
-  <!-- ══════════════════ SUMMARY STRIP ══════════════════ -->
-  <div class="sum-strip">
-    <div class="sc">
-      <div class="slbl">Total Obtained</div>
-      <div class="sval">${summary?.totalObtained ?? "—"}<span style="font-size:7pt;font-weight:400;"> / ${summary?.totalMax ?? "—"}</span></div>
-    </div>
-    <div class="sc">
-      <div class="slbl">Percentage</div>
-      <div class="sval">${summary?.percentage ?? "—"}%</div>
-    </div>
-    <div class="sc">
-      <div class="slbl">Grade</div>
-      <div class="sval">${summary?.grade ?? "—"}</div>
-      <div class="ssub">${summary?.gradeLabel ?? ""}</div>
-    </div>
-    <div class="sc">
-      <div class="slbl">Class Rank</div>
-      <div class="sval">${summary?.rank != null ? `#${summary.rank}` : "—"}</div>
-      <div class="ssub">of ${summary?.totalStudentsInClass ?? "—"} students</div>
-    </div>
-    <div class="sc" style="${summary?.hasFail ? "border:2px solid #000;margin:-1px;" : ""}">
-      <div class="slbl">Final Result</div>
-      <div class="sval" style="font-size:14pt;letter-spacing:2px;${summary?.hasFail ? "text-decoration:underline;" : ""}">${overallResult}</div>
-    </div>
-  </div>
-
-  <!-- ══════════════════ BOTTOM 3-PANEL ══════════════════ -->
-  <div class="bottom-row">
-
-    <!-- Grade Scale -->
-    <div class="grade-panel">
-      <div class="panel-title">Grading Scale</div>
-      <div class="grade-inner">
-        <table class="grade-mini">
+  <div style="display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: stretch; margin-bottom: 20px;">
+    
+    <div style="border: 1px solid ${palette.border}; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
+      <div style="font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; background: rgba(237,243,250,0.8); padding: 5px 0; color: ${palette.dark}; border-bottom: 1px solid ${palette.border};">Standard Scale</div>
+      <div style="padding: 6px; flex-grow: 1;">
+        <style>
+          .grade-mini-table { width: 100%; border-collapse: collapse; }
+          .grade-mini-table td { padding: 2.5px 4px; font-size: 6.8pt; border-bottom: 1px dashed ${palette.border}; }
+          .grade-mini-table tr:last-child td { border-bottom: none; }
+        </style>
+        <table class="grade-mini-table">
           <tbody>${gradeRows}</tbody>
         </table>
-        <div style="font-size:6pt;color:#555;margin-top:5px;line-height:1.6;">
-          P = Pass &nbsp;·&nbsp; F = Fail &nbsp;·&nbsp; AB = Absent
+        <div style="font-size: 5.5pt; color: ${palette.textLight}; margin-top: 6px; text-align: center; font-weight: 600;">
+          P: Pass &nbsp;·&nbsp; F: Fail &nbsp;·&nbsp; AB: Absent
         </div>
       </div>
     </div>
 
-    <!-- Class Teacher's Remarks -->
-    <div class="rem-panel">
-      <div class="panel-title">Class Teacher's Remarks</div>
-      <div class="rem-body">
-        <div class="rem-lines">
-          <div class="rem-line"></div>
-          <div class="rem-line"></div>
-          <div class="rem-line"></div>
-          <div class="rem-line"></div>
-          <div class="rem-line"></div>
-          <div class="rem-line"></div>
-          <div class="rem-line"></div>
-          <div class="rem-line"></div>
+    <div style="border: 1px solid ${palette.border}; border-radius: 8px; background: #ffffff; display: flex; flex-direction: column; overflow: hidden;">
+      <div style="font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; background: rgba(237,243,250,0.8); padding: 5px 0; color: ${palette.dark}; border-bottom: 1px solid ${palette.border};">Consolidated Performance Overview</div>
+      
+      <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 10px 10px 0 10px;">
+        <div style="border: 1px solid ${palette.border}; background: ${palette.bgLight}; border-radius: 6px; padding: 5px; text-align: center;">
+          <div style="font-size: 5.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 3px; border-bottom: 0.5px solid ${palette.border};">Total Obtained</div>
+          <div style="font-size: 9.5pt; font-weight: 800; color: ${palette.dark};">${summary?.totalObtained ?? "—"}<span style="font-size:6pt; font-weight:500; color:${palette.textLight};">/${summary?.totalMax ?? "—"}</span></div>
         </div>
-        <div class="rem-sig">
-          <div class="rem-sig-lbl">Class Teacher's Signature &amp; Date</div>
+        
+        <div style="border: 1px solid ${palette.border}; background: ${palette.bgLight}; border-radius: 6px; padding: 5px; text-align: center;">
+          <div style="font-size: 5.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 3px; border-bottom: 0.5px solid ${palette.border};">Percentage</div>
+          <div style="font-size: 9.5pt; font-weight: 800; color: ${palette.dark};">${summary?.percentage ?? "—"}%</div>
+        </div>
+        
+        <div style="border: 1px solid ${palette.border}; background: ${palette.bgLight}; border-radius: 6px; padding: 5px; text-align: center;">
+          <div style="font-size: 5.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 3px; border-bottom: 0.5px solid ${palette.border};">Overall Grade</div>
+          <div style="font-size: 9.5pt; font-weight: 800; color: ${palette.dark};">${summary?.grade ?? "—"}</div>
+        </div>
+        
+        <div style="border: 1px solid ${palette.border}; background: ${palette.bgLight}; border-radius: 6px; padding: 5px; text-align: center;">
+          <div style="font-size: 5.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 3px; border-bottom: 0.5px solid ${palette.border};">Class Rank</div>
+          <div style="font-size: 9.5pt; font-weight: 800; color: ${palette.dark};">${summary?.rank != null ? `#${summary.rank}` : "—"}</div>
+          <div style="font-size: 5pt; color: ${palette.textLight};">of ${summary?.totalStudentsInClass ?? "—"}</div>
+        </div>
+        
+        <div style="border: 1px solid ${summary?.hasFail ? palette.fail : palette.light}; background: #ffffff; border-radius: 6px; padding: 5px; text-align: center;">
+          <div style="font-size: 5.5pt; font-weight: 800; text-transform: uppercase; color: ${summary?.hasFail ? palette.fail : palette.light}; padding-bottom: 2px; margin-bottom: 3px; border-bottom: 0.5px solid ${summary?.hasFail ? 'rgba(239,68,68,0.2)' : palette.border};">Final Result</div>
+          <div style="font-size: 10pt; font-weight: 900; color: ${summary?.hasFail ? palette.fail : palette.pass}; letter-spacing: 0.5px;">${overallResult}</div>
+        </div>
+      </div>
+      
+      <div style="margin-top: auto; padding: 16px 12px 10px 12px; display: flex; justify-content: space-between; align-items: flex-end;">
+        <div style="text-align: center; width: 105px;">
+          <div style="border-top: 1px solid ${palette.border}; margin-bottom: 3px;"></div>
+          <div style="font-size: 6pt; font-weight: 800; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.3px;">Principal Signature</div>
+        </div>
+        
+        <div style="text-align: center; width: 105px;">
+          <div style="border-top: 1px solid ${palette.border}; margin-bottom: 3px;"></div>
+          <div style="font-size: 6pt; font-weight: 800; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.3px;">Parent Guardian</div>
         </div>
       </div>
     </div>
-
-    <!-- Signatures -->
-    <div class="sig-panel">
-      <div class="panel-title" style="margin:-6px -8px 0; padding:2.5px 0;">Signatures</div>
-      <div style="flex:1; display:flex; flex-direction:column; justify-content:space-evenly; padding-top:6px;">
-        <div class="sig-block">
-          <div class="sig-space"></div>
-          <div class="sig-draw"></div>
-          <div class="sig-lbl">Principal</div>
-        </div>
-        <div class="sig-block">
-          <div class="sig-space"></div>
-          <div class="sig-draw"></div>
-          <div class="sig-lbl">Parent / Guardian</div>
-        </div>
-      </div>
-      <div class="stamp-wrap">
-        <div class="stamp-box">School Stamp</div>
-        <div class="stamp-lbl">Office Seal</div>
-      </div>
-    </div>
-
   </div>
 
-  <!-- ══════════════════ FOOTER ══════════════════ -->
-  <div class="doc-footer">
-    <span>* Computer-generated mark sheet &nbsp;|&nbsp; P = Pass &nbsp; F = Fail &nbsp; AB = Absent</span>
-    <span>${schoolName} &nbsp;|&nbsp; Date of Issue: ${today}</span>
+  <div style="border-top: 1px solid ${palette.border}; padding: 5px 4px 0 4px; display: flex; justify-content: space-between; align-items: center; font-size: 5.8pt; color: ${palette.textLight}; font-weight: 500;">
+    <span>* System generated secure report card documentation.</span>
+    <span>Powered by ${schoolName} </span>
   </div>
 
-</div><!-- /.page -->
+</div>
+  `;
 
-<script>
-  (function() {
-    var page = document.querySelector('.page');
-    if (!page) return;
-    var maxPx = (297 - 16) * 3.7795;
-    var h = page.scrollHeight;
-    if (h > maxPx) {
-      var s = maxPx / h;
-      page.style.transform = 'scale(' + s + ')';
-      page.style.transformOrigin = 'top left';
-    }
-  })();
-</script>
-</body>
-</html>`;
+  // Options configuration setup for html2pdf conversion
+  const options = {
+    margin: [6, 8, 6, 8], // top, left, bottom, right in mm
+    filename: `MarkSheet_${studentName.replace(/\s+/g, "_")}_${examName.replace(/\s+/g, "_")}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
 
-  // ── Print via hidden iframe ───────────────────────────────────
-  // Images are already embedded as data: URLs so no network load needed.
-  const iframe = document.createElement("iframe");
-  iframe.style.cssText =
-    "position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;visibility:hidden;";
-  document.body.appendChild(iframe);
-
+  // 3. Fire-and-forget generation and trigger local disk streaming download
   try {
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
-    iframe.contentWindow.focus();
-    setTimeout(() => {
-      iframe.contentWindow.print();
-      setTimeout(() => {
-        if (document.body.contains(iframe)) document.body.removeChild(iframe);
-      }, 3000);
-    }, 400); // shorter delay is fine — no images to wait for
-  } catch {
-    const win = window.open("", "_blank", "width=820,height=1060");
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      win.focus();
-      setTimeout(() => win.print(), 500);
-    }
+    await html2pdf().set(options).from(element).save();
+  } catch (error) {
+    console.error("Error creating report card PDF file streaming download", error);
+    alert("An error occurred during local conversion operation.");
   }
 }

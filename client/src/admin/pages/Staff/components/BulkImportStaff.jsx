@@ -45,8 +45,8 @@ const COLUMN_MAP = {
   bankName:      ["bank name", "bank", "bankname"],
   bankAccountNo: ["account no", "bank account", "account number", "bankaccountno", "account"],
   ifscCode:      ["ifsc", "ifsc code", "ifsccode"],
-  loginEmail:    ["login email", "loginemail", "username", "login", "login id"],
-  password:      ["password", "pass", "login password"],
+  // loginEmail:    ["login email", "loginemail", "username", "login", "login id"],
+  // password:      ["password", "pass", "login password"],
   status:        ["status", "staff status", "employment status"],
 };
 
@@ -97,8 +97,8 @@ function parseRow(rawRow, headerMap) {
     bankName:      get("bankName"),
     bankAccountNo: get("bankAccountNo"),
     ifscCode:      get("ifscCode"),
-    loginEmail:    get("loginEmail") || get("email"),
-    password:      get("password"),
+    // loginEmail:    get("loginEmail") || get("email"),
+    // password:      get("password"),
     status:        normalizeStatus(get("status")),
   };
 }
@@ -111,8 +111,8 @@ function validateRow(s) {
   if (!s.joiningDate) errors.push("Joining Date is required");
   if (s.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email))
     errors.push("Invalid email format");
-  if (s.password && !s.loginEmail)
-    errors.push("Login Email is required when a password is provided");
+  // if (s.password && !s.loginEmail)
+  //   errors.push("Login Email is required when a password is provided");
   return errors;
 }
 
@@ -122,13 +122,13 @@ function downloadTemplate() {
     "First Name", "Last Name", "Email", "Phone",
     "Role", "Group Type", "Joining Date",
     "Basic Salary", "Bank Name", "Account No", "IFSC Code",
-    "Login Email", "Password", "Status",
+     "Status",
   ];
   const sample = [
     "Priya", "Sharma", "priya@school.com", "9876543210",
     "Lab Assistant", "Group B", "01-06-2024",
     "18000", "SBI", "123456789012", "SBIN0001234",
-    "priya@school.com", "Staff@123", "ACTIVE",
+     "ACTIVE",
   ];
 
   const wb = XLSX.utils.book_new();
@@ -268,7 +268,7 @@ export default function BulkImportStaff({ onClose, onSuccess }) {
           bankAccountNo: s.bankAccountNo || undefined,
           ifscCode:      s.ifscCode      || undefined,
           // Only include password when one was supplied (creates login access)
-          ...(s.password ? { password: s.password } : {}),
+          // ...(s.password ? { password: s.password } : {}),
         });
         if (idx !== -1)
           updatedRows[idx] = { ...updatedRows[idx], status: "success", serverError: null };
