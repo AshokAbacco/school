@@ -81,7 +81,7 @@ const NAV = [
   ...(userPlan !== "Silver"
     ? [{
         icon: FileText,
-        label: "Exams",
+        label: "Exams & Results",
         to: "/admin/exams",
       }]
     : []),
