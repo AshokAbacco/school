@@ -12,10 +12,10 @@ import {
 const REDIRECT = {
   ADMIN: "/admin/dashboard",
   TEACHER: "/teacher/dashboard",
+  FINANCE: "/financer/dashboard",
   STUDENT: "/student/dashboard",
   PARENT: "/parent/dashboard",
   SUPER_ADMIN: "/superAdmin/dashboard",
-  FINANCER: "/financer/dashboard",
 };
 
 const STAFF_ROLES = [
@@ -71,14 +71,20 @@ export default function Login({ onSwitchToRegister }) {
         parent: "PARENT",
       };
 
+      const staffRoleMap = {
+        admin: "ADMIN",
+        teacher: "TEACHER",
+        financer: "FINANCE", // ✅ Fix
+      };
+
       const result = await sendLoginOtp({
         email,
         password,
 
         selectedRole:
           type === "staff"
-            ? staffRole.toUpperCase() // ADMIN / TEACHER / FINANCE
-            : roleMap[type],          // SUPER_ADMIN / STUDENT / PARENT
+            ? staffRoleMap[staffRole]
+            : roleMap[type],
       });
 
       if (result?.otpRequired) {
@@ -91,7 +97,6 @@ export default function Login({ onSwitchToRegister }) {
         setError("");
         return;
       }
-
     } catch (err) {
       setError(
         err.message || "Login failed"
