@@ -9,7 +9,9 @@ import {
   loginFinance,
   forgotPassword,
   verifyOtp,
-  resetPassword
+  resetPassword,
+  loginWithOtp,
+  verifyLoginOtp
 } from "./auth.controller.js";
 import { authLimiter } from "../../middlewares/rateLimiter.js";
 
@@ -52,5 +54,16 @@ router.post('/forgot-password', forgotPassword);
 router.post('/verify-otp', verifyOtp);
 router.post('/reset-password', resetPassword);
 
+router.post(
+  "/login-with-otp",
+  authLimiter,
+  loginWithOtp
+);
+
+router.post(
+  "/verify-login-otp",
+  authLimiter,
+  verifyLoginOtp
+);
 
 export default router;

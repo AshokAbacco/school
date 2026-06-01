@@ -1,136 +1,26 @@
 // src/LandingPages/pricing/Pricing.jsx
 import { useState } from "react";
-import { Check, X, Zap, Shield, Crown, ChevronDown, ChevronUp, Sparkles, Globe, Mail, Info } from "lucide-react";
+import { Check, Crown, ChevronDown, ChevronUp, Sparkles, Globe, Mail, Info } from "lucide-react";
 import PaymentModal from "./Payment";
 
-const plans = [
-  {
-    id: "silver",
-    name: "Silver",
-    price: 300,
-    tagline: "Best for single school setup",
-    icon: Shield,
-    badge: null,
-    schools: "1 School",
-    webPackage: {
-      pages: "1-page website",
-      emails: "Staff & administration",
-      note: "Free for Year 1 — renewal charges apply from Year 2",
-    },
-    features: {
-      "Super Admin": "Limited",
-      "School Management": "1 School",
-      "Basic Analytics": true,
-      "Admin Dashboard": true,
-      "Classes & Sections": true,
-      "Student Registration": true,
-      "Teacher Registration": true,
-      "Attendance Management": true,
-      "Holiday Management": true,
-      "Teacher Dashboard": true,
-      "Time Table": true,
-      "Homework / Assignments": true,
-      "Student Dashboard": true,
-      "Parent Dashboard": true,
-      "Student Fees (Basic)": true,
-      "Reports & Advanced Analytics": false,
-      "Transport Management": false,
-      "Exams & Results": false,
-      "Chat & Communication": false,
-      "Payment Gateway": false,
-      "Mobile App": false,
-    },
+const plan = {
+  id: "premium",
+  name: "Premium",
+  price: 300,
+  tagline: "Complete school management solution — everything included, no limits",
+  icon: Crown,
+  badge: "Full Access",
+  schools: "Unlimited Schools",
+  webPackage: {
+    pages: "10-page website",
+    emails: "Staff, administration & students",
+    note: "Free for Year 1 — renewal charges apply from Year 2",
   },
-  {
-    id: "gold",
-    name: "Gold",
-    price: 500,
-    tagline: "Best for small groups up to 5 schools",
-    icon: Zap,
-    badge: "Most Popular",
-    schools: "Up to 5 Schools",
-    webPackage: {
-      pages: "5-page website",
-      emails: "Staff & administration",
-      note: "Free for Year 1 — renewal charges apply from Year 2",
-    },
-    features: {
-      "Super Admin": true,
-      "School Management": "Up to 5 Schools",
-      "Basic Analytics": true,
-      "Admin Dashboard": true,
-      "Classes & Sections": true,
-      "Student Registration": true,
-      "Teacher Registration": true,
-      "Attendance Management": true,
-      "Holiday Management": true,
-      "Teacher Dashboard": true,
-      "Time Table": true,
-      "Homework / Assignments": true,
-      "Student Dashboard": true,
-      "Parent Dashboard": true,
-      "Student Fees (Basic)": true,
-      "Reports & Advanced Analytics": true,
-      "Exams & Results": true,
-      "Activities & Events": true,
-      "Payment Gateway": true,
-      "Basic Notifications": true,
-      "Transport Management": "Add-on",
-      "Chat & Communication": false,
-      "Mobile App": "Optional Add-on",
-    },
-  },
-  {
-    id: "premium",
-    name: "Premium",
-    price: 800,
-    tagline: "Best for large institutions & franchises",
-    icon: Crown,
-    badge: "Full Access",
-    schools: "Unlimited",
-    webPackage: {
-      pages: "15-page website",
-      emails: "Staff, administration & students",
-      note: "Free for Year 1 — renewal charges apply from Year 2",
-    },
-    features: {
-      "Super Admin": "Full Control",
-      "School Management": "Unlimited",
-      "Basic Analytics": true,
-      "Admin Dashboard": true,
-      "Classes & Sections": true,
-      "Student Registration": true,
-      "Teacher Registration": true,
-      "Attendance Management": true,
-      "Holiday Management": true,
-      "Teacher Dashboard": true,
-      "Time Table": true,
-      "Homework / Assignments": true,
-      "Student Dashboard": true,
-      "Parent Dashboard": true,
-      "Student Fees (Basic)": true,
-      "Reports & Advanced Analytics": true,
-      "Exams & Results": true,
-      "Activities & Events": true,
-      "Payment Gateway": true,
-      "Basic Notifications": true,
-      "Transport Management": true,
-      "Chat & Communication": true,
-      "Mobile App": "Android & iOS",
-      "Online Classes Integration": true,
-      "Certificates Generation": true,
-      "Role-based Permissions": true,
-      "Complete Financial Reporting": true,
-      "Automated Fee Reminders": true,
-      "Backup & Security": true,
-      "API Integrations": true,
-    },
-  },
-];
+};
 
 const allFeatureKeys = [
-  "Super Admin",
-  "School Management",
+  "Super Admin — Full Control",
+  "Unlimited School Management",
   "Basic Analytics",
   "Admin Dashboard",
   "Classes & Sections",
@@ -143,168 +33,145 @@ const allFeatureKeys = [
   "Homework / Assignments",
   "Student Dashboard",
   "Parent Dashboard",
-  "Student Fees (Basic)",
+  "Student Fees Management",
   "Reports & Advanced Analytics",
-  "curriculum Management",
+  "Curriculum Management",
   "Exams & Results",
   "Activities & Events",
   "Payment Gateway",
   "Basic Notifications",
   "Transport Management",
   "Chat & Communication",
-  "Mobile App",
+  "Mobile App (Android & iOS)",
   "Online Classes Integration",
   "Certificates Generation",
   "Role-based Permissions",
   "Complete Financial Reporting",
-  "Whatsapp & SMS Notifications",
+  "WhatsApp & SMS Notifications",
   "Automated Fee Reminders",
   "Backup & Security",
   "API Integrations",
 ];
 
+const PREVIEW_COUNT = 12;
+
 export default function PricingPage() {
-  const [selectedPlan, setSelectedPlan] = useState(null);
   const [showAllFeatures, setShowAllFeatures] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
-  const visibleFeatures = showAllFeatures ? allFeatureKeys : allFeatureKeys.slice(0, 12);
+  const visibleFeatures = showAllFeatures ? allFeatureKeys : allFeatureKeys.slice(0, PREVIEW_COUNT);
+  const Icon = plan.icon;
 
   return (
-    <div className="min-h-screen py-30 px-4 bg-gradient-to-br from-blue-50 to-blue-100">
+    <div className="min-h-screen py-24 px-4 bg-gradient-to-br from-blue-50 to-blue-100">
       {/* Decorative blobs */}
-      <div className="fixed top-0 left-0 w-72 h-72 rounded-full pointer-events-none opacity-20 bg-blue-200 blur-80 translate-x-[-30%] translate-y-[-30%]" />
-      <div className="fixed top-0 right-0 w-96 h-96 rounded-full pointer-events-none opacity-15 bg-blue-300 blur-100 translate-x-[30%] translate-y-[30%]" />
+      <div className="fixed top-0 left-0 w-72 h-72 rounded-full pointer-events-none opacity-20 bg-blue-200 blur-3xl -translate-x-1/3 -translate-y-1/3" />
+      <div className="fixed bottom-0 right-0 w-96 h-96 rounded-full pointer-events-none opacity-15 bg-blue-300 blur-3xl translate-x-1/3 translate-y-1/3" />
 
-      <div className="max-w-7xl mx-auto relative">
+      <div className="max-w-4xl mx-auto relative">
+
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-5 bg-blue-200 text-blue-800">
-            <Sparkles size={12} />Dashboard CRM Pricing
+        <div className="text-center mb-14">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 mt-3 rounded-full text-xs font-bold tracking-widest uppercase mb-5 bg-blue-200 text-blue-800">
+            <Sparkles size={12} /> Dashboard CRM Pricing
           </div>
-          <h1 className="text-5xl font-black mb-4 leading-tight text-gray-800">
-            <span className="text-[#384959]">Pricing Plans</span>
+          <h1 className="text-5xl font-black mb-4 leading-tight text-[#384959]">
+            One Plan. Everything Included.
           </h1>
           <p className="text-base max-w-md mx-auto text-[#6A89A7]">
-            Choose the plan that fits your institution. Upgrade anytime as you grow.
+            The Premium plan gives your institution every feature — no tiers, no limits, no add-ons required.
           </p>
         </div>
 
-        {/* Plan Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-14">
-          {plans.map((plan) => {
-            const Icon = plan.icon;
-            const isGold = plan.id === "gold";
+        {/* Plan Card */}
+        <div className="relative rounded-3xl overflow-hidden shadow-2xl bg-gradient-to-br from-[#384959] via-[#4a6880] to-[#6A89A7] mb-12">
+          {/* Badge */}
+          <div className="absolute top-5 right-5 text-[10px] font-bold px-3 py-1 rounded-full tracking-widest uppercase bg-white text-[#384959]">
+            {plan.badge}
+          </div>
 
-            return (
-              <div
-                key={plan.id}
-                className={`relative rounded-2xl transition-all duration-300 overflow-hidden
-                  ${isGold ? "shadow-xl scale-[1.03]" : "shadow-md hover:shadow-lg hover:-translate-y-1"}
-                  ${selectedPlan === plan.id ? "ring-2 ring-blue-300" : ""}
-                  ${isGold ? "bg-gradient-to-br from-blue-200 to-blue-300" : "bg-white"}
-                `}
-                onClick={() => setSelectedPlan(plan.id)}
+          <div className="p-8 md:p-12 grid md:grid-cols-2 gap-10 items-center">
+            {/* Left */}
+            <div>
+              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center mb-6">
+                <Icon size={28} className="text-white" />
+              </div>
+              <h2 className="text-4xl font-black text-white mb-2">{plan.name}</h2>
+              <p className="text-blue-200/80 text-sm leading-relaxed mb-8">{plan.tagline}</p>
+
+              <div className="flex items-end gap-1 mb-2">
+                <span className="text-5xl font-black text-white">₹{plan.price}</span>
+                <span className="text-sm mb-2 font-medium text-blue-200/70">/user/year</span>
+              </div>
+              <div className="text-xs font-semibold mb-8 py-1.5 px-3 rounded-full inline-block bg-white/20 text-white">
+                {plan.schools}
+              </div>
+
+              <button
+                className="w-full py-3.5 rounded-xl text-sm font-bold tracking-wide bg-white text-[#384959] hover:bg-blue-50 transition-colors cursor-pointer"
+                onClick={() => setIsPaymentModalOpen(true)}
               >
-                {plan.badge && (
-                  <div className="absolute top-4 right-4 text-[10px] font-bold px-2.5 py-1 rounded-full tracking-widest uppercase bg-[#384959] text-white">
-                    {plan.badge}
-                  </div>
-                )}
+                Get Started — ₹{plan.price}/user/yr
+              </button>
+            </div>
 
-                <div className="p-6">
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${isGold ? "bg-white/40" : "bg-blue-100"}`}>
-                    <Icon size={22} className={isGold ? "text-gray-800" : "text-[#88BDF2]"} />
-                  </div>
-
-                  <h3 className="text-xl font-bold mb-1 text-gray-800">{plan.name}</h3>
-                  <p className="text-xs mb-5 leading-snug text-[#6A89A7]">{plan.tagline}</p>
-
-                  <div className="flex items-end gap-1 mb-1">
-                    <span className="text-4xl font-black text-gray-800">₹{plan.price}</span>
-                    <span className="text-sm mb-1.5 font-medium text-[#6A89A7]">/user/Yr</span>
-                  </div>
-
-                  <div className="text-xs font-semibold mb-5 py-1.5 px-3 rounded-full inline-block bg-blue-100 text-[#6A89A7]">
-                    {plan.schools}
-                  </div>
-
-                  <button
-                    className={`w-full py-2.5 rounded-xl text-sm font-bold tracking-wide transition-colors cursor-pointer
-                      ${isGold || plan.id === "premium"
-                        ? "bg-gray-800 text-white hover:bg-gray-900"
-                        : "bg-blue-100 text-[#6cabf3] border border-blue-300 hover:bg-[#88BDF2] hover:text-white"
-                      }`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedPlan(plan.id);        // ✅ MUST come first
-                      setIsPaymentModalOpen(true);
-                    }}
-                  >
-                    Get Started
-                  </button>
-
-                  {/* Web Package Info */}
-                  <div className={`mt-4 rounded-xl p-3.5 ${isGold ? "bg-white/30" : "bg-blue-50"}`}>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5 text-[#384959]">Included Web Package</p>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Globe size={13} className="text-[#88BDF2] shrink-0" />
-                      <span className="text-xs font-semibold text-gray-700">{plan.webPackage.pages} + free domain</span>
-                    </div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Mail size={13} className="text-[#88BDF2] shrink-0" />
-                      <span className="text-xs text-gray-600">Professional emails — {plan.webPackage.emails}</span>
-                    </div>
-                    <div className="flex items-start gap-1.5 pt-2 border-t border-blue-200/60">
-                      <Info size={11} className="text-[#6A89A7] mt-0.5 shrink-0" />
-                      <span className="text-[10px] leading-snug text-[#6A89A7]">{plan.webPackage.note}</span>
-                    </div>
-                  </div>
+            {/* Right — Web Package */}
+            <div className="bg-white/10 border border-white/20 rounded-2xl p-6">
+              <p className="text-[11px] font-bold uppercase tracking-widest mb-5 text-blue-200/80">
+                Included Web Package
+              </p>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <Globe size={16} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">{plan.webPackage.pages}</p>
+                  <p className="text-xs text-blue-200/70">Free domain included</p>
                 </div>
               </div>
-            );
-          })}
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <Mail size={16} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">Professional Emails</p>
+                  <p className="text-xs text-blue-200/70">{plan.webPackage.emails}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2 pt-4 border-t border-white/20">
+                <Info size={12} className="text-blue-300 mt-0.5 flex-shrink-0" />
+                <p className="text-[11px] text-blue-200/60 leading-snug">{plan.webPackage.note}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Feature Comparison Table */}
+        {/* Feature List */}
         <div className="rounded-2xl overflow-hidden shadow-lg bg-white border border-blue-100">
-          <div className="px-6 py-5 border-b border-blue-100">
-            <h2 className="text-lg font-black text-gray-800">Feature Comparison</h2>
-            <p className="text-xs mt-0.5 text-[#6A89A7]">Detailed breakdown of what's included in each plan</p>
+          <div className="px-6 py-5 border-b border-blue-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-black text-gray-800">Everything Included</h2>
+              <p className="text-xs mt-0.5 text-[#6A89A7]">All {allFeatureKeys.length} features unlocked in Premium</p>
+            </div>
+            <div className="text-xs font-bold px-3 py-1 rounded-full bg-blue-100 text-[#6A89A7]">
+              {allFeatureKeys.length} Features
+            </div>
           </div>
 
-          {/* Table Header */}
-          <div className="grid grid-cols-4 px-6 py-3 text-xs font-bold uppercase tracking-wider bg-blue-50 text-[#88BDF2]">
-            <div>Feature</div>
-            {plans.map((p) => (
-              <div key={p.id} className="text-center">{p.name}</div>
+          {/* Feature Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x-0">
+            {visibleFeatures.map((feature, i) => (
+              <div
+                key={feature}
+                className={`flex items-center gap-3 px-6 py-3.5 border-b border-blue-50 ${i % 2 === 0 ? "bg-white" : "bg-blue-50/40"}`}
+              >
+                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <Check size={13} className="text-[#88BDF2]" strokeWidth={2.5} />
+                </div>
+                <span className="text-sm font-medium text-gray-700">{feature}</span>
+              </div>
             ))}
           </div>
-
-          {/* Rows */}
-          {visibleFeatures.map((feature, i) => (
-            <div
-              key={feature}
-              className={`grid grid-cols-4 px-6 py-3 items-center text-sm border-b border-blue-100 ${i % 2 === 0 ? 'bg-white' : 'bg-blue-50'}`}
-            >
-              <div className="font-medium text-xs text-gray-800">{feature}</div>
-              {plans.map((plan) => (
-                <div key={plan.id} className="flex items-center justify-center">
-                  {plan.features[feature] === true && (
-                    <Check size={17} className="text-[#88BDF2]" strokeWidth={2.5} />
-                  )}
-                  {plan.features[feature] === false && (
-                    <X size={15} className="text-gray-300" strokeWidth={2} />
-                  )}
-                  {typeof plan.features[feature] === "string" && (
-                    <span className="text-xs font-semibold text-[#6A89A7] text-center leading-tight px-1">
-                      {plan.features[feature]}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          ))}
 
           {/* Show more */}
           <button
@@ -312,27 +179,32 @@ export default function PricingPage() {
             className="w-full py-4 flex items-center justify-center gap-2 text-sm font-bold text-[#6A89A7] cursor-pointer bg-blue-50 hover:bg-blue-100 transition-colors"
           >
             {showAllFeatures ? (
-              <>
-                <ChevronUp size={16} /> Show Less
-              </>
+              <><ChevronUp size={16} /> Show Less</>
             ) : (
-              <>
-                <ChevronDown size={16} /> Show All {allFeatureKeys.length} Features
-              </>
+              <><ChevronDown size={16} /> Show All {allFeatureKeys.length} Features</>
             )}
           </button>
         </div>
 
-        {/* Payment Modal */}
-        <PaymentModal
-          isOpen={isPaymentModalOpen}
-          onClose={() => {
-            setIsPaymentModalOpen(false);
-            setSelectedPlan(null); // ✅ ADD THIS
-          }}
-          selectedPlanId={selectedPlan}
-        />
+        {/* Bottom CTA */}
+        <div className="mt-10 text-center">
+          <button
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-[#384959] text-white font-bold text-sm hover:bg-[#2f3d4a] transition-colors cursor-pointer shadow-lg"
+            onClick={() => setIsPaymentModalOpen(true)}
+          >
+            <Crown size={16} />
+            Get Premium — ₹{plan.price}/user/year
+          </button>
+          <p className="mt-3 text-xs text-[#6A89A7]">Upgrade anytime · Cancel anytime · GST applicable</p>
+        </div>
       </div>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        selectedPlanId="premium"
+      />
     </div>
   );
 }

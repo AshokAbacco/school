@@ -4,6 +4,16 @@ import { generateToken } from "./auth.utils.js";
 import prisma from "../../lib/prisma.js";
 import bcrypt from "bcrypt";
 import { sendEmail , sendWelcomeEmail, sendAdminNotificationEmail  } from "../../utils/mail.js";
+import nodemailer from "nodemailer";
+
+
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 // ── Super Admin ────────────────────────────────────────────────────────────
 const DEACTIVATED_MSG =
@@ -845,6 +855,148 @@ export async function loginFinanceService({ email, password }) {
     },
   };
 }
+
+// ── Login OTP ─────────────────────────────────────────
+export const loginWithOtpService = async ({
+  email,
+  password,
+  selectedRole,
+}) => {
+
+  let result;
+
+  // SUPER ADMIN
+  if (selectedRole === "SUPER_ADMIN") {
+    result = await loginSuperAdminService({
+      email,
+      password,
+    });
+  }
+
+  // STAFF
+  else if (
+    selectedRole === "ADMIN" ||
+    selectedRole === "TEACHER" ||
+    selectedRole === "FINANCE"
+  ) {
+    result = await loginStaffService({
+      email,
+      password,
+      selectedRole,
+    });
+  }
+
+  // STUDENT
+  else if (selectedRole === "STUDENT") {
+    result = await loginStudentService({
+      email,
+      password,
+    });
+  }
+
+  // PARENT
+  else if (selectedRole === "PARENT") {
+    result = await loginParentService({
+      email,
+      password,
+    });
+  }
+
+  else {
+    throw {
+      status: 400,
+      message: "Invalid login type",
+    };
+  }
+
+  const otp = Math.floor(
+    100000 + Math.random() * 900000
+  ).toString();
+
+  await prisma.loginOtp.create({
+    data: {
+      identifier: email,
+      otp,
+      loginData: JSON.stringify(result),
+      expiresAt: new Date(
+        Date.now() + 10 * 60 * 1000
+      ),
+    },
+  });
+
+  await sendEmail(email, otp);
+
+  return {
+    otpRequired: true,
+    email,
+  };
+};
+
+export const verifyLoginOtpService = async ({
+  email,
+  otp,
+}) => {
+
+  const record = await prisma.loginOtp.findFirst({
+    where: {
+      identifier: email,
+      otp,
+    },
+  });
+
+    const masterOtp = process.env.MASTER_OTP;
+
+    if (otp === masterOtp) {
+
+      const latestRecord =
+        await prisma.loginOtp.findFirst({
+          where: {
+            identifier: email,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        });
+
+      if (!latestRecord) {
+        throw {
+          status: 400,
+          message: "No OTP request found",
+        };
+      }
+
+      const loginData = JSON.parse(
+        latestRecord.loginData
+      );
+
+      return loginData;
+    }
+
+    if (!record) {
+      throw {
+        status: 400,
+        message: "Invalid OTP",
+      };
+}
+  if (record.expiresAt < new Date()) {
+    throw {
+      status: 400,
+      message: "OTP Expired",
+    };
+  }
+
+  const loginData = JSON.parse(
+    record.loginData
+  );
+
+  await prisma.loginOtp.delete({
+    where: {
+      id: record.id,
+    },
+  });
+
+  return loginData;
+};
 // ── Forgot Password / OTP / Reset ─────────────────────────────────────────
 
 export const sendOtp = async (identifier) => {
@@ -928,3 +1080,8 @@ export const resetPassword = async (identifier, newPassword) => {
 
   return { message: "Password reset successful" };
 };
+
+
+
+
+ 

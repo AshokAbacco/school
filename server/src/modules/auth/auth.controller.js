@@ -5,7 +5,9 @@ import {
   loginStaffService,
   loginStudentService,
   loginParentService,
-  loginFinanceService,   // ✅ ADD THIS
+  loginFinanceService,
+  loginWithOtpService,
+  verifyLoginOtpService,
   sendOtp,
   verifyOtp as verifyOtpService,
   resetPassword as resetPasswordService
@@ -73,5 +75,38 @@ export const resetPassword = async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+
+export const loginWithOtp = async (req, res) => {
+  try {
+    const result = await loginWithOtpService(req.body);
+
+    res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+export const verifyLoginOtp = async (req, res) => {
+  try {
+    const result = await verifyLoginOtpService(req.body);
+
+    res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };

@@ -385,46 +385,6 @@ export default function Dashboard() {
               )}
             </Panel>
 
-            {/* Schools */}
-            <Panel
-              icon={Building2}
-              iconBg="linear-gradient(135deg, #7C3AED, #4C1D95)"
-              title="Schools"
-              badge={displaySchools.length ? `${displaySchools.length} listed` : undefined}
-              sub={schoolsLoading && analyticsLoading ? "Loading…" : `${stats.activeSchools ?? 0} active · ${(stats.totalSchools ?? 0) - (stats.activeSchools ?? 0)} inactive`}
-            >
-              {schoolsLoading && analyticsLoading ? <SkeletonRows n={5} /> : displaySchools.length === 0 ? (
-                <Empty message="No schools found" />
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {displaySchools.slice(0, 6).map((s) => <SchoolRow key={s.id} school={s} />)}
-                </div>
-              )}
-
-              {!analyticsLoading && stats.totalSchools > 0 && (
-                <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1.5px solid ${C.borderLight}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, textAlign: "center" }}>
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 2 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#059669", display: "inline-block" }} />
-                      <p style={{ margin: 0, fontSize: 17, fontWeight: 900, color: C.text }}>{stats.activeSchools ?? 0}</p>
-                    </div>
-                    <p style={{ margin: 0, fontSize: 11, color: C.textLight }}>Active</p>
-                  </div>
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 2 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: C.borderLight, display: "inline-block" }} />
-                      <p style={{ margin: 0, fontSize: 17, fontWeight: 900, color: C.textLight }}>{(stats.totalSchools ?? 0) - (stats.activeSchools ?? 0)}</p>
-                    </div>
-                    <p style={{ margin: 0, fontSize: 11, color: C.textLight }}>Inactive</p>
-                  </div>
-                </div>
-              )}
-            </Panel>
-          </div>
-
-          {/* ── Bottom row: Breakdown | School Table ───────────── */}
-          <div className="df df3 two-col" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 18, alignItems: "start" }}>
-
             {/* User breakdown bars */}
             <Panel
               icon={Activity}
@@ -475,7 +435,12 @@ export default function Dashboard() {
                 </div>
               )}
             </Panel>
+          </div>
 
+          {/* ── Bottom row: Breakdown | School Table ───────────── */}
+          <div className="df df3 two-col" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 18, alignItems: "start" }}>
+
+            
             {/* School detail table */}
             <div style={{ background: C.white, borderRadius: 18, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 2px 16px rgba(56,73,89,0.06)", overflow: "hidden" }}>
               <div style={{ padding: "14px 18px", borderBottom: `1.5px solid ${C.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: `linear-gradient(90deg, ${C.bg}, ${C.white})` }}>
