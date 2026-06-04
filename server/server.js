@@ -129,15 +129,6 @@ app.get("/api/image-proxy", async (req, res) => {
     res.status(500).send("Proxy failed");
   }
 });
-
-app.all("/iclock/cdata", (req, res) => {
-  console.log("========== DEVICE HIT ==========");
-  console.log("Method:", req.method);
-  console.log("Query:", req.query);
-  console.log("Body:", req.body);
-
-  res.status(200).send("OK");
-});
 app.use("/uploads", express.static("uploads"));
 
 // Routes
