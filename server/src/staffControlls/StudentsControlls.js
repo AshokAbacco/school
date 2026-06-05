@@ -244,6 +244,7 @@ export const createParentLogin = async (req, res) => {
 
     if (!parent) {
       const hashed = await bcrypt.hash(password, 10);
+
       parent = await prisma.parent.create({
         data: {
           name,
@@ -257,9 +258,15 @@ export const createParentLogin = async (req, res) => {
           schoolId,
         },
       });
-        await createFullSchoolBackup(
-          schoolId
+
+      try {
+        await createFullSchoolBackup(schoolId);
+      } catch (error) {
+        console.error(
+          "[createParentLogin] Backup failed:",
+          error.message
         );
+      }
     }
 
     const link = await prisma.studentParent.create({

@@ -1,3 +1,4 @@
+// src/student/controllers/dashboard.controller.js
 import { prisma } from "../../config/db.js";
 import cacheService from "../../utils/cacheService.js";
 
@@ -177,12 +178,14 @@ export async function getDashboard(req, res) {
       todaySchedule: timetableEntries
         .filter((e) => e.periodDefinition.slotType === "PERIOD")
         .map((e) => ({
-          subject:   e.subject.name,
-          teacher:   `${e.teacher.firstName} ${e.teacher.lastName}`,
+          subject: e.subject?.name || "N/A",
+          teacher: e.teacher
+            ? `${e.teacher.firstName || ""} ${e.teacher.lastName || ""}`.trim()
+            : "Not Assigned",
           startTime: e.periodDefinition.startTime,
-          endTime:   e.periodDefinition.endTime,
-          label:     e.periodDefinition.label,
-          order:     e.periodDefinition.order,
+          endTime: e.periodDefinition.endTime,
+          label: e.periodDefinition.label,
+          order: e.periodDefinition.order,
         })),
 
       recentMarks: recentMarks.map((m) => ({

@@ -3361,3 +3361,12 @@ enum ReEvaluationStatus {
   COMPLETED
   REJECTED
 }
+
+model LoginOtp {
+  id         String   @id @default(uuid())
+  identifier String
+  otp        String
+  loginData  String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+}

@@ -177,6 +177,114 @@ const E0 = {
 const sc = (extra = "") =>
   `w-full text-sm border rounded-xl py-2.5 pl-4 bg-white focus:outline-none focus:ring-2 transition-all ${extra}`;
 
+  // ── Parent login card ─────────────────────────────────────────────────────
+  // ── Place this OUTSIDE AddStudent, near the top of the file ──────────────────
+  const ParentLoginCard = ({
+    emailKey,
+    pwKey,
+    nmKey,
+    phKey,
+    relation,
+    showPwState,
+    toggleShowPw, 
+    f,
+    setF,
+    // ❌ removed: set
+  }) => {
+    const handleChange = (key) => (e) => {
+      setF((p) => ({ ...p, [key]: e.target.value }));
+    };
+
+    return (
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{ border: `1px solid ${COLORS.border}` }}
+      >
+        <div
+          className="flex items-center justify-between px-4 py-3"
+          style={{
+            background: COLORS.bgSoft,
+            borderBottom: f[emailKey] !== null ? `1px solid ${COLORS.border}` : "none",
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center"
+              style={{ background: `${COLORS.accent}22` }}
+            >
+              <Lock size={13} style={{ color: COLORS.accent }} />
+            </div>
+            <div>
+              <p className="text-xs font-bold" style={{ color: COLORS.primary }}>
+                {relation} Portal Login
+              </p>
+              <p className="text-[10px]" style={{ color: COLORS.secondary }}>
+                {f[emailKey] !== null
+                  ? `Login set for ${relation}`
+                  : "Optional · Skip now, add later"}
+              </p>
+            </div>
+          </div>
+          {f[emailKey] === null ? (
+            <button
+              type="button"
+              onClick={() => setF((p) => ({ ...p, [emailKey]: p[phKey] || "", [pwKey]: "" }))}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
+              style={{ background: COLORS.primary }}
+            >
+              + Set Login
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setF((p) => ({ ...p, [emailKey]: null, [pwKey]: "" }))}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
+              style={{
+                border: `1px solid ${COLORS.border}`,
+                color: COLORS.secondary,
+                background: "white",
+              }}
+            >
+              <X size={11} /> Remove
+            </button>
+          )}
+        </div>
+        {f[emailKey] !== null && (
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <InputField
+                label="Login Email"
+                icon={Mail}
+                type="email"
+                value={f[emailKey] ?? ""}
+                onChange={handleChange(emailKey)}  // ✅
+                placeholder="parent@example.com"
+              />
+              <div className="relative">
+                <InputField
+                  label="Login Password"
+                  type={showPwState ? "text" : "password"}
+                  icon={Lock}
+                  value={f[pwKey]}
+                  onChange={handleChange(pwKey)}   // ✅
+                  placeholder="Min. 6 characters"
+                />
+                <button
+                  type="button"
+                  onClick={toggleShowPw}
+                  className="absolute right-3.5 top-9"
+                  style={{ color: COLORS.secondary }}
+                >
+                  {showPwState ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+  
 export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const { id: rid } = useParams();
   const navigate = useNavigate?.() ?? null;
@@ -1346,113 +1454,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     );
   };
 
-  // ── Parent login card ─────────────────────────────────────────────────────
-// ── Place this OUTSIDE AddStudent, near the top of the file ──────────────────
-const ParentLoginCard = ({
-  emailKey,
-  pwKey,
-  nmKey,
-  phKey,
-  relation,
-  showPwState,
-  toggleShowPw,
-  f,
-  setF,
-  // ❌ removed: set
-}) => {
-  const handleChange = (key) => (e) => {
-    setF((p) => ({ ...p, [key]: e.target.value }));
-  };
 
-  return (
-    <div
-      className="rounded-xl overflow-hidden"
-      style={{ border: `1px solid ${COLORS.border}` }}
-    >
-      <div
-        className="flex items-center justify-between px-4 py-3"
-        style={{
-          background: COLORS.bgSoft,
-          borderBottom: f[emailKey] !== null ? `1px solid ${COLORS.border}` : "none",
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ background: `${COLORS.accent}22` }}
-          >
-            <Lock size={13} style={{ color: COLORS.accent }} />
-          </div>
-          <div>
-            <p className="text-xs font-bold" style={{ color: COLORS.primary }}>
-              {relation} Portal Login
-            </p>
-            <p className="text-[10px]" style={{ color: COLORS.secondary }}>
-              {f[emailKey] !== null
-                ? `Login set for ${relation}`
-                : "Optional · Skip now, add later"}
-            </p>
-          </div>
-        </div>
-        {f[emailKey] === null ? (
-          <button
-            type="button"
-            onClick={() => setF((p) => ({ ...p, [emailKey]: p[phKey] || "", [pwKey]: "" }))}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
-            style={{ background: COLORS.primary }}
-          >
-            + Set Login
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setF((p) => ({ ...p, [emailKey]: null, [pwKey]: "" }))}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
-            style={{
-              border: `1px solid ${COLORS.border}`,
-              color: COLORS.secondary,
-              background: "white",
-            }}
-          >
-            <X size={11} /> Remove
-          </button>
-        )}
-      </div>
-      {f[emailKey] !== null && (
-        <div className="p-4 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InputField
-              label="Login Email"
-              icon={Mail}
-              type="email"
-              value={f[emailKey] ?? ""}
-              onChange={handleChange(emailKey)}  // ✅
-              placeholder="parent@example.com"
-            />
-            <div className="relative">
-              <InputField
-                label="Login Password"
-                type={showPwState ? "text" : "password"}
-                icon={Lock}
-                value={f[pwKey]}
-                onChange={handleChange(pwKey)}   // ✅
-                placeholder="Min. 6 characters"
-              />
-              <button
-                type="button"
-                onClick={toggleShowPw}
-                className="absolute right-3.5 top-9"
-                style={{ color: COLORS.secondary }}
-              >
-                {showPwState ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
   // ── Shell ─────────────────────────────────────────────────────────────────
   const shell = (

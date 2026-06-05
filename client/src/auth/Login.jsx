@@ -1,7 +1,7 @@
 // client/src/auth/Login.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { loginRequest, loginSuperAdmin } from "./api";
+import { loginRequest, loginSuperAdmin,sendLoginOtp, verifyLoginOtp } from "./api";
 import { saveAuth } from "./storage";
 import {
   GraduationCap, Users, ShieldCheck, Building2,
@@ -12,10 +12,10 @@ import {
 const REDIRECT = {
   ADMIN: "/admin/dashboard",
   TEACHER: "/teacher/dashboard",
+  FINANCE: "/financer/dashboard",
   STUDENT: "/student/dashboard",
   PARENT: "/parent/dashboard",
   SUPER_ADMIN: "/superAdmin/dashboard",
-  FINANCER: "/financer/dashboard",
 };
 
 const STAFF_ROLES = [
@@ -48,29 +48,100 @@ export default function Login({ onSwitchToRegister }) {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
-
+  const [showOtp, setShowOtp] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpMessage, setOtpMessage] = useState("");
   useEffect(() => {
     setTimeout(() => setMounted(true), 50);
   }, []);
 
   const handleLogin = async () => {
     setError("");
-    if (!email || !password) return setError("Please enter email and password");
+
+    if (!email || !password) {
+      return setError("Please enter email and password");
+    }
+
     try {
       setLoading(true);
-      let result;
-      const loginType = type === "staff" ? staffRole : type;
-      if (type === "superAdmin") {
-        result = await loginSuperAdmin({ email, password });
-      } else {
-        result = await loginRequest(loginType, { email, password });
+
+      const roleMap = {
+        superAdmin: "SUPER_ADMIN",
+        student: "STUDENT",
+        parent: "PARENT",
+      };
+
+      const staffRoleMap = {
+        admin: "ADMIN",
+        teacher: "TEACHER",
+        financer: "FINANCE", // ✅ Fix
+      };
+
+      const result = await sendLoginOtp({
+        email,
+        password,
+
+        selectedRole:
+          type === "staff"
+            ? staffRoleMap[staffRole]
+            : roleMap[type],
+      });
+
+      if (result?.otpRequired) {
+        setShowOtp(true);
+
+        setOtpMessage(
+          `OTP sent to your email: ${email}`
+        );
+
+        setError("");
+        return;
       }
-      saveAuth(result);
-      const role = result?.user?.role;
-      if (!role) { setError("Login failed: role not found"); return; }
-      window.location.href = REDIRECT[role] || "/dashboard";
     } catch (err) {
-      setError(err.message || "Login failed");
+      setError(
+        err.message || "Login failed"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    setError("");
+
+    if (!otp) {
+      return setError("Please enter OTP");
+    }
+
+    try {
+      setLoading(true);
+
+      const result =
+        await verifyLoginOtp({
+          email,
+          otp,
+        });
+
+      saveAuth(result);
+
+      const role =
+        result?.user?.role;
+
+      if (!role) {
+        setError(
+          "Login failed: role not found"
+        );
+        return;
+      }
+
+      window.location.href =
+        REDIRECT[role] ||
+        "/dashboard";
+
+    } catch (err) {
+      setError(
+        err.message || "OTP verification failed"
+      );
     } finally {
       setLoading(false);
     }
@@ -670,12 +741,41 @@ export default function Login({ onSwitchToRegister }) {
               </div>
             </div>
 
+           {showOtp && (
+              <>
+                <div className="field-group">
+                  <label className="field-label">
+                    Enter OTP
+                  </label>
+
+                  <input
+                    className="field-input"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    placeholder="Enter 6 digit OTP"
+                  />
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "-8px",
+                    marginBottom: "16px",
+                    fontSize: "13px",
+                    color: "#16a34a",
+                    fontWeight: "600",
+                  }}
+                >
+                  {otpMessage}
+                </div>
+              </>
+            )}
+
             <span className="forgot-link" onClick={() => navigate("/forgot-password")}>
               Forgot Password?
             </span>
 
             {/* Sign In Button */}
-            <button className="btn-primary" onClick={handleLogin} disabled={loading}>
+            <button className="btn-primary" onClick={showOtp? handleVerifyOtp: handleLogin} disabled={loading}>
               {loading
                 ? <><div className="spinner" /><span>Authenticating...</span></>
                 : <><span>Sign In</span><ArrowRight size={16} /></>}

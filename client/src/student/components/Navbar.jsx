@@ -334,7 +334,13 @@ export default function Navbar({ onMenuClick, user }) {
     setNotifLoading(true);
     fetchBirthdayNotifications()
       .then((data) => { if (!cancelled) { setNotifData(data); setNotifError(null); } })
-      .catch((err)  => { if (!cancelled) { setNotifError(err.message); console.error("[Navbar notif]", err); } })
+      .catch((err) => {
+      console.error("Birthday API Failed");
+      console.error("URL:", `${API_BASE}/notifications/birthday`);
+      console.error(err);
+
+            setNotifError(err.message);
+      })
       .finally(()   => { if (!cancelled) setNotifLoading(false); });
     return () => { cancelled = true; };
   }, []);

@@ -165,9 +165,23 @@ export const createSchool = async (req, res) => {
         superAdminId: req.user.id,
       },
     });
-await createFullSchoolBackup(
-  school.id
-);
+
+    await prisma.superAdminSchoolAccess.upsert({
+      where: {
+        schoolId: school.id,
+      },
+      update: {
+        superAdminId: req.user.id,
+      },
+      create: {
+        superAdminId: req.user.id,
+        schoolId: school.id,
+      },
+    });
+    await createFullSchoolBackup(
+      school.id
+    );
+
     await redisClient.del(`schools:${universityId}`);
 
     return res.status(201).json({

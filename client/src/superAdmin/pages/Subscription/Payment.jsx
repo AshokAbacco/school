@@ -22,7 +22,7 @@ const PLANS = [
     features: ["Up to 5 Schools", "Advanced analytics", "Priority support"],
   },
   {
-    id: "premium", name: "Premium", price: 800, icon: Crown, color: "#384959",
+    id: "premium", name: "Premium", price: 300, icon: Crown, color: "#384959",
     features: ["Unlimited schools", "Full suite", "24/7 dedicated support"],
   },
 ];

@@ -1,6 +1,4 @@
 // client/src/student/dashboard/Dashboard.jsx
-// REDESIGNED — Stormy Morning palette only: #6A89A7 · #BDDDFC · #88BDF2 · #384959
-// FULLY RESPONSIVE — mobile / tablet / desktop
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
