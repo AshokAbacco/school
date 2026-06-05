@@ -137,6 +137,7 @@ export default function Profile() {
   //   }
   //   setSaving(false);
   // };
+  
   const handleLogoUpload = async () => {
   if (!logo) {
     return showToast("Please select a file", "error");
