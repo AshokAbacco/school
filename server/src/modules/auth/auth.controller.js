@@ -68,6 +68,7 @@ export const verifyOtp = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
 export const resetPassword = async (req, res) => {
   try {
     const { identifier, newPassword } = req.body;

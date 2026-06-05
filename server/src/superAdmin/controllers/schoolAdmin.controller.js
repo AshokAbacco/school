@@ -6,8 +6,18 @@ import redisClient from "../../utils/redis.js";
 const SALT_ROUNDS = 10;
 const CACHE_TTL = 300;
 
+// async function bustCache(universityId) {
+//   await redisClient.del(`school_admins:uni:${universityId}`);
+// }
+
 async function bustCache(universityId) {
-  await redisClient.del(`school_admins:uni:${universityId}`);
+  try {
+    if (redisClient?.isReady) {
+      await redisClient.del(`school_admins:uni:${universityId}`);
+    }
+  } catch (err) {
+    console.error("[Redis Delete Error]", err.message);
+  }
 }
 
 // ============================================================
@@ -112,8 +122,29 @@ export async function getSchoolAdmins(req, res) {
   try {
     const universityId = req.user.universityId;
 
-    const cached = await redisClient.get(`school_admins:uni:${universityId}`);
-    if (cached) return res.json({ admins: JSON.parse(cached), fromCache: true });
+    console.log("Redis Open:", redisClient.isOpen);
+
+    console.log("Redis Ready:", redisClient.isReady);
+
+    // const cached = await redisClient.get(`school_admins:uni:${universityId}`);
+    // if (cached) return res.json({ admins: JSON.parse(cached), fromCache: true });
+
+    let cached = null;
+
+    try {
+      if (redisClient?.isReady) {
+        cached = await redisClient.get(`school_admins:uni:${universityId}`);
+      }
+    } catch (err) {
+      console.error("[Redis Read Error]", err.message);
+    }
+
+    if (cached) {
+      return res.json({
+        admins: JSON.parse(cached),
+        fromCache: true,
+      });
+    }
 
     const admins = await prisma.user.findMany({
       where: {
@@ -136,11 +167,23 @@ export async function getSchoolAdmins(req, res) {
       },
     });
 
-    await redisClient.setEx(
-      `school_admins:uni:${universityId}`,
-      CACHE_TTL,
-      JSON.stringify(admins)
-    );
+    // await redisClient.setEx(
+    //   `school_admins:uni:${universityId}`,
+    //   CACHE_TTL,
+    //   JSON.stringify(admins)
+    // );
+
+    try {
+      if (redisClient?.isReady) {
+        await redisClient.setEx(
+          `school_admins:uni:${universityId}`,
+          CACHE_TTL,
+          JSON.stringify(admins),
+        );
+      }
+    } catch (err) {
+      console.error("[Redis Write Error]", err.message);
+    }
 
     return res.json({ admins, fromCache: false });
   } catch (err) {
