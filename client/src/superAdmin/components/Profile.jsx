@@ -116,27 +116,87 @@ export default function Profile() {
     setSaving(false);
   };
 
+  // const handleLogoUpload = async () => {
+  //   if (!logo) return showToast("Please select a file", "error");
+  //   setSaving(true);
+  //   try {
+  //     const formData = new FormData();
+  //     formData.append("logo", logo);
+  //     const res = await fetch(`${API_URL}/api/superadmin/profile/upload-logo`, {
+  //       method: "PUT",
+  //       headers: authHeaders(),
+  //       body: formData,
+  //     });
+  //     if (!res.ok) throw new Error();
+  //     showToast("Logo uploaded successfully");
+  //     await fetchLogo();
+  //     setPreview(null);
+  //     setLogo(null);
+  //   } catch {
+  //     showToast("Failed to upload logo", "error");
+  //   }
+  //   setSaving(false);
+  // };
+  
   const handleLogoUpload = async () => {
-    if (!logo) return showToast("Please select a file", "error");
-    setSaving(true);
-    try {
-      const formData = new FormData();
-      formData.append("logo", logo);
-      const res = await fetch(`${API_URL}/api/superadmin/profile/upload-logo`, {
+  if (!logo) {
+    return showToast("Please select a file", "error");
+  }
+
+  setSaving(true);
+
+  try {
+    console.log("========== LOGO UPLOAD ==========");
+    console.log("File Name:", logo.name);
+    console.log("File Type:", logo.type);
+    console.log("File Size:", logo.size);
+
+    const formData = new FormData();
+    formData.append("logo", logo);
+
+    const res = await fetch(
+      `${API_URL}/api/superadmin/profile/upload-logo`,
+      {
         method: "PUT",
         headers: authHeaders(),
         body: formData,
-      });
-      if (!res.ok) throw new Error();
-      showToast("Logo uploaded successfully");
-      await fetchLogo();
-      setPreview(null);
-      setLogo(null);
+      }
+    );
+
+    let data = {};
+
+    try {
+      data = await res.json();
     } catch {
-      showToast("Failed to upload logo", "error");
+      console.warn("Response is not JSON");
     }
+
+    console.log("Status:", res.status);
+    console.log("Response:", data);
+
+    if (!res.ok) {
+      throw new Error(
+        data?.message || `Upload failed (${res.status})`
+      );
+    }
+
+    showToast("Logo uploaded successfully");
+
+    await fetchLogo();
+
+    setPreview(null);
+    setLogo(null);
+  } catch (err) {
+    console.error("Upload Error:", err);
+
+    showToast(
+      err.message || "Failed to upload logo",
+      "error"
+    );
+  } finally {
     setSaving(false);
-  };
+  }
+};
 
   const handleSendOtp = async () => {
     setSendingOtp(true);
