@@ -3,8 +3,15 @@ import { createClient } from "redis";
  
 const redisUrl = process.env.REDIS_URL;
  
-let redisClient = null;
- 
+// let redisClient = null;
+
+let redisClient = {
+  isReady: false,
+  get: async () => null,
+  setEx: async () => null,
+  del: async () => null,
+};
+
 if (redisUrl) {
   redisClient = createClient({
     url: redisUrl,
