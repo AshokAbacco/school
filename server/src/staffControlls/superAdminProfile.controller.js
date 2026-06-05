@@ -77,75 +77,170 @@ export const changePassword = async (req, res) => {
 // ─────────────────────────────────────────
 // ✅ UPLOAD SCHOOL LOGO (PRIVATE R2)
 // ─────────────────────────────────────────
+// export const updateSchoolLogo = async (req, res) => {
+//   try {
+//     const file = req.file;
+
+//     if (!file) {
+//       return res.status(400).json({ message: "Logo file required" });
+//     }
+
+//     // 1️⃣ Get school linked to super admin
+//     const access = await prisma.superAdminSchoolAccess.findFirst({
+//       where: { superAdminId: req.user.id },
+//       select: { schoolId: true },
+//     });
+
+//     if (!access?.schoolId) {
+//       return res.status(400).json({ message: "No school linked" });
+//     }
+
+//     const schoolId = access.schoolId;
+
+//         // 2️⃣ Generate unique file key
+//       const extMap = {
+//       "image/jpeg": "jpg",
+//       "image/png": "png",
+//       "image/webp": "webp",
+//     };
+
+//       if (!file.mimetype.startsWith("image/")) {
+//         return res.status(400).json({ message: "Only image files allowed" });
+//       }
+
+//     const fileExt = extMap[file.mimetype] || "jpg";
+//     const fileKey = `schools/${schoolId}/logo-${Date.now()}.${fileExt}`;
+
+//     // 3️⃣ Upload to R2 (private)
+// // get existing logo
+// const existing = await prisma.school.findUnique({
+//   where: { id: schoolId },
+//   select: { logoUrl: true },
+// });
+
+// // upload new
+// await uploadToR2(fileKey, file.buffer, file.mimetype);
+
+// // delete old (if exists)
+// if (existing?.logoUrl) {
+//   try {
+//     await deleteFromR2(existing.logoUrl);
+//   } catch (e) {
+//     console.warn("Old logo delete failed:", e.message);
+//   }
+// }
+
+// // save new key
+// await prisma.school.update({
+//   where: { id: schoolId },
+//   data: { logoUrl: fileKey },
+// });
+
+//     res.json({
+//       message: "Logo uploaded successfully",
+//       key: fileKey,
+//     });
+//   } catch (err) {
+//     console.error("[updateSchoolLogo]", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
 export const updateSchoolLogo = async (req, res) => {
   try {
+    console.log("========== LOGO UPLOAD ==========");
+    console.log("USER ID:", req.user?.id);
+    console.log("FILE:", req.file);
+
     const file = req.file;
 
     if (!file) {
-      return res.status(400).json({ message: "Logo file required" });
+      return res.status(400).json({
+        message: "Logo file required",
+      });
     }
 
-    // 1️⃣ Get school linked to super admin
+    console.log("FILE NAME:", file.originalname);
+    console.log("FILE TYPE:", file.mimetype);
+    console.log("FILE SIZE:", file.size);
+
     const access = await prisma.superAdminSchoolAccess.findFirst({
       where: { superAdminId: req.user.id },
       select: { schoolId: true },
     });
 
+    console.log("SCHOOL ACCESS:", access);
+
     if (!access?.schoolId) {
-      return res.status(400).json({ message: "No school linked" });
+      return res.status(400).json({
+        message: "No school linked",
+      });
     }
 
     const schoolId = access.schoolId;
 
-        // 2️⃣ Generate unique file key
-      const extMap = {
+    const extMap = {
       "image/jpeg": "jpg",
       "image/png": "png",
       "image/webp": "webp",
+      "image/gif": "gif",
+      "image/heic": "heic",
+      "image/heif": "heif",
     };
 
-      if (!file.mimetype.startsWith("image/")) {
-        return res.status(400).json({ message: "Only image files allowed" });
-      }
+    if (!file.mimetype.startsWith("image/")) {
+      return res.status(400).json({
+        message: "Only image files allowed",
+      });
+    }
 
     const fileExt = extMap[file.mimetype] || "jpg";
+
     const fileKey = `schools/${schoolId}/logo-${Date.now()}.${fileExt}`;
 
-    // 3️⃣ Upload to R2 (private)
-// get existing logo
-const existing = await prisma.school.findUnique({
-  where: { id: schoolId },
-  select: { logoUrl: true },
-});
+    const existing = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { logoUrl: true },
+    });
 
-// upload new
-await uploadToR2(fileKey, file.buffer, file.mimetype);
+    console.log("OLD LOGO:", existing?.logoUrl);
 
-// delete old (if exists)
-if (existing?.logoUrl) {
-  try {
-    await deleteFromR2(existing.logoUrl);
-  } catch (e) {
-    console.warn("Old logo delete failed:", e.message);
-  }
-}
+    await uploadToR2(
+      fileKey,
+      file.buffer,
+      file.mimetype
+    );
 
-// save new key
-await prisma.school.update({
-  where: { id: schoolId },
-  data: { logoUrl: fileKey },
-});
+    if (existing?.logoUrl) {
+      try {
+        await deleteFromR2(existing.logoUrl);
+      } catch (e) {
+        console.warn("OLD LOGO DELETE FAILED:", e.message);
+      }
+    }
 
-    res.json({
+    await prisma.school.update({
+      where: { id: schoolId },
+      data: {
+        logoUrl: fileKey,
+      },
+    });
+
+    console.log("NEW LOGO SAVED:", fileKey);
+
+    return res.json({
+      success: true,
       message: "Logo uploaded successfully",
       key: fileKey,
     });
+
   } catch (err) {
     console.error("[updateSchoolLogo]", err);
-    res.status(500).json({ message: "Server error" });
+
+    return res.status(500).json({
+      message: err.message || "Server error",
+    });
   }
 };
-
 // ─────────────────────────────────────────
 // ✅ GET SCHOOL LOGO (SIGNED URL)
 // ─────────────────────────────────────────
