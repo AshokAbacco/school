@@ -6,7 +6,7 @@ import PaymentModal from "./Payment";
 const plan = {
   id: "premium",
   name: "Premium",
-  price: 300,
+  price: 150,
   tagline: "Complete school management solution — everything included, no limits",
   icon: Crown,
   badge: "Full Access",
