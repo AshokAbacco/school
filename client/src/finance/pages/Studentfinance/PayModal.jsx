@@ -364,11 +364,29 @@ export function PayModal({ student, onClose, onPaymentDone }) {
         paymentStatus:  newTotalPaid >= totalFees ? "PAID" : "PARTIAL",
       };
     }
-    // FULL
+    // FULL — when paying full fees, distribute to school+tuition proportionally
+    // so that filtering by School Fee / Tuition Fee also shows them as paid.
+    const isFullyPaid = newTotalPaid >= totalFees;
+    const extraFields = {};
+    if (isFullyPaid) {
+      // Mark both sub-categories fully paid
+      if (schoolFee > 0)  extraFields.schoolFeePaid  = schoolFee;
+      if (tuitionFee > 0) extraFields.tuitionFeePaid = tuitionFee;
+    } else {
+      // Partial full payment: distribute proportionally across sub-fees
+      // Priority: fill schoolFee first, then tuitionFee
+      if (schoolFee > 0 || tuitionFee > 0) {
+        const newSchoolPaid  = Math.min(schoolFee,  newTotalPaid);
+        const newTuitionPaid = Math.min(tuitionFee, Math.max(0, newTotalPaid - newSchoolPaid));
+        extraFields.schoolFeePaid  = newSchoolPaid;
+        extraFields.tuitionFeePaid = newTuitionPaid;
+      }
+    }
     return {
       ...base,
+      ...extraFields,
       paidAmount:    newTotalPaid,
-      paymentStatus: newTotalPaid >= totalFees ? "PAID" : "PARTIAL",
+      paymentStatus: isFullyPaid ? "PAID" : "PARTIAL",
     };
   };
 
@@ -396,6 +414,18 @@ export function PayModal({ student, onClose, onPaymentDone }) {
       // optimistic updates
       if (category === "SCHOOL")       setLiveSchoolPaid(newCatPaid);
       else if (category === "TUITION") setLiveTuitionPaid(newCatPaid);
+      else {
+        // FULL: also update sub-category paid amounts
+        if (newTotalPaid >= totalFees) {
+          if (schoolFee > 0)  setLiveSchoolPaid(schoolFee);
+          if (tuitionFee > 0) setLiveTuitionPaid(tuitionFee);
+        } else {
+          const newSchoolPaid  = Math.min(schoolFee,  newTotalPaid);
+          const newTuitionPaid = Math.min(tuitionFee, Math.max(0, newTotalPaid - newSchoolPaid));
+          setLiveSchoolPaid(newSchoolPaid);
+          setLiveTuitionPaid(newTuitionPaid);
+        }
+      }
       setLivePaid(newTotalPaid);
 
       setFullDone(true);
@@ -419,6 +449,18 @@ export function PayModal({ student, onClose, onPaymentDone }) {
 
       if (category === "SCHOOL")       setLiveSchoolPaid(newCatPaid);
       else if (category === "TUITION") setLiveTuitionPaid(newCatPaid);
+      else {
+        // FULL: distribute to sub-categories
+        if (newTotalPaid >= totalFees) {
+          if (schoolFee > 0)  setLiveSchoolPaid(schoolFee);
+          if (tuitionFee > 0) setLiveTuitionPaid(tuitionFee);
+        } else {
+          const newSchoolPaid  = Math.min(schoolFee,  newTotalPaid);
+          const newTuitionPaid = Math.min(tuitionFee, Math.max(0, newTotalPaid - newSchoolPaid));
+          setLiveSchoolPaid(newSchoolPaid);
+          setLiveTuitionPaid(newTuitionPaid);
+        }
+      }
       setLivePaid(newTotalPaid);
 
       setCustomAmt(""); setFullDone(true);
@@ -449,6 +491,18 @@ export function PayModal({ student, onClose, onPaymentDone }) {
 
       if (category === "SCHOOL")       setLiveSchoolPaid(newCatPaid);
       else if (category === "TUITION") setLiveTuitionPaid(newCatPaid);
+      else {
+        // FULL: distribute to sub-categories
+        if (newTotalPaid >= totalFees) {
+          if (schoolFee > 0)  setLiveSchoolPaid(schoolFee);
+          if (tuitionFee > 0) setLiveTuitionPaid(tuitionFee);
+        } else {
+          const newSchoolPaid  = Math.min(schoolFee,  newTotalPaid);
+          const newTuitionPaid = Math.min(tuitionFee, Math.max(0, newTotalPaid - newSchoolPaid));
+          setLiveSchoolPaid(newSchoolPaid);
+          setLiveTuitionPaid(newTuitionPaid);
+        }
+      }
       setLivePaid(newTotalPaid);
 
       setEmiList(updatedList);
