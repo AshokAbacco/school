@@ -2,14 +2,14 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   CalendarDays, Plus, Trash2, Pencil, X,
-  Loader2, Building2, GraduationCap, AlertCircle, Check, RefreshCw,
+  Loader2, Building2, GraduationCap, AlertCircle, Check, RefreshCw, FileSpreadsheet,
 } from "lucide-react";
 import { getToken } from "../../../auth/storage";
+import HolidayBulkImport from "./HolidayBulkImport";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const BASE = `${API_URL}/api`;
 
-// ─── Design tokens — matches CurriculumPage / AwardsPage exactly ─────────────
 const C = {
   slate:       "#6A89A7",
   mist:        "#BDDDFC",
@@ -46,46 +46,38 @@ function formatSchoolDate(start, end) {
   return s === e ? s : `${s} – ${e}`;
 }
 
-// ── Pulse skeleton ────────────────────────────────────────────────────────────
 function Pulse({ w = "100%", h = 13, r = 8 }) {
   return <div className="animate-pulse" style={{ width: w, height: h, borderRadius: r, background: `${C.mist}55` }} />;
 }
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
 function Toast({ msg, type, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
   return (
     <div style={{
-      position: "fixed", bottom: 24, right: 24, zIndex: 9999,
-      display: "flex", alignItems: "center", gap: 10,
-      padding: "12px 16px", borderRadius: 14,
-      boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
-      background: type === "error" ? "#FFF1F2" : "#F0FDF4",
-      color:      type === "error" ? "#BE123C"  : "#15803D",
-      border:     `1px solid ${type === "error" ? "#FECDD3" : "#86EFAC"}`,
-      fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif",
-      minWidth: 240,
+      position: "fixed", bottom: 16, right: 16, left: 16, zIndex: 9999,
+      display: "flex", alignItems: "center", gap: 10, maxWidth: 340, margin: "0 auto",
+      padding: "12px 16px", borderRadius: 14, boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
+      background: type === "error" ? "#FFF1F2" : "#F0FDF4", color: type === "error" ? "#BE123C" : "#15803D",
+      border: `1px solid ${type === "error" ? "#FECDD3" : "#86EFAC"}`, fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif",
     }}>
       {type === "error" ? <AlertCircle size={15} /> : <Check size={15} />}
       <span style={{ flex: 1 }}>{msg}</span>
-      <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", opacity: 0.6, display: "flex" }}>
+      <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", opacity: 0.6 }}>
         <X size={14} />
       </button>
     </div>
   );
 }
 
-// ── Field wrapper ─────────────────────────────────────────────────────────────
 function Field({ label, children }) {
   return (
-    <div>
+    <div style={{ width: "100%" }}>
       <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6, color: C.textLight, fontFamily: "'Inter', sans-serif" }}>{label}</label>
       {children}
     </div>
   );
 }
 
-// ── Modal input style ─────────────────────────────────────────────────────────
 const inputStyle = {
   width: "100%", padding: "9px 12px", borderRadius: 10,
   border: `1.5px solid ${C.border}`, fontSize: 13, color: C.text,
@@ -93,7 +85,6 @@ const inputStyle = {
   transition: "border-color 0.15s",
 };
 
-// ── Add / Edit Modal ──────────────────────────────────────────────────────────
 const EMPTY_FORM = {
   title: "", description: "", type: "GOVERNMENT",
   month: "", day: "", startDate: "", endDate: "", academicYearId: "",
@@ -103,14 +94,13 @@ function HolidayModal({ holiday, academicYears, onClose, onSaved }) {
   const isEdit = !!holiday;
   const [form, setForm] = useState(isEdit ? {
     title: holiday.title || "", description: holiday.description || "",
-    type: holiday.type || "GOVERNMENT",
-    month: holiday.month || "", day: holiday.day || "",
+    type: holiday.type || "GOVERNMENT", month: holiday.month || "", day: holiday.day || "",
     startDate: holiday.startDate ? holiday.startDate.split("T")[0] : "",
     endDate:   holiday.endDate   ? holiday.endDate.split("T")[0]   : "",
     academicYearId: holiday.academicYearId || "",
   } : { ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
+  const [err, setErr]       = useState("");
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async () => {
@@ -119,15 +109,13 @@ function HolidayModal({ holiday, academicYears, onClose, onSaved }) {
     if (form.type === "GOVERNMENT") {
       if (!form.month || !form.day) return setErr("Month and day are required.");
     } else {
-      if (!form.startDate) return setErr("Start date is required.");
+      if (!form.startDate)      return setErr("Start date is required.");
       if (!form.academicYearId) return setErr("Academic year is required.");
     }
     setSaving(true);
     try {
       const body = {
-        title: form.title.trim(),
-        description: form.description.trim() || null,
-        type: form.type,
+        title: form.title.trim(), description: form.description.trim() || null, type: form.type,
         ...(form.type === "GOVERNMENT"
           ? { month: Number(form.month), day: Number(form.day) }
           : { startDate: form.startDate, endDate: form.endDate || null, academicYearId: form.academicYearId }),
@@ -142,47 +130,37 @@ function HolidayModal({ holiday, academicYears, onClose, onSaved }) {
     } finally { setSaving(false); }
   };
 
-  const cardWrap = { background: C.white, borderRadius: 20, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 24px 64px rgba(56,73,89,0.18)", width: "100%", maxWidth: 480 };
-
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)" }}
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 12, background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)" }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={cardWrap}>
-
-        {/* Header — same pattern as CurriculumPage cards */}
-        <div style={{ padding: "14px 20px", background: `linear-gradient(90deg, ${C.bg}, ${C.white})`, borderBottom: `1.5px solid ${C.borderLight}`, borderRadius: "20px 20px 0 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ background: C.white, borderRadius: 20, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 24px 64px rgba(56,73,89,0.18)", width: "100%", maxWidth: 460, maxHeight: "96vh", display: "flex", flexDirection: "column" }}>
+        
+        <div style={{ padding: "14px 16px", background: `linear-gradient(90deg, ${C.bg}, ${C.white})`, borderBottom: `1.5px solid ${C.borderLight}`, borderRadius: "20px 20px 0 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <CalendarDays size={16} color="#fff" />
             </div>
             <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text, fontFamily: "'Inter', sans-serif" }}>{isEdit ? "Edit Holiday" : "Add Holiday"}</p>
-              <p style={{ margin: 0, fontSize: 11, color: C.textLight, fontFamily: "'Inter', sans-serif" }}>{isEdit ? "Update holiday details" : "Create a new holiday entry"}</p>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text }}>{isEdit ? "Edit Holiday" : "Add Holiday"}</p>
             </div>
           </div>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1.5px solid ${C.border}`, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: C.textLight }}>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1.5px solid ${C.border}`, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.textLight }}>
             <X size={14} />
           </button>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Type toggle */}
+        <div style={{ padding: 16, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 8, color: C.textLight, fontFamily: "'Inter', sans-serif" }}>Holiday Type</label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6, color: C.textLight }}>Holiday Type</label>
             <div style={{ display: "flex", gap: 8 }}>
               {[
                 { key: "GOVERNMENT", label: "Government", Icon: Building2 },
                 { key: "SCHOOL",     label: "School",     Icon: GraduationCap },
               ].map(({ key, label, Icon }) => (
                 <button key={key} onClick={() => set("type", key)} style={{
-                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  padding: "9px 0", borderRadius: 10, cursor: "pointer",
-                  fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 700,
-                  background: form.type === key ? `linear-gradient(135deg, ${C.slate}, ${C.deep})` : C.bg,
-                  color: form.type === key ? "#fff" : C.textLight,
-                  border: `1.5px solid ${form.type === key ? C.deep : C.border}`,
-                  transition: "all 0.15s",
+                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                  background: form.type === key ? `linear-gradient(135deg, ${C.slate}, ${C.deep})` : C.bg, color: form.type === key ? "#fff" : C.textLight,
+                  border: `1.5px solid ${form.type === key ? C.deep : C.border}`, transition: "all 0.15s",
                 }}>
                   <Icon size={13} /> {label}
                 </button>
@@ -191,21 +169,15 @@ function HolidayModal({ holiday, academicYears, onClose, onSaved }) {
           </div>
 
           <Field label="Title *">
-            <input type="text" value={form.title} onChange={e => set("title", e.target.value)}
-              placeholder="e.g. Independence Day" style={inputStyle}
-              onFocus={e => e.target.style.borderColor = C.sky}
-              onBlur={e  => e.target.style.borderColor = C.border} />
+            <input type="text" value={form.title} onChange={e => set("title", e.target.value)} placeholder="e.g. Independence Day" style={inputStyle} />
           </Field>
 
           <Field label="Description">
-            <input type="text" value={form.description} onChange={e => set("description", e.target.value)}
-              placeholder="Optional note" style={inputStyle}
-              onFocus={e => e.target.style.borderColor = C.sky}
-              onBlur={e  => e.target.style.borderColor = C.border} />
+            <input type="text" value={form.description} onChange={e => set("description", e.target.value)} placeholder="Optional note" style={inputStyle} />
           </Field>
 
           {form.type === "GOVERNMENT" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "flex", gap: 10 }}>
               <Field label="Month *">
                 <select value={form.month} onChange={e => set("month", e.target.value)} style={inputStyle}>
                   <option value="">Select</option>
@@ -213,10 +185,7 @@ function HolidayModal({ holiday, academicYears, onClose, onSaved }) {
                 </select>
               </Field>
               <Field label="Day *">
-                <input type="number" min={1} max={31} value={form.day}
-                  onChange={e => set("day", e.target.value)} placeholder="1–31" style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = C.sky}
-                  onBlur={e  => e.target.style.borderColor = C.border} />
+                <input type="number" min={1} max={31} value={form.day} onChange={e => set("day", e.target.value)} placeholder="1–31" style={inputStyle} />
               </Field>
             </div>
           )}
@@ -229,43 +198,28 @@ function HolidayModal({ holiday, academicYears, onClose, onSaved }) {
                   {academicYears.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
                 </select>
               </Field>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ display: "flex", gap: 10 }}>
                 <Field label="Start Date *">
-                  <input type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} style={inputStyle}
-                    onFocus={e => e.target.style.borderColor = C.sky}
-                    onBlur={e  => e.target.style.borderColor = C.border} />
+                  <input type="date" value={form.startDate} onChange={e => set("startDate", e.target.value)} style={inputStyle} />
                 </Field>
                 <Field label="End Date">
-                  <input type="date" value={form.endDate} min={form.startDate}
-                    onChange={e => set("endDate", e.target.value)} style={inputStyle}
-                    onFocus={e => e.target.style.borderColor = C.sky}
-                    onBlur={e  => e.target.style.borderColor = C.border} />
+                  <input type="date" value={form.endDate} min={form.startDate} onChange={e => set("endDate", e.target.value)} style={inputStyle} />
                 </Field>
               </div>
             </>
           )}
 
           {err && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: "#FFF1F2", border: "1px solid #FECDD3", fontSize: 12, fontWeight: 600, color: "#BE123C", fontFamily: "'Inter', sans-serif" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px", borderRadius: 10, background: "#FFF1F2", border: "1px solid #FECDD3", fontSize: 12, fontWeight: 600, color: "#BE123C" }}>
               <AlertCircle size={13} /> {err}
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div style={{ padding: "14px 20px", borderTop: `1.5px solid ${C.borderLight}`, display: "flex", gap: 10, borderRadius: "0 0 20px 20px" }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: C.bg, color: C.textLight, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            Cancel
-          </button>
-          <button onClick={handleSubmit} disabled={saving} style={{
-            flex: 2, padding: "10px", borderRadius: 10, border: "none",
-            background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
-            color: "#fff", fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 700,
-            cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.75 : 1,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}>
-            {saving && <Loader2 size={13} className="animate-spin" />}
-            {isEdit ? "Save Changes" : "Add Holiday"}
+        <div style={{ padding: 14, borderTop: `1.5px solid ${C.borderLight}`, display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: C.bg, color: C.textLight, fontSize: 13, fontWeight: 600 }}>Cancel</button>
+          <button onClick={handleSubmit} disabled={saving} style={{ flex: 2, padding: "10px", borderRadius: 10, border: "none", background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`, color: "#fff", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            {saving && <Loader2 size={13} className="animate-spin" />} {isEdit ? "Save Changes" : "Add Holiday"}
           </button>
         </div>
       </div>
@@ -273,7 +227,6 @@ function HolidayModal({ holiday, academicYears, onClose, onSaved }) {
   );
 }
 
-// ── Delete Dialog ─────────────────────────────────────────────────────────────
 function DeleteDialog({ holiday, onClose, onDeleted }) {
   const [loading, setLoading] = useState(false);
   const handleDelete = async () => {
@@ -287,25 +240,15 @@ function DeleteDialog({ holiday, onClose, onDeleted }) {
   };
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(36,51,64,0.45)", backdropFilter: "blur(4px)" }}>
-      <div style={{ background: C.white, borderRadius: 20, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 24px 64px rgba(56,73,89,0.18)", width: "100%", maxWidth: 360, padding: "28px 24px", textAlign: "center" }}>
-        <div style={{ width: 52, height: 52, borderRadius: 16, background: "#FFF1F2", border: "1px solid #FECDD3", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-          <Trash2 size={22} color="#BE123C" />
+      <div style={{ background: C.white, borderRadius: 20, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 24px 64px rgba(56,73,89,0.18)", width: "100%", maxWidth: 350, padding: 20, textAlign: "center" }}>
+        <div style={{ width: 44, height: 44, borderRadius: 14, background: "#FFF1F2", border: "1px solid #FECDD3", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+          <Trash2 size={20} color="#BE123C" />
         </div>
-        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 15, fontWeight: 800, color: C.text, margin: "0 0 6px" }}>Delete Holiday?</p>
-        <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: C.textLight, margin: "0 0 24px" }}>
-          <strong>"{holiday.title}"</strong> will be permanently removed.
-        </p>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: C.bg, color: C.textLight, fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            Cancel
-          </button>
-          <button onClick={handleDelete} disabled={loading} style={{
-            flex: 1, padding: "10px", borderRadius: 10, border: "none",
-            background: "#BE123C", color: "#fff",
-            fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 700,
-            cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.75 : 1,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}>
+        <p style={{ fontSize: 15, fontWeight: 800, color: C.text, margin: "0 0 4px" }}>Delete Holiday?</p>
+        <p style={{ fontSize: 12, color: C.textLight, margin: "0 0 16px" }}>"{holiday.title}" will be permanently removed.</p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: C.bg, color: C.textLight, fontSize: 13, fontWeight: 600 }}>Cancel</button>
+          <button onClick={handleDelete} disabled={loading} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "#BE123C", color: "#fff", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             {loading && <Loader2 size={13} className="animate-spin" />} Delete
           </button>
         </div>
@@ -314,53 +257,42 @@ function DeleteDialog({ holiday, onClose, onDeleted }) {
   );
 }
 
-// ── Holiday Table ─────────────────────────────────────────────────────────────
 function HolidayTable({ holidays, dateCell, dateLabel, yearCol, academicYears = [], onEdit, onDelete }) {
   const yearMap = useMemo(() => {
     const m = {}; academicYears.forEach(y => { m[y.id] = y.name; }); return m;
   }, [academicYears]);
 
   return (
-    <div style={{ overflowX: "auto" }}>
+    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "'Inter', sans-serif" }}>
         <thead>
           <tr style={{ borderBottom: `1.5px solid ${C.borderLight}`, background: C.bg }}>
             {["Title", dateLabel, ...(yearCol ? ["Academic Year"] : []), "Description", "Actions"].map(h => (
-              <th key={h} style={{ padding: "11px 18px", textAlign: "left", fontSize: 11, fontWeight: 700, color: C.textLight, letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
+              <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontSize: 10, fontWeight: 700, color: C.textLight, letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {holidays.map((h, i) => (
-            <tr key={h.id}
-              style={{ borderBottom: `1px solid ${C.borderLight}`, background: i % 2 === 0 ? C.white : `${C.mist}08`, transition: "background 0.12s", cursor: "default" }}
-              onMouseEnter={e => e.currentTarget.style.background = `${C.sky}10`}
-              onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? C.white : `${C.mist}08`}>
-              {/* Title */}
-              <td style={{ padding: "12px 18px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 9, background: `linear-gradient(135deg, ${C.sky}33, ${C.mist}55)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <CalendarDays size={14} color={C.slate} />
+            <tr key={h.id} style={{ borderBottom: `1px solid ${C.borderLight}`, background: i % 2 === 0 ? C.white : `${C.mist}08` }}>
+              <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg, ${C.sky}33, ${C.mist}55)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <CalendarDays size={13} color={C.slate} />
                   </div>
                   <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{h.title}</span>
                 </div>
               </td>
-              {/* Date */}
-              <td style={{ padding: "12px 18px", fontSize: 13, fontWeight: 500, color: C.textLight, whiteSpace: "nowrap" }}>{dateCell(h)}</td>
-              {/* Year */}
-              {yearCol && <td style={{ padding: "12px 18px", fontSize: 13, color: C.textLight }}>{yearMap[h.academicYearId] || "—"}</td>}
-              {/* Description */}
-              <td style={{ padding: "12px 18px", fontSize: 12, color: C.textLight, fontStyle: h.description ? "normal" : "italic" }}>
-                {h.description || "—"}
-              </td>
-              {/* Actions */}
-              <td style={{ padding: "12px 18px" }}>
+              <td style={{ padding: "12px 14px", fontSize: 12, fontWeight: 500, color: C.textLight, whiteSpace: "nowrap" }}>{dateCell(h)}</td>
+              {yearCol && <td style={{ padding: "12px 14px", fontSize: 12, color: C.textLight, whiteSpace: "nowrap" }}>{yearMap[h.academicYearId] || "—"}</td>}
+              <td style={{ padding: "12px 14px", fontSize: 12, color: C.textLight, minWidth: 140 }}>{h.description || "—"}</td>
+              <td style={{ padding: "12px 14px" }}>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => onEdit(h)} title="Edit" style={{ width: 30, height: 30, borderRadius: 8, border: `1.5px solid ${C.border}`, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                    <Pencil size={12} color={C.slate} />
+                  <button onClick={() => onEdit(h)} style={{ width: 28, height: 28, borderRadius: 6, border: `1.5px solid ${C.border}`, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Pencil size={11} color={C.slate} />
                   </button>
-                  <button onClick={() => onDelete(h)} title="Delete" style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid #FECDD3", background: "#FFF1F2", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                    <Trash2 size={12} color="#BE123C" />
+                  <button onClick={() => onDelete(h)} style={{ width: 28, height: 28, borderRadius: 6, border: "1.5px solid #FECDD3", background: "#FFF1F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Trash2 size={11} color="#BE123C" />
                   </button>
                 </div>
               </td>
@@ -372,9 +304,6 @@ function HolidayTable({ holidays, dateCell, dateLabel, yearCol, academicYears = 
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN PAGE
-// ═══════════════════════════════════════════════════════════════════════════════
 export default function HolidayList() {
   const [holidays, setHolidays]           = useState([]);
   const [academicYears, setAcademicYears] = useState([]);
@@ -385,6 +314,7 @@ export default function HolidayList() {
   const [modalHoliday, setModalHoliday]   = useState(undefined);
   const [deleteHoliday, setDeleteHoliday] = useState(null);
   const [toast, setToast]                 = useState(null);
+  const [bulkModal, setBulkModal]         = useState(false);
 
   const showToast = (msg, type = "success") => setToast({ msg, type });
 
@@ -437,14 +367,13 @@ export default function HolidayList() {
 
   const cardWrap = { background: C.white, borderRadius: 18, border: `1.5px solid ${C.borderLight}`, boxShadow: "0 2px 16px rgba(56,73,89,0.06)", overflow: "hidden" };
 
-  // ── Section card header (same as Curriculum/Awards) ──
   const sectionHeader = (Icon, title, count) => (
-    <div style={{ padding: "14px 18px", background: `linear-gradient(90deg, ${C.bg}, ${C.white})`, borderBottom: `1.5px solid ${C.borderLight}`, display: "flex", alignItems: "center", gap: 10 }}>
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Icon size={16} color="#fff" />
+    <div style={{ padding: "12px 14px", background: `linear-gradient(90deg, ${C.bg}, ${C.white})`, borderBottom: `1.5px solid ${C.borderLight}`, display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ width: 30, height: 30, borderRadius: 8, background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Icon size={14} color="#fff" />
       </div>
-      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text, fontFamily: "'Inter', sans-serif", flex: 1 }}>{title}</p>
-      <span style={{ background: `${C.mist}66`, color: C.textLight, borderRadius: 99, padding: "2px 10px", fontSize: 11, fontWeight: 700, fontFamily: "'Inter', sans-serif" }}>{count}</span>
+      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.text, flex: 1 }}>{title}</p>
+      <span style={{ background: `${C.mist}66`, color: C.textLight, borderRadius: 99, padding: "1px 8px", fontSize: 11, fontWeight: 700 }}>{count}</span>
     </div>
   );
 
@@ -452,175 +381,114 @@ export default function HolidayList() {
     <>
       <style>{`
         * { box-sizing: border-box; }
-        @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         @keyframes hl-spin { to { transform: rotate(360deg); } }
         .hl-spinning { animation: hl-spin 0.6s linear; }
-        .hl-fade { animation: fadeUp 0.45s ease forwards; }
-        .hl-page { padding: 20px 16px; }
-        .hl-stats { grid-template-columns: repeat(2, 1fr); }
-        @media (min-width: 480px)  { .hl-page { padding: 20px 20px; } }
-        @media (min-width: 640px)  { .hl-stats { grid-template-columns: repeat(3, 1fr); } }
-        @media (min-width: 768px)  { .hl-page { padding: 24px 28px; } }
-        @media (min-width: 1024px) { .hl-page { padding: 28px 32px; } }
+        .hl-fade { animation: fadeUp 0.3s ease forwards; }
+        
+        /* Responsive Framework Utilities */
+        .hl-page-container { padding: 14px; }
+        .hl-header-block { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+        .hl-actions-cluster { display: flex; flex-wrap: wrap; alignItems: center; gap: 8px; width: 100%; }
+        .hl-stats-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 16px; }
+        .hl-filter-row { display: flex; flex-direction: column; gap: 10px; padding: 12px; margin-bottom: 16px; }
+
+        @media (min-width: 480px) {
+          .hl-stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (min-width: 768px) {
+          .hl-page-container { padding: 24px; }
+          .hl-header-block { flex-direction: row; justify-content: space-between; align-items: center; }
+          .hl-actions-cluster { width: auto; }
+          .hl-stats-grid { grid-template-columns: repeat(3, 1fr); }
+          .hl-filter-row { flex-direction: row; align-items: center; justify-content: space-between; }
+        }
       `}</style>
 
-      <div className="hl-page" style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Inter', sans-serif" }}>
+      <div className="hl-page-container" style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Inter', sans-serif" }}>
 
-        {/* ── Header ── */}
-        <div style={{ marginBottom: 24 }} className="hl-fade">
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 5 }}>
-                <div style={{ width: 4, height: 28, borderRadius: 99, background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`, flexShrink: 0 }} />
-                <h1 style={{ margin: 0, fontSize: "clamp(18px, 5vw, 26px)", fontWeight: 800, color: C.text, letterSpacing: "-0.5px", fontFamily: "'Inter', sans-serif" }}>
-                  Holiday Management
-                </h1>
-              </div>
-              <p style={{ margin: 0, paddingLeft: 14, fontSize: 12, color: C.textLight, fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>
-                Manage government and school holidays for attendance tracking
-              </p>
+        {/* Header Block */}
+        <div className="hl-header-block hl-fade">
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+              <div style={{ width: 4, height: 22, borderRadius: 99, background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`, flexShrink: 0 }} />
+              <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: C.text, letterSpacing: "-0.5px" }}>
+                Holidays
+              </h1>
             </div>
+            <p style={{ margin: 0, paddingLeft: 12, fontSize: 12, color: C.textLight }}>Configure corporate and academic calendars</p>
+          </div>
 
-            {/* Action buttons */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              {/* Refresh */}
-              <button
-                onClick={handleRefresh}
-                disabled={loading}
-                title="Refresh"
-                style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  border: `1.5px solid ${C.borderLight}`,
-                  background: C.white,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  color: C.textLight,
-                  flexShrink: 0,
-                }}
-                onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = `${C.mist}55`; e.currentTarget.style.borderColor = C.border; }}}
-                onMouseLeave={e => { e.currentTarget.style.background = C.white; e.currentTarget.style.borderColor = C.borderLight; }}
-              >
-                <RefreshCw size={14} className={spinning ? "hl-spinning" : ""} />
-              </button>
-
-              {/* Add Holiday */}
-              <button onClick={() => setModalHoliday(null)} style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "9px 16px", borderRadius: 12, border: "none",
-                background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
-                color: "#fff", fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 700,
-                cursor: "pointer", whiteSpace: "nowrap",
-                boxShadow: `0 4px 12px ${C.deep}33`,
-              }}>
-                <Plus size={15} /> Add Holiday
-              </button>
-            </div>
+          <div className="hl-actions-cluster">
+            <button onClick={handleRefresh} disabled={loading} style={{ width: 34, height: 34, borderRadius: 10, border: `1.5px solid ${C.borderLight}`, background: C.white, display: "flex", alignItems: "center", justifyContent: "center", color: C.textLight }}>
+              <RefreshCw size={13} className={spinning ? "hl-spinning" : ""} />
+            </button>
+            <button onClick={() => setBulkModal(true)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", borderRadius: 10, border: `1.5px solid ${C.border}`, background: C.white, color: C.deep, fontSize: 12, fontWeight: 700, cursor: "pointer", flex: 1, justifyContent: "center" }}>
+              <FileSpreadsheet size={14} /> Bulk Import
+            </button>
+            <button onClick={() => setModalHoliday(null)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 10, border: "none", background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", flex: 1, justifyContent: "center" }}>
+              <Plus size={14} /> Add Holiday
+            </button>
           </div>
         </div>
 
-        {/* ── Stat Cards ── */}
-        <div className="hl-stats hl-fade" style={{ display: "grid", gap: 14, marginBottom: 20, animationDelay: "0.05s" }}>
+        {/* Stats Grid */}
+        <div className="hl-stats-grid hl-fade">
           {[
             { label: "Total Holidays", value: holidays.length, Icon: CalendarDays, color: C.slate },
             { label: "Government",     value: totalGov,        Icon: Building2,    color: C.sky   },
             { label: "School",         value: totalSchool,     Icon: GraduationCap, color: C.deep  },
           ].map(({ label, value, Icon, color }) => (
             <div key={label} style={{ ...cardWrap, position: "relative" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: color, borderRadius: "18px 18px 0 0" }} />
-              <div style={{ padding: "18px 18px 16px" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
-                  <Icon size={16} color={color} />
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: color }} />
+              <div style={{ padding: "14px" }}>
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}14`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 6 }}>
+                  <Icon size={14} color={color} />
                 </div>
-                <p style={{ margin: 0, fontSize: 26, fontWeight: 800, color: C.text, fontFamily: "'Inter', sans-serif", lineHeight: 1 }}>{value}</p>
-                <p style={{ margin: "4px 0 0", fontSize: 11, fontWeight: 600, color: C.textLight, fontFamily: "'Inter', sans-serif" }}>{label}</p>
+                <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color: C.text, lineHeight: 1 }}>{value}</p>
+                <p style={{ margin: "2px 0 0", fontSize: 11, fontWeight: 600, color: C.textLight }}>{label}</p>
               </div>
             </div>
           ))}
         </div>
 
-        {/* ── Filters ── */}
-        <div className="hl-fade" style={{ ...cardWrap, padding: "12px 16px", marginBottom: 18, animationDelay: "0.08s", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
-          <div style={{ display: "inline-flex", gap: 2, background: `${C.mist}44`, padding: 4, borderRadius: 12 }}>
-            {[
-              { key: "ALL",        label: "All"        },
-              { key: "GOVERNMENT", label: "Government" },
-              { key: "SCHOOL",     label: "School"     },
-            ].map(t => (
-              <button key={t.key} onClick={() => setFilterType(t.key)} style={{
-                padding: "7px 14px", borderRadius: 9, border: "none",
-                background: filterType === t.key ? C.white : "transparent",
-                color: filterType === t.key ? C.deep : C.textLight,
-                fontSize: 12, fontWeight: 700, fontFamily: "'Inter', sans-serif",
-                cursor: "pointer", transition: "all 0.15s",
-                boxShadow: filterType === t.key ? "0 1px 6px rgba(56,73,89,0.10)" : "none",
-              }}>
-                {t.label}
-              </button>
+        {/* Filters Tool-Bar */}
+        <div className="hl-filter-row hl-fade" style={cardWrap}>
+          <div style={{ display: "inline-flex", gap: 2, background: `${C.mist}44`, padding: 4, borderRadius: 10, overflowX: "auto", maxWidth: "100%" }}>
+            {[{ key: "ALL", label: "All" }, { key: "GOVERNMENT", label: "Gov" }, { key: "SCHOOL", label: "School" }].map(t => (
+              <button key={t.key} onClick={() => setFilterType(t.key)} style={{ padding: "6px 12px", borderRadius: 7, border: "none", background: filterType === t.key ? C.white : "transparent", color: filterType === t.key ? C.deep : C.textLight, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{t.label}</button>
             ))}
           </div>
-
           {(filterType === "ALL" || filterType === "SCHOOL") && academicYears.length > 0 && (
-            <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{
-              marginLeft: "auto", padding: "8px 12px", borderRadius: 10,
-              border: `1.5px solid ${C.border}`, fontSize: 12, color: C.text,
-              background: C.bg, outline: "none", fontFamily: "'Inter', sans-serif", cursor: "pointer",
-            }}>
+            <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 12, color: C.text, background: C.bg, width: "100%", maxWidth: "200px" }}>
               <option value="ALL">All Academic Years</option>
               {academicYears.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
             </select>
           )}
         </div>
 
-        {/* ── Content ── */}
+        {/* Main Content Area */}
         {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {[1,2].map(i => (
-              <div key={i} style={{ ...cardWrap, padding: 20 }}>
-                <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-                  <Pulse w={36} h={36} r={10} />
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <Pulse w="40%" h={14} /><Pulse w="24%" h={10} />
-                  </div>
-                </div>
-                <Pulse w="100%" h={48} r={10} />
-                <div style={{ marginTop: 10 }}><Pulse w="100%" h={48} r={10} /></div>
-              </div>
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Pulse w="100%" h={120} r={14} />
+            <Pulse w="100%" h={120} r={14} />
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ ...cardWrap, padding: "56px 0", textAlign: "center" }} className="hl-fade">
-            <div style={{ width: 60, height: 60, borderRadius: 18, background: `${C.sky}18`, border: `1px solid ${C.sky}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-              <CalendarDays size={26} color={C.sky} strokeWidth={1.5} />
-            </div>
-            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 700, color: C.text, margin: "0 0 4px" }}>No holidays found</p>
-            <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: C.textLight, margin: "0 0 20px" }}>Add government or school holidays to get started.</p>
-            <button onClick={() => setModalHoliday(null)} style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "10px 20px", borderRadius: 12, border: "none",
-              background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
-              color: "#fff", fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer",
-            }}>
-              <Plus size={14} /> Add Holiday
-            </button>
+          <div style={{ ...cardWrap, padding: "40px 0", textAlign: "center" }} className="hl-fade">
+            <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: "0 0 4px" }}>No items match current criteria</p>
           </div>
         ) : (
-          <div className="hl-fade" style={{ display: "flex", flexDirection: "column", gap: 16, animationDelay: "0.12s" }}>
+          <div className="hl-fade" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {govHolidays.length > 0 && (filterType === "ALL" || filterType === "GOVERNMENT") && (
               <div style={cardWrap}>
                 {sectionHeader(Building2, "Government Holidays", govHolidays.length)}
-                <HolidayTable holidays={govHolidays}
-                  dateCell={h => formatGovDate(h.month, h.day)}
-                  dateLabel="Date (Every Year)"
-                  onEdit={h => setModalHoliday(h)} onDelete={h => setDeleteHoliday(h)} />
+                <HolidayTable holidays={govHolidays} dateCell={h => formatGovDate(h.month, h.day)} dateLabel="Date Rule" onEdit={h => setModalHoliday(h)} onDelete={h => setDeleteHoliday(h)} />
               </div>
             )}
             {schoolHolidays.length > 0 && (filterType === "ALL" || filterType === "SCHOOL") && (
               <div style={cardWrap}>
                 {sectionHeader(GraduationCap, "School Holidays", schoolHolidays.length)}
-                <HolidayTable holidays={schoolHolidays}
-                  dateCell={h => formatSchoolDate(h.startDate, h.endDate)}
-                  dateLabel="Date Range" yearCol academicYears={academicYears}
-                  onEdit={h => setModalHoliday(h)} onDelete={h => setDeleteHoliday(h)} />
+                <HolidayTable holidays={schoolHolidays} dateCell={h => formatSchoolDate(h.startDate, h.endDate)} dateLabel="Schedule" yearCol academicYears={academicYears} onEdit={h => setModalHoliday(h)} onDelete={h => setDeleteHoliday(h)} />
               </div>
             )}
           </div>
@@ -628,12 +496,24 @@ export default function HolidayList() {
       </div>
 
       {modalHoliday !== undefined && (
-        <HolidayModal holiday={modalHoliday} academicYears={academicYears}
-          onClose={() => setModalHoliday(undefined)} onSaved={handleSaved} />
+        <HolidayModal holiday={modalHoliday} academicYears={academicYears} onClose={() => setModalHoliday(undefined)} onSaved={handleSaved} />
       )}
+
       {deleteHoliday && (
         <DeleteDialog holiday={deleteHoliday} onClose={() => setDeleteHoliday(null)} onDeleted={handleDeleted} />
       )}
+
+      {bulkModal && (
+        <HolidayBulkImport
+          academicYears={academicYears}
+          onClose={() => setBulkModal(false)}
+          onImported={() => {
+            loadData();
+            showToast("Holidays imported successfully");
+          }}
+        />
+      )}
+
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </>
   );
