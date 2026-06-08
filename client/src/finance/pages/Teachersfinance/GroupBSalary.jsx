@@ -11,6 +11,7 @@ import jsPDF from "jspdf";
 import { FaWhatsapp } from "react-icons/fa";
 
 const API_URL = import.meta.env.VITE_API_URL;
+import { downloadStaffSalaryExcel } from "../../../utils/downloadStaffSalaryExcel";
 
 const getPlan = () => {
     try {
@@ -775,7 +776,7 @@ const fetchAllHistory = async (id) => {
     return (
         <div>
             {/* ── HEADER ── */}
-            <div className="bg-gradient-to-r from-[#1A2E3D] via-[#27435B] to-[#3A5E78] rounded-2xl px-4 sm:px-8 py-5 sm:py-7 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5 relative overflow-hidden shadow-xl">
+            <div className="bg-gradient-to-r from-[#1A2E3D] via-[#27435B] to-[#3A5E78] rounded-2xl px-4 sm:px-8 py-5 sm:py-7 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5 relative overflow-visible shadow-xl">
                 <div className="absolute top-0 right-0 w-44 h-44 rounded-full bg-white/5 -translate-y-1/2 translate-x-1/2" />
                 <div className="flex items-center gap-4 relative z-10">
                     <div className="w-12 h-12 rounded-xl bg-white/15 flex items-center justify-center shadow-lg"><IndianRupee size={22} color="#fff" /></div>
@@ -794,6 +795,35 @@ const fetchAllHistory = async (id) => {
                         className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-[13.5px] font-semibold transition-all border border-white/20">
                         <Plus size={15} /> Add Salary
                     </button>
+                    {/* ── Download Excel Dropdown ── */}
+<div className="relative group">
+  <button
+    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 
+               text-white text-[13px] font-semibold transition-all border border-white/20"
+  >
+    <FileText size={14} /> Export Excel ▾
+  </button>
+<div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-[#C8DCEC] z-[9999] min-w-[160px] overflow-hidden hidden group-hover:block">
+    {["ALL", "PAID", "PENDING", "HOLD"].map(status => (
+      <button
+        key={status}
+        onClick={() => downloadStaffSalaryExcel(salaryList, {
+          filter: status,
+          groupLabel: "Group B — Non-Teaching Staff",  // change per group
+          schoolName: authSchool.schoolName,
+        })}
+        className="w-full text-left px-4 py-2.5 text-[12.5px] font-semibold 
+                   hover:bg-[#EAF1F6] transition-colors text-[#4A6B80] flex items-center gap-2"
+      >
+        {status === "ALL" && <span className="w-2 h-2 rounded-full bg-gray-400 inline-block"/>}
+        {status === "PAID" && <span className="w-2 h-2 rounded-full bg-green-500 inline-block"/>}
+        {status === "PENDING" && <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"/>}
+        {status === "HOLD" && <span className="w-2 h-2 rounded-full bg-orange-500 inline-block"/>}
+        {status === "ALL" ? "All Records" : status.charAt(0) + status.slice(1).toLowerCase()}
+      </button>
+    ))}
+  </div>
+</div>
                 </div>
             </div>
 

@@ -1646,30 +1646,35 @@ model StaffProfile {
 model StudentList {
   id Int @id @default(autoincrement())
 
-  studentId String? // optional reference (if linked to Student table)
+  studentId String?
 
   name  String
   email String
   phone String
 
-  course       String?
-  fees         Decimal?
-  address      String?
+  course  String?
+  fees    Decimal?
+  address String?
+
   feeBreakdown String?
+
+  // Existing
+  paidAmount    Decimal?  @default(0)
+  paymentStatus String?
+  paymentMode   String?
+  paymentDate   DateTime?
+
+  // NEW
+  schoolFeePaid  Decimal @default(0)
+  tuitionFeePaid Decimal @default(0)
 
   createdAt DateTime @default(now())
 
-  // 🔥 IMPORTANT FIX (School relation)
-  schoolId      String
-  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  deletedAt     DateTime?
-  // 💰 Payment tracking
-  paidAmount    Decimal? // How much has been paid so far
-  paymentStatus String? // "UNPAID" | "PARTIAL" | "PAID"
-  paymentMode   String? // "UPI" | "Cash" | "Net Banking" | "Card" | "Cheque"
-  paymentDate   DateTime? // Date of last payment
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  // ⚡ Recommended indexes
+  deletedAt DateTime?
+
   @@index([schoolId])
   @@index([email])
   @@index([phone])
@@ -3369,4 +3374,14 @@ model LoginOtp {
   loginData  String
   expiresAt  DateTime
   createdAt  DateTime @default(now())
+}
+
+model StudentFeePayment {
+  id            Int      @id @default(autoincrement())
+  studentListId Int
+  amount        Decimal
+  category      String // FULL | SCHOOL | TUITION
+  paymentMode   String
+  paidAt        DateTime @default(now())
+  createdBy     String?
 }

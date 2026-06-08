@@ -168,11 +168,12 @@ export const createSchool = async (req, res) => {
 
     await prisma.superAdminSchoolAccess.upsert({
       where: {
-        schoolId: school.id,
+        superAdminId_schoolId: {
+          superAdminId: req.user.id,
+          schoolId: school.id,
+        },
       },
-      update: {
-        superAdminId: req.user.id,
-      },
+      update: {},
       create: {
         superAdminId: req.user.id,
         schoolId: school.id,

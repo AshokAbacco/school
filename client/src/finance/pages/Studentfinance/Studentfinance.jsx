@@ -1,3 +1,4 @@
+//client\src\finance\pages\Studentfinance\Studentfinance.jsx
 import React, { useState, useEffect } from "react";
 import {
     Search, IndianRupee, CalendarDays,
@@ -7,6 +8,7 @@ import {
 } from "lucide-react";
 import Addstudent from "./Addstudent";
 import { PayModal } from "../../../finance/pages/Studentfinance/PayModal";
+import { downloadStudentFinanceExcel } from "../../../utils/downloadStudentFinanceExcel.js";
 import { FaWhatsapp } from "react-icons/fa";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -450,6 +452,8 @@ export default function StudentFeesPage() {
     const [waStudent, setWaStudent] = useState(null);
     const [schoolInfo, setSchoolInfo] = useState({ name: "", address: "", city: "", phone: "" });
     const [receiptStudent, setReceiptStudent] = useState(null);
+    const [feeCategory, setFeeCategory] = useState("ALL");
+    const [paymentFilter, setPaymentFilter] = useState("ALL");
 
 
     useEffect(() => {
@@ -553,171 +557,213 @@ export default function StudentFeesPage() {
         setWaStudent(null);
     };
 
-const handleSendReceipt = async (student) => {
-  try {
-    // Step 1: generate PDF as a Blob (same logic as handleDownload)
-    if (!window.jspdf) {
-      alert("PDF library not loaded yet. Please try again in a moment.");
-      return;
-    }
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const handleSendReceipt = async (student) => {
+    try {
+        // Step 1: generate PDF as a Blob (same logic as handleDownload)
+        if (!window.jspdf) {
+        alert("PDF library not loaded yet. Please try again in a moment.");
+        return;
+        }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-    const W = 210, m = 18;
-    const paidAmount = Number(student.paidAmount || 0);
-    const totalFees  = Number(student.fees || 0);
-    const due = Math.max(0, totalFees - paidAmount);
-    const invoiceNo = `INV-${String(student.id || "").slice(-4).padStart(4, "0")}-${new Date().getFullYear()}`;
-    const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-    let breakdown = null;
-    try { breakdown = student.feeBreakdown ? JSON.parse(student.feeBreakdown) : null; } catch {}
+        const W = 210, m = 18;
+        const paidAmount = Number(student.paidAmount || 0);
+        const totalFees  = Number(student.fees || 0);
+        const due = Math.max(0, totalFees - paidAmount);
+        const invoiceNo = `INV-${String(student.id || "").slice(-4).padStart(4, "0")}-${new Date().getFullYear()}`;
+        const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        let breakdown = null;
+        try { breakdown = student.feeBreakdown ? JSON.parse(student.feeBreakdown) : null; } catch {}
 
-    // Header
-    const schoolName = schoolInfo.name;
-    const schoolAddress = `${schoolInfo.address || ""}${schoolInfo.city ? ", " + schoolInfo.city : ""}`;
-    const headerH = schoolAddress ? 50 : 44;
-    doc.setFillColor(28, 48, 68); doc.rect(0, 0, W, headerH, "F");
-    doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(255, 255, 255);
-    doc.text(schoolName || "Fee Invoice", m, 16);
-    doc.setFontSize(9.5); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 205, 220);
-    doc.text("Fee Invoice & Payment Receipt", m, 25);
-    if (schoolAddress) {
-      doc.setFontSize(8.5); doc.setTextColor(140, 175, 200);
-      doc.text(schoolAddress, m, 33);
-    }
-    doc.setFillColor(255, 255, 255); doc.roundedRect(W - m - 52, 8, 52, 22, 3, 3, "F");
-    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(28, 48, 68);
-    doc.text("INVOICE", W - m - 26, 16, { align: "center" });
-    doc.setFontSize(10); doc.text(invoiceNo, W - m - 26, 24, { align: "center" });
-    doc.setFillColor(39, 67, 91); doc.rect(0, headerH, W, 10, "F");
-    doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 205, 220);
-    doc.text(`Date: ${today}`, m, headerH + 7);
-    doc.text(`Status: ${due === 0 ? "PAID" : "PARTIALLY PAID"}`, W - m, headerH + 7, { align: "right" });
- 
-        // Student details
-        let y = headerH + 18;
-        const hasAddress = !!student.address;
-        const boxHeight = hasAddress ? 60 : 48;
-        doc.setFillColor(240, 247, 252); doc.roundedRect(m, y - 6, W - m * 2, boxHeight, 3, 3, "F");
+        // Header
+        const schoolName = schoolInfo.name;
+        const schoolAddress = `${schoolInfo.address || ""}${schoolInfo.city ? ", " + schoolInfo.city : ""}`;
+        const headerH = schoolAddress ? 50 : 44;
+        doc.setFillColor(28, 48, 68); doc.rect(0, 0, W, headerH, "F");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(255, 255, 255);
+        doc.text(schoolName || "Fee Invoice", m, 16);
+        doc.setFontSize(9.5); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 205, 220);
+        doc.text("Fee Invoice & Payment Receipt", m, 25);
+        if (schoolAddress) {
+        doc.setFontSize(8.5); doc.setTextColor(140, 175, 200);
+        doc.text(schoolAddress, m, 33);
+        }
+        doc.setFillColor(255, 255, 255); doc.roundedRect(W - m - 52, 8, 52, 22, 3, 3, "F");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(28, 48, 68);
+        doc.text("INVOICE", W - m - 26, 16, { align: "center" });
+        doc.setFontSize(10); doc.text(invoiceNo, W - m - 26, 24, { align: "center" });
+        doc.setFillColor(39, 67, 91); doc.rect(0, headerH, W, 10, "F");
+        doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 205, 220);
+        doc.text(`Date: ${today}`, m, headerH + 7);
+        doc.text(`Status: ${due === 0 ? "PAID" : "PARTIALLY PAID"}`, W - m, headerH + 7, { align: "right" });
+    
+            // Student details
+            let y = headerH + 18;
+            const hasAddress = !!student.address;
+            const boxHeight = hasAddress ? 60 : 48;
+            doc.setFillColor(240, 247, 252); doc.roundedRect(m, y - 6, W - m * 2, boxHeight, 3, 3, "F");
+            doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(28, 48, 68);
+            doc.text("STUDENT DETAILS", m + 4, y);
+
+            // Row 1: Name | Email
+            doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 50, 70);
+            doc.text("Name:", m + 4, y + 10);
+            doc.setFont("helvetica", "normal"); doc.text(student.name || "N/A", m + 22, y + 10);
+            doc.setFont("helvetica", "bold"); doc.text("Email:", W / 2 + 4, y + 10);
+            doc.setFont("helvetica", "normal"); doc.text(student.email || "N/A", W / 2 + 22, y + 10);
+
+            // Row 2: Course | Phone
+            doc.setFont("helvetica", "bold"); doc.text("Course:", m + 4, y + 20);
+            doc.setFont("helvetica", "normal"); doc.text(student.course || "N/A", m + 22, y + 20);
+            doc.setFont("helvetica", "bold"); doc.text("Phone:", W / 2 + 4, y + 20);
+            doc.setFont("helvetica", "normal"); doc.text(student.phone || "N/A", W / 2 + 22, y + 20);
+
+            // Row 3: Address (full width, only if present)
+            if (hasAddress) {
+            doc.setFont("helvetica", "bold"); doc.text("Address:", m + 4, y + 30);
+            doc.setFont("helvetica", "normal");
+            const addrLines = doc.splitTextToSize(student.address, W - m * 2 - 34);
+            doc.text(addrLines, m + 22, y + 30);
+            }
+
+            y += boxHeight + 12;
+
+        // Fee table
         doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(28, 48, 68);
-        doc.text("STUDENT DETAILS", m + 4, y);
+        doc.text("FEE SUMMARY", m, y); y += 5;
+        doc.setFillColor(28, 48, 68); doc.rect(m, y, W - m * 2, 9, "F");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
+        doc.text("Description", m + 4, y + 6); doc.text("Amount (INR)", m + 145, y + 6); y += 9;
+        const rows = breakdown
+        ? Object.entries(breakdown).filter(([k, v]) => k !== "customFees" && Number(v) > 0)
+            .map(([k, v]) => [k.replace(/Fee$/, "").replace(/([A-Z])/g, " $1").trim(), v])
+        : [["Total Fees", totalFees]];
+        rows.forEach(([label, amt], i) => {
+        doc.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 252 : 255, 255);
+        doc.rect(m, y, W - m * 2, 9, "F");
+        doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(30, 50, 70);
+        doc.text(label, m + 4, y + 6);
+        doc.setFont("helvetica", "bold"); doc.text(`Rs. ${Number(amt).toLocaleString("en-IN")}`, m + 145, y + 6); y += 9;
+        });
+        y += 12;
+        const bx = W - m - 80;
+        doc.setFillColor(240, 247, 252); doc.roundedRect(bx, y, 80, 34, 3, 3, "F");
+        doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(80, 100, 120);
+        doc.text("Total Fees:", bx + 4, y + 9);
+        doc.setFont("helvetica", "bold"); doc.setTextColor(28, 48, 68);
+        doc.text(`Rs. ${totalFees.toLocaleString("en-IN")}`, bx + 78, y + 9, { align: "right" });
+        doc.setFont("helvetica", "normal"); doc.setTextColor(80, 100, 120);
+        doc.text("Amount Paid:", bx + 4, y + 18);
+        doc.setFont("helvetica", "bold"); doc.setTextColor(28, 68, 48);
+        doc.text(`Rs. ${paidAmount.toLocaleString("en-IN")}`, bx + 78, y + 18, { align: "right" });
+        doc.setDrawColor(28, 48, 68); doc.setLineWidth(0.5); doc.line(bx + 4, y + 22, bx + 76, y + 22);
+        doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(28, 48, 68);
+        doc.text("Balance Due:", bx + 4, y + 30);
+        doc.setTextColor(due === 0 ? 28 : 180, due === 0 ? 90 : 30, due === 0 ? 50 : 30);
+        doc.text(`Rs. ${due.toLocaleString("en-IN")}`, bx + 78, y + 30, { align: "right" });
+        y = 272;
+        doc.setFillColor(28, 48, 68); doc.rect(0, y, W, 25, "F");
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(180, 205, 220);
+        doc.text(`${schoolName || "School"} · System-generated invoice. No signature required.`, W / 2, y + 9, { align: "center" });
 
-        // Row 1: Name | Email
-        doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 50, 70);
-        doc.text("Name:", m + 4, y + 10);
-        doc.setFont("helvetica", "normal"); doc.text(student.name || "N/A", m + 22, y + 10);
-        doc.setFont("helvetica", "bold"); doc.text("Email:", W / 2 + 4, y + 10);
-        doc.setFont("helvetica", "normal"); doc.text(student.email || "N/A", W / 2 + 22, y + 10);
+        // Step 2: Get PDF as ArrayBuffer and upload to R2
+        const pdfArrayBuffer = doc.output("arraybuffer");
 
-        // Row 2: Course | Phone
-        doc.setFont("helvetica", "bold"); doc.text("Course:", m + 4, y + 20);
-        doc.setFont("helvetica", "normal"); doc.text(student.course || "N/A", m + 22, y + 20);
-        doc.setFont("helvetica", "bold"); doc.text("Phone:", W / 2 + 4, y + 20);
-        doc.setFont("helvetica", "normal"); doc.text(student.phone || "N/A", W / 2 + 22, y + 20);
+        const auth = JSON.parse(localStorage.getItem("auth"));
+        const token = auth?.token;
 
-        // Row 3: Address (full width, only if present)
-        if (hasAddress) {
-        doc.setFont("helvetica", "bold"); doc.text("Address:", m + 4, y + 30);
-        doc.setFont("helvetica", "normal");
-        const addrLines = doc.splitTextToSize(student.address, W - m * 2 - 34);
-        doc.text(addrLines, m + 22, y + 30);
+        const uploadRes = await fetch(`${API_URL}/api/finance/uploadFeeReceipt/${student.id}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/pdf",
+            Authorization: `Bearer ${token}`,
+        },
+        body: pdfArrayBuffer,
+        });
+
+        const uploadData = await uploadRes.json();
+        if (!uploadData.success || !uploadData.pdfUrl) {
+        alert("Failed to upload receipt PDF: " + (uploadData.message || "unknown error"));
+        return;
         }
 
-        y += boxHeight + 12;
+        const pdfUrl = uploadData.pdfUrl;
+        console.log("Uploaded PDF URL:", pdfUrl);
 
-    // Fee table
-    doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(28, 48, 68);
-    doc.text("FEE SUMMARY", m, y); y += 5;
-    doc.setFillColor(28, 48, 68); doc.rect(m, y, W - m * 2, 9, "F");
-    doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
-    doc.text("Description", m + 4, y + 6); doc.text("Amount (INR)", m + 145, y + 6); y += 9;
-    const rows = breakdown
-      ? Object.entries(breakdown).filter(([k, v]) => k !== "customFees" && Number(v) > 0)
-          .map(([k, v]) => [k.replace(/Fee$/, "").replace(/([A-Z])/g, " $1").trim(), v])
-      : [["Total Fees", totalFees]];
-    rows.forEach(([label, amt], i) => {
-      doc.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 252 : 255, 255);
-      doc.rect(m, y, W - m * 2, 9, "F");
-      doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(30, 50, 70);
-      doc.text(label, m + 4, y + 6);
-      doc.setFont("helvetica", "bold"); doc.text(`Rs. ${Number(amt).toLocaleString("en-IN")}`, m + 145, y + 6); y += 9;
-    });
-    y += 12;
-    const bx = W - m - 80;
-    doc.setFillColor(240, 247, 252); doc.roundedRect(bx, y, 80, 34, 3, 3, "F");
-    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(80, 100, 120);
-    doc.text("Total Fees:", bx + 4, y + 9);
-    doc.setFont("helvetica", "bold"); doc.setTextColor(28, 48, 68);
-    doc.text(`Rs. ${totalFees.toLocaleString("en-IN")}`, bx + 78, y + 9, { align: "right" });
-    doc.setFont("helvetica", "normal"); doc.setTextColor(80, 100, 120);
-    doc.text("Amount Paid:", bx + 4, y + 18);
-    doc.setFont("helvetica", "bold"); doc.setTextColor(28, 68, 48);
-    doc.text(`Rs. ${paidAmount.toLocaleString("en-IN")}`, bx + 78, y + 18, { align: "right" });
-    doc.setDrawColor(28, 48, 68); doc.setLineWidth(0.5); doc.line(bx + 4, y + 22, bx + 76, y + 22);
-    doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(28, 48, 68);
-    doc.text("Balance Due:", bx + 4, y + 30);
-    doc.setTextColor(due === 0 ? 28 : 180, due === 0 ? 90 : 30, due === 0 ? 50 : 30);
-    doc.text(`Rs. ${due.toLocaleString("en-IN")}`, bx + 78, y + 30, { align: "right" });
-    y = 272;
-    doc.setFillColor(28, 48, 68); doc.rect(0, y, W, 25, "F");
-    doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(180, 205, 220);
-    doc.text(`${schoolName || "School"} · System-generated invoice. No signature required.`, W / 2, y + 9, { align: "center" });
+        // Step 3: Send WhatsApp with the real URL
+        const res = await fetch(`${API_URL}/api/finance/sendFeeReceipt/${student.id}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ pdfUrl }),
+        });
 
-    // Step 2: Get PDF as ArrayBuffer and upload to R2
-    const pdfArrayBuffer = doc.output("arraybuffer");
+        const data = await res.json();
+        if (data.success) {
+        alert("✅ WhatsApp receipt sent successfully!");
+        } else {
+        alert(data.message || "Failed to send");
+        }
 
-    const auth = JSON.parse(localStorage.getItem("auth"));
-    const token = auth?.token;
-
-    const uploadRes = await fetch(`${API_URL}/api/finance/uploadFeeReceipt/${student.id}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/pdf",
-        Authorization: `Bearer ${token}`,
-      },
-      body: pdfArrayBuffer,
-    });
-
-    const uploadData = await uploadRes.json();
-    if (!uploadData.success || !uploadData.pdfUrl) {
-      alert("Failed to upload receipt PDF: " + (uploadData.message || "unknown error"));
-      return;
+    } catch (err) {
+        console.error(err);
+        alert("Failed to send receipt: " + err.message);
     }
+    };
 
-    const pdfUrl = uploadData.pdfUrl;
-    console.log("Uploaded PDF URL:", pdfUrl);
-
-    // Step 3: Send WhatsApp with the real URL
-    const res = await fetch(`${API_URL}/api/finance/sendFeeReceipt/${student.id}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ pdfUrl }),
-    });
-
-    const data = await res.json();
-    if (data.success) {
-      alert("✅ WhatsApp receipt sent successfully!");
-    } else {
-      alert(data.message || "Failed to send");
-    }
-
-  } catch (err) {
-    console.error(err);
-    alert("Failed to send receipt: " + err.message);
-  }
-};
 
     const courses = ["All", ...Array.from(new Set(students.map(s => s.course).filter(Boolean))).sort()];
 
-    const filtered = students.filter(s => {
-        const matchSearch = s.name?.toLowerCase().includes(search.toLowerCase()) ||
+    const filtered = students.filter((s) => {
+        const matchSearch =
+            s.name?.toLowerCase().includes(search.toLowerCase()) ||
             s.email?.toLowerCase().includes(search.toLowerCase());
-        const matchCourse = courseFilter === "All" || s.course === courseFilter;
-        return matchSearch && matchCourse;
+
+        const matchCourse =
+            courseFilter === "All" || s.course === courseFilter;
+
+        let isPaid = false;
+
+        const breakdown = JSON.parse(s.feeBreakdown || "{}");
+
+        const schoolFee = Number(breakdown.collegeFee || 0);
+        const tuitionFee = Number(breakdown.tuitionFee || 0);
+
+        const schoolPaid = Number(s.schoolFeePaid || 0);
+        const tuitionPaid = Number(s.tuitionFeePaid || 0);
+
+        if (feeCategory === "SCHOOL") {
+            isPaid = schoolFee > 0 && schoolPaid >= schoolFee;
+        } else if (feeCategory === "TUITION") {
+            isPaid = tuitionFee > 0 && tuitionPaid >= tuitionFee;
+        } else {
+            isPaid =
+                Number(s.paidAmount || 0) >= Number(s.fees || 0);
+        }
+
+        let matchStatus = true;
+
+        if (paymentFilter === "PAID") {
+            matchStatus = isPaid;
+        }
+
+        if (paymentFilter === "UNPAID") {
+            matchStatus = !isPaid;
+        }
+
+        return matchSearch && matchCourse && matchStatus;
     });
+
+    const handleExcelDownload = () => {
+        downloadStudentFinanceExcel(
+            filtered,
+            feeCategory,
+            schoolInfo
+        );
+    };
 
     return (
         <>
@@ -852,6 +898,17 @@ const handleSendReceipt = async (student) => {
                         >
                             <UserPlus size={15} /> Add Student
                         </button>
+                        <button
+                            onClick={handleExcelDownload}
+                            className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl border-none cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
+                            style={{
+                                background: "linear-gradient(135deg,#1a6e3e,#14532d)",
+                                boxShadow: "0 3px 12px rgba(20,83,45,.28)"
+                            }}
+                        >
+                            <Download size={15} />
+                            Export Excel
+                        </button>
                     </div>
                 </div>
 
@@ -966,7 +1023,46 @@ const handleSendReceipt = async (student) => {
                                         <option key={c} value={c}>{c === "All" ? "All Classes" : c}</option>
                                     ))}
                                 </select>
-
+                                <select
+                                    value={feeCategory}
+                                    onChange={(e) => setFeeCategory(e.target.value)}
+                                    style={{
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        color: "#1C3044",
+                                        background: "#fff",
+                                        border: "1.5px solid rgba(255,255,255,.35)",
+                                        borderRadius: 8,
+                                        padding: "7px 28px 7px 10px",
+                                        fontFamily: "'DM Sans',sans-serif",
+                                        outline: "none",
+                                        cursor: "pointer",
+                                        appearance: "none",
+                                        minWidth: 130
+                                    }}
+                                >
+                                    <option value="ALL">All Fees</option>
+                                    <option value="SCHOOL">School Fee</option>
+                                    <option value="TUITION">Tuition Fee</option>
+                                </select>
+                                <select
+                                    value={paymentFilter}
+                                    onChange={(e) => setPaymentFilter(e.target.value)}
+                                    style={{
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        color: "#1C3044",
+                                        background: "#fff",
+                                        border: "1.5px solid rgba(255,255,255,.35)",
+                                        borderRadius: 8,
+                                        padding: "7px 28px 7px 10px",
+                                        minWidth: 130
+                                    }}
+                                >
+                                    <option value="ALL">All Status</option>
+                                    <option value="PAID">Paid</option>
+                                    <option value="UNPAID">Unpaid</option>
+                                </select>
                                 <div className="sf2-search-wrap flex-1" style={{ minWidth: 0 }}>
                                     <Search size={13} className="sf2-search-ico" />
                                     <input
@@ -985,88 +1081,298 @@ const handleSendReceipt = async (student) => {
                                 <table className="sf2-tbl" style={{ minWidth: 700 }}>
                                     <thead>
                                         <tr>
-                                            {["#", "Name", "Email", "Class", "Total Fees", "Paid", "Remaining", "Status", "Actions"].map(h => (
-                                                <th key={h}>{h}</th>
-                                            ))}
+                                            <th>#</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Class</th>
+
+                                            <th>
+                                                {feeCategory === "SCHOOL"
+                                                    ? "School Fee"
+                                                    : feeCategory === "TUITION"
+                                                        ? "Tuition Fee"
+                                                        : "Total Fees"}
+                                            </th>
+
+                                            <th>
+                                                {feeCategory === "SCHOOL"
+                                                    ? "Paid School Fee"
+                                                    : feeCategory === "TUITION"
+                                                        ? "Paid Tuition Fee"
+                                                        : "Paid"}
+                                            </th>
+
+                                            <th>
+                                                {feeCategory === "SCHOOL"
+                                                    ? "School Due"
+                                                    : feeCategory === "TUITION"
+                                                        ? "Tuition Due"
+                                                        : "Remaining"}
+                                            </th>
+
+                                            <th>Status</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filtered.length === 0 ? (
                                             <tr>
-                                                <td colSpan={9} style={{ textAlign: "center", padding: "36px 0", color: "#4A6B80", fontSize: 14 }}>
+                                                <td
+                                                    colSpan={9}
+                                                    style={{
+                                                        textAlign: "center",
+                                                        padding: "36px 0",
+                                                        color: "#4A6B80",
+                                                        fontSize: 14
+                                                    }}
+                                                >
                                                     No students found
                                                 </td>
                                             </tr>
-                                        ) : filtered.map((student, idx) => {
-                                            const totalFee = Number(student.fees || 0);
-                                            const paidAmt  = Number(student.paidAmount || 0);
-                                            const remaining = Math.max(0, totalFee - paidAmt);
+                                        ) : (
+                                            filtered.map((student, idx) => {
+                                                const totalFee = Number(student.fees || 0);
+                                                const paidAmt = Number(student.paidAmount || 0);
+                                                const remaining = Math.max(0, totalFee - paidAmt);
 
-                                            return (
-                                                <tr key={student.id}>
-                                                    <td style={{ color: "#8fa3b1", fontSize: 12 }}>{idx + 1}</td>
-                                                    <td style={{ fontWeight: 600 }}>{student.name}</td>
-                                                    <td style={{ color: "#4A6B80", fontSize: 13 }}>{student.email}</td>
-                                                    <td><span className="sf2-badge sf2-badge-blue">{student.course || "—"}</span></td>
-                                                    <td style={{ fontWeight: 700, color: "#27435B" }}>₹{totalFee.toLocaleString("en-IN")}</td>
-                                                    <td style={{ fontWeight: 600, color: "#1a6e3e" }}>
-                                                        {paidAmt > 0 ? `₹${paidAmt.toLocaleString("en-IN")}` : <span style={{ color: "#A0B8C8" }}>—</span>}
-                                                    </td>
-                                                    <td>
-                                                        <span style={{ fontWeight: 700, color: remaining > 0 ? "#a33030" : "#1a6e3e" }}>
-                                                            ₹{remaining.toLocaleString("en-IN")}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        {paidAmt >= totalFee && totalFee > 0 ? (
-                                                            <span className="sf2-badge sf2-badge-green">
-                                                                <CheckCircle size={12} /> Paid
+                                                const breakdown = JSON.parse(
+                                                    student.feeBreakdown || "{}"
+                                                );
+
+                                                const schoolFee = Number(
+                                                    breakdown.collegeFee || 0
+                                                );
+
+                                                const tuitionFee = Number(
+                                                    breakdown.tuitionFee || 0
+                                                );
+
+                                                const schoolPaid = Number(
+                                                    student.schoolFeePaid || 0
+                                                );
+
+                                                const tuitionPaid = Number(
+                                                    student.tuitionFeePaid || 0
+                                                );
+
+                                                const schoolRemaining = Math.max(
+                                                    0,
+                                                    schoolFee - schoolPaid
+                                                );
+
+                                                const tuitionRemaining = Math.max(
+                                                    0,
+                                                    tuitionFee - tuitionPaid
+                                                );
+
+                                                const displayFee =
+                                                    feeCategory === "SCHOOL"
+                                                        ? schoolFee
+                                                        : feeCategory === "TUITION"
+                                                        ? tuitionFee
+                                                        : totalFee;
+
+                                                const displayPaid =
+                                                    feeCategory === "SCHOOL"
+                                                        ? schoolPaid
+                                                        : feeCategory === "TUITION"
+                                                        ? tuitionPaid
+                                                        : paidAmt;
+
+                                                const displayRemaining =
+                                                    feeCategory === "SCHOOL"
+                                                        ? schoolRemaining
+                                                        : feeCategory === "TUITION"
+                                                        ? tuitionRemaining
+                                                        : remaining;
+
+                                                const isPaid =
+                                                    feeCategory === "SCHOOL"
+                                                        ? schoolFee > 0 && schoolPaid >= schoolFee
+                                                        : feeCategory === "TUITION"
+                                                        ? tuitionFee > 0 && tuitionPaid >= tuitionFee
+                                                        : totalFee > 0 && paidAmt >= totalFee;
+                                                return (
+                                                    <tr key={student.id}>
+                                                        <td
+                                                            style={{
+                                                                color: "#8fa3b1",
+                                                                fontSize: 12
+                                                            }}
+                                                        >
+                                                            {idx + 1}
+                                                        </td>
+
+                                                        <td
+                                                            style={{
+                                                                fontWeight: 600
+                                                            }}
+                                                        >
+                                                            {student.name}
+                                                        </td>
+
+                                                        <td
+                                                            style={{
+                                                                color: "#4A6B80",
+                                                                fontSize: 13
+                                                            }}
+                                                        >
+                                                            {student.email}
+                                                        </td>
+
+                                                        <td>
+                                                            <span className="sf2-badge sf2-badge-blue">
+                                                                {student.course || "—"}
                                                             </span>
-                                                        ) : (
-                                                            <button className="sf2-pay-btn" onClick={() => setPayStudent(student)}>
-                                                                Pay
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                    <td>
-                                                        <div style={{ display: "flex", gap: 6 }}>
-                                                            <button className="sf2-act sf2-act-edit" title="Edit" onClick={() => handleEdit(student)}>
-                                                                <Pencil size={13} />
-                                                            </button>
-                                                            <button className="sf2-act sf2-act-del" title="Delete" onClick={() => handleDelete(student.id)}>
-                                                                <Trash2 size={13} />
-                                                            </button>
-                                                            <button className="sf2-act sf2-act-inv" title="Invoice" onClick={() => setInvoiceStudent(student)}>
-                                                                <FileText size={13} />
-                                                            </button>
-                                                            {isPremium && (
-                                                                <button
-                                                                    className="sf2-act sf2-act-wa"
-                                                                    title="Send Fees Reminder to Parent"
-                                                                    onClick={() => setWaStudent(student)}
-                                                                >
-                                                                    <FaWhatsapp size={13} />
-                                                                </button>
-                                                            )}
-                                                            {isPremium && (
-                                                                <button
-                                                                    className="sf2-act sf2-act-inv"
-                                                                    title="Send Receipt PDF"
-                                                                    onClick={() => setReceiptStudent(student)}
+                                                        </td>
+
+                                                        <td
+                                                            style={{
+                                                                fontWeight: 700,
+                                                                color: "#27435B"
+                                                            }}
+                                                        >
+                                                            ₹{displayFee.toLocaleString("en-IN")}
+                                                        </td>
+
+                                                        <td
+                                                            style={{
+                                                                fontWeight: 600,
+                                                                color: "#1a6e3e"
+                                                            }}
+                                                        >
+                                                            {displayPaid > 0 ? (
+                                                                `₹${displayPaid.toLocaleString(
+                                                                    "en-IN"
+                                                                )}`
+                                                            ) : (
+                                                                <span
                                                                     style={{
-                                                                        background: "#eef2ff",
-                                                                        color: "#4f46e5",
-                                                                        border: "1px solid #c7d2fe"
+                                                                        color: "#A0B8C8"
                                                                     }}
                                                                 >
-                                                                    <FaWhatsapp size={13} />
+                                                                    —
+                                                                </span>
+                                                            )}
+                                                        </td>
+
+                                                        <td>
+                                                            <span
+                                                                style={{
+                                                                    fontWeight: 700,
+                                                                    color:
+                                                                        displayRemaining > 0
+                                                                            ? "#a33030"
+                                                                            : "#1a6e3e"
+                                                                }}
+                                                            >
+                                                                ₹
+                                                                {displayRemaining.toLocaleString(
+                                                                    "en-IN"
+                                                                )}
+                                                            </span>
+                                                        </td>
+
+                                                        <td>
+                                                            {isPaid ? (
+                                                                <span className="sf2-badge sf2-badge-green">
+                                                                    <CheckCircle size={12} />
+                                                                    Paid
+                                                                </span>
+                                                            ) : (
+                                                                <button
+                                                                    className="sf2-pay-btn"
+                                                                    onClick={() =>
+                                                                        setPayStudent(student)
+                                                                    }
+                                                                >
+                                                                    Pay
                                                                 </button>
                                                             )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
+                                                        </td>
+
+                                                        <td>
+                                                            <div
+                                                                style={{
+                                                                    display: "flex",
+                                                                    gap: 6
+                                                                }}
+                                                            >
+                                                                <button
+                                                                    className="sf2-act sf2-act-edit"
+                                                                    title="Edit"
+                                                                    onClick={() =>
+                                                                        handleEdit(student)
+                                                                    }
+                                                                >
+                                                                    <Pencil size={13} />
+                                                                </button>
+
+                                                                <button
+                                                                    className="sf2-act sf2-act-del"
+                                                                    title="Delete"
+                                                                    onClick={() =>
+                                                                        handleDelete(
+                                                                            student.id
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Trash2 size={13} />
+                                                                </button>
+
+                                                                <button
+                                                                    className="sf2-act sf2-act-inv"
+                                                                    title="Invoice"
+                                                                    onClick={() =>
+                                                                        setInvoiceStudent(
+                                                                            student
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <FileText size={13} />
+                                                                </button>
+
+                                                                {isPremium && (
+                                                                    <button
+                                                                        className="sf2-act sf2-act-wa"
+                                                                        title="Send Fees Reminder"
+                                                                        onClick={() =>
+                                                                            setWaStudent(
+                                                                                student
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <FaWhatsapp size={13} />
+                                                                    </button>
+                                                                )}
+
+                                                                {isPremium && (
+                                                                    <button
+                                                                        className="sf2-act sf2-act-inv"
+                                                                        title="Send Receipt PDF"
+                                                                        onClick={() =>
+                                                                            setReceiptStudent(
+                                                                                student
+                                                                            )
+                                                                        }
+                                                                        style={{
+                                                                            background:
+                                                                                "#eef2ff",
+                                                                            color:
+                                                                                "#4f46e5",
+                                                                            border:
+                                                                                "1px solid #c7d2fe"
+                                                                        }}
+                                                                    >
+                                                                        <FaWhatsapp size={13} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
                                     </tbody>
                                 </table>
                             </div>

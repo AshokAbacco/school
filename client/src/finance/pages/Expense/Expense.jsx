@@ -1,11 +1,137 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   TrendingDown, PlusCircle, Receipt,
   Package, ChevronDown, ChevronUp, Pencil, Trash2,
+  Download, X, Calendar, ChevronRight,
 } from "lucide-react";
 import AddExpense, { iconMap, fmt } from "./components/AddExpense";
+import { downloadExpenseExcel } from "../../../utils/downloadExpenseExcel";
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+// ── Date-filter download modal ────────────────────────────────────────────────
+function DownloadModal({ onClose, onDownload }) {
+  const [preset, setPreset]       = useState("today");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo,   setCustomTo]   = useState("");
+
+  const presets = [
+    { value: "today",     label: "Today" },
+    { value: "yesterday", label: "Yesterday" },
+    { value: "thisWeek",  label: "This Week" },
+    { value: "thisMonth", label: "This Month" },
+    { value: "lastMonth", label: "Last Month" },
+    { value: "custom",    label: "Custom Range" },
+    { value: "all",       label: "All Time" },
+  ];
+
+  const handleDownload = () => {
+    if (preset === "custom" && (!customFrom || !customTo)) {
+      alert("Please select both start and end dates.");
+      return;
+    }
+    if (preset === "custom" && new Date(customFrom) > new Date(customTo)) {
+      alert("Start date cannot be after end date.");
+      return;
+    }
+    onDownload({ preset, customFrom, customTo });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+
+        {/* Header */}
+        <div className="bg-gradient-to-br from-[#1c3040] to-[#2b4557] px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-white/[0.14] border border-white/[0.22] flex items-center justify-center">
+              <Download size={15} color="#fff" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white m-0">Download Excel</p>
+              <p className="text-[10px] text-white/55 m-0">Select date range</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg bg-white/[0.12] hover:bg-white/[0.22] flex items-center justify-center transition-colors"
+          >
+            <X size={14} color="#fff" />
+          </button>
+        </div>
+
+        {/* Preset list */}
+        <div className="p-4 space-y-1.5">
+          {presets.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setPreset(p.value)}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all border ${
+                preset === p.value
+                  ? "bg-[#1c3040] text-white border-[#1c3040] shadow-sm"
+                  : "bg-[#f5f9fc] text-[#2E3F50] border-[#e2edf4] hover:border-[#3c5d74]/40 hover:bg-[#eaf1f6]"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <Calendar size={13} className={preset === p.value ? "opacity-80" : "opacity-40"} />
+                {p.label}
+              </span>
+              {preset === p.value && <ChevronRight size={13} className="opacity-60" />}
+            </button>
+          ))}
+
+          {/* Custom date inputs */}
+          {preset === "custom" && (
+            <div className="mt-3 p-3 bg-[#eaf1f6] rounded-xl space-y-2.5 border border-[#d0e1ed]">
+              <div>
+                <label className="text-[11px] font-bold text-[#3c5d74] uppercase tracking-wide block mb-1">
+                  From
+                </label>
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  max={customTo || undefined}
+                  className="w-full px-3 py-2 rounded-lg border border-[#d0e1ed] bg-white text-sm text-[#1c3040] font-medium focus:outline-none focus:ring-2 focus:ring-[#3c5d74]/30"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-[#3c5d74] uppercase tracking-wide block mb-1">
+                  To
+                </label>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  min={customFrom || undefined}
+                  className="w-full px-3 py-2 rounded-lg border border-[#d0e1ed] bg-white text-sm text-[#1c3040] font-medium focus:outline-none focus:ring-2 focus:ring-[#3c5d74]/30"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 pb-4 flex gap-2.5">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-[#d0e1ed] text-[#5A7A90] text-sm font-bold hover:bg-[#f5f9fc] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDownload}
+            className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-br from-[#2b4557] to-[#1c3040] text-white rounded-xl px-4 py-2.5 text-sm font-bold shadow-md hover:opacity-90 transition-all"
+          >
+            <Download size={14} />
+            Download
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Single accordion row ──────────────────────────────────────────────────────
 function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCategory }) {
@@ -32,25 +158,31 @@ function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCa
           </div>
           <div className="text-left min-w-0">
             <div className="flex items-center gap-2">
-                <p className="text-xs sm:text-sm font-bold text-[#1c3040] m-0 truncate">
-                  {sec.label}
-                </p>
-
-                {/* EDIT CATEGORY */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-
-                    const newName = prompt("Edit category name", sec.label);
-                    if (!newName) return;
-
-                    onEditCategory(sec.key, newName);
-                  }}
-                  className="text-blue-500 text-xs"
-                >
-                  Edit
-                </button>
-              </div>
+              <p className="text-xs sm:text-sm font-bold text-[#1c3040] m-0 truncate">
+                {sec.label}
+              </p>
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                const newName = prompt("Edit category name", sec.label);
+                if (!newName) return;
+                onEditCategory(sec.key, newName);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.stopPropagation();
+                  const newName = prompt("Edit category name", sec.label);
+                  if (!newName) return;
+                  onEditCategory(sec.key, newName);
+                }
+              }}
+              className="text-blue-500 text-xs cursor-pointer"
+            >
+              Edit
+            </span>
+            </div>
             <div className="w-24 sm:w-36 h-1.5 bg-[#eaf1f6] rounded-full overflow-hidden">
               <div className="h-full rounded-full" style={{ width: `${pct}%`, background: sec.color }} />
             </div>
@@ -84,7 +216,14 @@ function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCa
                   >
                     <IIcon size={11} />
                   </div>
-                  <span className="text-[12px] sm:text-[13px] font-medium text-[#2E3F50] truncate">{item.label}</span>
+                  <div className="min-w-0">
+                    <span className="text-[12px] sm:text-[13px] font-medium text-[#2E3F50] truncate block">{item.label}</span>
+                    {item.createdAt && (
+                      <span className="text-[10px] text-[#8aabbd]">
+                        {new Date(item.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0 ml-2">
@@ -93,7 +232,6 @@ function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCa
                   </div>
                   <span className="text-[12px] sm:text-[13px] font-bold text-[#1c3040] text-right">{fmt(item.amount)}</span>
 
-                  {/* ── Edit & Delete buttons ── */}
                   {item.id && (
                     <div className="flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
@@ -138,22 +276,19 @@ function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCa
 // ── Main Expense Page ─────────────────────────────────────────────────────────
 export default function Expense() {
   const [expenseSections, setExpenseSections] = useState([]);
-  const [salarySections, setSalarySections] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [editItem, setEditItem] = useState(null); // { id, label, amount, icon }
-  const [loading, setLoading] = useState(true);
+  const [salarySections,  setSalarySections]  = useState([]);
+  const [showModal,       setShowModal]        = useState(false);
+  const [showDownload,    setShowDownload]     = useState(false);
+  const [editItem,        setEditItem]         = useState(null);
+  const [loading,         setLoading]          = useState(true);
 
-  // ── helpers ──────────────────────────────────────────────────────────────────
   const getToken = () => {
-    try {
-      return JSON.parse(localStorage.getItem("auth"))?.token;
-    } catch {
-      return null;
-    }
+    try { return JSON.parse(localStorage.getItem("auth"))?.token; }
+    catch { return null; }
   };
 
   const reloadExpenses = async (token) => {
-    const t = token || getToken();
+    const t   = token || getToken();
     const res = await fetch(`${API_URL}/api/finance/list`, {
       headers: { Authorization: `Bearer ${t}` },
     });
@@ -161,55 +296,42 @@ export default function Expense() {
     if (Array.isArray(data)) setExpenseSections(data);
   };
 
-  // ── initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
-      try {
-        const token = getToken();
-        await reloadExpenses(token);
-      } catch (e) {
-        console.log("Expense fetch error:", e);
-      } finally {
-        setLoading(false);
-      }
+      try { await reloadExpenses(getToken()); }
+      catch (e) { console.log("Expense fetch error:", e); }
+      finally   { setLoading(false); }
     };
     load();
   }, []);
 
-  // ── salary load ──────────────────────────────────────────────────────────────
- 
-
+  // ── category edit ─────────────────────────────────────────────────────────
   const handleEditCategory = async (id, name) => {
-  try {
-    const token = getToken();
+    try {
+      const token = getToken();
+      if (!token) { alert("Please login again"); return; }
 
-    if (!token) {
-      alert("Please login again");
-      return;
-    }
+      const res = await fetch(`${API_URL}/api/finance/category/update/${id}`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ name }),
+      });
 
-    const res = await fetch(`${API_URL}/api/finance/category/update/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ name })
-    });
+      const data = await res.json();
+      if (res.ok) await reloadExpenses(token);
+      else alert(data.message || "Update failed");
+    } catch (e) { console.log("Category edit error:", e); }
+  };
 
-    const data = await res.json();
+  // ── download handler ──────────────────────────────────────────────────────
+  const handleDownload = ({ preset, customFrom, customTo }) => {
+    const schoolName =
+      JSON.parse(localStorage.getItem("auth") || "{}")?.user?.schoolName || "School";
 
-    if (res.ok) {
-      await reloadExpenses(token); // ✅ refresh UI
-    } else {
-      alert(data.message || "Update failed");
-    }
+    downloadExpenseExcel(mergedSections, { preset, customFrom, customTo, schoolName });
+  };
 
-  } catch (e) {
-    console.log("Category edit error:", e);
-  }
-};
-  // ── derived ──────────────────────────────────────────────────────────────────
+  // ── derived ───────────────────────────────────────────────────────────────
   const mergedSections =
     salarySections.length > 0
       ? [...expenseSections.filter((s) => s.key !== "salaries"), ...salarySections]
@@ -217,23 +339,21 @@ export default function Expense() {
 
   const totalExpenses = mergedSections.reduce((s, e) => s + e.total, 0);
 
-  // ── handlers ─────────────────────────────────────────────────────────────────
+  // ── CRUD handlers ─────────────────────────────────────────────────────────
   const handleAddExpense = async ({ isNewSection, sectionKey, newSectionLabel, label, amount, icon }) => {
     try {
       const token = getToken();
       if (!token) { alert("Please login again"); return; }
 
       const res = await fetch(`${API_URL}/api/finance/add`, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ isNewSection, sectionKey, newSectionLabel, label, amount, icon }),
+        body:    JSON.stringify({ isNewSection, sectionKey, newSectionLabel, label, amount, icon }),
       });
 
       const data = await res.json();
       if (data.success) await reloadExpenses(token);
-    } catch (e) {
-      console.log("Add expense error:", e);
-    }
+    } catch (e) { console.log("Add expense error:", e); }
   };
 
   const handleEditExpense = async ({ id, label, amount, icon }) => {
@@ -242,54 +362,33 @@ export default function Expense() {
       if (!token) { alert("Please login again"); return; }
 
       const res = await fetch(`${API_URL}/api/finance/update/${id}`, {
-        method: "PUT",
+        method:  "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ label, amount, icon }),
+        body:    JSON.stringify({ label, amount, icon }),
       });
 
       if (res.ok) await reloadExpenses(token);
-    } catch (e) {
-      console.log("Edit expense error:", e);
-    }
+    } catch (e) { console.log("Edit expense error:", e); }
   };
 
-const handleDeleteExpense = async (id) => {
-  if (!window.confirm("Delete this expense?")) return;
-
-  try {
-    const token = getToken();
-
-    const res = await fetch(`${API_URL}/api/finance/delete/${id}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-
-    const data = await res.json();
-
-    if (res.ok) {
-      await reloadExpenses(token);
-    } else {
-      alert(data.message || "Delete failed"); // ✅ show error
-    }
-
-  } catch (e) {
-    console.log("Delete expense error:", e);
-  }
-};
-
-  const openEditModal = (item) => {
-    setEditItem(item);
-    setShowModal(true);
+  const handleDeleteExpense = async (id) => {
+    if (!window.confirm("Delete this expense?")) return;
+    try {
+      const token = getToken();
+      const res   = await fetch(`${API_URL}/api/finance/delete/${id}`, {
+        method:  "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) await reloadExpenses(token);
+      else alert(data.message || "Delete failed");
+    } catch (e) { console.log("Delete expense error:", e); }
   };
 
-  const closeModal = () => {
-    setShowModal(false);
-    setEditItem(null);
-  };
+  const openEditModal = (item) => { setEditItem(item); setShowModal(true); };
+  const closeModal    = ()     => { setShowModal(false); setEditItem(null); };
 
-  // ── render ────────────────────────────────────────────────────────────────────
+  // ── render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#d8e8f0] via-[#c8dce9] to-[#b8cfe0]">
 
@@ -304,13 +403,24 @@ const handleDeleteExpense = async (id) => {
             <p className="text-[11px] sm:text-[12px] text-white/55 m-0">All categories · Click any row to expand</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 sm:gap-4">
+
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          {/* ── Download button ── */}
+          <button
+            onClick={() => setShowDownload(true)}
+            className="flex items-center gap-2 bg-green-600/90 hover:bg-green-600 text-white rounded-xl px-4 py-2 text-sm font-bold transition-all shadow-sm"
+          >
+            <Download size={14} />
+            <span>Download Excel</span>
+          </button>
+
           {totalExpenses > 0 && (
             <div className="text-right">
               <p className="text-[9px] sm:text-[10px] text-white/50 uppercase tracking-widest m-0">Total Expenses</p>
               <p className="text-base sm:text-lg font-bold text-white m-0">{fmt(totalExpenses)}</p>
             </div>
           )}
+
           <button
             className="flex items-center gap-1.5 sm:gap-2 bg-white/[0.14] border border-white/[0.22] text-white rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-[12px] sm:text-[13.5px] font-bold hover:bg-white/[0.22] transition-all whitespace-nowrap"
             onClick={() => { setEditItem(null); setShowModal(true); }}
@@ -397,6 +507,15 @@ const handleDeleteExpense = async (id) => {
         )}
       </div>
 
+      {/* ── Download date-range modal ── */}
+      {showDownload && (
+        <DownloadModal
+          onClose={() => setShowDownload(false)}
+          onDownload={handleDownload}
+        />
+      )}
+
+      {/* ── Add / Edit expense modal ── */}
       {showModal && (
         <AddExpense
           expenseSections={mergedSections}

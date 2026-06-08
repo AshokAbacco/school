@@ -4,16 +4,15 @@ import { PrismaClient } from "@prisma/client";
 import { saveSchoolBackup } from "../../utils/schoolBackup.service.js";
 import { sendFeePendingWhatsApp } from "../../whatsapp/Fees/sendFeePendingWhatsApp.js";
 import { sendFeeReceiptWhatsApp } from "../../whatsapp/Fees/sendFeeReceiptWhatsApp.js";
- import { sendFeeVoiceReminder } from "../..//voice/services/voice.service.js";
+import { sendFeeVoiceReminder } from "../../voice/services/voice.service.js";
 import authMiddleware from "../../middlewares/authMiddleware.js";
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// ── ADD STUDENT FINANCE ───────────────────────────────────────────────────────
 router.post("/addStudentFinance", authMiddleware, async (req, res) => {
   try {
-
-    const schoolId = req.user?.schoolId; // ✅ FIX
-
+    const schoolId = req.user?.schoolId;
     if (!schoolId) {
       return res.status(400).json({ message: "SchoolId missing in user" });
     }
@@ -21,18 +20,18 @@ router.post("/addStudentFinance", authMiddleware, async (req, res) => {
     const {
       studentId, name, email, phone, course, fees,
       collegeFee, tuitionFee, examFee,
-      transportFee, booksFee, labFee, miscFee, customFees
+      transportFee, booksFee, labFee, miscFee, customFees,
     } = req.body;
 
     const feeBreakdown = JSON.stringify({
-      collegeFee: collegeFee || 0,
-      tuitionFee: tuitionFee || 0,
-      examFee: examFee || 0,
+      collegeFee:   collegeFee   || 0,
+      tuitionFee:   tuitionFee   || 0,
+      examFee:      examFee      || 0,
       transportFee: transportFee || 0,
-      booksFee: booksFee || 0,
-      labFee: labFee || 0,
-      miscFee: miscFee || 0,
-      customFees: customFees || [],
+      booksFee:     booksFee     || 0,
+      labFee:       labFee       || 0,
+      miscFee:      miscFee      || 0,
+      customFees:   customFees   || [],
     });
 
     const student = await prisma.studentList.create({
@@ -44,65 +43,62 @@ router.post("/addStudentFinance", authMiddleware, async (req, res) => {
         course: course || null,
         fees: fees ? parseFloat(fees) : null,
         feeBreakdown,
-        schoolId, // ✅ NOW WORKS
-      }
+        schoolId,
+      },
     });
-await saveSchoolBackup({
-  schoolId,
-  module: "studentList",
-  recordId: String(student.id),
-  data: student,
-  action: "create",
-});
-    // console.log("Saved student 👉", student);
+
+    // ✅ FIXED: uses `student` (the newly created record) and correct action
+    await saveSchoolBackup({
+      schoolId,
+      module:   "studentList",
+      recordId: String(student.id),
+      data:     student,
+      action:   "create",
+    });
 
     res.json(student);
-
   } catch (error) {
     console.error("Save Error:", error);
     res.status(500).json({ message: error.message });
   }
 });
 
+// ── GET STUDENT FINANCE LIST ──────────────────────────────────────────────────
 router.get("/getStudentFinance", authMiddleware, async (req, res) => {
   try {
-
-    const schoolId = req.user?.schoolId; // ✅ ADD THIS
-
+    const schoolId = req.user?.schoolId;
     if (!schoolId) {
       return res.status(400).json({ message: "SchoolId missing in user" });
     }
 
     const students = await prisma.studentList.findMany({
-    where: {
-  schoolId,
-  deletedAt: null
-}, // ✅ NOW WORKS
-      orderBy: {
-        createdAt: "desc"
-      }
+      where: { schoolId, deletedAt: null },
+      orderBy: { createdAt: "desc" },
     });
 
     res.json(students);
-
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: error.message });
   }
 });
 
+// ── UPDATE STUDENT FINANCE ────────────────────────────────────────────────────
 router.put("/updateStudentFinance/:id", authMiddleware, async (req, res) => {
   try {
+    const id       = parseInt(req.params.id);
+    // ✅ FIXED: read schoolId from req.user (was undefined in old code)
+    const schoolId = req.user?.schoolId;
 
-    const id = parseInt(req.params.id);
     const {
       studentId,
       name, email, phone, course, fees,
-      collegeFee, tuitionFee, examFee, transportFee, booksFee, labFee, miscFee, customFees,
-      paidAmount, paymentStatus, paymentMode, paymentDate
+      collegeFee, tuitionFee, examFee,
+      transportFee, booksFee, labFee, miscFee, customFees,
+      paidAmount, schoolFeePaid, tuitionFeePaid,
+      paymentStatus, paymentMode, paymentDate,
     } = req.body;
 
-    // Build update object — only include fields that are present in the request
     const updateData = {};
     if (name   !== undefined) updateData.name   = name;
     if (email  !== undefined) updateData.email  = email;
@@ -124,159 +120,135 @@ router.put("/updateStudentFinance/:id", authMiddleware, async (req, res) => {
       });
     }
 
-    // Payment tracking fields (sent from PayModal)
-    if (paidAmount    !== undefined) updateData.paidAmount    = parseFloat(paidAmount) || 0;
-    if (paymentStatus !== undefined) updateData.paymentStatus = paymentStatus;
-    if (paymentMode   !== undefined) updateData.paymentMode   = paymentMode;
-    if (paymentDate   !== undefined) updateData.paymentDate   = new Date(paymentDate);
+    // Payment tracking fields
+    if (paidAmount     !== undefined) updateData.paidAmount     = parseFloat(paidAmount)     || 0;
+    if (schoolFeePaid  !== undefined) updateData.schoolFeePaid  = parseFloat(schoolFeePaid)  || 0;
+    if (tuitionFeePaid !== undefined) updateData.tuitionFeePaid = parseFloat(tuitionFeePaid) || 0;
+    if (paymentStatus  !== undefined) updateData.paymentStatus  = paymentStatus;
+    if (paymentMode    !== undefined) updateData.paymentMode    = paymentMode;
+    if (paymentDate    !== undefined) updateData.paymentDate    = new Date(paymentDate);
 
     const updated = await prisma.studentList.update({
       where: { id },
-      data: updateData,
+      data:  updateData,
     });
-await saveSchoolBackup({
-  schoolId,
-  module: "studentList",
-  recordId: String(student.id),
-  data: student,
-  action: "create",
-});
-    res.json(updated);
 
+    // ✅ FIXED: uses `updated` (the Prisma result), correct schoolId, correct action
+    await saveSchoolBackup({
+      schoolId,
+      module:   "studentList",
+      recordId: String(updated.id),
+      data:     updated,
+      action:   "update",
+    });
+
+    res.json(updated);
   } catch (error) {
     console.error("Update error:", error);
     res.status(500).json({ message: error.message });
   }
 });
+
+// ── DELETE STUDENT FINANCE (soft delete) ─────────────────────────────────────
 router.delete("/deleteStudentFinance/:id", authMiddleware, async (req, res) => {
   try {
-
-    const id = parseInt(req.params.id);
+    const id       = parseInt(req.params.id);
+    // ✅ FIXED: read schoolId from req.user (was undefined in old code)
+    const schoolId = req.user?.schoolId;
 
     const deleted = await prisma.studentList.update({
       where: { id },
-      data: {
-        deletedAt: new Date()
-      }
+      data:  { deletedAt: new Date() },
     });
 
- await saveSchoolBackup({
-  schoolId,
-  module: "studentList",
-  recordId: String(student.id),
-  data: student,
-  action: "create",
-});
-
-    res.json({
-      message: "Deleted Successfully"
+    // ✅ FIXED: uses `deleted` (the Prisma result), correct schoolId, correct action
+    await saveSchoolBackup({
+      schoolId,
+      module:   "studentList",
+      recordId: String(deleted.id),
+      data:     deleted,
+      action:   "delete",
     });
 
+    res.json({ message: "Deleted Successfully" });
   } catch (error) {
-    res.status(500).json({
-      message: error.message
-    });
+    res.status(500).json({ message: error.message });
   }
 });
+
+// ── STUDENTS BY CLASS ─────────────────────────────────────────────────────────
 router.get("/studentsByClass", async (req, res) => {
   try {
-
-    const { schoolId, classSectionId } = req.query;
+    const { classSectionId } = req.query;
 
     const students = await prisma.studentEnrollment.findMany({
-      where: {
-        classSectionId: classSectionId
-      },
+      where: { classSectionId },
       include: {
-        student: {
-          include: {
-            personalInfo: true
-          }
-        },
-        classSection: true
-      }
+        student: { include: { personalInfo: true } },
+        classSection: true,
+      },
     });
 
     res.json(students);
-
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: error.message });
   }
 });
+
+// ── SCHOOLS LIST ──────────────────────────────────────────────────────────────
 router.get("/schools", async (req, res) => {
   const schools = await prisma.school.findMany({
-    select: {
-      id: true,
-      name: true
-    }
+    select: { id: true, name: true },
   });
-
   res.json(schools);
 });
+
+// ── CLASS SECTIONS ────────────────────────────────────────────────────────────
 router.get("/classSections", async (req, res) => {
-
   const { schoolId } = req.query;
-
   const classes = await prisma.classSection.findMany({
-    where: {
-      schoolId
-    },
-    select: {
-      id: true,
-      grade: true,
-      section: true,
-      name: true
-    }
+    where:  { schoolId },
+    select: { id: true, grade: true, section: true, name: true },
   });
-
   res.json(classes);
-
 });
 
+// ── ALL STUDENTS (no school filter — internal use) ────────────────────────────
 router.get("/students", async (req, res) => {
   try {
-
     const students = await prisma.studentList.findMany({
-      orderBy: {
-        createdAt: "desc"
-      }
+      orderBy: { createdAt: "desc" },
     });
-
     res.json(students);
-
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+// ── DELETE STUDENT (hard soft-delete, no auth) ────────────────────────────────
 router.delete("/deleteStudent/:id", async (req, res) => {
   try {
-
     const id = parseInt(req.params.id);
-
-await prisma.studentList.update({
-  where: { id },
-  data: {
-    deletedAt: new Date()
-  }
-});
-
+    await prisma.studentList.update({
+      where: { id },
+      data:  { deletedAt: new Date() },
+    });
     res.json({ message: "Deleted successfully" });
-
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// ── Return the school info for the logged-in user ────────────────────────────
+// ── MY SCHOOL ─────────────────────────────────────────────────────────────────
 router.get("/mySchool", authMiddleware, async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
     if (!schoolId) return res.status(400).json({ message: "schoolId missing" });
 
     const school = await prisma.school.findUnique({
-      where: { id: schoolId },
-      select: { id: true, name: true, address: true, city: true, phone: true, email: true, logoUrl: true }
+      where:  { id: schoolId },
+      select: { id: true, name: true, address: true, city: true, phone: true, email: true, logoUrl: true },
     });
 
     if (!school) return res.status(404).json({ message: "School not found" });
@@ -287,15 +259,14 @@ router.get("/mySchool", authMiddleware, async (req, res) => {
   }
 });
 
-export default router;
-// ── Student self-view: fetch MY fees by email ────────────────────────────────
+// ── MY FEES (student self-view by email) ──────────────────────────────────────
 router.get("/myFees", async (req, res) => {
   try {
     const { email } = req.query;
     if (!email) return res.status(400).json({ message: "email is required" });
 
     const record = await prisma.studentList.findFirst({
-      where: { email: email },
+      where:   { email },
       orderBy: { createdAt: "desc" },
     });
 
@@ -307,10 +278,10 @@ router.get("/myFees", async (req, res) => {
   }
 });
 
+// ── CLASS FEE ─────────────────────────────────────────────────────────────────
 router.get("/classFee", async (req, res) => {
   try {
     const { classSectionId, academicYearId } = req.query;
-
     if (!classSectionId) {
       return res.status(400).json({ message: "classSectionId required" });
     }
@@ -323,321 +294,176 @@ router.get("/classFee", async (req, res) => {
     });
 
     res.json(fee || null);
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: error.message });
   }
 });
 
-// ── Parent: Get children fees ─────────────────────────────
+// ── PARENT FEES ───────────────────────────────────────────────────────────────
 router.get("/parentFees", authMiddleware, async (req, res) => {
   try {
     const parentId = req.user.id;
 
-    // 1. Get children of parent
     const children = await prisma.studentParent.findMany({
-      where: { parentId },
-      select: { studentId: true }
+      where:  { parentId },
+      select: { studentId: true },
     });
 
     const studentIds = children.map(c => c.studentId);
 
-    // 2. Get finance data
- const fees = await prisma.studentList.findMany({
-  where: {
-    studentId: { in: studentIds },
-    deletedAt: null
-  }
-});
-    res.json(fees);
+    const fees = await prisma.studentList.findMany({
+      where: { studentId: { in: studentIds }, deletedAt: null },
+    });
 
+    res.json(fees);
   } catch (err) {
     console.error("parentFees error:", err);
     res.status(500).json({ message: err.message });
   }
 });
 
+// ── SEND FEE REMINDER (WhatsApp) ──────────────────────────────────────────────
+router.post("/sendFeeReminder/:id", authMiddleware, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
 
-router.post(
-  "/sendFeeReminder/:id",
-  authMiddleware,
-  async (req, res) => {
-    try {
+    const financeStudent = await prisma.studentList.findUnique({ where: { id } });
+    if (!financeStudent) return res.status(404).json({ message: "Student not found" });
 
-      const id = parseInt(req.params.id);
+    const totalFees   = Number(financeStudent.fees        || 0);
+    const paidAmount  = Number(financeStudent.paidAmount   || 0);
+    const pendingAmount = totalFees - paidAmount;
+    if (pendingAmount <= 0) return res.status(400).json({ message: "No pending fees" });
 
-      // finance student
-      const financeStudent = await prisma.studentList.findUnique({
-        where: { id },
-      });
+    const realStudent = await prisma.student.findFirst({
+      where:   { id: financeStudent.studentId },
+      include: { parentLinks: { include: { parent: true } } },
+    });
+    if (!realStudent) return res.status(404).json({ message: "Real student record not found" });
 
-      if (!financeStudent) {
-        return res.status(404).json({
-          message: "Student not found",
-        });
-      }
+    const school = await prisma.school.findUnique({ where: { id: req.user.schoolId } });
 
-      const totalFees = Number(financeStudent.fees || 0);
-      const paidAmount = Number(financeStudent.paidAmount || 0);
-
-      const pendingAmount = totalFees - paidAmount;
-
-      if (pendingAmount <= 0) {
-        return res.status(400).json({
-          message: "No pending fees",
-        });
-      }
-
-      // REAL student
-        const realStudent = await prisma.student.findFirst({
-          where: {
-            id: financeStudent.studentId,
-          },
-          include: {
-            parentLinks: {
-              include: {
-                parent: true,
-              },
-            },
-          },
-        });
-
-      if (!realStudent) {
-        return res.status(404).json({
-          message: "Real student record not found",
-        });
-      }
-
-      // send to all parents
-      for (const link of realStudent.parentLinks) {
-
-        const parentPhone = link.parent?.phone;
-
-        if (!parentPhone) continue;
-
-        const school = await prisma.school.findUnique({
-          where: {
-            id: req.user.schoolId,
-          },
-        });
-
-        await sendFeePendingWhatsApp({
-          phone: parentPhone,
-          pendingAmount,
-          studentName: financeStudent.name,
-          schoolName: school?.name || "School",
-        });
-      }
-
-      res.json({
-        success: true,
-        message: "Fee reminder sent successfully",
-      });
-
-    } catch (error) {
-
-      console.log(error);
-
-      res.status(500).json({
-        message: error.message,
+    for (const link of realStudent.parentLinks) {
+      const parentPhone = link.parent?.phone;
+      if (!parentPhone) continue;
+      await sendFeePendingWhatsApp({
+        phone: parentPhone,
+        pendingAmount,
+        studentName: financeStudent.name,
+        schoolName:  school?.name || "School",
       });
     }
+
+    res.json({ success: true, message: "Fee reminder sent successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
   }
-);
-
-router.post(
-"/sendFeeReceipt/:id",
-authMiddleware,
-async (req, res) => {
-try {
- 
-  const id = parseInt(req.params.id);
-
-  const financeStudent = await prisma.studentList.findUnique({
-    where: { id },
-  });
-
-  if (!financeStudent) {
-    return res.status(404).json({
-      message: "Student not found",
-    });
-  }
-
-  const realStudent = await prisma.student.findFirst({
-    where: {
-      id: financeStudent.studentId,
-    },
-    include: {
-      parentLinks: {
-        include: {
-          parent: true,
-        },
-      },
-    },
-  });
-
-  if (!realStudent) {
-    return res.status(404).json({
-      message: "Real student not found",
-    });
-  }
-
-  const school = await prisma.school.findUnique({
-    where: {
-      id: req.user.schoolId,
-    },
-  });
-
-  // YOUR PDF URL
-  const pdfUrl = req.body.pdfUrl;
-
-  for (const link of realStudent.parentLinks) {
-
-    const parentPhone = link.parent?.phone;
-
-    if (!parentPhone) continue;
-
-    await sendFeeReceiptWhatsApp({
-      phone: parentPhone,
-      studentName: financeStudent.name,
-      schoolName: school?.name || "School",
-      pdfUrl,
-    });
-  }
-
-  res.json({
-    success: true,
-    message: "Fee receipt sent successfully",
-  });
-
-} catch (error) {
-
-  console.log(error);
-
-  res.status(500).json({
-    message: error.message,
-  });
-}
- 
 });
 
- 
+// ── SEND FEE RECEIPT (WhatsApp PDF) ──────────────────────────────────────────
+router.post("/sendFeeReceipt/:id", authMiddleware, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
 
+    const financeStudent = await prisma.studentList.findUnique({ where: { id } });
+    if (!financeStudent) return res.status(404).json({ message: "Student not found" });
 
-// ── Upload fee receipt PDF to R2 ─────────────────────────────────────────────
-import { uploadPdfToR2 } from "../../utils/uploadPdfToR2.js"; // adjust path as needed
- 
+    const realStudent = await prisma.student.findFirst({
+      where:   { id: financeStudent.studentId },
+      include: { parentLinks: { include: { parent: true } } },
+    });
+    if (!realStudent) return res.status(404).json({ message: "Real student not found" });
+
+    const school  = await prisma.school.findUnique({ where: { id: req.user.schoolId } });
+    const pdfUrl  = req.body.pdfUrl;
+
+    for (const link of realStudent.parentLinks) {
+      const parentPhone = link.parent?.phone;
+      if (!parentPhone) continue;
+      await sendFeeReceiptWhatsApp({
+        phone:       parentPhone,
+        studentName: financeStudent.name,
+        schoolName:  school?.name || "School",
+        pdfUrl,
+      });
+    }
+
+    res.json({ success: true, message: "Fee receipt sent successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ── UPLOAD FEE RECEIPT PDF TO R2 ─────────────────────────────────────────────
+import { uploadPdfToR2 } from "../../utils/uploadPdfToR2.js";
 
 router.post("/uploadFeeReceipt/:id", authMiddleware, async (req, res) => {
   try {
-    const id = req.params.id;
+    const id     = req.params.id;
     const chunks = [];
 
-    req.on("data", chunk => chunks.push(chunk));
-    req.on("end", async () => {
+    req.on("data",  chunk => chunks.push(chunk));
+    req.on("end",   async () => {
       try {
         const pdfBuffer = Buffer.concat(chunks);
-        const fileName = `receipts/${id}_${Date.now()}.pdf`;
-        const pdfUrl = await uploadPdfToR2(pdfBuffer, fileName);
+        const fileName  = `receipts/${id}_${Date.now()}.pdf`;
+        const pdfUrl    = await uploadPdfToR2(pdfBuffer, fileName);
         res.json({ success: true, pdfUrl });
       } catch (err) {
         console.error("R2 upload error:", err);
         res.status(500).json({ message: err.message });
       }
     });
-
     req.on("error", err => {
       console.error("Stream error:", err);
       res.status(500).json({ message: err.message });
     });
-
   } catch (error) {
     console.error("uploadFeeReceipt error:", error);
     res.status(500).json({ message: error.message });
   }
 });
 
-router.post(
-  "/sendFeeVoiceReminder/:id",
-  authMiddleware,
-  async (req, res) => {
-    try {
+// ── SEND FEE VOICE REMINDER ───────────────────────────────────────────────────
+router.post("/sendFeeVoiceReminder/:id", authMiddleware, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
 
-      const id = parseInt(req.params.id);
+    const financeStudent = await prisma.studentList.findUnique({ where: { id } });
+    if (!financeStudent) return res.status(404).json({ message: "Student not found" });
 
-      const financeStudent = await prisma.studentList.findUnique({
-        where: { id },
-      });
+    const totalFees     = Number(financeStudent.fees       || 0);
+    const paidAmount    = Number(financeStudent.paidAmount  || 0);
+    const pendingAmount = totalFees - paidAmount;
+    if (pendingAmount <= 0) return res.status(400).json({ message: "No pending fees" });
 
-      if (!financeStudent) {
-        return res.status(404).json({
-          message: "Student not found",
-        });
-      }
+    const realStudent = await prisma.student.findFirst({
+      where:   { id: financeStudent.studentId },
+      include: { parentLinks: { include: { parent: true } } },
+    });
+    if (!realStudent) return res.status(404).json({ message: "Real student not found" });
 
-      const totalFees = Number(financeStudent.fees || 0);
-      const paidAmount = Number(financeStudent.paidAmount || 0);
+    const school = await prisma.school.findUnique({ where: { id: req.user.schoolId } });
 
-      const pendingAmount = totalFees - paidAmount;
-
-      if (pendingAmount <= 0) {
-        return res.status(400).json({
-          message: "No pending fees",
-        });
-      }
-
-      const realStudent = await prisma.student.findFirst({
-        where: {
-          id: financeStudent.studentId,
-        },
-        include: {
-          parentLinks: {
-            include: {
-              parent: true,
-            },
-          },
-        },
-      });
-
-      if (!realStudent) {
-        return res.status(404).json({
-          message: "Real student not found",
-        });
-      }
-
-      const school = await prisma.school.findUnique({
-        where: {
-          id: req.user.schoolId,
-        },
-      });
-
-      for (const link of realStudent.parentLinks) {
-
-        const parentPhone = link.parent?.phone;
-
-        if (!parentPhone) continue;
-
-        await sendFeeVoiceReminder({
-          phone: parentPhone,
-          pendingAmount,
-          studentName: financeStudent.name,
-          schoolName: school?.name || "School",
-        });
-      }
-
-      res.json({
-        success: true,
-        message: "Voice reminder sent successfully",
-      });
-
-    } catch (error) {
-
-      console.log(error);
-
-      res.status(500).json({
-        message: error.message,
+    for (const link of realStudent.parentLinks) {
+      const parentPhone = link.parent?.phone;
+      if (!parentPhone) continue;
+      await sendFeeVoiceReminder({
+        phone:       parentPhone,
+        pendingAmount,
+        studentName: financeStudent.name,
+        schoolName:  school?.name || "School",
       });
     }
+
+    res.json({ success: true, message: "Voice reminder sent successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
   }
-);
+});
+
+export default router;

@@ -57,7 +57,7 @@ const Addstudent = ({ open, handleClose, addStudentData, editData }) => {
 
   // ── Fee rows state ──────────────────────────────────────────────────────────
   const DEFAULT_FEES = [
-    { id: "college", label: "College Fee", amount: "", enabled: true, required: true },
+    { id: "college", label: "School Fee", amount: "", enabled: true, required: true },
     { id: "tuition", label: "Tuition Fee", amount: "", enabled: true, required: false },
     { id: "exam", label: "Exam Fee", amount: "", enabled: false, required: false },
     { id: "transport", label: "Transport Fee", amount: "", enabled: false, required: false },

@@ -1,12 +1,28 @@
 // client/src/auth/Login.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { loginRequest, loginSuperAdmin,sendLoginOtp, verifyLoginOtp } from "./api";
+import {
+  loginRequest,
+  loginSuperAdmin,
+  sendLoginOtp,
+  verifyLoginOtp,
+} from "./api";
 import { saveAuth } from "./storage";
 import {
-  GraduationCap, Users, ShieldCheck, Building2,
-  Mail, Lock, Eye, EyeOff, ChevronRight, BookOpen,
-  BarChart3, UserCog, ArrowRight, Sparkles
+  GraduationCap,
+  Users,
+  ShieldCheck,
+  Building2,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ChevronRight,
+  BookOpen,
+  BarChart3,
+  UserCog,
+  ArrowRight,
+  Sparkles,
 } from "lucide-react";
 
 const REDIRECT = {
@@ -19,9 +35,9 @@ const REDIRECT = {
 };
 
 const STAFF_ROLES = [
-  { label: "Admin", value: "admin", icon: UserCog,  },
-  { label: "Teacher", value: "teacher", icon: BookOpen, },
-  { label: "Financer", value: "financer", icon: BarChart3, },
+  { label: "Admin", value: "admin", icon: UserCog },
+  { label: "Teacher", value: "teacher", icon: BookOpen },
+  { label: "Financer", value: "financer", icon: BarChart3 },
 ];
 
 const TOP_TABS = [
@@ -32,9 +48,21 @@ const TOP_TABS = [
 ];
 
 const FEATURES = [
-  { icon: Users, text: "Staff & Faculty Management", sub: "Streamline HR and academic workflows" },
-  { icon: GraduationCap, text: "Student Academic Portal", sub: "Grades, attendance & schedules" },
-  { icon: BarChart3, text: "Finance & Fee Tracking", sub: "Real-time financial oversight" },
+  {
+    icon: Users,
+    text: "Staff & Faculty Management",
+    sub: "Streamline HR and academic workflows",
+  },
+  {
+    icon: GraduationCap,
+    text: "Student Academic Portal",
+    sub: "Grades, attendance & schedules",
+  },
+  {
+    icon: BarChart3,
+    text: "Finance & Fee Tracking",
+    sub: "Real-time financial oversight",
+  },
 ];
 
 export default function Login({ onSwitchToRegister }) {
@@ -74,33 +102,44 @@ export default function Login({ onSwitchToRegister }) {
       const staffRoleMap = {
         admin: "ADMIN",
         teacher: "TEACHER",
-        financer: "FINANCE", // ✅ Fix
+        financer: "FINANCE",
       };
 
       const result = await sendLoginOtp({
         email,
         password,
-
         selectedRole:
-          type === "staff"
-            ? staffRoleMap[staffRole]
-            : roleMap[type],
+          type === "staff" ? staffRoleMap[staffRole] : roleMap[type],
       });
 
+      // STAFF / SUPER ADMIN
       if (result?.otpRequired) {
         setShowOtp(true);
 
-        setOtpMessage(
-          `OTP sent to your email: ${email}`
-        );
+        setOtpMessage("OTP sent to your registered mobile number");
 
         setError("");
+
+        return;
+      }
+
+      // STUDENT / PARENT
+      if (result?.token) {
+        saveAuth(result);
+
+        const role = result?.user?.role;
+
+        if (!role) {
+          setError("Login failed: role not found");
+          return;
+        }
+
+        window.location.href = REDIRECT[role] || "/dashboard";
+
         return;
       }
     } catch (err) {
-      setError(
-        err.message || "Login failed"
-      );
+      setError(err.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -116,38 +155,29 @@ export default function Login({ onSwitchToRegister }) {
     try {
       setLoading(true);
 
-      const result =
-        await verifyLoginOtp({
-          email,
-          otp,
-        });
+      const result = await verifyLoginOtp({
+        email,
+        otp,
+      });
 
       saveAuth(result);
 
-      const role =
-        result?.user?.role;
+      const role = result?.user?.role;
 
       if (!role) {
-        setError(
-          "Login failed: role not found"
-        );
+        setError("Login failed: role not found");
         return;
       }
 
-      window.location.href =
-        REDIRECT[role] ||
-        "/dashboard";
-
+      window.location.href = REDIRECT[role] || "/dashboard";
     } catch (err) {
-      setError(
-        err.message || "OTP verification failed"
-      );
+      setError(err.message || "OTP verification failed");
     } finally {
       setLoading(false);
     }
   };
 
-  const activeTab = TOP_TABS.find(t => t.value === type);
+  const activeTab = TOP_TABS.find((t) => t.value === type);
 
   return (
     <>
@@ -616,15 +646,29 @@ export default function Login({ onSwitchToRegister }) {
 
           {/* Mobile-only inline brand (no headline/features) */}
           <div className="mobile-brand">
-            <span style={{ color: "#fff", fontFamily: "Outfit,sans-serif", fontWeight: 800, fontSize: 17 }}>UniPortal</span>
-            <span style={{ color: "#88BDF2", fontSize: 11, fontWeight: 500 }}>Campus Management</span>
+            <span
+              style={{
+                color: "#fff",
+                fontFamily: "Outfit,sans-serif",
+                fontWeight: 800,
+                fontSize: 17,
+              }}
+            >
+              UniPortal
+            </span>
+            <span style={{ color: "#88BDF2", fontSize: 11, fontWeight: 500 }}>
+              Campus Management
+            </span>
           </div>
 
           <h1 className="left-headline">
-            Your campus,<br /><span>one platform.</span>
+            Your campus,
+            <br />
+            <span>one platform.</span>
           </h1>
           <p className="left-sub">
-            A unified workspace for staff, students, parents, and administrators to manage every aspect of university life.
+            A unified workspace for staff, students, parents, and administrators
+            to manage every aspect of university life.
           </p>
 
           <div className="feature-list">
@@ -663,7 +707,10 @@ export default function Login({ onSwitchToRegister }) {
                   <button
                     key={tab.value}
                     className={`tab-btn ${type === tab.value ? "active" : ""}`}
-                    onClick={() => { setType(tab.value); setError(""); }}
+                    onClick={() => {
+                      setType(tab.value);
+                      setError("");
+                    }}
                   >
                     <Icon size={14} />
                     {tab.label}
@@ -679,10 +726,16 @@ export default function Login({ onSwitchToRegister }) {
                   <button
                     key={value}
                     className={`role-btn ${staffRole === value ? "active" : ""}`}
-                    onClick={() => { setStaffRole(value); setError(""); }}
+                    onClick={() => {
+                      setStaffRole(value);
+                      setError("");
+                    }}
                   >
                     <div className="role-btn-icon">
-                      <Icon size={15} color={staffRole === value ? "#384959" : "#88BDF2"} />
+                      <Icon
+                        size={15}
+                        color={staffRole === value ? "#384959" : "#88BDF2"}
+                      />
                     </div>
                     <div className="role-btn-label">{label}</div>
                     <div className="role-btn-desc">{desc}</div>
@@ -697,7 +750,7 @@ export default function Login({ onSwitchToRegister }) {
               <span className="role-pill-text">
                 Signing in as:{" "}
                 {type === "staff"
-                  ? `${STAFF_ROLES.find(r => r.value === staffRole)?.label} (Staff)`
+                  ? `${STAFF_ROLES.find((r) => r.value === staffRole)?.label} (Staff)`
                   : activeTab?.label}
               </span>
             </div>
@@ -709,14 +762,16 @@ export default function Login({ onSwitchToRegister }) {
             <div className="field-group">
               <label className="field-label">Email Address</label>
               <div className="field-wrap">
-                <span className="field-icon"><Mail size={15} color="#88BDF2" /></span>
+                <span className="field-icon">
+                  <Mail size={15} color="#88BDF2" />
+                </span>
                 <input
                   className="field-input"
                   type="email"
                   placeholder="name@university.edu"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleLogin()}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                 />
               </div>
             </div>
@@ -725,28 +780,36 @@ export default function Login({ onSwitchToRegister }) {
             <div className="field-group">
               <label className="field-label">Password</label>
               <div className="field-wrap">
-                <span className="field-icon"><Lock size={15} color="#88BDF2" /></span>
+                <span className="field-icon">
+                  <Lock size={15} color="#88BDF2" />
+                </span>
                 <input
                   className="field-input"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleLogin()}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                   style={{ paddingRight: 44 }}
                 />
-                <button className="pw-toggle" type="button" onClick={() => setShowPassword(s => !s)}>
-                  {showPassword ? <EyeOff size={16} color="#6A89A7" /> : <Eye size={16} color="#6A89A7" />}
+                <button
+                  className="pw-toggle"
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                >
+                  {showPassword ? (
+                    <EyeOff size={16} color="#6A89A7" />
+                  ) : (
+                    <Eye size={16} color="#6A89A7" />
+                  )}
                 </button>
               </div>
             </div>
 
-           {showOtp && (
+            {showOtp && (
               <>
                 <div className="field-group">
-                  <label className="field-label">
-                    Enter OTP
-                  </label>
+                  <label className="field-label">Enter OTP</label>
 
                   <input
                     className="field-input"
@@ -770,15 +833,30 @@ export default function Login({ onSwitchToRegister }) {
               </>
             )}
 
-            <span className="forgot-link" onClick={() => navigate("/forgot-password")}>
+            <span
+              className="forgot-link"
+              onClick={() => navigate("/forgot-password")}
+            >
               Forgot Password?
             </span>
 
             {/* Sign In Button */}
-            <button className="btn-primary" onClick={showOtp? handleVerifyOtp: handleLogin} disabled={loading}>
-              {loading
-                ? <><div className="spinner" /><span>Authenticating...</span></>
-                : <><span>Sign In</span><ArrowRight size={16} /></>}
+            <button
+              className="btn-primary"
+              onClick={showOtp ? handleVerifyOtp : handleLogin}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <div className="spinner" />
+                  <span>Authenticating...</span>
+                </>
+              ) : (
+                <>
+                  <span>Sign In</span>
+                  <ArrowRight size={16} />
+                </>
+              )}
             </button>
 
             {/* Divider */}

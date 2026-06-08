@@ -27,7 +27,7 @@ import examTimetableRoutes from "./src/whatsapp/Exams/examTimetable.routes.js";
 
 import dotenv from "dotenv";
 dotenv.config();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // const allowedOrigins = [
 //   "http://localhost:5173",
@@ -57,6 +57,7 @@ app.use(
     credentials: true,
   })
 );
+
 // app.use(
 //   cors({
 //     origin: function (origin, callback) {
