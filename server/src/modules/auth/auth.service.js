@@ -505,23 +505,73 @@ export const loginStaffService = async ({ email, password, selectedRole }) => {
 // ── Student ────────────────────────────────────────────────────────────────
 
 export const loginStudentService = async ({ email, password }) => {
-  const student = await prisma.student.findFirst({
-    where: { email, isActive: true },
-    include: {
-      school: {
-        include: {
-          university: {
-            include: {
-              Subscription: {
-                orderBy: {
-                  createdAt: "desc",
-                },
-                take: 1,
-                include: {
-                  payment: {
-                    select: {
-                      planName: true,
-                    },
+  // const student = await prisma.student.findFirst({
+  //   where: { email, isActive: true },
+  //   include: {
+  //     school: {
+  //       include: {
+  //         university: {
+  //           include: {
+  //             Subscription: {
+  //               orderBy: {
+  //                 createdAt: "desc",
+  //               },
+  //               take: 1,
+  //               include: {
+  //                 payment: {
+  //                   select: {
+  //                     planName: true,
+  //                   },
+  //                 },
+  //               },
+  //             },
+  //           },
+  //         },
+  //       },
+  //     },
+  //     personalInfo: {
+  //       select: {
+  //         firstName: true,
+  //         lastName: true,
+  //         profileImage: true,
+  //       },
+  //     },
+  //     enrollments: {
+  //       where: { status: "ACTIVE" },
+  //       select: {
+  //         admissionDate: true,
+  //         rollNumber: true,
+  //         status: true,
+  //         classSection: {
+  //           select: { id: true, name: true, grade: true, section: true },
+  //         },
+  //         academicYear: {
+  //           select: { id: true, name: true },
+  //         },
+  //       },
+  //       orderBy: { createdAt: "desc" },
+  //       take: 1,
+  //     },
+  //   },
+  //   orderBy: { createdAt: "desc" },
+  // });
+const student = await prisma.student.findFirst({
+  where: { email, isActive: true },
+
+  include: {
+    school: {
+      include: {
+        university: {
+          include: {
+            Subscription: {
+              orderBy: {
+                createdAt: "desc",
+              },
+              take: 1,
+              include: {
+                payment: {
+                  select: {
+                    planName: true,
                   },
                 },
               },
@@ -529,33 +579,61 @@ export const loginStudentService = async ({ email, password }) => {
           },
         },
       },
-      personalInfo: {
-        select: {
-          firstName: true,
-          lastName: true,
-          profileImage: true,
-        },
-      },
-      enrollments: {
-        where: { status: "ACTIVE" },
-        select: {
-          admissionDate: true,
-          rollNumber: true,
-          status: true,
-          classSection: {
-            select: { id: true, name: true, grade: true, section: true },
-          },
-          academicYear: {
-            select: { id: true, name: true },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 1,
+    },
+
+    personalInfo: {
+      select: {
+        firstName: true,
+        lastName: true,
+        profileImage: true,
       },
     },
-    orderBy: { createdAt: "desc" },
-  });
 
+    // ✅ ADD THIS
+    parentLinks: {
+      include: {
+        parent: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+        },
+      },
+    },
+
+    enrollments: {
+      where: { status: "ACTIVE" },
+      select: {
+        admissionDate: true,
+        rollNumber: true,
+        status: true,
+        classSection: {
+          select: {
+            id: true,
+            name: true,
+            grade: true,
+            section: true,
+          },
+        },
+        academicYear: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 1,
+    },
+  },
+
+  orderBy: {
+    createdAt: "desc",
+  },
+});
   if (!student) {
     const staffUser = await prisma.user.findFirst({ where: { email } });
     if (staffUser) {
@@ -897,10 +975,7 @@ export const loginWithOtpService = async ({
     };
   }
 
-  // Student & Parent login directly
-  if (selectedRole === "STUDENT" || selectedRole === "PARENT") {
-    return result;
-  }
+
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -912,49 +987,94 @@ export const loginWithOtpService = async ({
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     },
   });
+let phone = null;
 
-  let phone = null;
+// SUPER ADMIN
+if (selectedRole === "SUPER_ADMIN") {
+  const admin = await prisma.superAdmin.findUnique({
+    where: { email },
+    select: {
+      phone: true,
+    },
+  });
 
-  // SUPER ADMIN
-  if (selectedRole === "SUPER_ADMIN") {
-    const admin = await prisma.superAdmin.findUnique({
-      where: { email },
-      select: {
-        phone: true,
+  phone = admin?.phone;
+}
+
+// STUDENT
+else if (selectedRole === "STUDENT") {
+  const student = await prisma.student.findFirst({
+    where: {
+      email,
+    },
+
+    include: {
+      parentLinks: {
+        include: {
+          parent: {
+            select: {
+              phone: true,
+            },
+          },
+        },
       },
-    });
+    },
+  });
 
-    phone = admin?.phone;
+  const primaryParent =
+    student?.parentLinks?.find((x) => x.isPrimary)?.parent ||
+    student?.parentLinks?.[0]?.parent;
+
+  phone = primaryParent?.phone;
+}
+
+// PARENT
+else if (selectedRole === "PARENT") {
+  const parent = await prisma.parent.findFirst({
+    where: {
+      email,
+    },
+
+    select: {
+      phone: true,
+    },
+  });
+
+  phone = parent?.phone;
+}
+
+// ADMIN / TEACHER / FINANCE
+else {
+  const staff = await prisma.user.findFirst({
+    where: { email },
+
+    include: {
+      schoolAdminProfile: true,
+      teacherProfile: true,
+      financeProfile: true,
+    },
+  });
+
+  if (selectedRole === "ADMIN") {
+    phone = staff?.schoolAdminProfile?.phoneNumber;
   }
 
-  // ADMIN / TEACHER / FINANCE
-  else {
-    const staff = await prisma.user.findFirst({
-      where: { email },
-      include: {
-        schoolAdminProfile: true,
-        teacherProfile: true,
-        financeProfile: true,
-      },
-    });
-
-    if (selectedRole === "ADMIN") {
-      phone = staff?.schoolAdminProfile?.phoneNumber;
-    }
-
-    if (selectedRole === "TEACHER") {
-      phone = staff?.teacherProfile?.phone;
-    }
-
-    if (selectedRole === "FINANCE") {
-      phone = staff?.financeProfile?.phone;
-    }
+  if (selectedRole === "TEACHER") {
+    phone = staff?.teacherProfile?.phone;
   }
+
+  if (selectedRole === "FINANCE") {
+    phone = staff?.financeProfile?.phone;
+  }
+}
 
   if (!phone) {
     throw {
       status: 400,
-      message: `${selectedRole} phone number not configured`,
+      message:
+  selectedRole === "STUDENT"
+    ? "Primary parent phone number not configured"
+    : `${selectedRole} phone number not configured`,
     };
   }
 
