@@ -18,6 +18,7 @@ const C = {
     green: "#22c55e",
 };
 
+
 export default function ForgotPassword() {
     const [identifier, setIdentifier] = useState("");
     const [message, setMessage] = useState("");
