@@ -1,21 +1,5 @@
 // server/src/staffControlls/timetableExcelController.js
-//
-// Handles Excel template generation (download) and timetable upload (all classes + single class).
-// All timings and periods are sourced dynamically from TimetableConfig + PeriodDefinitions.
-// No periods, breaks, or timings are hardcoded.
-//
-// KEY CHANGES (v2):
-//  - Single class template: embeds "CLASS_NAME: <name>" in row 0 so the uploader
-//    can auto-detect which class this Excel belongs to.
-//  - Bulk (all classes) template: ONE single sheet named "All Classes Timetable",
-//    each class block starts with a "CLASS NAME: <name>" marker row, followed by
-//    the header + timings + day rows.  No separate per-class sheets.
-//    A second sheet named "Class Subjects" lists all class→subject mappings.
-//  - Upload (single): reads CLASS_NAME from the Excel instead of requiring it in
-//    the URL param — classSectionId in the route is still accepted as fallback.
-//  - Upload (all): parses the single-sheet format, detects each class block by the
-//    "CLASS NAME:" marker row, reads class-wise subjects from "Class Subjects" sheet.
-
+ 
 import XLSX from "xlsx";
 import { prisma } from "../config/db.js";
 import cacheService from "../utils/cacheService.js";

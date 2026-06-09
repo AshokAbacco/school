@@ -8,7 +8,7 @@ import {
   downloadSingleTimetableTemplate,
   uploadAllTimetableTemplate,
   uploadSingleTimetableTemplate,
-} from "../staffControlls/timetableExcelController.js";
+} from "../staffControlls/Timetableexcelcontroller.js";
 
 const router = express.Router();
 
