@@ -8,7 +8,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 const PREMIUM_PLAN = {
   id: "premium",
   name: "Premium",
-  price: 115,
+  price: 300,
   icon: Crown,
   color: "#384959",
   features: ["Unlimited schools & students", "Full feature suite", "Android & iOS mobile app", "24/7 dedicated support"],
