@@ -3386,26 +3386,15 @@ model StudentFeePayment {
   createdBy     String?
 }
 
-model BiometricPunch {
-  id String @id @default(uuid())
+model Tran_MachineRawPunch {
+  Tran_MachineRawPunchId Int       @id @default(autoincrement())
+  CardNo                 String?   @db.VarChar(10)
+  PunchDateTime          DateTime?
+  P_Day                  String?   @db.Char(1)
+  ISManual               String?   @db.Char(1)
+  PayCode                String?   @db.VarChar(50)
+  MachineNo              String?   @db.VarChar(5)
+  DateTime               DateTime?
 
-  deviceId     String?
-  employeeCode String?
-  serialNo     String?
-
-  punchDateTime DateTime?
-  punchDate     DateTime?
-
-  systemDate        DateTime?
-  lastPunchDateTime DateTime?
-
-  deviceName String?
-
-  rawData Json?
-
-  createdAt DateTime @default(now())
-
-  @@index([employeeCode])
-  @@index([punchDateTime])
-  @@map("biometric_punches")
+  @@map("Tran_MachineRawPunch")
 }
