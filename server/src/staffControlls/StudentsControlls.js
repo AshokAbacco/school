@@ -1082,47 +1082,14 @@ export const bulkImportStudents = async (req, res) => {
     for (let i = 0; i < students.length; i++) {
       const s = students[i];
       try {
-        if (!s.firstName)  throw new Error("First name is required");
-        if (!s.email)      throw new Error("Email is required");
-        if (!s.password)   throw new Error("Password is required");
-
-        const existingStudent = await prisma.student.findFirst({
-          where: { email: s.email, schoolId },
-        });
-        if (existingStudent) throw new Error("Student email already exists");
-
-        const hashedPassword = await bcrypt.hash(s.password, 10);
-
-        const student = await prisma.student.create({
-          data: {
-            name: `${s.firstName} ${s.lastName || ""}`.trim(),
-            email: s.email,
-            password: hashedPassword,
-            schoolId,
-          },
-        });
-        await createFullSchoolBackup(
-          student.schoolId
-        );
-        // create personal info
-        await prisma.studentPersonalInfo.create({
-          data: {
-            studentId: student.id,
-            firstName: s.firstName,
-            lastName:  s.lastName || "",
-            phone:     s.phone || null,
-          },
-        });
-
- 
+        const student = await createStudentFull(s, schoolId);
         successCount++;
         results.push({ row: i + 1, success: true, studentId: student.id });
-
       } catch (err) {
         console.error(`[bulkImportStudents][Row ${i + 1}]`, err);
         let message = err.message || "Unknown error";
-        if (err.code === "P2002") message = "Duplicate value already exists";
-        if (err.code === "P2003") message = "Related record not found";
+        if (err.code === "P2002") message = "Duplicate value — email or admission number already exists";
+        if (err.code === "P2003") message = "Related record not found (check class/year names)";
         results.push({ row: i + 1, success: false, error: message });
       }
     }

@@ -27,6 +27,7 @@ import {
 import { getToken } from "../../../auth/storage";
 import AddStudent from "./AddStudents";
 import BulkImportStudents from "./BulkImportStudents";
+import Exportstudentsmodal from "./Exportstudentsmodal.jsx";
 import SignedProfileImage from "./components/SignedProfileImage";
 import { useInstitutionConfig } from "../classes/hooks/useInstitutionConfig";
 
@@ -612,7 +613,7 @@ function downloadTemplate() {
 }
 
 /* ── Students table — inner logic unchanged, outer styling updated ── */
-function StudentsTable({ students, loading, onDelete, sectionName, total, isFiltered }) {
+function StudentsTable({ students, loading, onDelete, sectionName, total, isFiltered, selectedIds = new Set(), onToggleSelect, onToggleAll }) {
   const navigate = useNavigate();
   const displayName = (s) =>
     s.personalInfo
@@ -906,6 +907,18 @@ function StudentsTable({ students, loading, onDelete, sectionName, total, isFilt
                 borderBottom: `1.5px solid ${C.borderLight}`,
               }}
             >
+              {/* Checkbox col */}
+              <th className="hidden md:table-cell" style={{ padding: "11px 8px 11px 18px", width: 36 }}>
+                <input
+                  type="checkbox"
+                  checked={students.length > 0 && students.every((s) => selectedIds.has(s.id))}
+                  ref={(el) => {
+                    if (el) el.indeterminate = students.some((s) => selectedIds.has(s.id)) && !students.every((s) => selectedIds.has(s.id));
+                  }}
+                  onChange={() => onToggleAll && onToggleAll(students)}
+                  style={{ width: 15, height: 15, accentColor: C.sky, cursor: "pointer" }}
+                />
+              </th>
               {[
                 "Student",
                 "Contact",
@@ -952,18 +965,31 @@ function StudentsTable({ students, loading, onDelete, sectionName, total, isFilt
                   key={student.id}
                   style={{
                     borderBottom: `1px solid ${C.borderLight}`,
-                    background: rowBg,
+                    background: selectedIds.has(student.id) ? `${C.sky}14` : rowBg,
                     cursor: "pointer",
                     transition: "background 0.1s",
                   }}
                   onClick={() => navigate(`/admin/students/${student.id}`)}
                   onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = `${C.sky}12`)
+                    (e.currentTarget.style.background = selectedIds.has(student.id) ? `${C.sky}20` : `${C.sky}12`)
                   }
                   onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = rowBg)
+                    (e.currentTarget.style.background = selectedIds.has(student.id) ? `${C.sky}14` : rowBg)
                   }
                 >
+                  {/* Checkbox */}
+                  <td
+                    className="hidden md:table-cell"
+                    style={{ padding: "12px 8px 12px 18px", width: 36 }}
+                    onClick={(e) => { e.stopPropagation(); onToggleSelect && onToggleSelect(student.id); }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(student.id)}
+                      onChange={() => {}}
+                      style={{ width: 15, height: 15, accentColor: C.sky, cursor: "pointer" }}
+                    />
+                  </td>
                   <td style={{ padding: "12px 18px" }}>
                     <div
                       style={{ display: "flex", alignItems: "center", gap: 10 }}
@@ -1231,6 +1257,8 @@ function StudentsList() {
   const [selectedSection, setSelectedSection] = useState(null);
   const [openModal, setOpenModal] = useState(false);
   const [openImport, setOpenImport] = useState(false);
+  const [openExport, setOpenExport] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
   const [students, setStudents] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -1251,6 +1279,7 @@ function StudentsList() {
   const [selectedYearId, setSelectedYearId] = useState("active");
   const [refreshKey, setRefreshKey] = useState(0);
   const invalidate = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const [schoolName, setSchoolName] = useState("School");
 
 
   const handleExportExcel = async () => {
@@ -1286,9 +1315,10 @@ function StudentsList() {
   useEffect(() => {
     (async () => {
       try {
-        const [csRes, ayRes] = await Promise.all([
+        const [csRes, ayRes, schoolRes] = await Promise.all([
           fetch(`${API_URL}/api/class-sections`, { headers: authHeaders() }),
           fetch(`${API_URL}/api/academic-years`, { headers: authHeaders() }),
+          fetch(`${API_URL}/api/school/profile`, { headers: authHeaders() }),
         ]);
         const [csData, ayData] = await Promise.all([
           csRes.json(),
@@ -1296,6 +1326,18 @@ function StudentsList() {
         ]);
         setClassSections(csData.classSections || csData.data || []);
         setAcademicYears(ayData.academicYears || ayData.data || []);
+
+        // ── Extract school name from profile response ─────────────────
+        if (schoolRes.ok) {
+          const schoolData = await schoolRes.json();
+          // Handle common response shapes: { school: { name } } or { name } or { data: { name } }
+          const name =
+            schoolData?.school?.name ||
+            schoolData?.data?.name ||
+            schoolData?.name ||
+            null;
+          if (name) setSchoolName(name);
+        }
       } catch {
         /* non-critical */
       }
@@ -1757,6 +1799,53 @@ function StudentsList() {
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
               <button
+                onClick={() => setOpenExport(true)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  padding: "10px 18px",
+                  borderRadius: 13,
+                  border: `1.5px solid ${C.border}`,
+                  background: C.white,
+                  color: C.textLight,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                  transition: "all 0.2s",
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#f0fdf4";
+                  e.currentTarget.style.borderColor = "#86efac";
+                  e.currentTarget.style.color = "#15803d";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = C.white;
+                  e.currentTarget.style.borderColor = C.border;
+                  e.currentTarget.style.color = C.textLight;
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Export
+                {selectedStudentIds.size > 0 && (
+                  <span style={{
+                    background: C.sky,
+                    color: C.deep,
+                    borderRadius: 20,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: "1px 7px",
+                    marginLeft: 2,
+                  }}>
+                    {selectedStudentIds.size}
+                  </span>
+                )}
+              </button>
+              <button
                 onClick={() => setOpenImport(true)}
                 style={{
                   display: "flex",
@@ -2166,6 +2255,19 @@ function StudentsList() {
                 sectionName={selectedSection?.name}
                 total={total}
                 isFiltered={!!searchTerm || selectedYearId !== "active"}
+                selectedIds={selectedStudentIds}
+                onToggleSelect={(id) => setSelectedStudentIds((prev) => {
+                  const next = new Set(prev);
+                  next.has(id) ? next.delete(id) : next.add(id);
+                  return next;
+                })}
+                onToggleAll={(pageStudents) => setSelectedStudentIds((prev) => {
+                  const allSelected = pageStudents.every((s) => prev.has(s.id));
+                  const next = new Set(prev);
+                  if (allSelected) pageStudents.forEach((s) => next.delete(s.id));
+                  else pageStudents.forEach((s) => next.add(s.id));
+                  return next;
+                })}
               />
 
               {!loading && students.length > 0 && (
@@ -2179,6 +2281,18 @@ function StudentsList() {
               )}
             </div>
           </>
+        )}
+
+        {/* Export Modal */}
+        {openExport && (
+          <Exportstudentsmodal
+            onClose={() => setOpenExport(false)}
+            classSections={classSections}
+            selectedSection={selectedSection}
+            selectedStudents={students.filter((s) => selectedStudentIds.has(s.id))}
+            academicYears={academicYears}
+            schoolName={schoolName}
+          />
         )}
 
         {/* Add Student Modal */}

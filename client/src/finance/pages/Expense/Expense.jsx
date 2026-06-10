@@ -1,46 +1,49 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   TrendingDown, PlusCircle, Receipt,
   Package, ChevronDown, ChevronUp, Pencil, Trash2,
-  Download, X, Calendar, ChevronRight,
+  Download, X, Calendar, ChevronRight, ChevronLeft,
 } from "lucide-react";
 import AddExpense, { iconMap, fmt } from "./components/AddExpense";
 import { downloadExpenseExcel } from "../../../utils/downloadExpenseExcel";
 
 const API_URL = import.meta.env.VITE_API_URL;
+const PAGE_SIZE = 15;
 
-// ── Date-filter download modal ────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Download modal — 3 tabs: Today · This Month · Custom
+// ─────────────────────────────────────────────────────────────────────────────
 function DownloadModal({ onClose, onDownload }) {
-  const [preset, setPreset]       = useState("today");
+  const [tab, setTab]             = useState("today"); // "today" | "thisMonth" | "custom"
   const [customFrom, setCustomFrom] = useState("");
   const [customTo,   setCustomTo]   = useState("");
 
-  const presets = [
-    { value: "today",     label: "Today" },
-    { value: "yesterday", label: "Yesterday" },
-    { value: "thisWeek",  label: "This Week" },
-    { value: "thisMonth", label: "This Month" },
-    { value: "lastMonth", label: "Last Month" },
-    { value: "custom",    label: "Custom Range" },
-    { value: "all",       label: "All Time" },
-  ];
-
   const handleDownload = () => {
-    if (preset === "custom" && (!customFrom || !customTo)) {
-      alert("Please select both start and end dates.");
-      return;
+    if (tab === "custom") {
+      if (!customFrom || !customTo) {
+        alert("Please select both start and end dates.");
+        return;
+      }
+      if (new Date(customFrom) > new Date(customTo)) {
+        alert("Start date cannot be after end date.");
+        return;
+      }
     }
-    if (preset === "custom" && new Date(customFrom) > new Date(customTo)) {
-      alert("Start date cannot be after end date.");
-      return;
-    }
-    onDownload({ preset, customFrom, customTo });
+    const preset = tab === "today" ? "today" : tab === "thisMonth" ? "thisMonth" : "custom";
+    onDownload({ mode: "dateRange", preset, customFrom, customTo });
     onClose();
   };
 
+  const tabCls = (t) =>
+    `flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl text-[11px] font-bold transition-all border-2 ${
+      tab === t
+        ? "bg-[#1c3040] text-white border-[#1c3040] shadow-md"
+        : "bg-[#f5f9fc] text-[#5A7A90] border-[#e2edf4] hover:border-[#3c5d74]/40 hover:bg-[#eaf1f6]"
+    }`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden">
 
         {/* Header */}
         <div className="bg-gradient-to-br from-[#1c3040] to-[#2b4557] px-5 py-4 flex items-center justify-between">
@@ -50,7 +53,7 @@ function DownloadModal({ onClose, onDownload }) {
             </div>
             <div>
               <p className="text-sm font-bold text-white m-0">Download Excel</p>
-              <p className="text-[10px] text-white/55 m-0">Select date range</p>
+              <p className="text-[10px] text-white/55 m-0">Select a period to export</p>
             </div>
           </div>
           <button
@@ -61,51 +64,52 @@ function DownloadModal({ onClose, onDownload }) {
           </button>
         </div>
 
-        {/* Preset list */}
-        <div className="p-4 space-y-1.5">
-          {presets.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => setPreset(p.value)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all border ${
-                preset === p.value
-                  ? "bg-[#1c3040] text-white border-[#1c3040] shadow-sm"
-                  : "bg-[#f5f9fc] text-[#2E3F50] border-[#e2edf4] hover:border-[#3c5d74]/40 hover:bg-[#eaf1f6]"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <Calendar size={13} className={preset === p.value ? "opacity-80" : "opacity-40"} />
-                {p.label}
-              </span>
-              {preset === p.value && <ChevronRight size={13} className="opacity-60" />}
-            </button>
-          ))}
+        <div className="p-4 space-y-4">
 
-          {/* Custom date inputs */}
-          {preset === "custom" && (
-            <div className="mt-3 p-3 bg-[#eaf1f6] rounded-xl space-y-2.5 border border-[#d0e1ed]">
+          {/* 3 tab buttons */}
+          <div className="flex gap-2">
+            <button className={tabCls("today")} onClick={() => setTab("today")}>
+              <Calendar size={15} />
+              Today
+            </button>
+            <button className={tabCls("thisMonth")} onClick={() => setTab("thisMonth")}>
+              <Calendar size={15} />
+              This Month
+            </button>
+            <button className={tabCls("custom")} onClick={() => setTab("custom")}>
+              <Calendar size={15} />
+              Custom
+            </button>
+          </div>
+
+          {/* Description chip */}
+          <p className="text-[11px] text-[#5A7A90] bg-[#f0f6fa] rounded-lg px-3 py-2 leading-relaxed m-0">
+            {tab === "today"     && "Downloads all expenses recorded today."}
+            {tab === "thisMonth" && "Downloads all expenses from the current calendar month."}
+            {tab === "custom"    && "Pick a start and end date to download expenses for any period."}
+          </p>
+
+          {/* Custom date pickers */}
+          {tab === "custom" && (
+            <div className="space-y-2.5">
               <div>
-                <label className="text-[11px] font-bold text-[#3c5d74] uppercase tracking-wide block mb-1">
-                  From
-                </label>
+                <label className="text-[11px] font-bold text-[#3c5d74] uppercase tracking-wide block mb-1">From</label>
                 <input
                   type="date"
                   value={customFrom}
                   onChange={(e) => setCustomFrom(e.target.value)}
                   max={customTo || undefined}
-                  className="w-full px-3 py-2 rounded-lg border border-[#d0e1ed] bg-white text-sm text-[#1c3040] font-medium focus:outline-none focus:ring-2 focus:ring-[#3c5d74]/30"
+                  className="w-full px-3 py-2 rounded-lg border border-[#d0e1ed] bg-[#f5f9fc] text-sm text-[#1c3040] font-medium focus:outline-none focus:ring-2 focus:ring-[#3c5d74]/30"
                 />
               </div>
               <div>
-                <label className="text-[11px] font-bold text-[#3c5d74] uppercase tracking-wide block mb-1">
-                  To
-                </label>
+                <label className="text-[11px] font-bold text-[#3c5d74] uppercase tracking-wide block mb-1">To</label>
                 <input
                   type="date"
                   value={customTo}
                   onChange={(e) => setCustomTo(e.target.value)}
                   min={customFrom || undefined}
-                  className="w-full px-3 py-2 rounded-lg border border-[#d0e1ed] bg-white text-sm text-[#1c3040] font-medium focus:outline-none focus:ring-2 focus:ring-[#3c5d74]/30"
+                  className="w-full px-3 py-2 rounded-lg border border-[#d0e1ed] bg-[#f5f9fc] text-sm text-[#1c3040] font-medium focus:outline-none focus:ring-2 focus:ring-[#3c5d74]/30"
                 />
               </div>
             </div>
@@ -133,18 +137,95 @@ function DownloadModal({ onClose, onDownload }) {
   );
 }
 
-// ── Single accordion row ──────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Pagination controls
+// ─────────────────────────────────────────────────────────────────────────────
+function Pagination({ pagination, onPageChange }) {
+  if (!pagination || pagination.totalPages <= 1) return null;
+
+  const { page, totalPages, totalItems, limit } = pagination;
+  const from = (page - 1) * limit + 1;
+  const to   = Math.min(page * limit, totalItems);
+
+  // Build visible page numbers (max 5 shown)
+  const pages = [];
+  const delta = 2;
+  const left  = Math.max(1, page - delta);
+  const right = Math.min(totalPages, page + delta);
+  for (let i = left; i <= right; i++) pages.push(i);
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 px-1">
+      <p className="text-[12px] text-[#5A7A90] font-semibold">
+        Showing {from}–{to} of {totalItems} expenses
+      </p>
+
+      <div className="flex items-center gap-1.5">
+        {/* Previous */}
+        <button
+          onClick={() => onPageChange(page - 1)}
+          disabled={page === 1}
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#d0e1ed] text-[#3c5d74] hover:bg-[#eaf1f6] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft size={14} />
+        </button>
+
+        {/* First page + ellipsis */}
+        {left > 1 && (
+          <>
+            <button onClick={() => onPageChange(1)} className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#d0e1ed] text-[#3c5d74] text-[12px] font-bold hover:bg-[#eaf1f6] transition-colors">1</button>
+            {left > 2 && <span className="text-[#5A7A90] text-[12px] px-1">…</span>}
+          </>
+        )}
+
+        {/* Page numbers */}
+        {pages.map((p) => (
+          <button
+            key={p}
+            onClick={() => onPageChange(p)}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg text-[12px] font-bold transition-colors ${
+              p === page
+                ? "bg-[#1c3040] text-white border border-[#1c3040] shadow-sm"
+                : "border border-[#d0e1ed] text-[#3c5d74] hover:bg-[#eaf1f6]"
+            }`}
+          >
+            {p}
+          </button>
+        ))}
+
+        {/* Ellipsis + last page */}
+        {right < totalPages && (
+          <>
+            {right < totalPages - 1 && <span className="text-[#5A7A90] text-[12px] px-1">…</span>}
+            <button onClick={() => onPageChange(totalPages)} className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#d0e1ed] text-[#3c5d74] text-[12px] font-bold hover:bg-[#eaf1f6] transition-colors">{totalPages}</button>
+          </>
+        )}
+
+        {/* Next */}
+        <button
+          onClick={() => onPageChange(page + 1)}
+          disabled={page === totalPages}
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#d0e1ed] text-[#3c5d74] hover:bg-[#eaf1f6] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Single accordion section
+// ─────────────────────────────────────────────────────────────────────────────
 function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCategory }) {
   const [open, setOpen] = useState(false);
-  const pct = totalExpenses > 0 ? Math.round((sec.total / totalExpenses) * 100) : 0;
+  const pct   = totalExpenses > 0 ? Math.round((sec.total / totalExpenses) * 100) : 0;
   const SIcon = iconMap[sec.icon] || Package;
 
   return (
-    <div
-      className="bg-white rounded-xl mb-3 overflow-hidden shadow-sm border-l-4"
-      style={{ borderLeftColor: sec.color }}
-    >
-      {/* Row header */}
+    <div className="bg-white rounded-xl mb-3 overflow-hidden shadow-sm border-l-4" style={{ borderLeftColor: sec.color }}>
+
+      {/* Header row */}
       <button
         className="w-full flex items-center justify-between px-3 sm:px-4 py-3 sm:py-3.5 hover:bg-black/[0.02] transition-colors"
         onClick={() => setOpen((o) => !o)}
@@ -158,32 +239,29 @@ function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCa
           </div>
           <div className="text-left min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-xs sm:text-sm font-bold text-[#1c3040] m-0 truncate">
-                {sec.label}
-              </p>
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                const newName = prompt("Edit category name", sec.label);
-                if (!newName) return;
-                onEditCategory(sec.key, newName);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
+              <p className="text-xs sm:text-sm font-bold text-[#1c3040] m-0 truncate">{sec.label}</p>
+              <span
+                role="button" tabIndex={0}
+                onClick={(e) => {
                   e.stopPropagation();
                   const newName = prompt("Edit category name", sec.label);
                   if (!newName) return;
                   onEditCategory(sec.key, newName);
-                }
-              }}
-              className="text-blue-500 text-xs cursor-pointer"
-            >
-              Edit
-            </span>
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    const newName = prompt("Edit category name", sec.label);
+                    if (!newName) return;
+                    onEditCategory(sec.key, newName);
+                  }
+                }}
+                className="text-blue-500 text-xs cursor-pointer"
+              >
+                Edit
+              </span>
             </div>
-            <div className="w-24 sm:w-36 h-1.5 bg-[#eaf1f6] rounded-full overflow-hidden">
+            <div className="w-24 sm:w-36 h-1.5 bg-[#eaf1f6] rounded-full overflow-hidden mt-0.5">
               <div className="h-full rounded-full" style={{ width: `${pct}%`, background: sec.color }} />
             </div>
           </div>
@@ -191,22 +269,20 @@ function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCa
         <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0 ml-2">
           <span className="text-xs sm:text-sm font-bold" style={{ color: sec.color }}>{fmt(sec.total)}</span>
           <span className="hidden xs:inline text-[10px] sm:text-[11px] font-bold text-[#5A7A90] bg-[#eaf1f6] px-1.5 sm:px-2 py-0.5 rounded-full">{pct}%</span>
-          {open
-            ? <ChevronUp size={14} color={sec.color} />
-            : <ChevronDown size={14} color="#5A7A90" />}
+          {open ? <ChevronUp size={14} color={sec.color} /> : <ChevronDown size={14} color="#5A7A90" />}
         </div>
       </button>
 
-      {/* Row body */}
+      {/* Body */}
       {open && (
         <div className="bg-[#f5f9fc] px-3 sm:px-4 pl-10 sm:pl-14 pt-1 pb-3 sm:pb-3.5 border-t border-[#eaf1f6]">
           {sec.items.map((item, i) => {
-            const IIcon = iconMap[item.icon] || Package;
+            const IIcon   = iconMap[item.icon] || Package;
             const itemPct = sec.total > 0 ? Math.round((item.amount / sec.total) * 100) : 0;
             return (
               <div
                 key={i}
-                className="flex items-center justify-between py-2 sm:py-2.5 border-b border-[#eaf1f6] last:border-none group"
+                className="flex items-center justify-between py-2 sm:py-2.5 border-b border-[#eaf1f6] last:border-none"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: sec.color }} />
@@ -233,24 +309,18 @@ function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCa
                   <span className="text-[12px] sm:text-[13px] font-bold text-[#1c3040] text-right">{fmt(item.amount)}</span>
 
                   {item.id && (
-                    <div className="flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 ml-1">
                       <button
-                        title="Edit expense"
+                        title="Edit"
                         className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-[#3c5d74]/10 text-[#3c5d74] transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEditItem({ id: item.id, label: item.label, amount: item.amount, icon: item.icon });
-                        }}
+                        onClick={(e) => { e.stopPropagation(); onEditItem({ id: item.id, label: item.label, amount: item.amount, icon: item.icon }); }}
                       >
                         <Pencil size={11} />
                       </button>
                       <button
-                        title="Delete expense"
+                        title="Delete"
                         className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-red-50 text-red-400 hover:text-red-500 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteItem(item.id);
-                        }}
+                        onClick={(e) => { e.stopPropagation(); onDeleteItem(item.id); }}
                       >
                         <Trash2 size={11} />
                       </button>
@@ -260,6 +330,7 @@ function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCa
               </div>
             );
           })}
+
           <div
             className="flex justify-between mt-2 sm:mt-2.5 px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-lg text-[12px] sm:text-[13px] font-bold"
             style={{ background: sec.color + "14", color: sec.color }}
@@ -273,37 +344,82 @@ function ExpenseSection({ sec, totalExpenses, onEditItem, onDeleteItem, onEditCa
   );
 }
 
-// ── Main Expense Page ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Expense Page
+// ─────────────────────────────────────────────────────────────────────────────
 export default function Expense() {
+  // page-level state
   const [expenseSections, setExpenseSections] = useState([]);
-  const [salarySections,  setSalarySections]  = useState([]);
-  const [showModal,       setShowModal]        = useState(false);
-  const [showDownload,    setShowDownload]     = useState(false);
-  const [editItem,        setEditItem]         = useState(null);
-  const [loading,         setLoading]          = useState(true);
+  const [allSections,     setAllSections]     = useState([]); // full unfiltered list for Excel
+  const [pagination,      setPagination]      = useState(null);
+  const [currentPage,     setCurrentPage]     = useState(1);
+  const [showModal,       setShowModal]       = useState(false);
+  const [showDownload,    setShowDownload]    = useState(false);
+  const [editItem,        setEditItem]        = useState(null);
+  const [loading,         setLoading]         = useState(true);
 
   const getToken = () => {
     try { return JSON.parse(localStorage.getItem("auth"))?.token; }
     catch { return null; }
   };
 
-  const reloadExpenses = async (token) => {
+  // ── fetch paginated page ──────────────────────────────────────────────────
+  const loadPage = async (page = 1, token) => {
     const t   = token || getToken();
-    const res = await fetch(`${API_URL}/api/finance/list`, {
-      headers: { Authorization: `Bearer ${t}` },
-    });
+    const res = await fetch(
+      `${API_URL}/api/finance/list?page=${page}&limit=${PAGE_SIZE}`,
+      { headers: { Authorization: `Bearer ${t}` } },
+    );
     const data = await res.json();
-    if (Array.isArray(data)) setExpenseSections(data);
+
+    // Support both old (array) and new (object with sections + pagination) shape
+    if (Array.isArray(data)) {
+      setExpenseSections(data);
+      setAllSections(data);
+      setPagination(null);
+    } else {
+      setExpenseSections(data.sections || []);
+      setPagination(data.pagination || null);
+    }
+  };
+
+  // Fetch ALL sections (unpaginated) just for the Excel download
+  const loadAllForDownload = async () => {
+    try {
+      const t   = getToken();
+      const res = await fetch(
+        `${API_URL}/api/finance/list?page=1&limit=9999`,
+        { headers: { Authorization: `Bearer ${t}` } },
+      );
+      const data = await res.json();
+      const sections = Array.isArray(data) ? data : (data.sections || []);
+      setAllSections(sections);
+      return sections;
+    } catch (e) {
+      console.log("Load all for download error:", e);
+      return allSections;
+    }
+  };
+
+  const reloadPage = async (token, page) => {
+    await loadPage(page ?? currentPage, token);
   };
 
   useEffect(() => {
     const load = async () => {
-      try { await reloadExpenses(getToken()); }
+      try { await loadPage(1, getToken()); }
       catch (e) { console.log("Expense fetch error:", e); }
       finally   { setLoading(false); }
     };
     load();
   }, []);
+
+  const handlePageChange = async (newPage) => {
+    setCurrentPage(newPage);
+    setLoading(true);
+    try { await loadPage(newPage); }
+    finally { setLoading(false); }
+  };
 
   // ── category edit ─────────────────────────────────────────────────────────
   const handleEditCategory = async (id, name) => {
@@ -316,30 +432,23 @@ export default function Expense() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ name }),
       });
-
       const data = await res.json();
-      if (res.ok) await reloadExpenses(token);
+      if (res.ok) await reloadPage(token);
       else alert(data.message || "Update failed");
     } catch (e) { console.log("Category edit error:", e); }
   };
 
   // ── download handler ──────────────────────────────────────────────────────
-  const handleDownload = ({ preset, customFrom, customTo }) => {
+  const handleDownload = async ({ mode, preset, customFrom, customTo }) => {
     const schoolName =
       JSON.parse(localStorage.getItem("auth") || "{}")?.user?.schoolName || "School";
 
-    downloadExpenseExcel(mergedSections, { preset, customFrom, customTo, schoolName });
+    // For download we need ALL expenses, not just the current page
+    const sections = await loadAllForDownload();
+    downloadExpenseExcel(sections, { mode, preset, customFrom, customTo, schoolName });
   };
 
-  // ── derived ───────────────────────────────────────────────────────────────
-  const mergedSections =
-    salarySections.length > 0
-      ? [...expenseSections.filter((s) => s.key !== "salaries"), ...salarySections]
-      : expenseSections;
-
-  const totalExpenses = mergedSections.reduce((s, e) => s + e.total, 0);
-
-  // ── CRUD handlers ─────────────────────────────────────────────────────────
+  // ── CRUD ──────────────────────────────────────────────────────────────────
   const handleAddExpense = async ({ isNewSection, sectionKey, newSectionLabel, label, amount, icon }) => {
     try {
       const token = getToken();
@@ -350,9 +459,8 @@ export default function Expense() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ isNewSection, sectionKey, newSectionLabel, label, amount, icon }),
       });
-
       const data = await res.json();
-      if (data.success) await reloadExpenses(token);
+      if (data.success) await reloadPage(token, 1); // go back to page 1 after adding
     } catch (e) { console.log("Add expense error:", e); }
   };
 
@@ -366,8 +474,7 @@ export default function Expense() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ label, amount, icon }),
       });
-
-      if (res.ok) await reloadExpenses(token);
+      if (res.ok) await reloadPage(token);
     } catch (e) { console.log("Edit expense error:", e); }
   };
 
@@ -380,7 +487,7 @@ export default function Expense() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (res.ok) await reloadExpenses(token);
+      if (res.ok) await reloadPage(token);
       else alert(data.message || "Delete failed");
     } catch (e) { console.log("Delete expense error:", e); }
   };
@@ -388,11 +495,14 @@ export default function Expense() {
   const openEditModal = (item) => { setEditItem(item); setShowModal(true); };
   const closeModal    = ()     => { setShowModal(false); setEditItem(null); };
 
+  // ── derived ───────────────────────────────────────────────────────────────
+  const totalExpenses = expenseSections.reduce((s, e) => s + e.total, 0);
+
   // ── render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#d8e8f0] via-[#c8dce9] to-[#b8cfe0]">
 
-      {/* ── Page Header ── */}
+      {/* Page header */}
       <div className="bg-gradient-to-br from-[#1c3040] to-[#2b4557] px-4 sm:px-8 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-lg">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/[0.14] border border-white/[0.22] flex items-center justify-center flex-shrink-0">
@@ -405,13 +515,12 @@ export default function Expense() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          {/* ── Download button ── */}
           <button
             onClick={() => setShowDownload(true)}
             className="flex items-center gap-2 bg-green-600/90 hover:bg-green-600 text-white rounded-xl px-4 py-2 text-sm font-bold transition-all shadow-sm"
           >
             <Download size={14} />
-            <span>Download Excel</span>
+            <span>Download Report</span>
           </button>
 
           {totalExpenses > 0 && (
@@ -430,7 +539,7 @@ export default function Expense() {
         </div>
       </div>
 
-      {/* ── Content ── */}
+      {/* Content */}
       <div className="p-3 sm:p-6 max-w-5xl mx-auto">
 
         {loading && (
@@ -440,7 +549,7 @@ export default function Expense() {
           </div>
         )}
 
-        {!loading && mergedSections.length === 0 && (
+        {!loading && expenseSections.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-[#5A7A90]">
             <Receipt size={44} className="mb-4 opacity-30" />
             <p className="text-base font-semibold mb-1">No expenses recorded yet</p>
@@ -454,9 +563,9 @@ export default function Expense() {
           </div>
         )}
 
-        {!loading && mergedSections.length > 0 && (
+        {!loading && expenseSections.length > 0 && (
           <>
-            {mergedSections.map((sec) => (
+            {expenseSections.map((sec) => (
               <ExpenseSection
                 key={sec.key}
                 sec={sec}
@@ -467,15 +576,22 @@ export default function Expense() {
               />
             ))}
 
-            {/* Summary footer card */}
+            {/* Pagination */}
+            <Pagination pagination={pagination} onPageChange={handlePageChange} />
+
+            {/* Summary footer */}
             <div className="mt-4 sm:mt-5 p-4 sm:p-5 bg-white/80 rounded-2xl shadow-md border border-[#3c5d74]/[0.12]">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                 <div>
-                  <p className="text-[10px] sm:text-[11px] font-bold text-[#3c5d74] uppercase tracking-[.7px] m-0">Grand Total — All Expenses</p>
+                  <p className="text-[10px] sm:text-[11px] font-bold text-[#3c5d74] uppercase tracking-[.7px] m-0">
+                    {pagination
+                      ? `Page ${pagination.page} / ${pagination.totalPages} — ${pagination.totalItems} total expenses`
+                      : "Grand Total — All Expenses"}
+                  </p>
                   <p className="text-[22px] sm:text-[26px] font-bold text-[#1c3040] m-0 mt-0.5">{fmt(totalExpenses)}</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  {mergedSections.map((s) => (
+                  {expenseSections.map((s) => (
                     <div key={s.key} className="text-center px-2">
                       <div className="w-2 h-2 rounded-full mx-auto mb-0.5" style={{ background: s.color }} />
                       <p className="text-[10px] text-[#5A7A90] font-semibold m-0 leading-tight max-w-[64px] truncate">{s.label.split(" ")[0]}</p>
@@ -486,7 +602,7 @@ export default function Expense() {
               </div>
 
               <div className="w-full h-2.5 rounded-full overflow-hidden flex">
-                {mergedSections.map((s) => {
+                {expenseSections.map((s) => {
                   const w = totalExpenses > 0 ? Math.round((s.total / totalExpenses) * 100) : 0;
                   return (
                     <div
@@ -507,7 +623,7 @@ export default function Expense() {
         )}
       </div>
 
-      {/* ── Download date-range modal ── */}
+      {/* Download modal */}
       {showDownload && (
         <DownloadModal
           onClose={() => setShowDownload(false)}
@@ -515,10 +631,10 @@ export default function Expense() {
         />
       )}
 
-      {/* ── Add / Edit expense modal ── */}
+      {/* Add / Edit modal */}
       {showModal && (
         <AddExpense
-          expenseSections={mergedSections}
+          expenseSections={expenseSections}
           onClose={closeModal}
           onAdd={handleAddExpense}
           onEdit={handleEditExpense}

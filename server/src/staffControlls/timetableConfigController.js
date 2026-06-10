@@ -165,11 +165,16 @@ export const saveTimetableConfig = async (req, res) => {
       return res.status(404).json({ message: "Academic year not found" });
 
     // ── Build new definitions from input ─────────────────────
-    const weekdayDefs = buildPeriodDefinitions(weekday, "WEEKDAY");
-    const saturdayDefs = satSameAsWeekday
-      ? []
-      : buildPeriodDefinitions(saturday || weekday, "SATURDAY");
-    const allNewDefs = [...weekdayDefs, ...saturdayDefs];
+    const allNewDefs =
+      Array.isArray(req.body.periodDefinitions) &&
+      req.body.periodDefinitions.length > 0
+        ? req.body.periodDefinitions
+        : [
+            ...buildPeriodDefinitions(weekday, "WEEKDAY"),
+            ...(satSameAsWeekday
+              ? []
+              : buildPeriodDefinitions(saturday || weekday, "SATURDAY")),
+          ];
 
     const savedConfig = await prisma.$transaction(async (tx) => {
       // ── Step 1: Find or create TimetableConfig ────────────

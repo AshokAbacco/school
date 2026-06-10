@@ -52,6 +52,8 @@ import logoRoutes from "./utils/logoRoutes.js";
 import { requireAuth } from "./middlewares/auth.middleware.js";
 import deleteAccountRoutes from "./superAdmin/routes/DeleteAccount.routes.js";
 
+import timetableExcelRoutes from "./staffRoutes/timetableexcelroutes.js";
+
 // ── NEW: shared read-only holiday route for teacher/staff logins ──────────────
 import makeHolidayRouter from "./sharedRoutes/holidayRoute.js";
 import authMiddleware from "./middlewares/authMiddleware.js";
@@ -124,7 +126,7 @@ staff.use("/api/gallery", galleryRoutes);
 
 // Admin full CRUD holidays (admin login uses this)
 staff.use("/api/admin/holidays", adminHolidayRoute);
-
+staff.use("/api/timetable-excel", timetableExcelRoutes);
 
 // ── Teacher / staff read-only holidays  (GET / and GET /check only) ──────────
 staff.use("/api/holidays", makeHolidayRouter(authMiddleware));

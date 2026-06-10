@@ -1652,10 +1652,10 @@ model StudentList {
   email String
   phone String
 
-  course  String?
-  fees    Decimal?
-  address String?
-
+  course       String?
+  fees         Decimal?
+  address      String?
+  feeDate      DateTime?
   feeBreakdown String?
 
   // Existing

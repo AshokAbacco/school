@@ -14,6 +14,9 @@ import {
   CheckCircle2,
   ArrowLeft,
   Users,
+  UploadCloud,
+  FileSpreadsheet,
+  Download,
 } from "lucide-react";
 import {
   fetchClassSections,
@@ -29,6 +32,7 @@ import {
   useInstitutionConfig,
   getSemesterOptions,
 } from "./hooks/useInstitutionConfig";
+import * as XLSX from "xlsx";
 
 const C = {
   bg: "#F4F8FC",
@@ -160,6 +164,13 @@ export default function CreateSectionsPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [toast, setToast] = useState(null);
+
+  // ── Excel upload state ─────────────────────────────────────────────────────
+  const [xlFile, setXlFile] = useState(null);
+  const [xlRows, setXlRows] = useState([]);   // parsed preview rows
+  const [xlErrors, setXlErrors] = useState([]); // row-level validation errors
+  const [xlUploading, setXlUploading] = useState(false);
+  const [xlResult, setXlResult] = useState(null); // {created, skipped, errors[]}
 
   // ── Single form state ──────────────────────────────────────────────────────
   const [sForm, setSForm] = useState({
@@ -427,6 +438,133 @@ export default function CreateSectionsPage() {
     }
   };
 
+  // ── Excel upload helpers ───────────────────────────────────────────────────
+
+  /** Download the sample template (base64-encoded xlsx embedded inline) */
+  const downloadTemplate = () => {
+    // Build a minimal template on-the-fly using SheetJS
+    const headers = ["Grade", "Section", "Capacity"];
+    const examples = [
+      [" 1", "A", 40],
+      [" 1", "B", 38],
+      [" 11", "A", 35],
+      ["Semester 1", "A", 60],
+    ]; 
+    const wsData = [headers, ...examples];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!cols"] = [{ wch: 18 }, { wch: 12 }, { wch: 12 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Class Sections");
+    XLSX.writeFile(wb, "class_sections_template.xlsx");
+  };
+
+  /** Parse the uploaded file and populate preview */
+  const handleXlFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setXlFile(file);
+    setXlResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: "binary" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+        // Find header row (row that has "Grade" in first cell, case-insensitive)
+        const headerIdx = raw.findIndex(
+          (r) => String(r[0]).toLowerCase().replace(/[^a-z]/g, "") === "grade"
+        );
+        if (headerIdx === -1) {
+          setXlErrors(["Could not find a header row with 'Grade' in the first column."]);
+          setXlRows([]);
+          return;
+        }
+
+        const dataRows = raw.slice(headerIdx + 1).filter((r) =>
+          r.some((cell) => String(cell).trim() !== "")
+        );
+
+        const parsed = [];
+        const errs = [];
+        dataRows.forEach((r, i) => {
+          const grade = String(r[0] ?? "").trim();
+          const section = String(r[1] ?? "").trim();
+          const capacity = r[2] !== "" ? Number(r[2]) : undefined;
+          const streamOrCourse = String(r[3] ?? "").trim();
+          const branch = String(r[4] ?? "").trim();
+
+          if (!grade) { errs.push(`Row ${i + 1}: Grade is required`); return; }
+          if (!section) { errs.push(`Row ${i + 1}: Section is required`); return; }
+          if (capacity !== undefined && (isNaN(capacity) || capacity < 1)) {
+            errs.push(`Row ${i + 1}: Capacity must be a positive number`);
+            return;
+          }
+
+          parsed.push({ grade, section, capacity, streamOrCourse, branch, rowNum: i + 1 });
+        });
+
+        setXlRows(parsed);
+        setXlErrors(errs);
+      } catch (err) {
+        setXlErrors([`Failed to read file: ${err.message}`]);
+        setXlRows([]);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  /** Submit parsed rows to the API */
+  const handleXlUpload = async () => {
+    if (xlRows.length === 0) return;
+    setXlUploading(true);
+    setXlResult(null);
+
+    // Group rows by grade (and streamOrCourse/branch as context text only)
+    // Because our API accepts { grade, sections: [{section, capacity}] }
+    // We call once per unique grade+stream combo
+    const groups = {};
+    for (const row of xlRows) {
+      const key = `${row.grade}||${row.streamOrCourse}||${row.branch}`;
+      if (!groups[key]) groups[key] = { grade: row.grade, streamOrCourse: row.streamOrCourse, branch: row.branch, sections: [] };
+      groups[key].sections.push({ section: row.section, ...(row.capacity ? { capacity: row.capacity } : {}) });
+    }
+
+    let totalCreated = 0;
+    const allErrors = [];
+
+    for (const group of Object.values(groups)) {
+      try {
+        const payload = {
+          grade: group.grade,
+          sections: group.sections,
+        };
+        // Note: streamOrCourse and branch are name strings from Excel;
+        // the backend expects IDs. We pass them as hints in a note field
+        // only if the school type needs them — for SCHOOL type they are ignored.
+        // To support PUC/Degree, the user should use the Bulk form (which has dropdowns).
+        // Here we proceed as a basic school upload.
+        const res = await createClassSection(payload);
+        totalCreated += res.classSections?.length || 0;
+        if (res.errors?.length) allErrors.push(...res.errors);
+      } catch (err) {
+        allErrors.push(err.message);
+      }
+    }
+
+    setXlResult({ created: totalCreated, errors: allErrors });
+    if (totalCreated > 0) {
+      setToast({ type: "success", msg: `${totalCreated} section(s) created from Excel` });
+      load();
+    } else {
+      setToast({ type: "error", msg: "No sections were created" });
+    }
+    setXlUploading(false);
+    setXlFile(null);
+    setXlRows([]);
+  };
+
   // ── Derived values ─────────────────────────────────────────────────────────
   const gradeGroups = classes.reduce((acc, cls) => {
     (acc[cls.grade] = acc[cls.grade] || []).push(cls);
@@ -487,10 +625,14 @@ export default function CreateSectionsPage() {
 
         {/* Mode toggle */}
         <div className="flex gap-2 mb-5">
-          {["single", "bulk"].map((m) => (
+          {[
+            { key: "single", label: "Single Section" },
+            { key: "bulk", label: "Bulk Create" },
+            { key: "excel", label: "Excel Upload" },
+          ].map((m) => (
             <button
-              key={m}
-              onClick={() => setMode(m)}
+              key={m.key}
+              onClick={() => setMode(m.key)}
               style={{
                 padding: "8px 20px",
                 borderRadius: 10,
@@ -498,12 +640,16 @@ export default function CreateSectionsPage() {
                 fontWeight: 600,
                 cursor: "pointer",
                  fontFamily: "'Inter', sans-serif",
-                border: `1.5px solid ${mode === m ? C.primary : C.border}`,
-                background: mode === m ? C.primary : "#fff",
-                color: mode === m ? "#fff" : C.mid,
+                border: `1.5px solid ${mode === m.key ? C.primary : C.border}`,
+                background: mode === m.key ? C.primary : "#fff",
+                color: mode === m.key ? "#fff" : C.mid,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
-              {m === "single" ? "Single Section" : "Bulk Create"}
+              {m.key === "excel" && <FileSpreadsheet size={13} />}
+              {m.label}
             </button>
           ))}
         </div>
@@ -905,6 +1051,242 @@ export default function CreateSectionsPage() {
               )}
               Create {bRows.filter((r) => r.section).length} Section(s)
             </button>
+          </div>
+        )}
+
+        {/* ── EXCEL UPLOAD FORM ───────────────────────────────────────────── */}
+        {mode === "excel" && (
+          <div
+            className="bg-white rounded-2xl shadow-sm p-5 mb-5"
+            style={{ border: `1px solid ${C.border}` }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold" style={{ color: C.primary }}>
+                  Bulk Upload via Excel
+                </h2>
+                <p className="text-xs mt-0.5" style={{ color: C.mid }}>
+                  Download the template, fill in your sections, then upload.
+                </p>
+              </div>
+              <button
+                onClick={downloadTemplate}
+                className="flex items-center gap-1.5 rounded-xl text-xs font-semibold"
+                style={{
+                  padding: "7px 14px",
+                  border: `1.5px solid ${C.border}`,
+                  background: "#fff",
+                  color: C.primary,
+                  cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                <Download size={13} /> Download Template
+              </button>
+            </div>
+
+            {/* Drop zone */}
+            <label
+              htmlFor="xl-upload"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                padding: "32px 20px",
+                border: `2px dashed ${xlFile ? C.primary : "rgba(136,189,242,0.5)"}`,
+                borderRadius: 14,
+                background: xlFile ? "rgba(56,73,89,0.04)" : C.bg,
+                cursor: "pointer",
+                marginBottom: 16,
+                transition: "border 0.2s",
+              }}
+            >
+              <UploadCloud size={28} style={{ color: xlFile ? C.primary : C.light }} />
+              {xlFile ? (
+                <div className="text-center">
+                  <p className="text-sm font-semibold" style={{ color: C.primary }}>
+                    {xlFile.name}
+                  </p>
+                  <p className="text-xs" style={{ color: C.mid }}>
+                    {xlRows.length} valid row(s) found
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <p className="text-sm font-medium" style={{ color: C.primary }}>
+                    Click to select an Excel file
+                  </p>
+                  <p className="text-xs" style={{ color: C.mid }}>
+                    .xlsx or .xls — use the template format
+                  </p>
+                </div>
+              )}
+              <input
+                id="xl-upload"
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleXlFileChange}
+              />
+            </label>
+
+            {/* Validation errors */}
+            {xlErrors.length > 0 && (
+              <div
+                className="rounded-xl p-3 mb-4"
+                style={{ background: "#fef2f2", border: "1px solid #fecaca" }}
+              >
+                <p className="text-xs font-semibold mb-1" style={{ color: "#dc2626" }}>
+                  {xlErrors.length} issue(s) found — fix these rows before uploading:
+                </p>
+                {xlErrors.map((e, i) => (
+                  <p key={i} className="text-xs" style={{ color: "#dc2626" }}>
+                    • {e}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {/* Preview table */}
+            {xlRows.length > 0 && (
+              <div className="mb-4 overflow-x-auto">
+                <p
+                  className="text-xs font-semibold uppercase mb-2"
+                  style={{ color: C.mid, letterSpacing: "0.5px" }}
+                >
+                  Preview — {xlRows.length} row(s)
+                </p>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      {["Row", "Grade", "Section", "Capacity", "Stream/Course", "Branch"].map(
+                        (h) => (
+                          <th
+                            key={h}
+                            style={{
+                              padding: "6px 10px",
+                              background: C.pale,
+                              color: C.primary,
+                              fontWeight: 600,
+                              textAlign: "left",
+                              borderBottom: `1px solid ${C.border}`,
+                              fontFamily: "'Inter', sans-serif",
+                            }}
+                          >
+                            {h}
+                          </th>
+                        )
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {xlRows.map((r, i) => (
+                      <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                        <td style={{ padding: "5px 10px", color: C.light }}>{r.rowNum}</td>
+                        <td style={{ padding: "5px 10px", color: C.primary, fontWeight: 500 }}>{r.grade}</td>
+                        <td style={{ padding: "5px 10px", color: C.primary }}>{r.section}</td>
+                        <td style={{ padding: "5px 10px", color: C.mid }}>{r.capacity ?? "—"}</td>
+                        <td style={{ padding: "5px 10px", color: C.mid }}>{r.streamOrCourse || "—"}</td>
+                        <td style={{ padding: "5px 10px", color: C.mid }}>{r.branch || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Upload result */}
+            {xlResult && (
+              <div
+                className="rounded-xl p-3 mb-4"
+                style={{
+                  background: xlResult.created > 0 ? "#f0fdf4" : "#fef2f2",
+                  border: `1px solid ${xlResult.created > 0 ? "#bbf7d0" : "#fecaca"}`,
+                }}
+              >
+                <p
+                  className="text-xs font-semibold"
+                  style={{ color: xlResult.created > 0 ? "#15803d" : "#dc2626" }}
+                >
+                  ✓ {xlResult.created} section(s) created
+                  {xlResult.errors.length > 0 &&
+                    `, ${xlResult.errors.length} skipped`}
+                </p>
+                {xlResult.errors.map((e, i) => (
+                  <p key={i} className="text-xs mt-0.5" style={{ color: "#dc2626" }}>
+                    • {e}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleXlUpload}
+                disabled={xlUploading || xlRows.length === 0 || xlErrors.length > 0}
+                className="flex items-center gap-2 rounded-xl text-sm font-semibold text-white"
+                style={{
+                  padding: "9px 20px",
+                  background:
+                    xlRows.length === 0 || xlErrors.length > 0
+                      ? "rgba(106,137,167,0.4)"
+                      : xlUploading
+                      ? "rgba(106,137,167,0.5)"
+                      : C.primary,
+                  border: "none",
+                  cursor:
+                    xlUploading || xlRows.length === 0 || xlErrors.length > 0
+                      ? "not-allowed"
+                      : "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                {xlUploading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <UploadCloud size={14} />
+                )}
+                Upload {xlRows.length > 0 ? `${xlRows.length} Section(s)` : ""}
+              </button>
+              {xlFile && (
+                <button
+                  onClick={() => {
+                    setXlFile(null);
+                    setXlRows([]);
+                    setXlErrors([]);
+                    setXlResult(null);
+                  }}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: C.mid,
+                    fontSize: 12,
+                    cursor: "pointer",
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Info note for PUC/Degree */}
+            <p
+              className="text-xs mt-3 rounded-lg px-3 py-2"
+              style={{ background: "rgba(189,221,252,0.2)", color: C.mid }}
+            >
+              ℹ️ Excel upload works best for <strong style={{ color: C.primary }}>regular schools (Grade 1–10)</strong>.
+              For PUC (Stream) or Degree (Course/Branch) sections, use the{" "}
+              <button
+                onClick={() => setMode("bulk")}
+                style={{ background: "none", border: "none", color: C.primary, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "inherit", fontSize: "inherit" }}
+              >
+                Bulk Create
+              </button>{" "}
+              tab which has the correct dropdowns.
+            </p>
           </div>
         )}
 

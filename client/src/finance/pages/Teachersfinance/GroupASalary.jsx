@@ -98,6 +98,11 @@ export default function GroupASalary() {
 
     const [selectedWhatsAppSalary, setSelectedWhatsAppSalary] = useState(null);
 
+    // ── Excel date-picker state ──
+    const [excelMonth, setExcelMonth] = useState(new Date().getMonth() + 1);
+    const [excelYear, setExcelYear] = useState(new Date().getFullYear());
+    const [showExcelPopover, setShowExcelPopover] = useState(false);
+
     const dropdownRef = useRef();
     const tok = () => {
         try {
@@ -869,34 +874,69 @@ export default function GroupASalary() {
                     >
                         <Plus size={14} /> <span className="hidden xs:inline">Add Salary</span><span className="xs:hidden">Add</span>
                     </button>
-{/* ── Download Excel Dropdown ── */}
-                <div className="relative group">
-                <button
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 
-                            text-white text-[13px] font-semibold transition-all border border-white/20"
-                >
-                    <FileText size={14} /> Export Excel ▾
-                </button>
-<div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-[#C8DCEC] z-[9999] min-w-[160px] overflow-hidden hidden group-hover:block">
-                    {["ALL", "PAID", "PENDING", "HOLD"].map(status => (
+{/* ── Export Excel with Date Picker ── */}
+                <div className="relative">
                     <button
-                        key={status}
-                        onClick={() => downloadStaffSalaryExcel(schoolTeachers, {
-                        filter: status,
-                        groupLabel: "Group A — Teaching Faculty",
-                        schoolName: authSchool.schoolName,
-                        })}
-                        className="w-full text-left px-4 py-2.5 text-[12.5px] font-semibold 
-                                hover:bg-[#EAF1F6] transition-colors text-[#4A6B80] flex items-center gap-2"
+                        onClick={() => setShowExcelPopover(v => !v)}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-[13px] font-semibold transition-all border border-white/20"
                     >
-                        {status === "ALL" && <span className="w-2 h-2 rounded-full bg-gray-400 inline-block"/>}
-                        {status === "PAID" && <span className="w-2 h-2 rounded-full bg-green-500 inline-block"/>}
-                        {status === "PENDING" && <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"/>}
-                        {status === "HOLD" && <span className="w-2 h-2 rounded-full bg-orange-500 inline-block"/>}
-                        {status === "ALL" ? "All Records" : status.charAt(0) + status.slice(1).toLowerCase()}
+                        <FileText size={14} /> Export Excel ▾
                     </button>
-                    ))}
-                </div>
+                    {showExcelPopover && (
+                        <>
+                            <div className="fixed inset-0 z-[9998]" onClick={() => setShowExcelPopover(false)} />
+                            <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-[#C8DCEC] z-[9999] w-[230px] p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="text-[11px] font-bold text-[#1A2E3D] uppercase tracking-wide">Select Period</span>
+                                    <button onClick={() => setShowExcelPopover(false)} className="text-[#4A6B80] hover:text-[#1A2E3D]"><X size={13} /></button>
+                                </div>
+                                <div className="flex gap-2 mb-3">
+                                    <select value={excelMonth} onChange={e => setExcelMonth(Number(e.target.value))}
+                                        className="flex-1 px-2 py-1.5 rounded-lg border border-[#C8DCEC] text-[12px] text-[#1A2E3D] outline-none focus:border-[#27435B] bg-white">
+                                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                                            <option key={m} value={m}>{new Date(0, m - 1).toLocaleString("default", { month: "long" })}</option>
+                                        ))}
+                                    </select>
+                                    <select value={excelYear} onChange={e => setExcelYear(Number(e.target.value))}
+                                        className="w-[76px] px-2 py-1.5 rounded-lg border border-[#C8DCEC] text-[12px] text-[#1A2E3D] outline-none focus:border-[#27435B] bg-white">
+                                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                                            <option key={y} value={y}>{y}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="text-[10px] font-bold text-[#4A6B80] uppercase tracking-wide mb-2">Filter by Status</div>
+                                {["ALL", "PAID", "PENDING", "HOLD"].map(status => (
+                                    <button key={status}
+                                        onClick={() => {
+                                            const rows = allSalaryHistory.filter(r =>
+                                                Number(r.month) === excelMonth &&
+                                                Number(r.year) === excelYear &&
+                                                (status === "ALL" || r.status === status)
+                                            );
+                                            downloadStaffSalaryExcel(rows, {
+                                                filter: status,
+                                                groupLabel: "Group A — Teaching Faculty",
+                                                schoolName: authSchool.schoolName,
+                                                month: excelMonth,
+                                                year: excelYear,
+                                            });
+                                            setShowExcelPopover(false);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-[12px] font-semibold hover:bg-[#EAF1F6] rounded-lg transition-colors text-[#4A6B80] flex items-center gap-2 mb-0.5"
+                                    >
+                                        {status === "ALL" && <span className="w-2 h-2 rounded-full bg-gray-400 inline-block" />}
+                                        {status === "PAID" && <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />}
+                                        {status === "PENDING" && <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />}
+                                        {status === "HOLD" && <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />}
+                                        {status === "ALL" ? "All Records" : status.charAt(0) + status.slice(1).toLowerCase()}
+                                    </button>
+                                ))}
+                                <div className="mt-3 pt-2 border-t border-[#EAF1F6] text-[10px] text-[#4A6B80]/70 text-center">
+                                    {new Date(0, excelMonth - 1).toLocaleString("default", { month: "long" })} {excelYear} records
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
                 </div>
             </div>

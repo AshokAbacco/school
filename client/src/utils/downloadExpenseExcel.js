@@ -20,6 +20,7 @@ const DESIGN = {
     redBg:     "FFEBEE",
     border:    "D0E1ED",
     totalBg:   "E1EDF5",
+    dayHeader: "2E4D66",
   },
 };
 
@@ -34,7 +35,6 @@ function isoDate(d) {
 function startOfDay(d) {
   const x = new Date(d); x.setHours(0, 0, 0, 0); return x;
 }
-
 function endOfDay(d) {
   const x = new Date(d); x.setHours(23, 59, 59, 999); return x;
 }
@@ -93,8 +93,12 @@ export function downloadExpenseExcel(expenseSections, options = {}) {
     schoolName = "School",
   } = options;
 
-  const dateRange = getDateRange(preset, customFrom, customTo);
-  const rows      = flattenAndFilter(expenseSections, dateRange.from, dateRange.to);
+function boldBorder() {
+  const c = { argb: DESIGN.colors.secondary };
+  return { top: { style: "medium", color: c }, bottom: { style: "double", color: c },
+           left: { style: "thin", color: { argb: DESIGN.colors.border } },
+           right: { style: "thin", color: { argb: DESIGN.colors.border } } };
+}
 
   const run = (ExcelJS) => _generate(ExcelJS, rows, expenseSections, dateRange, schoolName);
 
@@ -115,34 +119,45 @@ async function _generate(ExcelJS, rows, allSections, dateRange, schoolName) {
   const workbook   = new ExcelJS.Workbook();
   workbook.creator = schoolName;
 
-  const thinBorder = {
-    top:    { style: "thin", color: { argb: DESIGN.colors.border } },
-    left:   { style: "thin", color: { argb: DESIGN.colors.border } },
-    bottom: { style: "thin", color: { argb: DESIGN.colors.border } },
-    right:  { style: "thin", color: { argb: DESIGN.colors.border } },
-  };
+function writeDataRows(ws, startRow, rows, colCount) {
+  rows.forEach((row, idx) => {
+    const rn  = startRow + idx;
+    const wr  = ws.getRow(rn); wr.height = 22;
+    const bg  = idx % 2 === 0 ? DESIGN.colors.white : DESIGN.colors.zebra;
 
-  _buildDetailSheet(workbook, rows, dateRange, schoolName, thinBorder);
-  _buildCategorySheet(workbook, rows, allSections, dateRange, thinBorder);
+    row.forEach((val, ci) => {
+      const cell    = wr.getCell(ci + 1);
+      cell.value     = val;
+      cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      cell.font      = { name: DESIGN.fontName, size: 10 };
+      cell.border    = thinBorder();
+      cell.alignment = { vertical: "middle", horizontal: ci === 0 ? "center" : ci === colCount - 1 ? "right" : "left" };
+    });
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob   = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    // Colour the amount column (last)
+    wr.getCell(colCount).font = { name: DESIGN.fontName, size: 10, bold: true, color: { argb: DESIGN.colors.red } };
   });
-
-  const today    = new Date().toISOString().slice(0, 10);
-  const rangeTag = dateRange.label.replace(/[^a-zA-Z0-9]/g, "_").replace(/_+/g, "_");
-  const link     = document.createElement("a");
-  link.href      = URL.createObjectURL(blob);
-  link.download  = `Expenses_${schoolName.replace(/\s+/g, "-")}_${rangeTag}_${today}.xlsx`;
-  link.click();
 }
 
-// ── Sheet 1: Detailed Expense Records ────────────────────────────────────────
+function writeTotalRow(ws, rowNum, colCount, labelCol, label, total) {
+  const r = ws.getRow(rowNum); r.height = 28;
+  for (let i = 1; i <= colCount; i++) {
+    const cell = r.getCell(i);
+    cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: DESIGN.colors.totalBg } };
+    cell.font      = { name: DESIGN.fontName, size: 10, bold: true, color: { argb: DESIGN.colors.primary } };
+    cell.border    = boldBorder();
+    cell.alignment = { vertical: "middle", horizontal: i <= labelCol ? "left" : "right" };
+  }
+  r.getCell(1).value       = label;
+  r.getCell(colCount).value = total;
+  r.getCell(colCount).font  = { name: DESIGN.fontName, size: 11, bold: true, color: { argb: DESIGN.colors.red } };
+}
 
 function _buildDetailSheet(workbook, rows, dateRange, schoolName, thinBorder) {
   const ws = workbook.addWorksheet("Expense Records", { views: [{ showGridLines: true }] });
 
+function buildDetailSheet(workbook, rows, dateRange, schoolName) {
+  const ws = workbook.addWorksheet("Expense Records", { views: [{ showGridLines: true }] });
   ws.columns = [
     { width: 5,  style: { alignment: { horizontal: "center" } } },
     { width: 26 },
@@ -172,8 +187,7 @@ function _buildDetailSheet(workbook, rows, dateRange, schoolName, thinBorder) {
     alignment: { vertical: "middle", horizontal: "center" },
   });
 
-  // Row 3 — spacer
-  ws.getRow(3).height = 8;
+  ws.getRow(3).height = 8; // spacer
 
   // Row 4 — column headers
   const headers = ["#", "Category", "Expense Item", "Amount (₹)", "Date Added"];
@@ -196,7 +210,7 @@ function _buildDetailSheet(workbook, rows, dateRange, schoolName, thinBorder) {
     warn.getCell(1).font      = { name: DESIGN.fontName, size: 10, italic: true, color: { argb: DESIGN.colors.red } };
     warn.getCell(1).fill      = { type: "pattern", pattern: "solid", fgColor: { argb: DESIGN.colors.redBg } };
     warn.getCell(1).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
-    warn.getCell(1).border    = thinBorder;
+    warn.getCell(1).border    = thinBorder();
     return;
   }
 
@@ -240,7 +254,7 @@ function _buildDetailSheet(workbook, rows, dateRange, schoolName, thinBorder) {
     right:  { style: "thin",   color: { argb: DESIGN.colors.border } },
   };
   for (let i = 1; i <= 5; i++) {
-    const cell = footer.getCell(i);
+    const cell = fr.getCell(i);
     cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: DESIGN.colors.totalBg } };
     cell.font      = { name: DESIGN.fontName, size: 10, bold: true, color: { argb: DESIGN.colors.primary } };
     cell.border    = boldBorder;
@@ -249,7 +263,7 @@ function _buildDetailSheet(workbook, rows, dateRange, schoolName, thinBorder) {
   footer.getCell(4).font = { name: DESIGN.fontName, size: 11, bold: true, color: { argb: DESIGN.colors.red } };
 }
 
-// ── Sheet 2: Category Summary ─────────────────────────────────────────────────
+// ── Sheet: Category Summary (existing) ───────────────────────────────────────
 
 function _buildCategorySheet(workbook, rows, allSections, dateRange, thinBorder) {
   const ws = workbook.addWorksheet("Category Summary", { views: [{ showGridLines: true }] });
@@ -305,9 +319,34 @@ function _buildCategorySheet(workbook, rows, allSections, dateRange, thinBorder)
     for (let i = 1; i <= 4; i++) {
       const cell = row.getCell(i);
       cell.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-      cell.font      = { name: DESIGN.fontName, size: 10 };
-      cell.border    = thinBorder;
-      cell.alignment = { vertical: "middle", horizontal: i === 1 ? "left" : "right" };
+      cell.font      = { name: DESIGN.fontName, size: 10, ...(i === 2 && total > 0 ? { bold: true, color: { argb: DESIGN.colors.red } } : {}) };
+      cell.border    = thinBorder();
+      cell.alignment = { vertical: "middle", horizontal: i === 0 ? "left" : "right" };
+    });
+  });
+
+  writeTotalRow(ws, catRows.length + 3, 4, 1, "GRAND TOTAL", grandTotal);
+  ws.getRow(catRows.length + 3).getCell(2).value = rows.length;
+  ws.getRow(catRows.length + 3).getCell(4).value = "100%";
+}
+
+// ── Daily report ──────────────────────────────────────────────────────────────
+
+/**
+ * Groups rows by calendar day.
+ * Returns Map<"YYYY-MM-DD" → { label: string, rows: [...] }> sorted ascending.
+ */
+function groupByDay(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    if (!r.createdAt) continue;
+    const key = r.createdAt.toISOString().slice(0, 10);
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        label: isoDate(r.createdAt),
+        rows: [],
+      });
     }
     if (total > 0)
       row.getCell(3).font = { name: DESIGN.fontName, size: 10, bold: true, color: { argb: DESIGN.colors.red } };

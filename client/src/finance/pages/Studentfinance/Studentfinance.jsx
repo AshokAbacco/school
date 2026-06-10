@@ -454,6 +454,7 @@ export default function StudentFeesPage() {
     const [receiptStudent, setReceiptStudent] = useState(null);
     const [feeCategory, setFeeCategory] = useState("ALL");
     const [paymentFilter, setPaymentFilter] = useState("ALL");
+    const [selectedDate, setSelectedDate] = useState("");
 
 
     useEffect(() => {
@@ -754,12 +755,35 @@ export default function StudentFeesPage() {
             matchStatus = !isPaid;
         }
 
-        return matchSearch && matchCourse && matchStatus;
+        let matchDate = true;
+        if (selectedDate) {
+            const recordDate = s.feeDate ? new Date(s.feeDate).toLocaleDateString("en-CA") : null;
+            matchDate = recordDate === selectedDate;
+        }
+
+        return matchSearch && matchCourse && matchStatus && matchDate;
     });
+
+    // Date-wise filtered: only records matching selected date (used for date-wise Excel)
+    const dateFilteredStudents = selectedDate
+        ? students.filter(s => {
+            const recordDate = s.feeDate ? new Date(s.feeDate).toLocaleDateString("en-CA") : null;
+            return recordDate === selectedDate;
+        })
+        : [];
 
     const handleExcelDownload = () => {
         downloadStudentFinanceExcel(
-            filtered,
+            students,
+            feeCategory,
+            schoolInfo
+        );
+    };
+
+    const handleDatewiseExcelDownload = () => {
+        if (!selectedDate || dateFilteredStudents.length === 0) return;
+        downloadStudentFinanceExcel(
+            dateFilteredStudents,
             feeCategory,
             schoolInfo
         );
@@ -891,26 +915,129 @@ export default function StudentFeesPage() {
                         >
                             {new Date().toLocaleDateString("en-IN", { weekday: "short", year: "numeric", month: "long", day: "numeric" })}
                         </span>
-                        <button
-                            className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl border-none cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
-                            style={{ background: "linear-gradient(135deg,#3A5E78,#1C3044)", boxShadow: "0 3px 12px rgba(39,67,91,.28)" }}
-                            onClick={() => { setEditData(null); setOpenPopup(true); }}
-                        >
-                            <UserPlus size={15} /> Add Student
-                        </button>
+
+                        {/* Date Picker */}
+                        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                            <CalendarDays size={14} style={{ position: "absolute", left: 10, color: "rgba(255,255,255,.7)", pointerEvents: "none" }} />
+                            <input
+                                type="date"
+                                value={selectedDate}
+                                onChange={e => setSelectedDate(e.target.value)}
+                                style={{
+                                    paddingLeft: 30, paddingRight: 10, paddingTop: 8, paddingBottom: 8,
+                                    borderRadius: 10, border: "1.5px solid rgba(255,255,255,.3)",
+                                    background: "rgba(255,255,255,.15)", color: "#fff",
+                                    fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans',sans-serif",
+                                    outline: "none", cursor: "pointer", colorScheme: "dark",
+                                    minWidth: 150,
+                                }}
+                                title="Filter by fee entry date"
+                            />
+                            {selectedDate && (
+                                <button
+                                    onClick={() => setSelectedDate("")}
+                                    title="Clear date filter"
+                                    style={{
+                                        position: "absolute", right: 8,
+                                        background: "none", border: "none", color: "rgba(255,255,255,.7)",
+                                        cursor: "pointer", padding: 0, display: "flex", alignItems: "center",
+                                    }}
+                                >
+                                    <X size={13} />
+                                </button>
+                            )}
+                        </div>
+
+
+
+                        {/* Download All Data */}
                         <button
                             onClick={handleExcelDownload}
                             className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl border-none cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
+                            title="Download all student fee records"
                             style={{
                                 background: "linear-gradient(135deg,#1a6e3e,#14532d)",
                                 boxShadow: "0 3px 12px rgba(20,83,45,.28)"
                             }}
                         >
                             <Download size={15} />
-                            Export Excel
+                            All Data
+                        </button>
+
+                        {/* Download Date-wise Data */}
+                        <button
+                            onClick={handleDatewiseExcelDownload}
+                            disabled={!selectedDate || dateFilteredStudents.length === 0}
+                            title={
+                                !selectedDate
+                                    ? "Select a date to enable date-wise download"
+                                    : dateFilteredStudents.length === 0
+                                        ? "No records for selected date"
+                                        : `Download records for ${new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`
+                            }
+                            className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl border-none flex-shrink-0"
+                            style={{
+                                background: (!selectedDate || dateFilteredStudents.length === 0)
+                                    ? "rgba(255,255,255,.15)"
+                                    : "linear-gradient(135deg,#7c3aed,#5b21b6)",
+                                boxShadow: (!selectedDate || dateFilteredStudents.length === 0)
+                                    ? "none"
+                                    : "0 3px 12px rgba(91,33,182,.28)",
+                                cursor: (!selectedDate || dateFilteredStudents.length === 0) ? "not-allowed" : "pointer",
+                                opacity: (!selectedDate || dateFilteredStudents.length === 0) ? 0.55 : 1,
+                                transition: "all .2s",
+                            }}
+                        >
+                            <Download size={15} />
+                            Date-wise
+                        </button>
+                      <button
+                        className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0"
+                        style={{
+                            background: "rgba(39, 73, 107, 0.85)",
+                            border: "1.5px solid rgba(136,189,242,0.4)",
+                            color: "#BDDDFC",
+                            backdropFilter: "blur(6px)",
+                            transition: "border-color 0.2s, background 0.2s",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(136,189,242,0.75)"; e.currentTarget.style.background = "rgba(39,67,91,0.9)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(136,189,242,0.4)"; e.currentTarget.style.background = "rgba(28,48,68,0.85)"; }}
+                        onClick={() => { setEditData(null); setOpenPopup(true); }}
+                        >
+                        <UserPlus size={15} /> Add Student
                         </button>
                     </div>
                 </div>
+
+                {/* ── DATE FILTER ACTIVE BANNER ── */}
+                {selectedDate && (
+                    <div
+                        className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2.5"
+                        style={{ background: "linear-gradient(135deg,#7c3aed22,#5b21b611)", borderBottom: "1.5px solid #7c3aed33" }}
+                    >
+                        <div className="flex items-center gap-2">
+                            <CalendarDays size={14} color="#7c3aed" />
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#5b21b6" }}>
+                                Showing records for:{" "}
+                                <strong style={{ color: "#4c1d95" }}>
+                                    {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
+                                </strong>
+                                {" "}—{" "}
+                                <span style={{ color: dateFilteredStudents.length > 0 ? "#1a6e3e" : "#a33030" }}>
+                                    {dateFilteredStudents.length > 0
+                                        ? `${dateFilteredStudents.length} record${dateFilteredStudents.length > 1 ? "s" : ""} found`
+                                        : "No records found"}
+                                </span>
+                            </span>
+                        </div>
+                        <button
+                            onClick={() => setSelectedDate("")}
+                            style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", background: "rgba(124,58,237,.1)", border: "1px solid rgba(124,58,237,.3)", borderRadius: 7, padding: "3px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+                        >
+                            <X size={11} /> Clear Filter
+                        </button>
+                    </div>
+                )}
 
                 {/* ── MAIN CONTENT ── */}
                 <div className="px-3 sm:px-5 lg:px-8 py-5 sm:py-6">
@@ -1121,12 +1248,27 @@ export default function StudentFeesPage() {
                                                     colSpan={9}
                                                     style={{
                                                         textAlign: "center",
-                                                        padding: "36px 0",
+                                                        padding: "40px 0",
                                                         color: "#4A6B80",
                                                         fontSize: 14
                                                     }}
                                                 >
-                                                    No students found
+                                                    {selectedDate ? (
+                                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                                                            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#f0f7fc", border: "1.5px solid #c8dff0", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
+                                                                <CalendarDays size={20} color="#4A6B80" />
+                                                            </div>
+                                                            <span style={{ fontWeight: 700, color: "#1C3044", fontSize: 15 }}>
+                                                                No fee records found for the selected date
+                                                            </span>
+                                                            <span style={{ fontSize: 13, color: "#6B8FA8" }}>
+                                                                No student fee data has been entered for{" "}
+                                                                <strong>{new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}</strong>.
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        "No students found"
+                                                    )}
                                                 </td>
                                             </tr>
                                         ) : (

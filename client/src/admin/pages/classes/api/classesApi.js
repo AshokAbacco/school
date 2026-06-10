@@ -183,72 +183,6 @@ export const fetchTeachersForDropdown = () =>
     headers: authHeaders(),
   }).then(handle);
 
-// ── EXTRA CLASSES ──────────────────────────────────────────────────────────
-
-/**
- * GET /api/class-sections/:classSectionId/extra-classes?academicYearId=xxx
- * Fetch all extra classes for a specific section + year
- */
-export const fetchExtraClasses = (classSectionId, filters = {}) =>
-  fetch(
-    `${BASE}/class-sections/${classSectionId}/extra-classes?${toQuery(filters)}`,
-    { headers: authHeaders() },
-  ).then(handle);
-
-/**
- * GET /api/class-sections/extra-classes/overview?academicYearId=xxx
- * Fetch extra classes for ALL sections — for admin overview
- */
-export const fetchAllExtraClassesOverview = (filters = {}) =>
-  fetch(`${BASE}/class-sections/extra-classes/overview?${toQuery(filters)}`, {
-    headers: authHeaders(),
-  }).then(handle);
-
-/**
- * POST /api/class-sections/:classSectionId/extra-classes
- * body: {
- *   academicYearId, subjectId, teacherId, type,
- *   reason?,
- *   recurringDay?  — "MONDAY"|"TUESDAY"|...|"SUNDAY"
- *   specificDate?  — ISO date string  (provide one of recurringDay/specificDate)
- *   startTime,     — "HH:MM"
- *   endTime,       — "HH:MM"
- * }
- */
-export const saveExtraClass = (classSectionId, data) =>
-  fetch(`${BASE}/class-sections/${classSectionId}/extra-classes`, {
-    method: "POST",
-    headers: authHeaders(true),
-    body: JSON.stringify(data),
-  }).then(handle);
-
-/**
- * PUT /api/class-sections/:classSectionId/extra-classes/:extraClassId
- * Same body shape as POST — all fields optional (except day/date)
- */
-export const updateExtraClass = (classSectionId, extraClassId, data) =>
-  fetch(
-    `${BASE}/class-sections/${classSectionId}/extra-classes/${extraClassId}`,
-    {
-      method: "PUT",
-      headers: authHeaders(true),
-      body: JSON.stringify(data),
-    },
-  ).then(handle);
-
-/**
- * DELETE /api/class-sections/:classSectionId/extra-classes/:extraClassId
- * Soft delete — sets isActive = false
- */
-export const deleteExtraClass = (classSectionId, extraClassId) =>
-  fetch(
-    `${BASE}/class-sections/${classSectionId}/extra-classes/${extraClassId}`,
-    {
-      method: "DELETE",
-      headers: authHeaders(),
-    },
-  ).then(handle);
-
 // ── STREAMS (PUC only) ─────────────────────────────────────────────────────
 export const fetchStreams = () =>
   fetch(`${BASE}/streams`, { headers: authHeaders() }).then(handle);
@@ -390,17 +324,170 @@ export const readmitStudent = (studentId, data) =>
 
 // Call: PATCH /api/class-sections/academic-years/:id/activate
 // Purpose: Sets the given year as active, deactivates all others for this school
-
 export const activateAcademicYear = (yearId) =>
   fetch(`${BASE}/class-sections/academic-years/${yearId}/activate`, {
     method: "PATCH",
     headers: authHeaders(true),
   }).then(handle);
 
-
-  export const readmitStudentBulk = (data) =>
+export const readmitStudentBulk = (data) =>
   fetch(`${BASE}/promotion/readmit-bulk`, {
     method: "POST",
     headers: authHeaders(true),
     body: JSON.stringify(data),
   }).then(handle);
+
+// ── TIMETABLE EXCEL ────────────────────────────────────────────────────────
+//
+// FIX: All upload functions now use a shared safeHandle() that reads the
+// response as text first, then attempts JSON.parse. This prevents the
+// "Unexpected token '<'" crash when the server returns an HTML error page
+// (e.g. 404 due to unregistered routes).
+//
+// IMPORTANT — if you are still getting the HTML error after this fix, the
+// route is not registered in your Express router. Add these lines to your
+// router file (e.g. timetableExcelRoutes.js / index.js):
+//
+//   import {
+//     downloadAllTimetableTemplate,
+//     downloadSingleTimetableTemplate,
+//     uploadAllTimetableTemplate,
+//     uploadSingleTimetableTemplate,
+//   } from "../staffControlls/timetableExcelController.js";
+//   import multer from "multer";
+//   const upload = multer({ storage: multer.memoryStorage() });
+//
+//   router.get("/timetable-excel/download-all",          downloadAllTimetableTemplate);
+//   router.get("/timetable-excel/download-single/:classSectionId", downloadSingleTimetableTemplate);
+//   router.post("/timetable-excel/upload-all",    upload.single("file"), uploadAllTimetableTemplate);
+//   router.post("/timetable-excel/upload-single/:classSectionId", upload.single("file"), uploadSingleTimetableTemplate);
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Safe response handler for file-upload endpoints.
+ * Reads body as text, tries to parse as JSON.
+ * If the server returns an HTML page (unregistered route / proxy error) we
+ * surface a clear message instead of crashing with a JSON parse error.
+ */
+const safeHandle = async (r) => {
+  const text = await r.text();
+
+  // Detect HTML error page (404 / 502 / nginx / express default)
+  if (text.trimStart().startsWith("<!")) {
+    throw new Error(
+      `Server returned an HTML page (HTTP ${r.status}). ` +
+        "The API route may not be registered. " +
+        "Check that timetable-excel routes are mounted in your Express router."
+    );
+  }
+
+  let j = null;
+  try {
+    j = JSON.parse(text);
+  } catch {
+    throw new Error(`Unexpected server response (HTTP ${r.status}): ${text.slice(0, 120)}`);
+  }
+
+  if (!r.ok) {
+    throw new Error(j?.message || j?.error || `HTTP ${r.status}`);
+  }
+
+  return j;
+};
+
+/**
+ * Download all-classes timetable template as Excel blob.
+ * GET /api/timetable-excel/download-all?academicYearId=xxx
+ */
+export const downloadAllTimetableTemplate = async (academicYearId) => {
+  const r = await fetch(
+    `${BASE}/timetable-excel/download-all?academicYearId=${academicYearId}`,
+    { headers: authHeaders() }
+  );
+
+  if (!r.ok) {
+    // Try to parse error body safely
+    const text = await r.text();
+    let msg = `HTTP ${r.status}`;
+    if (!text.trimStart().startsWith("<!")) {
+      try { msg = JSON.parse(text)?.message || msg; } catch { /* ignore */ }
+    } else {
+      msg =
+        `Server returned an HTML page (HTTP ${r.status}). ` +
+        "The API route may not be registered in your Express router.";
+    }
+    throw new Error(msg);
+  }
+
+  return r.blob();
+};
+
+/**
+ * Upload filled all-classes timetable workbook.
+ * POST /api/timetable-excel/upload-all
+ * body: FormData { academicYearId, file }
+ *
+ * FIX: Do NOT set Content-Type manually — let the browser set the multipart
+ * boundary automatically. Only Authorization header is passed.
+ */
+export const uploadAllTimetableTemplate = async (academicYearId, file) => {
+  const form = new FormData();
+  form.append("academicYearId", academicYearId);
+  form.append("file", file);
+
+  const r = await fetch(`${BASE}/timetable-excel/upload-all`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` }, // ← NO Content-Type
+    body: form,
+  });
+
+  return safeHandle(r);
+};
+
+/**
+ * Download single-class timetable template as Excel blob.
+ * GET /api/timetable-excel/download-single/:classSectionId?academicYearId=xxx
+ */
+export const downloadSingleTimetableTemplate = async (academicYearId, classSectionId) => {
+  const r = await fetch(
+    `${BASE}/timetable-excel/download-single/${classSectionId}?academicYearId=${academicYearId}`,
+    { headers: authHeaders() }
+  );
+
+  if (!r.ok) {
+    const text = await r.text();
+    let msg = `HTTP ${r.status}`;
+    if (!text.trimStart().startsWith("<!")) {
+      try { msg = JSON.parse(text)?.message || msg; } catch { /* ignore */ }
+    } else {
+      msg =
+        `Server returned an HTML page (HTTP ${r.status}). ` +
+        "The API route may not be registered in your Express router.";
+    }
+    throw new Error(msg);
+  }
+
+  return r.blob();
+};
+
+/**
+ * Upload filled single-class timetable workbook.
+ * POST /api/timetable-excel/upload-single/:classSectionId
+ * body: FormData { academicYearId, file }
+ *
+ * FIX: Do NOT set Content-Type manually — let the browser set the multipart
+ * boundary automatically.
+ */
+export const uploadSingleTimetableTemplate = async (academicYearId, classSectionId, file) => {
+  const form = new FormData();
+  form.append("academicYearId", academicYearId);
+  form.append("file", file);
+
+  const r = await fetch(`${BASE}/timetable-excel/upload-single/${classSectionId}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` }, // ← NO Content-Type
+    body: form,
+  });
+
+  return safeHandle(r);
+};

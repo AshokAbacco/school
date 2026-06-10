@@ -65,17 +65,18 @@ function getStaffRole(r) {
 
 export function downloadStaffSalaryExcel(salaryList, options = {}) {
 
-  console.log("DOWNLOAD CLICKED");
-  console.log("Salary List:", salaryList);
-
-  const { filter = "ALL", groupLabel = "Staff", schoolName = "School" } = options;
+  const {
+    filter = "ALL",
+    groupLabel = "Staff",
+    schoolName = "School",
+    month = null,
+    year = null,
+  } = options;
 
   const filtered =
     filter === "ALL"
       ? salaryList
       : salaryList.filter(r => r.status === filter);
-
-  console.log("Filtered Records:", filtered);
 
   const run = (ExcelJS) =>
     _generate(
@@ -83,7 +84,9 @@ export function downloadStaffSalaryExcel(salaryList, options = {}) {
       filtered,
       filter,
       groupLabel,
-      schoolName
+      schoolName,
+      month,
+      year,
     );
 
   if (window.ExcelJS) {
@@ -103,9 +106,6 @@ export function downloadStaffSalaryExcel(salaryList, options = {}) {
       "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js";
 
     script.onload = () => {
-
-      console.log("ExcelJS Loaded Successfully");
-
       run(window.ExcelJS);
     };
 
@@ -118,7 +118,7 @@ export function downloadStaffSalaryExcel(salaryList, options = {}) {
   }
 }
 
-async function _generate(ExcelJS, records, filter, groupLabel, schoolName) {
+async function _generate(ExcelJS, records, filter, groupLabel, schoolName, month, year) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = schoolName;
 
@@ -130,7 +130,7 @@ async function _generate(ExcelJS, records, filter, groupLabel, schoolName) {
   };
 
   // ── Sheet 1: Detailed Records ─────────────────────────────────────────────
-  _buildDetailSheet(workbook, records, filter, groupLabel, schoolName, thinBorder);
+  _buildDetailSheet(workbook, records, filter, groupLabel, schoolName, thinBorder, month, year);
 
   // ── Sheet 2: Summary ──────────────────────────────────────────────────────
   _buildSummarySheet(workbook, records, groupLabel, thinBorder);
@@ -140,18 +140,23 @@ async function _generate(ExcelJS, records, filter, groupLabel, schoolName) {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 
-  const today = new Date().toISOString().slice(0, 10);
   const filterTag = filter === "ALL" ? "All" : filter === "PAID" ? "Paid" : filter === "HOLD" ? "OnHold" : "Pending";
-  const groupTag = groupLabel.replace(/\s+/g, "-");
+  const groupTag  = groupLabel.replace(/\s+/g, "-");
+  const periodTag = month && year
+    ? `${new Date(0, month - 1).toLocaleString("default", { month: "short" })}-${year}`
+    : new Date().toISOString().slice(0, 10);
 
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `Salary_${groupTag}_${filterTag}_${today}.xlsx`;
+  link.download = `Salary_${groupTag}_${filterTag}_${periodTag}.xlsx`;
   link.click();
 }
 
-function _buildDetailSheet(workbook, records, filter, groupLabel, schoolName, thinBorder) {
+function _buildDetailSheet(workbook, records, filter, groupLabel, schoolName, thinBorder, month, year) {
   const filterLabel = filter === "ALL" ? "All Statuses" : filter === "PAID" ? "Paid Only" : filter === "HOLD" ? "On Hold" : "Pending Only";
+  const periodLabel = month && year
+    ? `${new Date(0, month - 1).toLocaleString("default", { month: "long" })} ${year}`
+    : "Current Month";
   const ws = workbook.addWorksheet("Salary Records", { views: [{ showGridLines: true }] });
 
   ws.columns = [
@@ -181,7 +186,7 @@ function _buildDetailSheet(workbook, records, filter, groupLabel, schoolName, th
   ws.mergeCells("A2:L2");
   const r2 = ws.getRow(2); r2.height = 22;
   const dateStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
-  r2.getCell(1).value = `Filter: ${filterLabel}  |  ${records.length} records  |  Generated: ${dateStr}`;
+  r2.getCell(1).value = `Period: ${periodLabel}  |  Filter: ${filterLabel}  |  ${records.length} records  |  Generated: ${dateStr}`;
   r2.getCell(1).font = { name: DESIGN.fontName, size: 9, bold: true, color: { argb: DESIGN.colors.white } };
   r2.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: DESIGN.colors.secondary } };
   r2.getCell(1).alignment = { vertical: "middle", horizontal: "center" };

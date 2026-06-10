@@ -404,9 +404,9 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
     if (!valid.length) return;
 
     setImporting(true);
+    let updatedRows = [...rows]; // ← HOIST HERE
 
     try {
-      // Send all valid students in one batch request
       const response = await fetch(`${API}/api/students/bulk-import`, {
         method: "POST",
         headers: {
@@ -417,21 +417,13 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
       });
 
       const data = await response.json();
-      console.log("BULK IMPORT RESPONSE:", data);
 
       if (!Array.isArray(data.results)) {
-        throw new Error(
-          data.message || "Invalid server response"
-        );
+        throw new Error(data.message || "Invalid server response");
       }
 
-      // Map server results back to rows
-      const updatedRows = [...rows];
-
       if (response.ok && Array.isArray(data.results)) {
-        // Server returns per-row results array
         data.results.forEach((result) => {
-          // result.row is 1-based index into valid array
           const validRow = valid[result.row - 1];
           if (!validRow) return;
           const idx = updatedRows.findIndex((x) => x._idx === validRow._idx);
@@ -439,58 +431,41 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
           updatedRows[idx] = {
             ...updatedRows[idx],
             status: result.success ? "success" : "error",
-            serverError: result.success
-              ? null
-              : (
-                  result.error ||
-                  result.detail ||
-                  result.message ||
-                  "Unknown error"
-                ),
+            serverError: result.success ? null : (result.error || result.detail || result.message || "Unknown error"),
           };
         });
       } else {
-        // Whole request failed — mark all valid rows as error
         const errorMsg = data.message || "Import failed";
         valid.forEach((row) => {
           const idx = updatedRows.findIndex((x) => x._idx === row._idx);
           if (idx !== -1)
             updatedRows[idx] = { ...updatedRows[idx], status: "error", serverError: errorMsg };
         });
-          }
-    updatedRows.forEach((row, index) => {
-      if (
-        row.status === "pending" &&
-        row.errors.length === 0
-      ) {
-        updatedRows[index] = {
-          ...row,
-          status: "error",
-          serverError: "No response received from server",
-        };
       }
-});
-      setRows(updatedRows);
+
+      // Mark any valid rows that got no response
+      updatedRows.forEach((row, index) => {
+        if (row.status === "pending" && row.errors.length === 0) {
+          updatedRows[index] = { ...row, status: "error", serverError: "No response from server" };
+        }
+      });
+
     } catch (err) {
-      // Network error — mark all valid rows as error
-      const updatedRows = rows.map((row) =>
+      updatedRows = rows.map((row) =>
         row.errors.length === 0
           ? { ...row, status: "error", serverError: "Network error" }
           : row
       );
-      setRows(updatedRows);
     }
 
+    setRows(updatedRows);
     setImporting(false);
     setStep("done");
 
-    const hasSuccess = rows.some(
-      (r) => r.status === "success"
-    );
-
+    // ✅ FIXED: use local variable
+    const hasSuccess = updatedRows.some((r) => r.status === "success");
     if (hasSuccess) {
       onSuccess?.();
-      // refresh limit counter
       try {
         const r = await fetch(`${API}/api/students/limit-status`, {
           headers: { Authorization: `Bearer ${getToken()}` },

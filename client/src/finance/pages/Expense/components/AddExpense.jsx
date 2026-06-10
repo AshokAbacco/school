@@ -111,7 +111,7 @@ export default function AddExpense({ expenseSections = [], onClose, onAdd, onEdi
       <div
         className="fixed inset-0 bg-[#142332]/60 backdrop-blur-md z-[1000] flex items-center justify-center p-3 sm:p-5"
         style={{ animation: "aeModalFadeIn .2s ease" }}
-        onClick={onClose}
+       
       >
         {/* Box */}
         <div

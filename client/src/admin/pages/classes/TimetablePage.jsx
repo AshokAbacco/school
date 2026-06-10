@@ -1,16 +1,8 @@
 // client/src/admin/pages/classes/TimetablePage.jsx
-// client/src/admin/pages/classes/TimetablePage.jsx
-// Standalone timetable builder — no step wizard.
-// Features:
-//  - All classes/sections available; pick one or get pre-selected via state.sectionId
-//  - Ask: "Same pattern Mon–Fri?" — if Yes, setting Mon Period 1 fills Tue–Fri Period 1 too
-//  - When editing, shows only subjects assigned to that class
-//  - Teacher conflict detection
-//  - Extra Classes section: add/edit/delete one-off or recurring extra sessions
-import { useState, useEffect, useCallback } from "react";
+
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import * as XLSX from "xlsx";
-import { Upload, Download } from "lucide-react";
 import {
   Grid3X3,
   Save,
@@ -22,12 +14,11 @@ import {
   ArrowLeft,
   Info,
   Trash2,
-  ChevronDown,
   Search,
-  Plus,
-  Calendar,
-  Clock,
-  Pencil,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  Table2,
 } from "lucide-react";
 import {
   fetchClassSections,
@@ -37,13 +28,8 @@ import {
   fetchAcademicYears,
   fetchClassSectionById,
   fetchTeachersForDropdown,
-  fetchExtraClasses,
-  saveExtraClass,
-  updateExtraClass,
-  deleteExtraClass,
-} from "./api/classesApi";
-import AddExtraClassModal from "./AddExtraClassModal";
-
+} from "./api/classesApi.js";
+import { getToken } from "../../../auth/storage";
 const C = {
   bg: "#F4F8FC",
   card: "#FFFFFF",
@@ -85,43 +71,10 @@ const COLORS = [
   "#384959",
 ];
 
-const EXTRA_TYPE_COLORS = {
-  WEEKEND: "#8b5cf6",
-  HOLIDAY: "#ef4444",
-  BEFORE_HOURS: "#06b6d4",
-  AFTER_HOURS: "#f59e0b",
-  OTHER: "#6A89A7",
-};
-const EXTRA_TYPE_LABELS = {
-  WEEKEND: "Weekend",
-  HOLIDAY: "Holiday",
-  BEFORE_HOURS: "Before School",
-  AFTER_HOURS: "After School",
-  OTHER: "Other",
-};
-const DAY_FULL = {
-  MONDAY: "Monday",
-  TUESDAY: "Tuesday",
-  WEDNESDAY: "Wednesday",
-  THURSDAY: "Thursday",
-  FRIDAY: "Friday",
-  SATURDAY: "Saturday",
-  SUNDAY: "Sunday",
-};
-
 const fmtTime = (t) => {
   if (!t) return "";
   const [h, m] = t.split(":").map(Number);
   return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
-};
-
-const fmtDate = (d) => {
-  if (!d) return "";
-  return new Date(d).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
 };
 
 function Toast({ type, msg, onClose }) {
@@ -149,171 +102,251 @@ function Toast({ type, msg, onClose }) {
   );
 }
 
-// ─── Extra Class Card ──────────────────────────────────────────────────────────
-function ExtraClassCard({ ec, onEdit, onDelete, subjectColor }) {
-  const typeColor = EXTRA_TYPE_COLORS[ec.type] || "#6A89A7";
-  const subColor = subjectColor(ec.subjectId || ec.subject?.id);
-  const [deleting, setDeleting] = useState(false);
+// ─────────────────────────────────────────────────────────────────────────────
+// BULK UPLOAD MODAL
+// Shows two Excel format previews + two upload options (single / all classes)
+// ─────────────────────────────────────────────────────────────────────────────
+// BULK UPLOAD MODAL
+// Two Excel template downloads + two upload options (single / all classes)
+// ─────────────────────────────────────────────────────────────────────────────
+function BulkUploadModal({ selectedClass, slots, subjects, allClasses, allTeachers, onUpload, onBulkUpload, onClose }) {
+  const singleRef = useRef();
+  const bulkRef = useRef();
 
-  const handleDelete = async () => {
-    if (!window.confirm("Remove this extra class?")) return;
-    setDeleting(true);
-    await onDelete(ec.id);
-    setDeleting(false);
+  const DAYS_LIST = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+  // Marker embedded in row 0 so the server can auto-detect the class on upload
+  const CLASS_MARKER_PREFIX = "CLASS NAME:";
+
+  // ── Download: Single Class Template ────────────────────────────────────────
+  // Row 0: CLASS NAME: <name>  ← auto-detect identifier
+  // Row 1: DAYS/PERIODS header
+  // Row 2: TIMINGS
+  // Row 3+: day rows
+  const downloadSingleTemplate = () => {
+    const periodSlots = slots.filter((s) => s.slotType === "PERIOD");
+    const className = selectedClass?.name || "Class";
+    const totalCols = 1 + periodSlots.length;
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1 — Timetable
+    const classMarkerRow = [`${CLASS_MARKER_PREFIX} ${className}`, ...Array(periodSlots.length).fill("")];
+    const headers = ["DAYS / PERIODS", ...periodSlots.map((s) => s.label)];
+    const timings = ["TIMINGS", ...periodSlots.map((s) => `${s.startTime}-${s.endTime}`)];
+    const rows = [classMarkerRow, headers, timings];
+    DAYS_LIST.forEach((day) => {
+      rows.push([day, ...periodSlots.map(() => "")]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [{ wch: 22 }, ...periodSlots.map(() => ({ wch: 18 }))];
+    XLSX.utils.book_append_sheet(wb, ws, className.substring(0, 31));
+
+    // Sheet 2 — Class Subjects
+    const subjectRows = [["Subject Name"], ...subjects.map((s) => [s.name])];
+    const ws2 = XLSX.utils.aoa_to_sheet(subjectRows);
+    ws2["!cols"] = [{ wch: 28 }];
+    XLSX.utils.book_append_sheet(wb, ws2, "Class Subjects");
+
+    XLSX.writeFile(wb, `Timetable_${className}.xlsx`);
+  };
+
+  // ── Download: All Classes Template (single sheet) ──────────────────────────
+  // Sheet 1 — "All Classes Timetable": all classes in sequence, each block
+  //   starting with a "CLASS NAME: <name>" green marker row.
+  // Sheet 2 — "Class Subjects": Class Name | Subject Name
+  const downloadAllTemplate = () => {
+    const periodSlots = slots.filter((s) => s.slotType === "PERIOD");
+    const wb = XLSX.utils.book_new();
+    const classSubjectsRows = [["Class Name", "Subject Name"]];
+    const combinedAOA = [];
+    const classList = allClasses || [];
+    const totalCols = 1 + periodSlots.length;
+
+    classList.forEach((cls, ci) => {
+      const clsSubjects = (cls.classSubjects || [])
+        .map((cs) => cs.subject?.name || cs.name)
+        .filter(Boolean)
+        .sort();
+
+      clsSubjects.forEach((name) => classSubjectsRows.push([cls.name, name]));
+
+      // CLASS NAME marker row
+      combinedAOA.push([`${CLASS_MARKER_PREFIX} ${cls.name}`, ...Array(periodSlots.length).fill("")]);
+      // DAYS/PERIODS header
+      combinedAOA.push(["DAYS / PERIODS", ...periodSlots.map((s) => s.label)]);
+      // TIMINGS
+      combinedAOA.push(["TIMINGS", ...periodSlots.map((s) => `${s.startTime}-${s.endTime}`)]);
+      // Day rows
+      DAYS_LIST.forEach((day) => {
+        combinedAOA.push([day, ...periodSlots.map(() => "")]);
+      });
+      // Blank separator between classes
+      if (ci < classList.length - 1) {
+        combinedAOA.push(Array(totalCols).fill(""));
+      }
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(combinedAOA);
+    ws["!cols"] = [{ wch: 24 }, ...periodSlots.map(() => ({ wch: 18 }))];
+    XLSX.utils.book_append_sheet(wb, ws, "All Classes Timetable");
+
+    // Class Subjects sheet
+    const csWs = XLSX.utils.aoa_to_sheet(classSubjectsRows);
+    csWs["!cols"] = [{ wch: 22 }, { wch: 28 }];
+    XLSX.utils.book_append_sheet(wb, csWs, "Class Subjects");
+
+    XLSX.writeFile(wb, "All_Classes_Timetable_Template.xlsx");
   };
 
   return (
     <div
       style={{
-        borderRadius: 12,
-        border: `1.5px solid ${subColor}33`,
-        background: `${subColor}08`,
-        padding: "12px 14px",
-        minWidth: 180,
-        maxWidth: 220,
-        position: "relative",
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15,23,42,0.50)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 60,
+        padding: "16px",
       }}
     >
-      {/* Type badge */}
-      <span
-        style={{
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: "0.4px",
-          padding: "2px 7px",
-          borderRadius: 6,
-          background: `${typeColor}18`,
-          color: typeColor,
-           fontFamily: "'Inter', sans-serif",
-        }}
-      >
-        {EXTRA_TYPE_LABELS[ec.type] || ec.type}
-      </span>
-
-      {/* Day / Date */}
-      <div className="flex items-center gap-1.5 mt-2 mb-1">
-        <Calendar size={11} style={{ color: C.mid, flexShrink: 0 }} />
-        <p
-          className="text-xs font-semibold"
-          style={{ color: C.primary, fontFamily: "Inter, sans-serif" }}
-        >
-          {ec.recurringDay
-            ? `Every ${DAY_FULL[ec.recurringDay]}`
-            : fmtDate(ec.specificDate)}
-        </p>
-      </div>
-
-      {/* Time */}
-      <div className="flex items-center gap-1.5 mb-2">
-        <Clock size={11} style={{ color: C.mid, flexShrink: 0 }} />
-        <p
-          className="text-xs"
-          style={{ color: C.mid, fontFamily: "Inter, sans-serif" }}
-        >
-          {fmtTime(ec.startTime)} – {fmtTime(ec.endTime)}
-        </p>
-      </div>
-
-      {/* Subject chip */}
       <div
-        className="flex items-center gap-1.5 mb-1"
         style={{
-          display: "inline-flex",
-          padding: "3px 8px",
-          borderRadius: 6,
-          background: `${subColor}18`,
-          border: `1px solid ${subColor}33`,
+          background: "#fff",
+          borderRadius: 18,
+          width: "min(560px, 96vw)",
+          border: `1px solid ${C.border}`,
+          boxShadow: "0 20px 60px rgba(56,73,89,0.18)",
+          overflow: "hidden",
         }}
       >
-        <span
+        {/* ── Header ── */}
+        <div
           style={{
-            width: 5,
-            height: 5,
-            borderRadius: 1.5,
-            background: subColor,
-            flexShrink: 0,
-          }}
-        />
-        <span
-          className="text-xs font-semibold"
-          style={{ color: subColor, fontFamily: "Inter, sans-serif" }}
-        >
-          {ec.subject?.name || "—"}
-        </span>
-      </div>
-
-      {/* Teacher */}
-      <p
-        className="text-xs mt-1.5"
-        style={{ color: C.mid, fontFamily: "Inter, sans-serif" }}
-      >
-        {ec.teacher ? `${ec.teacher.firstName} ${ec.teacher.lastName}` : "—"}
-      </p>
-
-      {/* Reason */}
-      {ec.reason && (
-        <p
-          className="text-xs mt-1.5 italic"
-          style={{
-            color: C.mid,
-             fontFamily: "'Inter', sans-serif",
-            lineHeight: 1.4,
-          }}
-        >
-          "{ec.reason}"
-        </p>
-      )}
-
-      {/* Actions */}
-      <div className="flex gap-1.5 mt-3">
-        <button
-          onClick={() => onEdit(ec)}
-          style={{
-            flex: 1,
-            padding: "5px 0",
-            borderRadius: 7,
-            fontSize: 11,
-            fontWeight: 600,
-            border: `1.5px solid ${C.border}`,
-            background: "#fff",
-            cursor: "pointer",
-            color: C.mid,
+            padding: "20px 24px 16px",
+            borderBottom: `1px solid ${C.border}`,
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-             fontFamily: "'Inter', sans-serif",
+            justifyContent: "space-between",
           }}
         >
-          <Pencil size={10} /> Edit
-        </button>
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          style={{
-            flex: 1,
-            padding: "5px 0",
-            borderRadius: 7,
-            fontSize: 11,
-            fontWeight: 600,
-            border: "1.5px solid rgba(239,68,68,0.2)",
-            background: "rgba(239,68,68,0.06)",
-            cursor: deleting ? "not-allowed" : "pointer",
-            color: "#ef4444",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-             fontFamily: "'Inter', sans-serif",
-          }}
-        >
-          {deleting ? (
-            <Loader2 size={10} className="animate-spin" />
-          ) : (
-            <Trash2 size={10} />
-          )}
-          {deleting ? "…" : "Remove"}
-        </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: C.pale, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <FileSpreadsheet size={18} color={C.primary} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.primary, fontFamily: "'Inter', sans-serif" }}>
+                Bulk Upload Timetable
+              </h3>
+              <p style={{ margin: 0, fontSize: 12, color: C.mid, fontFamily: "'Inter', sans-serif" }}>
+                Download a template, fill it and upload
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ border: "none", background: C.pale, borderRadius: 8, padding: 8, cursor: "pointer", display: "flex" }}>
+            <X size={15} color={C.mid} />
+          </button>
+        </div>
+
+        <div style={{ padding: "20px 24px" }}>
+
+          {/* ── Step 1: Download template ── */}
+          <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: C.mid, textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "'Inter', sans-serif" }}>
+            Step 1 — Download Template
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 22 }}>
+
+            {/* Single class download */}
+            <button
+              onClick={downloadSingleTemplate}
+              style={{ padding: "14px 16px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.pale, cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.light; e.currentTarget.style.background = "rgba(136,189,242,0.14)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.pale; }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: "#fff", border: `1.5px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Download size={14} color={C.primary} />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.primary, fontFamily: "'Inter', sans-serif" }}>
+                  Single Class
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: 11, color: C.mid, fontFamily: "'Inter', sans-serif", lineHeight: 1.5 }}>
+                Template for <strong>{selectedClass?.name || "this class"}</strong>.
+                Includes CLASS NAME row + Class Subjects sheet.
+                Class auto-detected on upload.
+              </p>
+            </button>
+
+            {/* All classes download */}
+            <button
+              onClick={downloadAllTemplate}
+              style={{ padding: "14px 16px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: "rgba(56,73,89,0.04)", cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.background = "rgba(56,73,89,0.08)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "rgba(56,73,89,0.04)"; }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: "#fff", border: `1.5px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Download size={14} color={C.primary} />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.primary, fontFamily: "'Inter', sans-serif" }}>
+                  All Classes
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: 11, color: C.mid, fontFamily: "'Inter', sans-serif", lineHeight: 1.5 }}>
+                One workbook for all {(allClasses || []).length} classes.
+                Single sheet with CLASS NAME blocks + Class Subjects sheet.
+              </p>
+            </button>
+
+          </div>
+
+          {/* ── Step 2: Upload filled file ── */}
+          <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: C.mid, textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "'Inter', sans-serif" }}>
+            Step 2 — Upload Filled File
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+
+            {/* Upload single */}
+            <div
+              onClick={() => singleRef.current.click()}
+              style={{ border: `2px dashed ${C.border}`, borderRadius: 12, padding: "16px", cursor: "pointer", textAlign: "center", background: C.pale, transition: "all 0.15s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.light; e.currentTarget.style.background = "rgba(136,189,242,0.14)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.pale; }}
+            >
+              <input ref={singleRef} type="file" accept=".xlsx,.xls" hidden onChange={(e) => { if (e.target.files?.[0]) onUpload(e.target.files[0]); e.target.value = ""; }} />
+              <Upload size={20} color={C.primary} style={{ margin: "0 auto 8px" }} />
+              <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 13, color: C.primary, fontFamily: "'Inter', sans-serif" }}>Single Class</p>
+              <p style={{ margin: 0, fontSize: 11, color: C.mid, fontFamily: "'Inter', sans-serif" }}>Class auto-detected from Excel</p>
+            </div>
+
+            {/* Upload all classes */}
+            <div
+              onClick={() => bulkRef.current.click()}
+              style={{ border: `2px dashed ${C.border}`, borderRadius: 12, padding: "16px", cursor: "pointer", textAlign: "center", background: "rgba(56,73,89,0.04)", transition: "all 0.15s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.background = "rgba(56,73,89,0.08)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "rgba(56,73,89,0.04)"; }}
+            >
+              <input ref={bulkRef} type="file" accept=".xlsx,.xls" hidden onChange={(e) => { if (e.target.files?.[0]) onBulkUpload(e.target.files[0]); e.target.value = ""; }} />
+              <FileSpreadsheet size={20} color={C.primary} style={{ margin: "0 auto 8px" }} />
+              <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 13, color: C.primary, fontFamily: "'Inter', sans-serif" }}>All Classes</p>
+              <p style={{ margin: 0, fontSize: 11, color: C.mid, fontFamily: "'Inter', sans-serif" }}>Single sheet — classes detected by CLASS NAME rows</p>
+            </div>
+
+          </div>
+
+          {/* Cancel */}
+          <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={onClose}
+              style={{ padding: "9px 20px", border: `1.5px solid ${C.border}`, borderRadius: 10, background: "transparent", color: C.mid, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif" }}
+            >
+              Cancel
+            </button>
+          </div>
+
+        </div>
       </div>
     </div>
   );
@@ -344,14 +377,11 @@ export default function TimetablePage() {
   const [configLoading, setConfigLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [bulkUploading, setBulkUploading] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [toast, setToast] = useState(null);
   const [samePattern, setSamePattern] = useState(null);
-
-  // ── Extra Classes state ───────────────────────────────────────────────────
-  const [extraClasses, setExtraClasses] = useState([]);
-  const [extraLoading, setExtraLoading] = useState(false);
-  const [extraModalOpen, setExtraModalOpen] = useState(false);
-  const [extraEditData, setExtraEditData] = useState(null); // null = create mode
+  // Class auto-detected from single Excel upload
+  const [detectedClassName, setDetectedClassName] = useState(null);
 
   // ── Load years + classes + all teachers on mount ───────────────────────────
   useEffect(() => {
@@ -391,9 +421,7 @@ export default function TimetablePage() {
     setSubjects([]);
     setTimetable({});
     setSamePattern(null);
-    setExtraClasses([]);
     setConfigLoading(true);
-    setExtraLoading(true);
 
     Promise.all([
       fetchTimetableConfig({ academicYearId: yearId }),
@@ -444,81 +472,58 @@ export default function TimetablePage() {
         setTimetable(map);
 
         const entryList = entryData.entries || [];
-        if (entryList.length > 0) {
-          const weekdayEntries = entryList.filter((e) => e.day !== "SATURDAY");
-          const monEntries = weekdayEntries.filter((e) => e.day === "MONDAY");
-          if (monEntries.length > 0) {
-            const tueEntries = weekdayEntries.filter(
-              (e) => e.day === "TUESDAY",
-            );
-            // ✅ UPDATED: use periodDefinitionId (not periodSlotId)
-            const monSlots = new Set(
-              monEntries.map((e) => `${e.periodDefinitionId}:${e.subjectId}`),
-            );
-            const tueSlots = new Set(
-              tueEntries.map((e) => `${e.periodDefinitionId}:${e.subjectId}`),
-            );
-            const isSame =
-              monSlots.size === tueSlots.size &&
-              [...monSlots].every((s) => tueSlots.has(s));
-            setSamePattern(isSame ? true : false);
-          }
-        }
+      if (entryList.length > 0) {
+      const monEntries = entryList.filter(
+        (e) => e.day === "MONDAY"
+      );
+
+      if (monEntries.length > 0) {
+        const monSlots = new Set(
+          monEntries.map(
+            (e) => `${e.periodDefinitionId}:${e.subjectId}`
+          )
+        );
+
+        const isSame = [
+          "TUESDAY",
+          "WEDNESDAY",
+          "THURSDAY",
+          "FRIDAY",
+          "SATURDAY",
+        ].every((day) => {
+          const dayEntries = entryList.filter(
+            (e) => e.day === day
+          );
+
+          const daySlots = new Set(
+            dayEntries.map(
+              (e) => `${e.periodDefinitionId}:${e.subjectId}`
+            )
+          );
+
+          return (
+            monSlots.size === daySlots.size &&
+            [...monSlots].every((s) =>
+              daySlots.has(s)
+            )
+          );
+        });
+
+        setSamePattern(isSame);
+      } else {
+        setSamePattern(false);
+      }
+    }
       })
       .catch((err) => setToast({ type: "error", msg: err.message }))
       .finally(() => setConfigLoading(false));
-
-    // Load extra classes independently so they don't block the timetable grid
-    fetchExtraClasses(selectedClass.id, { academicYearId: yearId })
-      .then((data) => setExtraClasses(data.extraClasses || []))
-      .catch((err) =>
-        setToast({ type: "error", msg: `Extra classes: ${err.message}` }),
-      )
-      .finally(() => setExtraLoading(false));
   }, [selectedClass, yearId]);
 
-  // ── Extra class handlers ───────────────────────────────────────────────────
-  const handleExtraSave = async (payload) => {
-    const data = { ...payload, academicYearId: yearId };
-    if (extraEditData) {
-      const res = await updateExtraClass(
-        selectedClass.id,
-        extraEditData.id,
-        data,
-      );
-      setExtraClasses((prev) =>
-        prev.map((ec) => (ec.id === extraEditData.id ? res.extraClass : ec)),
-      );
-      setToast({ type: "success", msg: "Extra class updated!" });
-    } else {
-      const res = await saveExtraClass(selectedClass.id, data);
-      // POST returns extraClasses (array) when multiple days selected, or extraClass (single)
-      const newItems = res.extraClasses || [res.extraClass];
-      setExtraClasses((prev) => [...prev, ...newItems]);
-      const count = newItems.length;
-      setToast({
-        type: "success",
-        msg: count > 1 ? `${count} extra classes added!` : "Extra class added!",
-      });
-    }
-    setExtraModalOpen(false);
-    setExtraEditData(null);
-  };
-
-  const handleExtraEdit = (ec) => {
-    setExtraEditData(ec);
-    setExtraModalOpen(true);
-  };
-
-  const handleExtraDelete = async (extraClassId) => {
-    await deleteExtraClass(selectedClass.id, extraClassId);
-    setExtraClasses((prev) => prev.filter((ec) => ec.id !== extraClassId));
-    setToast({ type: "success", msg: "Extra class removed" });
-  };
-
   // ── Timetable helpers ──────────────────────────────────────────────────────
-  const getSlotsForDay = (day) =>
-    day === "SATURDAY" && satSlots.length > 0 ? satSlots : slots;
+  const getSlotsForDay = (day) => {
+    if (day === "SATURDAY") return satSlots; // [] if no Saturday config
+    return slots;
+  };
 
   // Build a merged row list for the grid:
   // Start with Monday slots, then insert any Saturday break/non-PERIOD slots
@@ -589,15 +594,36 @@ const cellData = cellForm.subjectId
 
     setTimetable((prev) => {
       const next = { ...prev };
-      if (samePattern && day !== "SATURDAY") {
-        ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"].forEach(
-          (d) => {
-            next[d] = { ...(next[d] || {}) };
-            if (cellData) next[d][slot.id] = cellData;
-            else delete next[d][slot.id];
-          },
+      if (samePattern) {
+        ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"].forEach((d) => {
+          next[d] = { ...(next[d] || {}) };
+
+          if (cellData) {
+            next[d][slot.id] = cellData;
+          } else {
+            delete next[d][slot.id];
+          }
+        });
+
+        // Saturday uses its own slot IDs
+        const saturdaySlot = satSlots.find(
+          (s) =>
+            s.periodNumber === slot.periodNumber &&
+            s.slotType === "PERIOD"
         );
-      } else {
+
+        if (saturdaySlot) {
+          next["SATURDAY"] = {
+            ...(next["SATURDAY"] || {}),
+          };
+
+          if (cellData) {
+            next["SATURDAY"][saturdaySlot.id] = cellData;
+          } else {
+            delete next["SATURDAY"][saturdaySlot.id];
+          }
+        }
+      }else {
         next[day] = { ...(next[day] || {}) };
         if (cellData) next[day][slot.id] = cellData;
         else delete next[day][slot.id];
@@ -806,16 +832,15 @@ XLSX.utils.book_append_sheet(
   );
 };
 
-const handleBulkUpload = async (e) => {
+const handleBulkUpload = async (file) => {
+
+  if (!file) return;
 
   try {
 
-    const file =
-      e.target.files?.[0];
-
-    if (!file) return;
-
     setBulkUploading(true);
+    setShowUploadModal(false);
+    setDetectedClassName(null);
 
     const formData =
       new FormData();
@@ -830,9 +855,12 @@ const handleBulkUpload = async (e) => {
     const token =
       localStorage.getItem("token");
 
+    // Use selectedClass.id as fallback; server auto-detects from CLASS NAME row
+    const classIdParam = selectedClass?.id || "auto";
+
     const response =
       await fetch(
-        `${import.meta.env.VITE_API_URL}/class-sections/${selectedClass.id}/timetable/bulk-upload`,
+        `${import.meta.env.VITE_API_URL}/class-sections/${classIdParam}/timetable/bulk-upload`,
         {
           method: "POST",
           headers: {
@@ -853,9 +881,21 @@ const handleBulkUpload = async (e) => {
       );
     }
 
+    // Show detected class name if the server returned it
+    if (data.detectedClassName) {
+      setDetectedClassName(data.detectedClassName);
+      // Auto-select the detected class if different from current
+      if (data.detectedClassId && data.detectedClassId !== selectedClass?.id) {
+        const found = classes.find((c) => c.id === data.detectedClassId);
+        if (found) setSelectedClass(found);
+      }
+    }
+
+    // Reload timetable for the (possibly newly detected) class
+    const reloadId = data.detectedClassId || selectedClass?.id;
     const entryData =
       await fetchTimetableEntries(
-        selectedClass.id,
+        reloadId,
         {
           academicYearId:
             yearId,
@@ -903,8 +943,9 @@ const handleBulkUpload = async (e) => {
 
     setToast({
       type: "success",
-      msg:
-        "Timetable uploaded successfully",
+      msg: data.detectedClassName
+        ? `Timetable uploaded for ${data.detectedClassName}`
+        : "Timetable uploaded successfully",
     });
 
   } catch (err) {
@@ -917,8 +958,55 @@ const handleBulkUpload = async (e) => {
   } finally {
 
     setBulkUploading(false);
+  }
+};
 
-    e.target.value = "";
+// ── Bulk upload: All Classes (single-sheet format) ─────────────────────────
+// Sends to the timetable-excel/upload-all endpoint which handles the
+// single-sheet "All Classes Timetable" format with CLASS NAME marker rows.
+const handleAllClassesUpload = async (file) => {
+  if (!file) return;
+  try {
+    setBulkUploading(true);
+    setShowUploadModal(false);
+
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("academicYearId", yearId);
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/api/timetable-excel/upload-all`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      },
+    );
+    const text = await response.text();
+
+      console.log("STATUS =", response.status);
+      console.log("RESPONSE =", text);
+
+      let data = {};
+
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error(
+          `Server returned HTML instead of JSON. Status: ${response.status}`
+        );
+      }
+    if (!response.ok) throw new Error(data.message || "Bulk upload failed");
+
+    setToast({
+      type: "success",
+      msg: `Bulk upload complete: ${data.summary?.classesUpdated || 0} classes updated`,
+    });
+  } catch (err) {
+    setToast({ type: "error", msg: err.message });
+  } finally {
+    setBulkUploading(false);
   }
 };
 
@@ -977,8 +1065,7 @@ const handleSave = async () => {
   }
 };
 
-  const weekdays = DAYS.filter((d) => d !== "SATURDAY");
-  const activeDays = satSlots.length > 0 ? DAYS : weekdays;
+  const activeDays = DAYS; // Mon–Sat always shown
 
   if (loading)
     return (
@@ -1028,6 +1115,31 @@ const handleSave = async () => {
             Assign subjects and teachers to class periods
           </p>
         </div>
+
+        {/* ── Detected class banner (shown after Excel upload auto-detects class) ── */}
+        {detectedClassName && (
+          <div
+            className="flex items-center gap-2 rounded-xl mb-3"
+            style={{
+              padding: "9px 14px",
+              background: "#f0fdf4",
+              border: "1.5px solid #bbf7d0",
+              display: "inline-flex",
+            }}
+          >
+            <CheckCircle2 size={14} style={{ color: "#16a34a", flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: "#15803d", fontFamily: "'Inter', sans-serif" }}>
+              Class detected from Excel:{" "}
+              <strong style={{ fontWeight: 700 }}>{detectedClassName}</strong>
+            </span>
+            <button
+              onClick={() => setDetectedClassName(null)}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: "0 0 0 4px", display: "flex" }}
+            >
+              <X size={12} color="#16a34a" />
+            </button>
+          </div>
+        )}
 
         {/* ── Controls row ── */}
         <div className="flex flex-wrap gap-3 mb-4">
@@ -1136,17 +1248,18 @@ const handleSave = async () => {
             </div>
             <div>
               <p className="text-sm font-semibold" style={{ color: C.primary }}>
-                Same schedule Monday–Friday?
+                Same schedule Monday–Saturday?
               </p>
+
               <p className="text-xs mt-0.5" style={{ color: C.mid }}>
                 If Yes: setting Period 1 on Monday automatically fills the same
-                period for Tue–Fri. Saturday is always independent.
+                period for Tue–Sat automatically.
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {[
-              { val: true, label: "Yes — same Mon–Fri" },
+              { val: true, label: "Yes — same Mon–Sat" },
               { val: false, label: "No — set each day individually" },
             ].map(({ val, label }) => (
               <button
@@ -1158,8 +1271,10 @@ const handleSave = async () => {
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: "pointer",
-                   fontFamily: "'Inter', sans-serif",
-                  border: `1.5px solid ${samePattern === val ? C.primary : C.border}`,
+                  fontFamily: "'Inter', sans-serif",
+                  border: `1.5px solid ${
+                    samePattern === val ? C.primary : C.border
+                  }`,
                   background: samePattern === val ? C.primary : "#fff",
                   color: samePattern === val ? "#fff" : C.mid,
                 }}
@@ -1325,8 +1440,8 @@ const handleSave = async () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* ── Mon – Fri rows ── */}
-                  {["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"].map(
+                  {/* ── All days rows (Mon–Sat) ── */}
+                  {activeDays.map(
                     (day, dayIdx) => (
                       <tr
                         key={day}
@@ -1374,9 +1489,40 @@ const handleSave = async () => {
                           )}
                         </td>
                         {/* One cell per period/break */}
-                        {mergedGridSlots.map((slot) => {
-                          // Sat-only slots: show dash for weekday rows
-                          if (slot._satOnly) {
+                        {day === "SATURDAY" && satSlots.length === 0 ? (
+                          <td
+                            colSpan={mergedGridSlots.length}
+                            style={{
+                              padding: "10px 16px",
+                              background: "rgba(189,221,252,0.04)",
+                            }}
+                          >
+                            <p style={{ fontSize: 11, color: C.light, fontFamily: "'Inter', sans-serif" }}>
+                              Saturday timings not configured — go to{" "}
+                              <span
+                                onClick={() => navigate("/admin/classes/timings")}
+                                style={{ color: C.mid, textDecoration: "underline", cursor: "pointer" }}
+                              >
+                                School Timings
+                              </span>
+                              {" "}to enable Saturday.
+                            </p>
+                          </td>
+                        ) : mergedGridSlots.map((slot) => {
+                          // For Saturday, resolve the actual Saturday slot by periodNumber
+                          const effectiveSlot =
+                            day === "SATURDAY" && satSlots.length > 0
+                              ? slot._satOnly
+                                ? slot
+                                : satSlots.find(
+                                    (s) =>
+                                      s.periodNumber === slot.periodNumber &&
+                                      s.slotType === slot.slotType,
+                                  )
+                              : slot;
+
+                          // Sat-only slots: show dash for weekday rows; show break for Saturday
+                          if (slot._satOnly && day !== "SATURDAY") {
                             return (
                               <td
                                 key={slot.id}
@@ -1403,13 +1549,32 @@ const handleSave = async () => {
                               </td>
                             );
                           }
-                          if (slot.slotType !== "PERIOD") {
+                          // Saturday with no matching slot — greyed out
+                          if (day === "SATURDAY" && !effectiveSlot) {
+                            return (
+                              <td
+                                key={slot.id}
+                                style={{
+                                  padding: "5px 6px",
+                                  background: "rgba(189,221,252,0.03)",
+                                  borderRight: `1px solid ${C.border}`,
+                                }}
+                              >
+                                <div style={{ minHeight: 52, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <span style={{ fontSize: 10, color: "rgba(136,189,242,0.4)" }}>—</span>
+                                </div>
+                              </td>
+                            );
+                          }
+                          if (effectiveSlot && effectiveSlot.slotType !== "PERIOD") {
                             return (
                               <td
                                 key={slot.id}
                                 style={{
                                   padding: "6px 10px",
-                                  background: "rgba(189,221,252,0.05)",
+                                  background: day === "SATURDAY"
+                                    ? "rgba(136,189,242,0.06)"
+                                    : "rgba(189,221,252,0.05)",
                                   borderRight: `1px solid ${C.border}`,
                                 }}
                               >
@@ -1427,13 +1592,16 @@ const handleSave = async () => {
                                        fontFamily: "'Inter', sans-serif",
                                     }}
                                   >
-                                    {slot.label}
+                                    {day === "SATURDAY"
+                                      ? effectiveSlot.label.replace(/^(Sat\s)+/i, "")
+                                      : effectiveSlot.label}
                                   </span>
                                 </div>
                               </td>
                             );
                           }
-                          const cell = timetable[day]?.[slot.id];
+                          const resolvedSlot = effectiveSlot || slot;
+                          const cell = timetable[day]?.[resolvedSlot.id];
                           const color = cell
                             ? subjectColor(cell.subjectId)
                             : null;
@@ -1446,7 +1614,7 @@ const handleSave = async () => {
                               }}
                             >
                               <div
-                                onClick={() => openCell(day, slot)}
+                                onClick={() => openCell(day, resolvedSlot)}
                                 style={{
                                   minHeight: 52,
                                   padding: "6px 8px",
@@ -1454,8 +1622,10 @@ const handleSave = async () => {
                                   cursor: "pointer",
                                   background: cell
                                     ? color + "14"
+                                    : day === "SATURDAY"
+                                    ? "rgba(136,189,242,0.06)"
                                     : "rgba(189,221,252,0.06)",
-                                  border: `1.5px solid ${cell ? color + "44" : C.border}`,
+                                  border: `1.5px solid ${cell ? color + "44" : day === "SATURDAY" ? "rgba(136,189,242,0.3)" : C.border}`,
                                   transition: "all 0.15s",
                                 }}
                                 onMouseEnter={(e) =>
@@ -1466,6 +1636,8 @@ const handleSave = async () => {
                                 onMouseLeave={(e) =>
                                   (e.currentTarget.style.background = cell
                                     ? color + "14"
+                                    : day === "SATURDAY"
+                                    ? "rgba(136,189,242,0.06)"
                                     : "rgba(189,221,252,0.06)")
                                 }
                               >
@@ -1529,402 +1701,6 @@ const handleSave = async () => {
                     ),
                   )}
 
-                  {/* ── Divider row between Mon–Fri and Saturday (same pattern only) ── */}
-                  {satSlots.length > 0 && !isCustomSat && (
-                    <tr>
-                      <td
-                        colSpan={mergedGridSlots.length + 1}
-                        style={{
-                          padding: 0,
-                          height: 4,
-                          background: "rgba(136,189,242,0.12)",
-                          borderTop: `2px dashed ${C.border}`,
-                          borderBottom: `2px dashed ${C.border}`,
-                        }}
-                      />
-                    </tr>
-                  )}
-
-                  {/* ── Saturday row — same pattern as weekdays only ── */}
-                  {satSlots.length > 0 && !isCustomSat &&
-                    (() => {
-                      return (
-                        <tr
-                          key="SATURDAY"
-                          style={{
-                            borderBottom: `1px solid ${C.border}`,
-                            background: "rgba(136,189,242,0.03)",
-                          }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background =
-                              "rgba(136,189,242,0.07)")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background =
-                              "rgba(136,189,242,0.03)")
-                          }
-                        >
-                          {/* Sticky Saturday label */}
-                          <td
-                            style={{
-                              padding: "8px 16px",
-                              position: "sticky",
-                              left: 0,
-                              background: "rgba(236,244,252,0.98)",
-                              zIndex: 1,
-                              borderRight: `1.5px solid ${C.border}`,
-                              minWidth: 90,
-                            }}
-                          >
-                            <p
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 700,
-                                color: C.primary,
-                                 fontFamily: "'Inter', sans-serif",
-                              }}
-                            >
-                              Sat
-                            </p>
-
-                          </td>
-                          {/* Cells for Saturday — match against merged slot list */}
-                          {mergedGridSlots.map((slot) => {
-                            // Find corresponding Saturday slot by periodNumber or position
-                            const satSlot = slot._satOnly
-                              ? slot
-                              : satSlots.find(
-                                  (s) =>
-                                    s.periodNumber === slot.periodNumber &&
-                                    s.slotType === slot.slotType,
-                                );
-
-                            if (!satSlot) {
-                              // No Saturday equivalent — greyed out
-                              return (
-                                <td
-                                  key={slot.id}
-                                  style={{
-                                    padding: "5px 6px",
-                                    background: "rgba(189,221,252,0.03)",
-                                    borderRight: `1px solid ${C.border}`,
-                                  }}
-                                >
-                                  <div
-                                    style={{
-                                      minHeight: 52,
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                    }}
-                                  >
-                                    <span
-                                      style={{
-                                        fontSize: 10,
-                                        color: "rgba(136,189,242,0.4)",
-                                      }}
-                                    >
-                                      —
-                                    </span>
-                                  </div>
-                                </td>
-                              );
-                            }
-
-                            if (satSlot.slotType !== "PERIOD") {
-                              return (
-                                <td
-                                  key={slot.id}
-                                  style={{
-                                    padding: "6px 10px",
-                                    background: "rgba(136,189,242,0.06)",
-                                    borderRight: `1px solid ${C.border}`,
-                                  }}
-                                >
-                                  <div
-                                    style={{
-                                      minHeight: 48,
-                                      display: "flex",
-                                      alignItems: "center",
-                                    }}
-                                  >
-                                    <span
-                                      style={{
-                                        fontSize: 11,
-                                        color: C.light,
-                                         fontFamily: "'Inter', sans-serif",
-                                      }}
-                                    >
-                                      {satSlot.label.replace(/^(Sat\s)+/i, "")}
-                                    </span>
-                                  </div>
-                                </td>
-                              );
-                            }
-
-                            const cell = timetable["SATURDAY"]?.[satSlot.id];
-                            const color = cell
-                              ? subjectColor(cell.subjectId)
-                              : null;
-                            return (
-                              <td
-                                key={slot.id}
-                                style={{
-                                  padding: "5px 6px",
-                                  borderRight: `1px solid ${C.border}`,
-                                }}
-                              >
-                                <div
-                                  onClick={() => openCell("SATURDAY", satSlot)}
-                                  style={{
-                                    minHeight: 52,
-                                    padding: "6px 8px",
-                                    borderRadius: 8,
-                                    cursor: "pointer",
-                                    background: cell
-                                      ? color + "14"
-                                      : "rgba(136,189,242,0.06)",
-                                    border: `1.5px solid ${cell ? color + "44" : "rgba(136,189,242,0.3)"}`,
-                                    transition: "all 0.15s",
-                                  }}
-                                  onMouseEnter={(e) =>
-                                    (e.currentTarget.style.background = cell
-                                      ? color + "22"
-                                      : C.pale)
-                                  }
-                                  onMouseLeave={(e) =>
-                                    (e.currentTarget.style.background = cell
-                                      ? color + "14"
-                                      : "rgba(136,189,242,0.06)")
-                                  }
-                                >
-                                  {cell ? (
-                                    <>
-                                      <div
-                                        style={{
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: 4,
-                                          marginBottom: 2,
-                                        }}
-                                      >
-                                        <span
-                                          style={{
-                                            width: 6,
-                                            height: 6,
-                                            borderRadius: 2,
-                                            background: color,
-                                            flexShrink: 0,
-                                          }}
-                                        />
-                                        <p
-                                          style={{
-                                            fontSize: 11,
-                                            fontWeight: 600,
-                                            color: C.primary,
-                                             fontFamily: "'Inter', sans-serif",
-                                            lineHeight: 1.2,
-                                          }}
-                                        >
-                                          {cell.subjectName}
-                                        </p>
-                                      </div>
-                                      <p
-                                        style={{
-                                          fontSize: 10,
-                                          color: C.mid,
-                                           fontFamily: "'Inter', sans-serif",
-                                        }}
-                                      >
-                                        {cell.teacherName || "No teacher"}
-                                      </p>
-                                    </>
-                                  ) : (
-                                    <p
-                                      style={{
-                                        fontSize: 10,
-                                        color: C.light,
-                                         fontFamily: "'Inter', sans-serif",
-                                      }}
-                                    >
-                                      + Assign
-                                    </p>
-                                  )}
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })()}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ── Saturday Schedule — separate table (custom Saturday only) ── */}
-        {!configLoading && satSlots.length > 0 && isCustomSat && (
-          <div
-            className="bg-white rounded-2xl shadow-sm overflow-hidden mb-4"
-            style={{ border: `1.5px solid rgba(136,189,242,0.35)` }}
-          >
-            {/* Header banner */}
-            <div
-              className="flex items-center gap-3 px-5 py-3"
-              style={{
-                background: "rgba(136,189,242,0.10)",
-                borderBottom: `1.5px solid rgba(136,189,242,0.25)`,
-              }}
-            >
-              <div
-                style={{
-                  width: 28, height: 28, borderRadius: 7,
-                  background: "rgba(245,158,11,0.12)",
-                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                }}
-              >
-                <Calendar size={14} style={{ color: "#b45309" }} />
-              </div>
-              <div>
-                <p className="text-sm font-bold" style={{ color: C.primary, fontFamily: "'Inter', sans-serif" }}>
-                  Saturday Schedule
-                </p>
-                <p className="text-xs" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>
-                  {satSlots.filter((s) => s.slotType === "PERIOD").length} periods
-                  {satSlots.filter((s) => s.slotType !== "PERIOD").length > 0 &&
-                    ` · ${satSlots.filter((s) => s.slotType !== "PERIOD").length} break${satSlots.filter((s) => s.slotType !== "PERIOD").length > 1 ? "s" : ""}`}
-                  {" · "}{fmtTime(satSlots[0]?.startTime)} – {fmtTime(satSlots[satSlots.length - 1]?.endTime)}
-                </p>
-              </div>
-              <span
-                style={{
-                  marginLeft: "auto", fontSize: 9, fontWeight: 700,
-                  padding: "2px 7px", borderRadius: 4,
-                  background: "rgba(245,158,11,0.15)", color: "#b45309",
-                  fontFamily: "'Inter', sans-serif", letterSpacing: "0.4px",
-                }}
-              >
-                CUSTOM
-              </span>
-            </div>
-
-            {/* Scrollable Saturday table */}
-            <div className="overflow-x-auto">
-              <table
-                style={{
-                  borderCollapse: "collapse",
-                  width: "100%",
-                  minWidth: `${130 + satSlots.length * 130}px`,
-                }}
-              >
-                <thead>
-                  <tr
-                    style={{
-                      background: "rgba(136,189,242,0.06)",
-                      borderBottom: `1.5px solid rgba(136,189,242,0.25)`,
-                    }}
-                  >
-                    <th
-                      style={{
-                        padding: "10px 16px", textAlign: "left", fontSize: 11,
-                        fontWeight: 700, color: C.mid, fontFamily: "'Inter', sans-serif",
-                        letterSpacing: "0.4px", minWidth: 90,
-                        position: "sticky", left: 0,
-                        background: "rgba(236,244,252,0.98)", zIndex: 2,
-                        borderRight: `1.5px solid rgba(136,189,242,0.25)`,
-                      }}
-                    >
-                      DAY
-                    </th>
-                    {satSlots.map((slot) => (
-                      <th
-                        key={slot.id}
-                        style={{
-                          padding: "8px 12px", textAlign: "left",
-                          minWidth: slot.slotType === "PERIOD" ? 130 : 90,
-                          maxWidth: slot.slotType === "PERIOD" ? 160 : 110,
-                          background: slot.slotType !== "PERIOD"
-                            ? "rgba(136,189,242,0.08)"
-                            : "rgba(236,244,252,0.95)",
-                          borderRight: `1px solid rgba(136,189,242,0.2)`,
-                        }}
-                      >
-                        <p style={{ fontSize: 11, fontWeight: 600, color: slot.slotType === "PERIOD" ? C.primary : C.mid, fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap" }}>
-                          {slot.label}
-                        </p>
-                        <p style={{ fontSize: 10, color: C.light, fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap" }}>
-                          {fmtTime(slot.startTime)}–{fmtTime(slot.endTime)}
-                        </p>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    style={{ borderBottom: `1px solid rgba(136,189,242,0.18)`, background: "rgba(136,189,242,0.025)" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(136,189,242,0.07)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(136,189,242,0.025)")}
-                  >
-                    <td
-                      style={{
-                        padding: "8px 16px", position: "sticky", left: 0,
-                        background: "rgba(236,244,252,0.98)", zIndex: 1,
-                        borderRight: `1.5px solid rgba(136,189,242,0.25)`, minWidth: 90,
-                      }}
-                    >
-                      <p style={{ fontSize: 13, fontWeight: 700, color: C.primary, fontFamily: "'Inter', sans-serif" }}>
-                        Sat
-                      </p>
-                    </td>
-                    {satSlots.map((slot) => {
-                      if (slot.slotType !== "PERIOD") {
-                        return (
-                          <td
-                            key={slot.id}
-                            style={{ padding: "6px 10px", background: "rgba(136,189,242,0.06)", borderRight: `1px solid rgba(136,189,242,0.2)` }}
-                          >
-                            <div style={{ minHeight: 48, display: "flex", alignItems: "center" }}>
-                              <span style={{ fontSize: 11, color: C.light, fontFamily: "'Inter', sans-serif" }}>
-                                {slot.label}
-                              </span>
-                            </div>
-                          </td>
-                        );
-                      }
-                      const cell = timetable["SATURDAY"]?.[slot.id];
-                      const color = cell ? subjectColor(cell.subjectId) : null;
-                      return (
-                        <td key={slot.id} style={{ padding: "5px 6px", borderRight: `1px solid rgba(136,189,242,0.2)` }}>
-                          <div
-                            onClick={() => openCell("SATURDAY", slot)}
-                            style={{
-                              minHeight: 52, padding: "6px 8px", borderRadius: 8, cursor: "pointer",
-                              background: cell ? color + "14" : "rgba(136,189,242,0.06)",
-                              border: `1.5px solid ${cell ? color + "44" : "rgba(136,189,242,0.3)"}`,
-                              transition: "all 0.15s",
-                            }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = cell ? color + "22" : C.pale)}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = cell ? color + "14" : "rgba(136,189,242,0.06)")}
-                          >
-                            {cell ? (
-                              <>
-                                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-                                  <span style={{ width: 6, height: 6, borderRadius: 2, background: color, flexShrink: 0 }} />
-                                  <p style={{ fontSize: 11, fontWeight: 600, color: C.primary, fontFamily: "'Inter', sans-serif", lineHeight: 1.2 }}>
-                                    {cell.subjectName}
-                                  </p>
-                                </div>
-                                <p style={{ fontSize: 10, color: C.mid, fontFamily: "'Inter', sans-serif" }}>{cell.teacherName || "No teacher"}</p>
-                              </>
-                            ) : (
-                              <p style={{ fontSize: 10, color: C.light, fontFamily: "'Inter', sans-serif" }}>+ Assign</p>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
                 </tbody>
               </table>
             </div>
@@ -1937,7 +1713,7 @@ const handleSave = async () => {
         {samePattern !== null && (
           <p className="text-xs" style={{ color: C.mid }}>
             {samePattern
-              ? "✓ Same Mon–Fri pattern — editing any period applies to all weekdays"
+              ? "✓ Same Mon–Sat pattern — editing any period applies to all days"
               : "Each day is configured individually"}
           </p>
         )}
@@ -1945,23 +1721,10 @@ const handleSave = async () => {
 
       <div className="flex items-center gap-2 flex-wrap">
 
-        <button
-          onClick={downloadTemplate}
-          className="flex items-center gap-2 rounded-xl text-sm font-semibold"
-          style={{
-            padding: "10px 18px",
-            background: "#fff",
-            border: `1.5px solid ${C.border}`,
-            color: C.primary,
-            cursor: "pointer",
-            fontFamily: "'Inter', sans-serif",
-          }}
-        >
-          <Download size={15} />
-          Template
-        </button>
+      
 
-        <label
+        <button
+          onClick={() => setShowUploadModal(true)}
           className="flex items-center gap-2 rounded-xl text-sm font-semibold"
           style={{
             padding: "10px 18px",
@@ -1973,18 +1736,8 @@ const handleSave = async () => {
           }}
         >
           <Upload size={15} />
-
-          {bulkUploading
-            ? "Uploading..."
-            : "Bulk Upload"}
-
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            hidden
-            onChange={handleBulkUpload}
-          />
-        </label>
+          {bulkUploading ? "Uploading..." : "Bulk Upload"}
+        </button>
 
         <button
           onClick={handleSave}
@@ -2023,200 +1776,6 @@ const handleSave = async () => {
       </div>
     </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            EXTRA CLASSES SECTION
-        ═══════════════════════════════════════════════════════════════════ */}
-        {selectedClass && (
-          <div className="mb-6">
-            {/* Section header */}
-            <div
-              className="flex items-center justify-between mb-4 px-5 py-3 rounded-2xl"
-              style={{ background: "#fff", border: `1.5px solid ${C.border}` }}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 9,
-                    background: "rgba(139,92,246,0.1)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Calendar size={15} style={{ color: "#8b5cf6" }} />
-                </div>
-                <div>
-                  <p
-                    className="text-sm font-semibold"
-                    style={{
-                      color: C.primary,
-                       fontFamily: "'Inter', sans-serif",
-                    }}
-                  >
-                    Extra Classes
-                  </p>
-                  <p
-                    className="text-xs"
-                    style={{ color: C.mid, fontFamily: "Inter, sans-serif" }}
-                  >
-                    Weekend, holiday or out-of-hours sessions for{" "}
-                    {selectedClass.name}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setExtraEditData(null);
-                  setExtraModalOpen(true);
-                }}
-                disabled={subjects.length === 0}
-                className="flex items-center gap-1.5 text-sm font-semibold text-white rounded-xl"
-                style={{
-                  padding: "8px 16px",
-                  background:
-                    subjects.length === 0
-                      ? "rgba(106,137,167,0.35)"
-                      : C.primary,
-                  border: "none",
-                  cursor: subjects.length === 0 ? "not-allowed" : "pointer",
-                   fontFamily: "'Inter', sans-serif",
-                }}
-                title={
-                  subjects.length === 0
-                    ? "Assign subjects to this class first"
-                    : "Add extra class"
-                }
-              >
-                <Plus size={14} /> Add Extra Class
-              </button>
-            </div>
-
-            {/* Extra class cards */}
-            {extraLoading ? (
-              <div
-                className="flex items-center gap-2 py-6 px-2"
-                style={{ color: C.mid }}
-              >
-                <Loader2
-                  size={16}
-                  className="animate-spin"
-                  style={{ color: C.light }}
-                />
-                <span
-                  className="text-sm"
-                  style={{ fontFamily: "Inter, sans-serif" }}
-                >
-                  Loading extra classes…
-                </span>
-              </div>
-            ) : extraClasses.length === 0 ? (
-              <div
-                className="rounded-2xl p-8 text-center"
-                style={{
-                  background: "#fff",
-                  border: `1.5px dashed ${C.border}`,
-                }}
-              >
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    background: "rgba(139,92,246,0.08)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    margin: "0 auto 12px",
-                  }}
-                >
-                  <Calendar size={20} style={{ color: "#8b5cf6" }} />
-                </div>
-                <p
-                  className="text-sm font-semibold mb-1"
-                  style={{ color: C.primary, fontFamily: "Inter, sans-serif" }}
-                >
-                  No extra classes yet
-                </p>
-                <p
-                  className="text-xs"
-                  style={{ color: C.mid, fontFamily: "Inter, sans-serif" }}
-                >
-                  Add weekend or holiday sessions that fall outside regular
-                  timetable slots.
-                </p>
-              </div>
-            ) : (
-              <>
-                {/* Group by recurringDay / specificDate for easy scanning */}
-                {(() => {
-                  // Build groups: key = "rec:SATURDAY" or "date:2025-03-15"
-                  const groups = {};
-                  extraClasses.forEach((ec) => {
-                    const key = ec.recurringDay
-                      ? `rec:${ec.recurringDay}`
-                      : `date:${ec.specificDate}`;
-                    if (!groups[key]) groups[key] = { label: null, items: [] };
-                    groups[key].label = ec.recurringDay
-                      ? `Every ${DAY_FULL[ec.recurringDay]}`
-                      : fmtDate(ec.specificDate);
-                    groups[key].items.push(ec);
-                  });
-
-                  return Object.entries(groups).map(
-                    ([key, { label, items }]) => (
-                      <div key={key} className="mb-5">
-                        {/* Group label */}
-                        <div className="flex items-center gap-2 mb-3">
-                          <span
-                            className="text-xs font-bold uppercase"
-                            style={{
-                              color: C.mid,
-                              letterSpacing: "0.6px",
-                               fontFamily: "'Inter', sans-serif",
-                            }}
-                          >
-                            {label}
-                          </span>
-                          <div
-                            style={{ flex: 1, height: 1, background: C.border }}
-                          />
-                          <span
-                            className="text-xs font-semibold"
-                            style={{
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              background: C.pale,
-                              color: C.mid,
-                               fontFamily: "'Inter', sans-serif",
-                            }}
-                          >
-                            {items.length}{" "}
-                            {items.length === 1 ? "class" : "classes"}
-                          </span>
-                        </div>
-
-                        {/* Cards row */}
-                        <div className="flex flex-wrap gap-3">
-                          {items.map((ec) => (
-                            <ExtraClassCard
-                              key={ec.id}
-                              ec={ec}
-                              onEdit={handleExtraEdit}
-                              onDelete={handleExtraDelete}
-                              subjectColor={subjectColor}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ),
-                  );
-                })()}
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       {/* ── Cell edit modal (existing) ── */}
@@ -2249,9 +1808,9 @@ const handleSave = async () => {
                 <p className="text-sm" style={{ color: C.mid }}>
                   {selectedClass?.name} · {DAY_SHORT[editCell.day]} ·{" "}
                   {editCell.slot.label}
-                  {samePattern && editCell.day !== "SATURDAY" && (
+                  {samePattern && (
                     <span className="ml-1 text-xs" style={{ color: "#f59e0b" }}>
-                      (applies Mon–Fri)
+                      (applies Mon–Sat)
                     </span>
                   )}
                 </p>
@@ -2608,19 +2167,19 @@ const handleSave = async () => {
         </div>
       )}
 
-      {/* ── Add / Edit Extra Class Modal ── */}
-      <AddExtraClassModal
-        open={extraModalOpen}
-        onClose={() => {
-          setExtraModalOpen(false);
-          setExtraEditData(null);
-        }}
-        onSave={handleExtraSave}
-        subjects={subjects}
-        allTeachers={allTeachers}
-        editData={extraEditData}
-        classSectionName={selectedClass?.name || ""}
-      />
+      {/* ── Bulk Upload Modal ── */}
+      {showUploadModal && (
+        <BulkUploadModal
+          selectedClass={selectedClass}
+          slots={mergedGridSlots}
+          subjects={subjects}
+          allClasses={classes}
+          allTeachers={allTeachers}
+          onUpload={handleBulkUpload}
+          onBulkUpload={handleAllClassesUpload}
+          onClose={() => setShowUploadModal(false)}
+        />
+      )}
 
       {toast && (
         <Toast

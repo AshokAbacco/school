@@ -19,6 +19,10 @@ import {
   Layers,
   Users,
   Layout,
+  Upload,
+  Download,
+  FileSpreadsheet,
+  ChevronDown,
 } from "lucide-react";
 import {
   fetchSubjects,
@@ -110,10 +114,7 @@ const Lbl = ({ children }) => (
 
 const emptyForm = {
   name: "",
-  code: "",
-  description: "",
   gradeLevel: "",
-  isElective: false,
   // assignment
   assignMode: "none", // "none" | "all" | "specific"
   selectedSections: [],
@@ -132,6 +133,16 @@ export default function SubjectsPage() {
   const [editId, setEditId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
+
+  // ── bulk upload state ─────────────────────────────────────────────────────
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkMode, setBulkMode] = useState("allGrades"); // "allGrades" | "individual"
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkPreview, setBulkPreview] = useState([]); // parsed rows before submit
+  const [bulkErrors, setBulkErrors] = useState([]);
+  // individual mode: user must pick a class first, then download template for that class
+  const [bulkSelectedClass, setBulkSelectedClass] = useState(""); // classSectionId for individual
 
   // ── load ─────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -176,10 +187,7 @@ export default function SubjectsPage() {
   const openEdit = (s) => {
     setForm({
       name: s.name,
-      code: s.code || "",
-      description: s.description || "",
       gradeLevel: s.gradeLevel || "",
-      isElective: s.isElective,
       assignMode: "none",
       selectedSections: [],
     });
@@ -220,10 +228,7 @@ export default function SubjectsPage() {
       if (editId) {
         await updateSubject(editId, {
           name: form.name,
-          code: form.code,
-          description: form.description,
           gradeLevel: form.gradeLevel,
-          isElective: form.isElective,
         });
 
         // ── also assign to classes if a mode is selected ──────────────
@@ -253,10 +258,7 @@ export default function SubjectsPage() {
       } else {
         const res = await createSubject({
           name: form.name,
-          code: form.code,
-          description: form.description,
           gradeLevel: form.gradeLevel,
-          isElective: form.isElective,
         });
         const newId = res.subject?.id;
 
@@ -316,7 +318,127 @@ export default function SubjectsPage() {
     }
   };
 
-  // ── group subjects by grade ───────────────────────────────────────────────
+  // ── bulk upload helpers ───────────────────────────────────────────────────
+  const downloadTemplate = (mode) => {
+    let csvContent = "";
+    if (mode === "allGrades") {
+      // Two columns: Subject Name, Class Names
+      // Pre-fill Class Names column with all existing class names joined by ";"
+      const allClassNames = classes.map((c) => c.name).join(";");
+      csvContent = `Subject Name,Class Names\nMathematics,"${allClassNames}"\nEnglish,"${allClassNames}"\nScience,"${allClassNames}"`;
+    } else {
+      // Individual: template is pre-filled with the selected class name
+      const selectedClass = classes.find((c) => c.id === bulkSelectedClass);
+      const className = selectedClass ? selectedClass.name : "ClassName";
+      csvContent = `Subject Name,Class Name\nMathematics,${className}\nScience,${className}\nEnglish,${className}`;
+    }
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = mode === "allGrades" ? "subjects_all_classes_template.csv" : `subjects_${classes.find((c) => c.id === bulkSelectedClass)?.name || "class"}_template.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const parseCSV = (text) => {
+    const lines = text.trim().split("\n").filter(Boolean);
+    if (lines.length < 2) return { rows: [], errors: ["File is empty or has no data rows"] };
+    const errors = [];
+    const rows = [];
+    // skip header
+    for (let i = 1; i < lines.length; i++) {
+      // Handle quoted fields (e.g. "Class 1A;Class 1B")
+      const raw = lines[i];
+      const cols = [];
+      let inQuote = false;
+      let cur = "";
+      for (let ci = 0; ci < raw.length; ci++) {
+        const ch = raw[ci];
+        if (ch === '"') { inQuote = !inQuote; }
+        else if (ch === "," && !inQuote) { cols.push(cur.trim()); cur = ""; }
+        else { cur += ch; }
+      }
+      cols.push(cur.trim());
+
+      if (bulkMode === "allGrades") {
+        const [name, classNamesRaw] = cols;
+        if (!name) { errors.push(`Row ${i + 1}: Subject name is required`); continue; }
+        // classNames column: semicolon-separated list of class names
+        const classNamesList = classNamesRaw ? classNamesRaw.split(";").map((s) => s.trim()).filter(Boolean) : [];
+        // Resolve class section IDs from names
+        const classIds = classNamesList
+          .map((cn) => classes.find((c) => c.name.toLowerCase() === cn.toLowerCase())?.id)
+          .filter(Boolean);
+        rows.push({ name, gradeLevel: null, isElective: false, classIds });
+      } else {
+        const [name] = cols;
+        if (!name) { errors.push(`Row ${i + 1}: Subject name is required`); continue; }
+        const selectedClass = classes.find((c) => c.id === bulkSelectedClass);
+        rows.push({ name, gradeLevel: selectedClass?.grade || null, isElective: false, classIds: bulkSelectedClass ? [bulkSelectedClass] : [] });
+      }
+    }
+    return { rows, errors };
+  };
+
+  const handleBulkFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setBulkFile(file);
+    setBulkPreview([]);
+    setBulkErrors([]);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const { rows, errors } = parseCSV(evt.target.result);
+      setBulkPreview(rows);
+      setBulkErrors(errors);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleBulkSubmit = async () => {
+    if (bulkPreview.length === 0) return;
+    setBulkUploading(true);
+    let successCount = 0;
+    const failedRows = [];
+    for (const row of bulkPreview) {
+      try {
+        const res = await createSubject({ name: row.name, gradeLevel: row.gradeLevel, isElective: false });
+        const newId = res.subject?.id;
+        // Assign to classes from classIds
+        if (newId && activeYearId && row.classIds?.length > 0) {
+          await Promise.allSettled(
+            row.classIds.map((cid) =>
+              assignSubjectToClass(cid, { subjectId: newId, academicYearId: activeYearId })
+            )
+          );
+        }
+        successCount++;
+      } catch {
+        failedRows.push(row.name);
+      }
+    }
+    setBulkUploading(false);
+    setShowBulkModal(false);
+    setBulkFile(null);
+    setBulkPreview([]);
+    setBulkErrors([]);
+    load();
+    if (failedRows.length === 0) {
+      setToast({ type: "success", msg: `${successCount} subject${successCount !== 1 ? "s" : ""} uploaded successfully ✓` });
+    } else {
+      setToast({ type: "error", msg: `${successCount} uploaded, ${failedRows.length} failed: ${failedRows.slice(0, 3).join(", ")}` });
+    }
+  };
+
+  const closeBulkModal = () => {
+    setShowBulkModal(false);
+    setBulkFile(null);
+    setBulkPreview([]);
+    setBulkErrors([]);
+    setBulkMode("allGrades");
+    setBulkSelectedClass("");
+  };
   const grouped = subjects.reduce((acc, s) => {
     const key = s.gradeLevel || "General";
     if (!acc[key]) acc[key] = [];
@@ -365,6 +487,20 @@ export default function SubjectsPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowBulkModal(true)}
+                className="flex items-center gap-2 rounded-xl text-sm font-semibold"
+                style={{
+                  padding: "9px 16px",
+                  background: "rgba(16,185,129,0.08)",
+                  border: `1.5px solid rgba(16,185,129,0.3)`,
+                  color: "#065f46",
+                  cursor: "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                <FileSpreadsheet size={14} /> Bulk Upload
+              </button>
               <button
                 onClick={openNew}
                 className="flex items-center gap-2 rounded-xl text-sm font-semibold text-white"
@@ -613,17 +749,6 @@ export default function SubjectsPage() {
                           </p>
                         )}
                         <div className="flex flex-wrap gap-1.5 mt-2">
-                          {s.isElective && (
-                            <span
-                              className="text-xs px-2 py-0.5 rounded-full"
-                              style={{
-                                background: "rgba(139,92,246,0.1)",
-                                color: "#6d28d9",
-                              }}
-                            >
-                              Elective
-                            </span>
-                          )}
                           {s._count?.classSubjects > 0 && (
                             <span
                               className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1"
@@ -703,74 +828,6 @@ export default function SubjectsPage() {
                 />
               </div>
 
-              {/* Code + Elective row */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Lbl>Subject Code</Lbl>
-                  <input
-                    value={form.code}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, code: e.target.value }))
-                    }
-                    placeholder="e.g. MATH101"
-                    style={IS}
-                  />
-                </div>
-                <div className="flex flex-col justify-end">
-                  <button
-                    onClick={() =>
-                      setForm((f) => ({ ...f, isElective: !f.isElective }))
-                    }
-                    className="flex items-center gap-2"
-                    style={{
-                      border: "none",
-                      background: "transparent",
-                      cursor: "pointer",
-                      padding: "0 0 8px 0",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 18,
-                        height: 18,
-                        flexShrink: 0,
-                        border: `2px solid ${form.isElective ? "#8b5cf6" : "rgba(136,189,242,0.5)"}`,
-                        borderRadius: 4,
-                        background: form.isElective ? "#8b5cf6" : "#fff",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {form.isElective && (
-                        <Check size={11} style={{ color: "#fff" }} />
-                      )}
-                    </div>
-                    <span
-                      className="text-sm"
-                      style={{
-                        color: C.primary,
-                         fontFamily: "'Inter', sans-serif",
-                      }}
-                    >
-                      Elective subject
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div>
-                <Lbl>Description (optional)</Lbl>
-                <input
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, description: e.target.value }))
-                  }
-                  placeholder="Optional description"
-                  style={IS}
-                />
-              </div>
 
               {/* ── GRADE LEVEL ──────────────────────────────────────── */}
               <div>
@@ -1196,6 +1253,336 @@ export default function SubjectsPage() {
                   : editId
                     ? "Update Subject"
                     : "Create & Assign"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════
+           BULK UPLOAD MODAL
+      ════════════════════════════════════════════════════ */}
+      {showBulkModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{
+            background: "rgba(15,23,42,0.5)",
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl overflow-y-auto"
+            style={{
+              width: "min(560px,96vw)",
+              maxHeight: "92vh",
+              padding: 24,
+              border: `1px solid ${C.border}`,
+            }}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center mb-5">
+              <div>
+                <h3
+                  className="text-base font-semibold"
+                  style={{ color: C.primary, fontFamily: "'Inter', sans-serif" }}
+                >
+                  Bulk Upload Subjects
+                </h3>
+                <p className="text-xs mt-0.5" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>
+                  Upload a CSV file to add multiple subjects at once
+                </p>
+              </div>
+              <button
+                onClick={closeBulkModal}
+                style={{
+                  border: "none",
+                  background: C.pale,
+                  borderRadius: 8,
+                  padding: 7,
+                  cursor: "pointer",
+                  display: "flex",
+                }}
+              >
+                <X size={15} style={{ color: C.mid }} />
+              </button>
+            </div>
+
+            {/* Step 1 – choose mode & download template */}
+            <div
+              className="rounded-xl mb-4"
+              style={{ padding: 14, background: "rgba(56,73,89,0.04)", border: `1.5px solid ${C.border}` }}
+            >
+              <p className="text-xs font-semibold mb-3" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>
+                STEP 1 — Choose upload type
+              </p>
+              <div className="flex flex-col gap-2">
+                {/* All Classes */}
+                <button
+                  onClick={() => { setBulkMode("allGrades"); setBulkFile(null); setBulkPreview([]); setBulkErrors([]); setBulkSelectedClass(""); }}
+                  className="flex items-center gap-3 rounded-xl text-left"
+                  style={{
+                    padding: "10px 12px",
+                    border: `1.5px solid ${bulkMode === "allGrades" ? "#10b981" : C.border}`,
+                    background: bulkMode === "allGrades" ? "rgba(16,185,129,0.06)" : "#fff",
+                    cursor: "pointer",
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
+                      border: `2px solid ${bulkMode === "allGrades" ? "#10b981" : C.border}`,
+                      background: bulkMode === "allGrades" ? "#10b981" : "#fff",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    {bulkMode === "allGrades" && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold" style={{ color: C.primary }}>All Classes</p>
+                    <p className="text-xs" style={{ color: C.mid }}>
+                      Upload subjects for all classes at once — template includes all your existing class names
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); downloadTemplate("allGrades"); }}
+                    className="flex items-center gap-1 rounded-lg text-xs font-semibold"
+                    style={{
+                      padding: "5px 10px", background: "rgba(16,185,129,0.1)",
+                      border: "1px solid rgba(16,185,129,0.3)", color: "#065f46",
+                      cursor: "pointer", fontFamily: "'Inter', sans-serif", whiteSpace: "nowrap",
+                    }}
+                  >
+                    <Download size={11} /> Template
+                  </button>
+                </button>
+
+                {/* Individual Class */}
+                <button
+                  onClick={() => { setBulkMode("individual"); setBulkFile(null); setBulkPreview([]); setBulkErrors([]); }}
+                  className="flex items-center gap-3 rounded-xl text-left"
+                  style={{
+                    padding: "10px 12px",
+                    border: `1.5px solid ${bulkMode === "individual" ? "#4f46e5" : C.border}`,
+                    background: bulkMode === "individual" ? "rgba(79,70,229,0.06)" : "#fff",
+                    cursor: "pointer",
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 16, height: 16, borderRadius: "50%", flexShrink: 0,
+                      border: `2px solid ${bulkMode === "individual" ? "#4f46e5" : C.border}`,
+                      background: bulkMode === "individual" ? "#4f46e5" : "#fff",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    {bulkMode === "individual" && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold" style={{ color: C.primary }}>Individual Class</p>
+                    <p className="text-xs" style={{ color: C.mid }}>
+                      Select a specific class, download its template, fill subjects, then upload
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Individual mode: class selector + download */}
+              {bulkMode === "individual" && (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold mb-2" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>
+                    Select a class to upload subjects for:
+                  </p>
+                  {classes.length === 0 ? (
+                    <p className="text-xs" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>No classes found. Create sections first.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {uniqueGrades.map((grade) => {
+                        const gradeSections = classes.filter((c) => c.grade === grade);
+                        return (
+                          <div key={grade} className="w-full">
+                            <p className="text-xs font-semibold mb-1" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>Grade {grade}</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {gradeSections.map((sec) => {
+                                const sel = bulkSelectedClass === sec.id;
+                                return (
+                                  <button
+                                    key={sec.id}
+                                    onClick={() => { setBulkSelectedClass(sec.id); setBulkFile(null); setBulkPreview([]); setBulkErrors([]); }}
+                                    style={{
+                                      padding: "5px 12px", borderRadius: 20, fontSize: 12,
+                                      fontFamily: "'Inter', sans-serif", fontWeight: 600,
+                                      border: `1.5px solid ${sel ? "#4f46e5" : C.border}`,
+                                      background: sel ? "#4f46e5" : "#fff",
+                                      color: sel ? "#fff" : C.mid,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    {sec.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {bulkSelectedClass && (
+                    <button
+                      onClick={() => downloadTemplate("individual")}
+                      className="flex items-center gap-2 rounded-lg text-xs font-semibold"
+                      style={{
+                        padding: "7px 14px", background: "rgba(79,70,229,0.1)",
+                        border: "1px solid rgba(79,70,229,0.3)", color: "#4f46e5",
+                        cursor: "pointer", fontFamily: "'Inter', sans-serif",
+                      }}
+                    >
+                      <Download size={12} />
+                      Download template for {classes.find((c) => c.id === bulkSelectedClass)?.name}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Format hint */}
+              <div
+                className="mt-3 rounded-lg"
+                style={{ padding: "9px 12px", background: "#f8fafc", border: `1px solid ${C.border}` }}
+              >
+                <p className="text-xs font-semibold mb-1" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>
+                  CSV Format — {bulkMode === "allGrades" ? "All Classes" : "Individual Class"}:
+                </p>
+                {bulkMode === "allGrades" ? (
+                  <code className="text-xs" style={{ color: C.primary, fontFamily: "monospace" }}>
+                    Subject Name, Class Names<br />
+                    Mathematics, "Class 1A;Class 1B;Class 2A"<br />
+                    English, "Class 1A;Class 2A"
+                  </code>
+                ) : (
+                  <code className="text-xs" style={{ color: C.primary, fontFamily: "monospace" }}>
+                    Subject Name, Class Name<br />
+                    Mathematics, Class 1A<br />
+                    Science, Class 1A
+                  </code>
+                )}
+              </div>
+            </div>
+
+            {/* Step 2 – file upload */}
+            <div className="mb-4">
+              <p className="text-xs font-semibold mb-2" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>
+                {bulkMode === "individual" ? "STEP 3 — Upload your CSV file" : "STEP 2 — Upload your CSV file"}
+              </p>
+              <label
+                className="flex flex-col items-center justify-center rounded-xl cursor-pointer"
+                style={{
+                  padding: "20px 16px",
+                  border: `2px dashed ${bulkFile ? "#10b981" : C.border}`,
+                  background: bulkFile ? "rgba(16,185,129,0.04)" : "#fafbfc",
+                  transition: "all 0.15s",
+                }}
+              >
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={handleBulkFileChange}
+                />
+                {bulkFile ? (
+                  <>
+                    <FileSpreadsheet size={20} style={{ color: "#10b981", marginBottom: 6 }} />
+                    <p className="text-sm font-semibold" style={{ color: "#065f46", fontFamily: "'Inter', sans-serif" }}>{bulkFile.name}</p>
+                    <p className="text-xs mt-1" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>Click to replace</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={20} style={{ color: C.light, marginBottom: 6 }} />
+                    <p className="text-sm font-medium" style={{ color: C.mid, fontFamily: "'Inter', sans-serif" }}>Click to upload CSV</p>
+                    <p className="text-xs mt-1" style={{ color: C.light, fontFamily: "'Inter', sans-serif" }}>.csv files only</p>
+                  </>
+                )}
+              </label>
+            </div>
+
+            {/* Errors */}
+            {bulkErrors.length > 0 && (
+              <div
+                className="rounded-xl mb-4"
+                style={{ padding: 12, background: "#fef2f2", border: "1.5px solid #fecaca" }}
+              >
+                <p className="text-xs font-semibold mb-1" style={{ color: "#dc2626", fontFamily: "'Inter', sans-serif" }}>
+                  <AlertCircle size={12} style={{ display: "inline", marginRight: 4 }} />
+                  {bulkErrors.length} error{bulkErrors.length !== 1 ? "s" : ""} found:
+                </p>
+                {bulkErrors.map((e, i) => (
+                  <p key={i} className="text-xs" style={{ color: "#dc2626", fontFamily: "'Inter', sans-serif" }}>{e}</p>
+                ))}
+              </div>
+            )}
+
+            {/* Preview */}
+            {bulkPreview.length > 0 && (
+              <div
+                className="rounded-xl mb-4"
+                style={{ padding: 12, background: "rgba(16,185,129,0.04)", border: "1.5px solid rgba(16,185,129,0.2)" }}
+              >
+                <p className="text-xs font-semibold mb-2" style={{ color: "#065f46", fontFamily: "'Inter', sans-serif" }}>
+                  <CheckCircle2 size={12} style={{ display: "inline", marginRight: 4 }} />
+                  Preview — {bulkPreview.length} subject{bulkPreview.length !== 1 ? "s" : ""} ready to upload:
+                </p>
+                <div className="flex flex-col gap-1" style={{ maxHeight: 140, overflowY: "auto" }}>
+                  {bulkPreview.map((row, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span
+                        className="text-xs font-medium"
+                        style={{ color: C.primary, fontFamily: "'Inter', sans-serif", flex: 1 }}
+                      >
+                        {row.name}
+                      </span>
+                      {row.gradeLevel && (
+                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(79,70,229,0.1)", color: "#4f46e5", fontFamily: "'Inter', sans-serif" }}>
+                          Grade {row.gradeLevel}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="flex gap-2 justify-end mt-2">
+              <button
+                onClick={closeBulkModal}
+                style={{
+                  padding: "8px 16px", border: `1.5px solid ${C.border}`,
+                  borderRadius: 10, color: C.mid, background: "transparent",
+                  cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 13,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkSubmit}
+                disabled={bulkUploading || bulkPreview.length === 0 || (bulkMode === "individual" && !bulkSelectedClass)}
+                className="flex items-center gap-2 text-sm font-semibold text-white rounded-xl"
+                style={{
+                  padding: "8px 18px",
+                  background: (bulkPreview.length === 0 || (bulkMode === "individual" && !bulkSelectedClass)) ? "rgba(106,137,167,0.4)" : "#10b981",
+                  border: "none",
+                  cursor: (bulkPreview.length === 0 || (bulkMode === "individual" && !bulkSelectedClass)) ? "not-allowed" : "pointer",
+                  fontFamily: "'Inter', sans-serif",
+                  opacity: bulkUploading ? 0.7 : 1,
+                }}
+              >
+                {bulkUploading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Upload size={14} />
+                )}
+                {bulkUploading ? "Uploading…" : `Upload ${bulkPreview.length > 0 ? bulkPreview.length : ""} Subject${bulkPreview.length !== 1 ? "s" : ""}`}
               </button>
             </div>
           </div>

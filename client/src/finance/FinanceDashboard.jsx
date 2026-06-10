@@ -276,7 +276,9 @@ export default function FinanceDashboard() {
           ),
     ]).then(([stu, exp, teach, gb, gc]) => {
       if (Array.isArray(stu)) setStudentData(stu);
-      if (Array.isArray(exp)) setExpenseSections(exp);
+      // API now returns { sections, pagination } — handle both shapes for safety
+      const expArr = Array.isArray(exp) ? exp : (exp?.sections ?? []);
+      if (expArr.length > 0 || exp !== null) setExpenseSections(expArr);
       // if (Array.isArray(rev)) setBaseRevenue(rev);
       if (Array.isArray(teach)) setTeacherSalaries(teach);
       if (Array.isArray(gb)) setGroupBSalaries(gb);
@@ -561,14 +563,7 @@ export default function FinanceDashboard() {
               ))}
             </div>
 
-            {expenseSections.map((sec, i) => (
-              <SectionCard
-                key={sec.key || i}
-                title={sec.label} total={sec.total} items={sec.items || []}
-                color={sec.color || COLORS[i % COLORS.length]}
-                iconName={sec.icon || "Package"}
-              />
-            ))}
+            
           </div>
         </div>
 

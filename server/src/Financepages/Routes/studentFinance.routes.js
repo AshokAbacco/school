@@ -10,6 +10,8 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 // ── ADD STUDENT FINANCE ───────────────────────────────────────────────────────
+// Before creating, checks if a record already exists for this studentId + schoolId.
+// If it does, updates the existing record instead of creating a duplicate.
 router.post("/addStudentFinance", authMiddleware, async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
@@ -20,34 +22,73 @@ router.post("/addStudentFinance", authMiddleware, async (req, res) => {
     const {
       studentId, name, email, phone, course, fees,
       collegeFee, tuitionFee, examFee,
-      transportFee, booksFee, labFee, miscFee, customFees,
+      transportFee, booksFee, labFee, miscFee,
+      customFees, feeDate, feeBreakdownDetails,
     } = req.body;
 
     const feeBreakdown = JSON.stringify({
-      collegeFee:   collegeFee   || 0,
-      tuitionFee:   tuitionFee   || 0,
-      examFee:      examFee      || 0,
-      transportFee: transportFee || 0,
-      booksFee:     booksFee     || 0,
-      labFee:       labFee       || 0,
-      miscFee:      miscFee      || 0,
-      customFees:   customFees   || [],
+      collegeFee:          collegeFee   || 0,
+      tuitionFee:          tuitionFee   || 0,
+      examFee:             examFee      || 0,
+      transportFee:        transportFee || 0,
+      booksFee:            booksFee     || 0,
+      labFee:              labFee       || 0,
+      miscFee:             miscFee      || 0,
+      customFees:          customFees   || [],
+      feeBreakdownDetails: feeBreakdownDetails || {},
     });
 
-    const student = await prisma.studentList.create({
+    // ── Upsert: check for existing record for this student ─────────────────
+    const existing = studentId
+      ? await prisma.studentList.findFirst({
+          where: { studentId, schoolId, deletedAt: null },
+        })
+      : null;
+
+    let student;
+
+    if (existing) {
+      // ── UPDATE existing record ─────────────────────────────────────────
+      student = await prisma.studentList.update({
+        where: { id: existing.id },
+        data: {
+          name,
+          email,
+          phone,
+          course:       course || null,
+          fees:         fees ? parseFloat(fees) : null,
+          feeBreakdown,
+          feeDate:      feeDate ? new Date(feeDate) : new Date(),
+        },
+      });
+
+      await saveSchoolBackup({
+        schoolId,
+        module:   "studentList",
+        recordId: String(student.id),
+        data:     student,
+        action:   "update",
+      });
+
+      // Return with a flag so the frontend knows an existing record was updated
+      return res.json({ ...student, _upserted: true });
+    }
+
+    // ── CREATE new record ──────────────────────────────────────────────────
+    student = await prisma.studentList.create({
       data: {
         studentId,
         name,
         email,
         phone,
-        course: course || null,
-        fees: fees ? parseFloat(fees) : null,
+        course:      course || null,
+        fees:        fees ? parseFloat(fees) : null,
         feeBreakdown,
+        feeDate:     feeDate ? new Date(feeDate) : new Date(),
         schoolId,
       },
     });
 
-    // ✅ FIXED: uses `student` (the newly created record) and correct action
     await saveSchoolBackup({
       schoolId,
       module:   "studentList",
@@ -87,7 +128,6 @@ router.get("/getStudentFinance", authMiddleware, async (req, res) => {
 router.put("/updateStudentFinance/:id", authMiddleware, async (req, res) => {
   try {
     const id       = parseInt(req.params.id);
-    // ✅ FIXED: read schoolId from req.user (was undefined in old code)
     const schoolId = req.user?.schoolId;
 
     const {
@@ -97,6 +137,7 @@ router.put("/updateStudentFinance/:id", authMiddleware, async (req, res) => {
       transportFee, booksFee, labFee, miscFee, customFees,
       paidAmount, schoolFeePaid, tuitionFeePaid,
       paymentStatus, paymentMode, paymentDate,
+      feeDate, feeBreakdownDetails,
     } = req.body;
 
     const updateData = {};
@@ -106,17 +147,21 @@ router.put("/updateStudentFinance/:id", authMiddleware, async (req, res) => {
     if (course !== undefined) updateData.course = course;
     if (fees   !== undefined) updateData.fees   = fees ? parseFloat(fees) : null;
 
+    // Fee date — store selected date (backdated entries supported)
+    if (feeDate !== undefined) updateData.feeDate = new Date(feeDate);
+
     // Fee breakdown — only write if breakdown fields were sent
     if (collegeFee !== undefined || tuitionFee !== undefined || customFees !== undefined) {
       updateData.feeBreakdown = JSON.stringify({
-        collegeFee:   collegeFee   || 0,
-        tuitionFee:   tuitionFee   || 0,
-        examFee:      examFee      || 0,
-        transportFee: transportFee || 0,
-        booksFee:     booksFee     || 0,
-        labFee:       labFee       || 0,
-        miscFee:      miscFee      || 0,
-        customFees:   customFees   || [],
+        collegeFee:          collegeFee   || 0,
+        tuitionFee:          tuitionFee   || 0,
+        examFee:             examFee      || 0,
+        transportFee:        transportFee || 0,
+        booksFee:            booksFee     || 0,
+        labFee:              labFee       || 0,
+        miscFee:             miscFee      || 0,
+        customFees:          customFees   || [],
+        feeBreakdownDetails: feeBreakdownDetails || {},
       });
     }
 
@@ -133,7 +178,6 @@ router.put("/updateStudentFinance/:id", authMiddleware, async (req, res) => {
       data:  updateData,
     });
 
-    // ✅ FIXED: uses `updated` (the Prisma result), correct schoolId, correct action
     await saveSchoolBackup({
       schoolId,
       module:   "studentList",
@@ -153,7 +197,6 @@ router.put("/updateStudentFinance/:id", authMiddleware, async (req, res) => {
 router.delete("/deleteStudentFinance/:id", authMiddleware, async (req, res) => {
   try {
     const id       = parseInt(req.params.id);
-    // ✅ FIXED: read schoolId from req.user (was undefined in old code)
     const schoolId = req.user?.schoolId;
 
     const deleted = await prisma.studentList.update({
@@ -161,7 +204,6 @@ router.delete("/deleteStudentFinance/:id", authMiddleware, async (req, res) => {
       data:  { deletedAt: new Date() },
     });
 
-    // ✅ FIXED: uses `deleted` (the Prisma result), correct schoolId, correct action
     await saveSchoolBackup({
       schoolId,
       module:   "studentList",
@@ -221,20 +263,6 @@ router.get("/students", async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
     res.json(students);
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-// ── DELETE STUDENT (hard soft-delete, no auth) ────────────────────────────────
-router.delete("/deleteStudent/:id", async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    await prisma.studentList.update({
-      where: { id },
-      data:  { deletedAt: new Date() },
-    });
-    res.json({ message: "Deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
@@ -331,8 +359,8 @@ router.post("/sendFeeReminder/:id", authMiddleware, async (req, res) => {
     const financeStudent = await prisma.studentList.findUnique({ where: { id } });
     if (!financeStudent) return res.status(404).json({ message: "Student not found" });
 
-    const totalFees   = Number(financeStudent.fees        || 0);
-    const paidAmount  = Number(financeStudent.paidAmount   || 0);
+    const totalFees     = Number(financeStudent.fees        || 0);
+    const paidAmount    = Number(financeStudent.paidAmount   || 0);
     const pendingAmount = totalFees - paidAmount;
     if (pendingAmount <= 0) return res.status(400).json({ message: "No pending fees" });
 
