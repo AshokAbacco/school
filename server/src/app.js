@@ -6,6 +6,7 @@ import express from "express";
 import cors from "cors";
 
 import authRoutes from "./modules/auth/auth.routes.js";
+import biometricRoutes from "./biometric/biometric.routes.js";
 import { globalLimiter } from "./middlewares/rateLimiter.js";
 import errorHandler from "./middlewares/errorMiddleware.js";
 
@@ -48,6 +49,7 @@ app.use(express.urlencoded({
 // routes
 app.use("/api/auth", authRoutes);
 app.use("/api", logoRoutes(requireAuth));
+app.use("/api/biometric", biometricRoutes);
 app.use(globalLimiter);
 app.use(errorHandler);
 app.use("/api/parent", parent);
