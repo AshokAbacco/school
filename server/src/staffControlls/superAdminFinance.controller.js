@@ -47,21 +47,54 @@ export const getUniversityStudentFinance = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
+    // Collect all studentIds that don't already have gender on studentList
+    const missingGenderIds = data
+      .filter((s) => !s.gender && s.studentId)
+      .map((s) => s.studentId);
+
+    // Fetch personalInfo gender for those students in one query
+    const personalInfos =
+      missingGenderIds.length > 0
+        ? await prisma.studentPersonalInfo.findMany({
+            where: { studentId: { in: missingGenderIds } },
+            select: { studentId: true, gender: true },
+          })
+        : [];
+
+    const genderMap = Object.fromEntries(
+      personalInfos.map((p) => [p.studentId, p.gender])
+    );
+
     const normalized = data.map((s) => ({
-      id:          String(s.id),
-      name:        s.name,
-      email:       s.email,
-      phone:       s.phone,
-      course:      s.course       || null,
-      fees:        Number(s.fees        || 0),
-      paidAmount:  Number(s.paidAmount  || 0),
-      paymentMode: s.paymentMode  || null,
-      paymentDate: s.paymentDate  || null,
-      school:      s.school,
-      createdAt:   s.createdAt,
+      id: String(s.id),
+      studentId: s.studentId || null,
+
+      name: s.name,
+      email: s.email,
+      phone: s.phone,
+
+      gender: s.gender || genderMap[s.studentId] || null,
+
+      course: s.course || null,
+
+      fees: Number(s.fees || 0),
+      paidAmount: Number(s.paidAmount || 0),
+
+      dueAmount: Number(s.fees || 0) - Number(s.paidAmount || 0),
+
+      paymentMode: s.paymentMode || null,
+      paymentDate: s.paymentDate || null,
+
+      school: {
+        id: s.school?.id,
+        name: s.school?.name,
+        code: s.school?.code,
+      },
+
+      createdAt: s.createdAt,
     }));
 
-    return res.json({
+    return res.status(200).json({
       success: true,
       count: normalized.length,
       data: normalized,
@@ -72,6 +105,7 @@ export const getUniversityStudentFinance = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch student finance",
+      error: error.message,
     });
   }
 };
@@ -107,7 +141,6 @@ export const getUniversityStaffSalary = async (req, res) => {
     }
 
     // ── Resolve school IDs for this university once ───────────────────────
-    // Used for models that store schoolId directly.
     const schools = await prisma.school.findMany({
       where: { universityId },
       select: { id: true },
@@ -115,7 +148,6 @@ export const getUniversityStaffSalary = async (req, res) => {
     const schoolIds = schools.map((s) => s.id);
 
     if (schoolIds.length === 0) {
-      // University exists but has no schools yet — return empty arrays
       return res.json({
         success: true,
         data: {
@@ -139,10 +171,6 @@ export const getUniversityStaffSalary = async (req, res) => {
       groupDSalary,
     ] = await Promise.all([
 
-      // ── Teacher ──────────────────────────────────────────────────────
-      // TeacherMonthlySalary has schoolId directly.
-      // Snapshot fields: teacherName, teacherEmail.
-      // Has soft-delete (deletedAt).
       prisma.teacherMonthlySalary.findMany({
         where: {
           schoolId: { in: schoolIds },
@@ -151,10 +179,6 @@ export const getUniversityStaffSalary = async (req, res) => {
         orderBy: [{ year: "desc" }, { month: "desc" }],
       }),
 
-      // ── Admin ────────────────────────────────────────────────────────
-      // AdminMonthlySalary has schoolId directly.
-      // Snapshot fields: adminName, adminEmail.
-      // No deletedAt in schema — omit filter.
       prisma.adminMonthlySalary.findMany({
         where: {
           schoolId: { in: schoolIds },
@@ -162,10 +186,6 @@ export const getUniversityStaffSalary = async (req, res) => {
         orderBy: [{ year: "desc" }, { month: "desc" }],
       }),
 
-      // ── Finance ──────────────────────────────────────────────────────
-      // FinanceMonthlySalary has NO direct schoolId column in the schema.
-      // It links through: finance (User) → school → universityId.
-      // We filter via the nested relation.
       prisma.financeMonthlySalary.findMany({
         where: {
           finance: {
@@ -175,10 +195,6 @@ export const getUniversityStaffSalary = async (req, res) => {
         orderBy: [{ year: "desc" }, { month: "desc" }],
       }),
 
-      // ── Group B ──────────────────────────────────────────────────────
-      // GroupBStaffSalary has schoolId directly.
-      // Snapshot fields: staffName, staffEmail, staffRole.
-      // Has soft-delete (deletedAt).
       prisma.groupBStaffSalary.findMany({
         where: {
           schoolId: { in: schoolIds },
@@ -187,10 +203,6 @@ export const getUniversityStaffSalary = async (req, res) => {
         orderBy: [{ year: "desc" }, { month: "desc" }],
       }),
 
-      // ── Group C ──────────────────────────────────────────────────────
-      // GroupCStaffSalary has schoolId directly.
-      // Same shape as Group B.
-      // Has soft-delete (deletedAt).
       prisma.groupCStaffSalary.findMany({
         where: {
           schoolId: { in: schoolIds },
@@ -199,10 +211,6 @@ export const getUniversityStaffSalary = async (req, res) => {
         orderBy: [{ year: "desc" }, { month: "desc" }],
       }),
 
-      // ── Group D ──────────────────────────────────────────────────────
-      // GroupDStaffSalary has schoolId directly.
-      // DIFFERENT schema: uses Int id, name/designation fields,
-      // salaryPaid boolean (not a SalaryStatus enum), has deletedAt.
       prisma.groupDStaffSalary.findMany({
         where: {
           schoolId: { in: schoolIds },
@@ -212,16 +220,31 @@ export const getUniversityStaffSalary = async (req, res) => {
       }),
     ]);
 
-    // ── Normalise each array so _name / _email / _group / _date
-    //    are always present — matching what normalizeStaffRecords()
-    //    on the frontend expects. ──────────────────────────────────────────
-    //
-    //    Teacher  → teacherName, teacherEmail
-    //    Admin    → adminName, adminEmail
-    //    Finance  → financeName, financeEmail
-    //    Group B  → staffName, staffEmail
-    //    Group C  → staffName, staffEmail
-    //    Group D  → name (no email column), salaryPaid boolean
+    // ── Batch-fetch teacher genders from TeacherProfile ───────────────────
+    // TeacherMonthlySalary rows carry a teacherId FK to TeacherProfile.
+    // We collect all unique teacherIds, fetch gender in one query, then
+    // build a lookup map so the normalize loop below is O(1) per row.
+    const teacherIds = [
+      ...new Set(
+        teacherSalary
+          .filter((r) => r.teacherId)
+          .map((r) => r.teacherId)
+      ),
+    ];
+
+    const teacherProfiles =
+      teacherIds.length > 0
+        ? await prisma.teacherProfile.findMany({
+            where: { id: { in: teacherIds } },
+            select: { id: true, gender: true },
+          })
+        : [];
+
+    const teacherGenderMap = Object.fromEntries(
+      teacherProfiles.map((t) => [t.id, t.gender])
+    );
+
+    // ── Normalise ─────────────────────────────────────────────────────────
 
     const normTeacher = teacherSalary.map((r) => ({
       ...r,
@@ -229,11 +252,12 @@ export const getUniversityStaffSalary = async (req, res) => {
       bonus:       toNum(r.bonus),
       deductions:  toNum(r.deductions),
       netSalary:   toNum(r.netSalary),
-      // Alias fields the frontend normalizer reads
-      _name:   r.teacherName  || "—",
-      _email:  r.teacherEmail || "—",
-      _group:  "Teacher",
-      _date:   r.paymentDate  || r.createdAt,
+      _name:       r.teacherName  || "—",
+      _email:      r.teacherEmail || "—",
+      _group:      "Teacher",
+      _date:       r.paymentDate  || r.createdAt,
+      // gender from snapshot field first, fallback to live TeacherProfile
+      gender:      r.gender || teacherGenderMap[r.teacherId] || null,
     }));
 
     const normAdmin = adminSalary.map((r) => ({
@@ -242,10 +266,11 @@ export const getUniversityStaffSalary = async (req, res) => {
       bonus:       toNum(r.bonus),
       deductions:  toNum(r.deductions),
       netSalary:   toNum(r.netSalary),
-      _name:   r.adminName  || "—",
-      _email:  r.adminEmail || "—",
-      _group:  "Admin",
-      _date:   r.paymentDate || r.createdAt,
+      _name:       r.adminName  || "—",
+      _email:      r.adminEmail || "—",
+      _group:      "Admin",
+      _date:       r.paymentDate || r.createdAt,
+      gender:      null,  // AdminMonthlySalary has no gender source
     }));
 
     const normFinance = financeSalary.map((r) => ({
@@ -254,10 +279,11 @@ export const getUniversityStaffSalary = async (req, res) => {
       bonus:       toNum(r.bonus),
       deductions:  toNum(r.deductions),
       netSalary:   toNum(r.netSalary),
-      _name:   r.financeName  || "—",
-      _email:  r.financeEmail || "—",
-      _group:  "Finance",
-      _date:   r.paymentDate  || r.createdAt,
+      _name:       r.financeName  || "—",
+      _email:      r.financeEmail || "—",
+      _group:      "Finance",
+      _date:       r.paymentDate  || r.createdAt,
+      gender:      null,  // FinanceMonthlySalary has no gender source
     }));
 
     const normGroupB = groupBSalary.map((r) => ({
@@ -266,10 +292,11 @@ export const getUniversityStaffSalary = async (req, res) => {
       bonus:       toNum(r.bonus),
       deductions:  toNum(r.deductions),
       netSalary:   toNum(r.netSalary),
-      _name:   r.staffName  || "—",
-      _email:  r.staffEmail || "—",
-      _group:  "Group B",
-      _date:   r.paymentDate || r.createdAt,
+      _name:       r.staffName  || "—",
+      _email:      r.staffEmail || "—",
+      _group:      "Group B",
+      _date:       r.paymentDate || r.createdAt,
+      gender:      null,  // GroupBStaffSalary has no gender source
     }));
 
     const normGroupC = groupCSalary.map((r) => ({
@@ -278,35 +305,32 @@ export const getUniversityStaffSalary = async (req, res) => {
       bonus:       toNum(r.bonus),
       deductions:  toNum(r.deductions),
       netSalary:   toNum(r.netSalary),
-      _name:   r.staffName  || "—",
-      _email:  r.staffEmail || "—",
-      _group:  "Group C",
-      _date:   r.paymentDate || r.createdAt,
+      _name:       r.staffName  || "—",
+      _email:      r.staffEmail || "—",
+      _group:      "Group C",
+      _date:       r.paymentDate || r.createdAt,
+      gender:      null,  // GroupCStaffSalary has no gender source
     }));
 
-    // Group D has a completely different shape — map it carefully
     const normGroupD = groupDSalary.map((r) => ({
-      // keep raw fields
-      id:          r.id,
-      schoolId:    r.schoolId,
-      createdAt:   r.createdAt,
-      month:       null,  // GroupD has no month/year columns
-      year:        null,
-      leaveDays:   0,
+      id:             r.id,
+      schoolId:       r.schoolId,
+      createdAt:      r.createdAt,
+      month:          null,
+      year:           null,
+      leaveDays:      0,
       leaveDeduction: 0,
-      paymentDate: null,
-      // financials
-      basicSalary: toNum(r.basicSalary),
-      bonus:       toNum(r.allowances),   // GroupD calls it allowances
-      deductions:  0,
-      netSalary:   toNum(r.basicSalary) + toNum(r.allowances),
-      // status — GroupD uses a boolean, convert to string for the UI badge
-      status:      r.salaryPaid ? "PAID" : "PENDING",
-      // normalised identity fields
-      _name:  r.name        || r.designation || "—",
-      _email: "—",           // GroupD has no email column
-      _group: "Group D",
-      _date:  r.createdAt,
+      paymentDate:    null,
+      basicSalary:    toNum(r.basicSalary),
+      bonus:          toNum(r.allowances),
+      deductions:     0,
+      netSalary:      toNum(r.basicSalary) + toNum(r.allowances),
+      status:         r.salaryPaid ? "PAID" : "PENDING",
+      _name:          r.name || r.designation || "—",
+      _email:         "—",
+      _group:         "Group D",
+      _date:          r.createdAt,
+      gender:         null,  // GroupDStaffSalary has no gender source
     }));
 
     return res.json({
@@ -320,6 +344,7 @@ export const getUniversityStaffSalary = async (req, res) => {
         groupDSalary:  normGroupD,
       },
     });
+
   } catch (error) {
     console.error("[superAdminFinance] getUniversityStaffSalary:", error);
     return res.status(500).json({

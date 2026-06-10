@@ -320,6 +320,241 @@ function Pagination({ page, totalPages, onChange }) {
   );
 }
 
+/* ─── Charts Section ─────────────────────────────────────────────────────── */
+function DonutChart({ slices, size = 120, strokeWidth = 18 }) {
+  const r = (size - strokeWidth) / 2;
+  const cx = size / 2, cy = size / 2;
+  const circ = 2 * Math.PI * r;
+  const total = slices.reduce((s, x) => s + x.value, 0) || 1;
+  let offset = 0;
+  return (
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+      {/* track */}
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e8f0f8" strokeWidth={strokeWidth} />
+      {slices.map((sl, i) => {
+        const dash = (sl.value / total) * circ;
+        const gap  = circ - dash;
+        const el = (
+          <circle
+            key={i} cx={cx} cy={cy} r={r}
+            fill="none"
+            stroke={sl.color}
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${dash} ${gap}`}
+            strokeDashoffset={-offset}
+            strokeLinecap="butt"
+          />
+        );
+        offset += dash;
+        return el;
+      })}
+    </svg>
+  );
+}
+
+function BarChartSimple({ bars, maxVal }) {
+  const max = maxVal || Math.max(...bars.map(b => b.value), 1);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 90, padding: "0 4px" }}>
+      {bars.map((b, i) => {
+        const h = Math.round((b.value / max) * 90);
+        return (
+          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <span style={{ ...font, fontSize: 11, fontWeight: 700, color: b.color }}>{b.value}</span>
+            <div style={{
+              width: "100%", height: h, borderRadius: "6px 6px 0 0",
+              background: `linear-gradient(180deg, ${b.color}ee 0%, ${b.color}88 100%)`,
+              transition: "height .4s ease",
+              minHeight: b.value > 0 ? 4 : 0,
+            }} />
+            <span style={{ ...font, fontSize: 10, color: C.mid, fontWeight: 600, textAlign: "center" }}>{b.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ChartsSection({ stats }) {
+  const [genderFilter, setGenderFilter] = useState("all");
+  const [passFilter,   setPassFilter]   = useState("all");
+
+  if (!stats) return null;
+
+  const boys   = stats.totalBoys   || 0;
+  const girls  = stats.totalGirls  || 0;
+  const passed = stats.totalPassed || 0;
+  const failed = stats.totalFailed || 0;
+  const absent = stats.totalAbsent || 0;
+  const total  = stats.totalStudents || 1;
+
+  // Gender chart data
+  const genderSlices = genderFilter === "girls"
+    ? [{ value: girls,      color: "#9333ea", label: "Girls" }]
+    : genderFilter === "boys"
+    ? [{ value: boys,       color: "#1d4ed8", label: "Boys" }]
+    : [
+        { value: boys,      color: "#1d4ed8", label: "Boys" },
+        { value: girls,     color: "#9333ea", label: "Girls" },
+      ];
+
+  const genderBars = genderFilter === "girls"
+    ? [{ value: girls,  color: "#9333ea", label: "Girls" }]
+    : genderFilter === "boys"
+    ? [{ value: boys,   color: "#1d4ed8", label: "Boys" }]
+    : [
+        { value: boys,  color: "#1d4ed8", label: "Boys" },
+        { value: girls, color: "#9333ea", label: "Girls" },
+      ];
+
+  // Pass/Fail chart data
+  const passSlices = passFilter === "pass"
+    ? [{ value: passed, color: "#059669", label: "Pass" }]
+    : passFilter === "fail"
+    ? [{ value: failed, color: "#dc2626", label: "Fail" }]
+    : [
+        { value: passed, color: "#059669", label: "Pass" },
+        { value: failed, color: "#dc2626", label: "Fail" },
+        ...(absent > 0 ? [{ value: absent, color: "#94a3b8", label: "Absent" }] : []),
+      ];
+
+  const passBars = passFilter === "pass"
+    ? [{ value: passed, color: "#059669", label: "Passed" }]
+    : passFilter === "fail"
+    ? [{ value: failed, color: "#dc2626", label: "Failed" }]
+    : [
+        { value: passed, color: "#059669", label: "Passed" },
+        { value: failed, color: "#dc2626", label: "Failed" },
+        ...(absent > 0 ? [{ value: absent, color: "#94a3b8", label: "Absent" }] : []),
+      ];
+
+  const genderTotal = genderFilter === "all" ? (boys + girls) || 1 : genderFilter === "boys" ? boys || 1 : girls || 1;
+  const passTotal   = passFilter   === "all" ? (passed + failed + absent) || 1 : passFilter === "pass" ? passed || 1 : failed || 1;
+
+  const ChartCard = ({ title, subtitle, filter, setFilter, filterOptions, slices, bars, centerTotal, legend }) => (
+    <div style={{
+      flex: 1, minWidth: 0,
+      background: C.card,
+      border: `1.5px solid ${C.border}`,
+      borderRadius: 18,
+      padding: "18px 20px",
+      display: "flex",
+      flexDirection: "column",
+      gap: 14,
+    }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <div>
+          <p style={{ ...font, fontSize: 13, fontWeight: 800, color: C.dark, margin: 0 }}>{title}</p>
+          <p style={{ ...font, fontSize: 10, color: C.mid, margin: "2px 0 0" }}>{subtitle}</p>
+        </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          style={{
+            ...font, fontSize: 11, fontWeight: 700,
+            padding: "5px 10px", borderRadius: 8,
+            border: `1.5px solid ${C.border}`,
+            background: C.bg, color: C.dark,
+            cursor: "pointer", outline: "none",
+          }}
+        >
+          {filterOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+
+      {/* Charts row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+        {/* Donut */}
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <DonutChart slices={slices} size={110} strokeWidth={20} />
+          <div style={{
+            position: "absolute", top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)",
+            textAlign: "center",
+          }}>
+            <p style={{ ...font, fontSize: 16, fontWeight: 900, color: C.dark, margin: 0, lineHeight: 1 }}>{centerTotal}</p>
+            <p style={{ ...font, fontSize: 9, color: C.mid, margin: "2px 0 0", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em" }}>Total</p>
+          </div>
+        </div>
+
+        {/* Bar */}
+        <div style={{ flex: 1, minWidth: 100 }}>
+          <BarChartSimple bars={bars} />
+          {/* Baseline */}
+          <div style={{ height: 1.5, background: C.border, borderRadius: 99, marginTop: 2 }} />
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        {legend.map((l, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: l.color, flexShrink: 0 }} />
+            <span style={{ ...font, fontSize: 10, fontWeight: 700, color: C.mid }}>{l.label}</span>
+            <span style={{ ...font, fontSize: 11, fontWeight: 800, color: C.dark }}>{l.value}</span>
+            <span style={{ ...font, fontSize: 10, color: C.mid }}>
+              ({((l.value / total) * 100).toFixed(1)}%)
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+      <ChartCard
+        title="Gender Distribution"
+        subtitle="Students by gender"
+        filter={genderFilter}
+        setFilter={setGenderFilter}
+        filterOptions={[
+          { value: "all",   label: "All Students" },
+          { value: "boys",  label: "Boys Only" },
+          { value: "girls", label: "Girls Only" },
+        ]}
+        slices={genderSlices}
+        bars={genderBars}
+        centerTotal={genderFilter === "all" ? boys + girls : genderFilter === "boys" ? boys : girls}
+        legend={
+          genderFilter === "all"
+            ? [{ label: "Boys",  value: boys,  color: "#1d4ed8" }, { label: "Girls", value: girls, color: "#9333ea" }]
+            : genderFilter === "boys"
+            ? [{ label: "Boys",  value: boys,  color: "#1d4ed8" }]
+            : [{ label: "Girls", value: girls, color: "#9333ea" }]
+        }
+      />
+
+      <ChartCard
+        title="Pass / Fail Breakdown"
+        subtitle="Result status distribution"
+        filter={passFilter}
+        setFilter={setPassFilter}
+        filterOptions={[
+          { value: "all",  label: "All Results" },
+          { value: "pass", label: "Passed Only" },
+          { value: "fail", label: "Failed Only" },
+        ]}
+        slices={passSlices}
+        bars={passBars}
+        centerTotal={passFilter === "all" ? passed + failed + absent : passFilter === "pass" ? passed : failed}
+        legend={
+          passFilter === "all"
+            ? [
+                { label: "Passed", value: passed, color: "#059669" },
+                { label: "Failed", value: failed, color: "#dc2626" },
+                ...(absent > 0 ? [{ label: "Absent", value: absent, color: "#94a3b8" }] : []),
+              ]
+            : passFilter === "pass"
+            ? [{ label: "Passed", value: passed, color: "#059669" }]
+            : [{ label: "Failed", value: failed, color: "#dc2626" }]
+        }
+      />
+    </div>
+  );
+}
+
 /* ─── Excel Export helpers ───────────────────────────────────────────────── */
 async function fetchAllRows(baseParams) {
   const params = new URLSearchParams(baseParams);
@@ -635,6 +870,9 @@ export default function SuperAdminExamsPage() {
             />
           </div>
         )}
+
+        {/* ── Charts ───────────────────────────────────────────────────── */}
+        {stats && <ChartsSection stats={stats} />}
 
         {/* ── Export Buttons ────────────────────────────────────────────── */}
         <div style={{
