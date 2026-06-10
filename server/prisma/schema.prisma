@@ -3385,3 +3385,27 @@ model StudentFeePayment {
   paidAt        DateTime @default(now())
   createdBy     String?
 }
+
+model BiometricPunch {
+  id String @id @default(uuid())
+
+  deviceId     String?
+  employeeCode String?
+  serialNo     String?
+
+  punchDateTime DateTime?
+  punchDate     DateTime?
+
+  systemDate        DateTime?
+  lastPunchDateTime DateTime?
+
+  deviceName String?
+
+  rawData Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeCode])
+  @@index([punchDateTime])
+  @@map("biometric_punches")
+}
