@@ -11,7 +11,7 @@ import staff from "./src/staff.js";
 import finance from "./src/finance.js";
 import student from "./src/student.js";
 import parent from "./src/parent.js";
-import biometricRoutes from "./src/biometric/biometric.routes.js";
+
 import gpsRoutes from "./src/gps-ingestion/gps.routes.js";
 import trackingRoutes from "./src/gpsTracking/tracking.routes.js";
 import paymentRoutes from "./src/payment/payment.routes.js";
@@ -81,7 +81,7 @@ app.use("/uploads", express.static("uploads"));
 app.use(staff);
 app.use(student);
 app.use(finance);
-app.use("/api/biometric", biometricRoutes);
+
 app.use("/api/parent", parent);
 app.use("/api/device", gpsRoutes);
 app.use("/api/tracking", trackingRoutes);
