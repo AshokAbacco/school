@@ -45,6 +45,8 @@ import reEvaluationRoutes from "./staffRoutes/reEvaluationRoutes.js";
 import reEvaluationRequestRoutes from "./staffRoutes/reEvaluationRequestRoutes.js";
 import superAdminActivityRoute from "./staffRoutes/superAdminActivityRoute.js";
 import superAdminFinanceRoutes from "./staffRoutes/superAdminFinance.routes.js";
+import superAdminExamsRoutes from "./staffRoutes/superAdminExams.routes.js";
+
 
 import logoRoutes from "./utils/logoRoutes.js";
 import { requireAuth } from "./middlewares/auth.middleware.js";
@@ -149,6 +151,10 @@ staff.use(
 staff.use(
   "/api/superadmin-finance",
   superAdminFinanceRoutes
+);
+staff.use(
+  "/api/superadmin-exams",
+  superAdminExamsRoutes
 );
 staff.use(
   "/api/superadmin/activities",

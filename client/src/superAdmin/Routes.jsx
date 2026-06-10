@@ -20,6 +20,7 @@ import AddFinance from "./pages/Finance/AddFinancers";
 import ChatPage from "./pages/chat/ChatPage.jsx";
 import SchoolRecovery from "./pages/Recovery/SchoolRecovery";
 import FinanceReports from "./pages/FinanceReports/FinanceReports.jsx";
+import ResultReports from "./pages/ResultReports/ResultReports";
 
 function SuperAdminRoutes() {
   return (
@@ -45,6 +46,7 @@ function SuperAdminRoutes() {
         <Route path="*" element={<Navigate to="dashboard" replace />} />
         <Route path="recovery"element={<SchoolRecovery />} />
         <Route path="finance-reports" element={<FinanceReports />} />
+        <Route path="results-reports" element={<ResultReports />} />
       </Routes>
     </PageLayout>
   );
