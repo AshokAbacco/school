@@ -3385,3 +3385,16 @@ model StudentFeePayment {
   paidAt        DateTime @default(now())
   createdBy     String?
 }
+
+model Tran_MachineRawPunch {
+  Tran_MachineRawPunchId Int       @id @default(autoincrement())
+  CardNo                 String?   @db.VarChar(10)
+  PunchDateTime          DateTime?
+  P_Day                  String?   @db.Char(1)
+  ISManual               String?   @db.Char(1)
+  PayCode                String?   @db.VarChar(50)
+  MachineNo              String?   @db.VarChar(5)
+  DateTime               DateTime?
+
+  @@map("Tran_MachineRawPunch")
+}

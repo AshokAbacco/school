@@ -11,6 +11,7 @@ import staff from "./src/staff.js";
 import finance from "./src/finance.js";
 import student from "./src/student.js";
 import parent from "./src/parent.js";
+import biometricRoutes from "./src/biometric/biometric.routes.js";
 import gpsRoutes from "./src/gps-ingestion/gps.routes.js";
 import trackingRoutes from "./src/gpsTracking/tracking.routes.js";
 import paymentRoutes from "./src/payment/payment.routes.js";
@@ -29,16 +30,6 @@ import dotenv from "dotenv";
 dotenv.config();
 const PORT = process.env.PORT || 5001;
 
-// const allowedOrigins = [
-//   "http://localhost:5173",
-//   "https://localhost",
-//   "capacitor://localhost",
-//   "ionic://localhost",
-//   "https://eduabaccotech.com",
-//   "https://www.eduabaccotech.com",
-//   "https://school-crm.onrender.com",
-//   "https://cqw6v494-5173.inc1.devtunnels.ms",
-// ];
 
 const allowedOrigins = process.env.CLIENT_ORIGIN.split(",");
 
@@ -57,53 +48,6 @@ app.use(
     credentials: true,
   })
 );
-
-// app.use(
-//   cors({
-//     origin: function (origin, callback) {
-//       if (!origin) return callback(null, true); // mobile/postman
-
-//       if (allowedOrigins.includes(origin)) {
-//         return callback(null, true);
-//       }
-
-//       return callback(new Error("CORS not allowed: " + origin));
-//     },
-//     credentials: true,
-//   })
-// );
-
-// CORS
-// app.use(cors({
-//   origin: allowedOrigins,
-//   credentials: true
-
-// }));
-
-// app.use(cors({
-//   origin: (origin, callback) => {
-//     // allow mobile apps / postman (no origin)
-//     if (!origin) return callback(null, true);
-
-//     if (allowedOrigins.includes(origin)) {
-//       return callback(null, true);
-//     }
-
-//     // 🔥 TEMP: allow all (for debugging / mobile)
-//     return callback(null, true);
-//   },
-//   credentials: true
-// }));
-
-// app.use(
-//   cors({
-//     origin: (origin, callback) => {
-//       if (!origin) return callback(null, true);
-//       callback(null, origin);
-//     },
-//     credentials: true,
-//   }),
-// );
 
 
 app.get("/api/image-proxy", async (req, res) => {
@@ -137,6 +81,7 @@ app.use("/uploads", express.static("uploads"));
 app.use(staff);
 app.use(student);
 app.use(finance);
+app.use("/api/biometric", biometricRoutes);
 app.use("/api/parent", parent);
 app.use("/api/device", gpsRoutes);
 app.use("/api/tracking", trackingRoutes);
@@ -157,12 +102,7 @@ const io = new Server(server, {
   },
 });
 
-// const io = new Server(server, {
-//   cors: {
-//     origin: "*", // 🔥 important for mobile
-//     credentials: true,
-//   },
-// });
+
 
 global.io = io;
 
@@ -176,12 +116,7 @@ io.on("connection", (socket) => {
   console.log("Socket connected:", userId);
 });
 
-// app.use(
-//   cors({
-//     origin: true,
-//     credentials: true,
-//   })
-// );
+
 
 // Start server
 server.listen(PORT, () => {
