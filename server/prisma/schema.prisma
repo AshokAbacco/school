@@ -3398,3 +3398,26 @@ model Tran_MachineRawPunch {
 
   @@map("Tran_MachineRawPunch")
 }
+
+model BiometricLog {
+  id String @id @default(cuid())
+
+  employeeCode String?
+  enrollmentId String?
+
+  deviceId   String?
+  deviceName String?
+  serialNo   String?
+
+  punchMode String?
+
+  punchDateTime DateTime?
+
+  rawData Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeCode])
+  @@index([punchDateTime])
+  @@map("biometric_logs")
+}
