@@ -353,28 +353,70 @@ router.delete("/deleteStudentFinance/:id", authMiddleware, async (req, res) => {
 });
 
 // ── STUDENTS BY CLASS ─────────────────────────────────────────────────────────
+// router.get("/studentsByClass", async (req, res) => {
+//   try {
+//     const { classSectionId } = req.query;
+//     if (!classSectionId) return res.status(400).json({ message: "classSectionId required" });
+
+//     const enrollments = await prisma.studentEnrollment.findMany({
+//       where:   { classSectionId },
+//       include: { student: { include: { personalInfo: true } } },
+//     });
+
+//     const students = enrollments.map(e => ({
+//       id:    e.student.id,
+//       name:  e.student.personalInfo
+//         ? `${e.student.personalInfo.firstName} ${e.student.personalInfo.lastName}`
+//         : e.student.name,
+//       email: e.student.email,
+//       phone: e.student.personalInfo?.phone || "",
+//     }));
+
+//     res.json(students);
+//   } catch (error) {
+//     console.log(error);
+//     res.status(500).json({ message: error.message });
+//   }
+// });
+// ── STUDENTS BY CLASS ─────────────────────────────────────────────────────────
 router.get("/studentsByClass", async (req, res) => {
   try {
     const { classSectionId } = req.query;
     if (!classSectionId) return res.status(400).json({ message: "classSectionId required" });
 
     const enrollments = await prisma.studentEnrollment.findMany({
-      where:   { classSectionId },
-      include: { student: { include: { personalInfo: true } } },
+      where: { classSectionId, status: "ACTIVE" },
+      include: {
+        student: { include: { personalInfo: true } },
+        classSection: {
+          select: { id: true, name: true, grade: true, section: true },
+        },
+      },
+      orderBy: { student: { name: "asc" } },
     });
 
-    const students = enrollments.map(e => ({
-      id:    e.student.id,
-      name:  e.student.personalInfo
-        ? `${e.student.personalInfo.firstName} ${e.student.personalInfo.lastName}`
-        : e.student.name,
-      email: e.student.email,
-      phone: e.student.personalInfo?.phone || "",
-    }));
-
-    res.json(students);
+    res.json(enrollments);
   } catch (error) {
-    console.log(error);
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ── CLASS SECTIONS ────────────────────────────────────────────────────────────
+router.get("/classSections", authMiddleware, async (req, res) => {
+  try {
+    const schoolId = req.query.schoolId || req.user?.schoolId;
+    if (!schoolId) return res.status(400).json({ message: "schoolId required" });
+
+    const sections = await prisma.classSection.findMany({
+      where:   { schoolId, deletedAt: null },
+      select:  { id: true, name: true, grade: true, section: true },
+      orderBy: [{ grade: "asc" }, { section: "asc" }],
+    });
+
+    res.json(sections);
+  } catch (error) {
+    console.error("classSections error:", error);
     res.status(500).json({ message: error.message });
   }
 });

@@ -113,14 +113,15 @@ const Addstudent = ({ open, handleClose, addStudentData, editData }) => {
     const school = getAuthSchool();
     setAuthSchool(school);
 
-    if (school.schoolId) {
-      const url = `${API_URL}/api/finance/classSections?schoolId=${school.schoolId}`;
-      fetch(url)
-        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-        .then(d => { setClasses(Array.isArray(d) ? d : []); })
-        .catch(e => { console.error("[Addstudent] Failed to fetch classes:", e); setClasses([]); });
-    }
-
+if (school.schoolId) {
+  const auth = JSON.parse(localStorage.getItem("auth"));
+  const token = auth?.token;
+  const url = `${API_URL}/api/finance/classSections?schoolId=${school.schoolId}`;
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    .then(d => { setClasses(Array.isArray(d) ? d : []); })
+    .catch(e => { console.error("[Addstudent] Failed to fetch classes:", e); setClasses([]); });
+}
     if (editData) {
       setStudentInfo({
         name: editData.name ?? "",
