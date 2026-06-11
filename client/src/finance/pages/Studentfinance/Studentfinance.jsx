@@ -964,26 +964,50 @@ export default function StudentFeesPage() {
                                     ))}
                                 </select>
                                 <select
-                                    value={feeCategory}
-                                    onChange={(e) => setFeeCategory(e.target.value)}
-                                    style={{
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        color: "#1C3044",
-                                        background: "#fff",
-                                        border: "1.5px solid rgba(255,255,255,.35)",
-                                        borderRadius: 8,
-                                        padding: "7px 28px 7px 10px",
-                                        fontFamily: "'DM Sans',sans-serif",
-                                        outline: "none",
-                                        cursor: "pointer",
-                                        appearance: "none",
-                                        minWidth: 130
-                                    }}
+                                value={feeCategory}
+                                onChange={(e) => setFeeCategory(e.target.value)}
+                                style={{
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color: "#1C3044",
+                                    background: "#fff",
+                                    border: "1.5px solid rgba(255,255,255,.35)",
+                                    borderRadius: 8,
+                                    padding: "7px 28px 7px 10px",
+                                    fontFamily: "'DM Sans',sans-serif",
+                                    outline: "none",
+                                    cursor: "pointer",
+                                    appearance: "none",
+                                    minWidth: 130
+                                }}
                                 >
-                                    <option value="ALL">All Fees</option>
-                                    <option value="SCHOOL">School Fee</option>
-                                    <option value="TUITION">Tuition Fee</option>
+                                <option value="ALL">All Fees</option>
+                                {[
+                                    { value: "SCHOOL",    label: "School Fee"    },
+                                    { value: "TUITION",   label: "Tuition Fee"   },
+                                    { value: "EXAM",      label: "Exam Fee"      },
+                                    { value: "TRANSPORT", label: "Transport Fee" },
+                                    { value: "BOOKS",     label: "Books Fee"     },
+                                    { value: "LAB",       label: "Lab Fee"       },
+                                    { value: "MISC",      label: "Misc Fee"      },
+                                ].filter(opt => {
+                                    // Only show categories that at least one student has
+                                    return students.some(s => {
+                                    const bd = JSON.parse(s.feeBreakdown || "{}");
+                                    const keyMap = {
+                                        SCHOOL:    "collegeFee",
+                                        TUITION:   "tuitionFee",
+                                        EXAM:      "examFee",
+                                        TRANSPORT: "transportFee",
+                                        BOOKS:     "booksFee",
+                                        LAB:       "labFee",
+                                        MISC:      "miscFee",
+                                    };
+                                    return Number(bd[keyMap[opt.value]] || 0) > 0;
+                                    });
+                                }).map(opt => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
                                 </select>
                                 <select
                                     value={paymentFilter}
