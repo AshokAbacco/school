@@ -11,44 +11,75 @@ export const receivePunch = async (req, res) => {
       ? req.body
       : [req.body];
 
+    let inserted = 0;
+    let skipped = 0;
+
     for (const item of records) {
+      const employeeCode =
+        item.EmployeeCode || null;
+
+      const enrollmentId =
+        item.EnrollmentId ||
+        item.EnrollmentID ||
+        null;
+
+      const deviceId =
+        item.DevicesId?.toString() ||
+        null;
+
+      const deviceName =
+        item.DeviceName || null;
+
+      const serialNo =
+        item.SerialNo || null;
+
+      const punchMode =
+        item.PunchMode || null;
+
+      const punchDateTime =
+        item.PunchDateAndTime
+          ? new Date(item.PunchDateAndTime)
+          : null;
+
+      const existing =
+        await prisma.biometricLog.findFirst({
+          where: {
+            employeeCode,
+            enrollmentId,
+            deviceId,
+            deviceName,
+            serialNo,
+            punchMode,
+            punchDateTime,
+          },
+        });
+
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
       await prisma.biometricLog.create({
         data: {
-          employeeCode:
-            item.EmployeeCode || null,
-
-          enrollmentId:
-            item.EnrollmentId ||
-            item.EnrollmentID ||
-            null,
-
-          deviceId:
-            item.DevicesId?.toString() ||
-            null,
-
-          deviceName:
-            item.DeviceName || null,
-
-          serialNo:
-            item.SerialNo || null,
-
-          punchMode:
-            item.PunchMode || null,
-
-          punchDateTime:
-            item.PunchDateAndTime
-              ? new Date(item.PunchDateAndTime)
-              : null,
-
+          employeeCode,
+          enrollmentId,
+          deviceId,
+          deviceName,
+          serialNo,
+          punchMode,
+          punchDateTime,
           rawData: item,
         },
       });
+
+      inserted++;
     }
 
     return res.status(200).json({
       success: true,
-      message: "Biometric data stored",
-      received: records.length,
+      message: "Biometric data processed",
+      inserted,
+      skipped,
     });
   } catch (error) {
     console.error(error);

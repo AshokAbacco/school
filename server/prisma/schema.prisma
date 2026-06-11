@@ -3405,24 +3405,15 @@ model Tran_MachineRawPunch {
 }
 
 model BiometricLog {
-  id String @id @default(cuid())
-
-  employeeCode String?
-  enrollmentId String?
-
-  deviceId   String?
-  deviceName String?
-  serialNo   String?
-
-  punchMode String?
-
+  id            String    @id @default(cuid())
+  employeeCode  String?
+  enrollmentId  String?
+  deviceId      String?
+  deviceName    String?
+  serialNo      String?
+  punchMode     String?
   punchDateTime DateTime?
+  rawData       Json
 
-  rawData Json?
-
-  createdAt DateTime @default(now())
-
-  @@index([employeeCode])
-  @@index([punchDateTime])
-  @@map("biometric_logs")
+  @@unique([employeeCode, enrollmentId, deviceId, deviceName, serialNo, punchMode, punchDateTime])
 }
