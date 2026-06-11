@@ -3,10 +3,10 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   BarChart3, Users, Briefcase, Receipt, Download, Calendar,
   TrendingUp, TrendingDown, IndianRupee, Filter, RefreshCw,
-  ChevronDown, CheckCircle, Clock, AlertCircle, X, Search,
+  ChevronDown, ChevronRight, CheckCircle, Clock, AlertCircle, X, Search,
   ArrowUpRight, FileSpreadsheet, Layers
 } from "lucide-react";
-
+import StudentFeeDetail from "./StudentFeeDetail";
 const API_URL = import.meta.env.VITE_API_URL;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -652,12 +652,27 @@ function DateFilterBar({ preset, setPreset, customFrom, setCustomFrom, customTo,
 }
 
 // ── Students Tab ──────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH for FinanceReports.jsx — StudentsTab only
+// Replace the entire StudentsTab function with this version.
+// Changes:
+//   1. Import StudentFeeDetail at top of file
+//   2. selectedStudent state + conditional render
+//   3. Table rows are clickable → open StudentFeeDetail
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ① Add this import at the top of FinanceReports.jsx (alongside other imports):
+// import StudentFeeDetail from "./StudentFeeDetail";
+
+// ② Replace the entire StudentsTab function with the one below:
+
 function StudentsTab({ dateRange }) {
-  const [data, setData]                 = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [search, setSearch]             = useState("");
-  const [genderFilter, setGenderFilter] = useState("ALL");
-  const [showCharts, setShowCharts]     = useState(true);
+  const [data, setData]                   = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [search, setSearch]               = useState("");
+  const [genderFilter, setGenderFilter]   = useState("ALL");
+  const [showCharts, setShowCharts]       = useState(true);
+  const [selectedStudent, setSelectedStudent] = useState(null);   // ← NEW
 
   useEffect(() => {
     const load = async () => {
@@ -673,7 +688,16 @@ function StudentsTab({ dateRange }) {
     load();
   }, []);
 
-  // Data for charts uses dateRange-filtered but NOT gender-filtered
+  // ← NEW: if a student is selected, show the detail page
+  if (selectedStudent) {
+    return (
+      <StudentFeeDetail
+        student={selectedStudent}
+        onBack={() => setSelectedStudent(null)}
+      />
+    );
+  }
+
   const dateFiltered = data.filter(s => inRange(s.paymentDate || s.createdAt, dateRange.from, dateRange.to));
 
   const filtered = dateFiltered.filter((s) => {
@@ -749,6 +773,8 @@ function StudentsTab({ dateRange }) {
             <Users size={15} className="text-slate-400" />
             <span className="text-sm font-bold text-slate-700">Student Fee Records</span>
             <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs font-semibold rounded-full">{filtered.length}</span>
+            {/* ← NEW hint */}
+            <span className="text-[10px] text-slate-400 hidden sm:block">· Click a row to view details</span>
           </div>
           <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 w-full sm:w-auto">
             <select value={genderFilter} onChange={e => setGenderFilter(e.target.value)}
@@ -784,9 +810,20 @@ function StudentsTab({ dateRange }) {
                   const paid = Number(s.paidAmount||0), fees = Number(s.fees||0), due = Math.max(0, fees-paid);
                   const status = fees>0 && due===0 ? "PAID" : paid>0 ? "PARTIAL" : "UNPAID";
                   return (
-                    <tr key={s.id ?? i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    // ← CHANGED: onClick + cursor-pointer + group for hover arrow
+                    <tr
+                      key={s.id ?? i}
+                      onClick={() => setSelectedStudent(s)}
+                      className="border-b border-slate-50 hover:bg-[#EEF4F8] transition-colors cursor-pointer group"
+                    >
                       <td className="px-4 py-2.5 text-slate-400">{i+1}</td>
-                      <td className="px-4 py-2.5 font-semibold text-slate-700 whitespace-nowrap">{s.name}</td>
+                      {/* ← CHANGED: name cell with chevron hint */}
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-slate-700">{s.name}</span>
+                          <ChevronRight size={12} className="text-slate-200 group-hover:text-[#1C3044] transition-colors flex-shrink-0" />
+                        </div>
+                      </td>
                       <td className="px-4 py-2.5 text-slate-400 text-[11px] whitespace-nowrap">{s.email}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap"><span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px] font-bold">{s.course || "—"}</span></td>
                       <td className="px-4 py-2.5 font-bold text-slate-700 whitespace-nowrap">{fmt(fees)}</td>

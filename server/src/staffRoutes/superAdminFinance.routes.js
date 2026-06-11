@@ -6,7 +6,9 @@ import {
   getUniversityStudentFinance,
   getUniversityStaffSalary,
   getUniversityExpenses,
-  debugUniversityChain, 
+  debugUniversityChain,
+    updateStudentFinance,      // ← ADD
+  recordStudentPayment,      // ← ADD 
 } from "../staffControlls/superAdminFinance.controller.js";
 
 const router = express.Router();
@@ -18,7 +20,8 @@ router.get(
   "/student-finance",
   getUniversityStudentFinance
 );
-
+router.patch("/student-finance/:id",         updateStudentFinance);
+router.post("/student-finance/:id/payment",  recordStudentPayment);
 // Staff Salary
 router.get(
   "/staff-salary",

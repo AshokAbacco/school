@@ -65,34 +65,46 @@ export const getUniversityStudentFinance = async (req, res) => {
       personalInfos.map((p) => [p.studentId, p.gender])
     );
 
-    const normalized = data.map((s) => ({
-      id: String(s.id),
-      studentId: s.studentId || null,
+  const normalized = data.map((s) => ({
+    id: String(s.id),
+    studentId: s.studentId || null,
 
-      name: s.name,
-      email: s.email,
-      phone: s.phone,
+    name: s.name,
+    email: s.email,
+    phone: s.phone,
 
-      gender: s.gender || genderMap[s.studentId] || null,
+    gender: s.gender || genderMap[s.studentId] || null,
 
-      course: s.course || null,
+    course: s.course || null,
+    address: s.address || null,
+    feeDate: s.feeDate || null,
+    feeBreakdown: s.feeBreakdown || null,
 
-      fees: Number(s.fees || 0),
-      paidAmount: Number(s.paidAmount || 0),
+    fees: Number(s.fees || 0),
+    paidAmount: Number(s.paidAmount || 0),
+    dueAmount: Number(s.fees || 0) - Number(s.paidAmount || 0),
 
-      dueAmount: Number(s.fees || 0) - Number(s.paidAmount || 0),
+    paymentMode: s.paymentMode || null,
+    paymentDate: s.paymentDate || null,
+    paymentStatus: s.paymentStatus || null,
 
-      paymentMode: s.paymentMode || null,
-      paymentDate: s.paymentDate || null,
+    // ── Per-category paid amounts ──────────────────────
+    schoolFeePaid:    Number(s.schoolFeePaid    || 0),
+    tuitionFeePaid:   Number(s.tuitionFeePaid   || 0),
+    examFeePaid:      Number(s.examFeePaid      || 0),
+    transportFeePaid: Number(s.transportFeePaid || 0),
+    booksFeePaid:     Number(s.booksFeePaid     || 0),
+    labFeePaid:       Number(s.labFeePaid       || 0),
+    miscFeePaid:      Number(s.miscFeePaid      || 0),
 
-      school: {
-        id: s.school?.id,
-        name: s.school?.name,
-        code: s.school?.code,
-      },
+    school: {
+      id: s.school?.id,
+      name: s.school?.name,
+      code: s.school?.code,
+    },
 
-      createdAt: s.createdAt,
-    }));
+    createdAt: s.createdAt,
+  }));
 
     return res.status(200).json({
       success: true,
@@ -505,5 +517,134 @@ export const debugUniversityChain = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD THESE TWO HANDLERS to superAdminFinance.controller.js
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── 4. UPDATE STUDENT LIST RECORD ────────────────────────────────────────────
+// PATCH /api/superadmin-finance/student-finance/:id
+export const updateStudentFinance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const universityId = req.user?.universityId;
+
+    if (!universityId) {
+      return res.status(400).json({ success: false, message: "universityId missing in token" });
+    }
+
+    // Verify this student belongs to the university before updating
+    const existing = await prisma.studentList.findFirst({
+      where: {
+        id:        Number(id),
+        deletedAt: null,
+        school:    { universityId },
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Student record not found or access denied" });
+    }
+
+    const {
+      name, email, phone, course, address, gender,
+      fees, paidAmount, paymentMode, paymentDate,
+    } = req.body;
+
+    const updated = await prisma.studentList.update({
+      where: { id: Number(id) },
+      data: {
+        ...(name        !== undefined && { name }),
+        ...(email       !== undefined && { email }),
+        ...(phone       !== undefined && { phone }),
+        ...(course      !== undefined && { course }),
+        ...(address     !== undefined && { address }),
+        ...(gender      !== undefined && { gender }),
+        ...(fees        !== undefined && { fees:       Number(fees) }),
+        ...(paidAmount  !== undefined && { paidAmount: Number(paidAmount) }),
+        ...(paymentMode !== undefined && { paymentMode }),
+        ...(paymentDate !== undefined && paymentDate && { paymentDate: new Date(paymentDate) }),
+      },
+    });
+
+    return res.json({ success: true, data: updated });
+  } catch (error) {
+    console.error("[superAdminFinance] updateStudentFinance:", error);
+    return res.status(500).json({ success: false, message: "Failed to update student", error: error.message });
+  }
+};
+
+// ── 5. RECORD A PAYMENT ───────────────────────────────────────────────────────
+// POST /api/superadmin-finance/student-finance/:id/payment
+//
+// Body: { amount: number, paymentMode: string, category: string }
+// category examples: "FULL" | "SCHOOL" | "TUITION" | "EXAM" | "TRANSPORT" | "BOOKS" | "LAB" | "MISC"
+//
+// Increments paidAmount + the matching category column, then logs to StudentFeePayment.
+export const recordStudentPayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const universityId = req.user?.universityId;
+
+    if (!universityId) {
+      return res.status(400).json({ success: false, message: "universityId missing in token" });
+    }
+
+    const existing = await prisma.studentList.findFirst({
+      where: { id: Number(id), deletedAt: null, school: { universityId } },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Student record not found or access denied" });
+    }
+
+    const { amount, paymentMode = "CASH", category = "FULL" } = req.body;
+    const amt = Number(amount || 0);
+
+    if (amt <= 0) {
+      return res.status(400).json({ success: false, message: "Amount must be greater than 0" });
+    }
+
+    // Map category string → prisma column name
+    const categoryColumnMap = {
+      SCHOOL:    "schoolFeePaid",
+      TUITION:   "tuitionFeePaid",
+      EXAM:      "examFeePaid",
+      TRANSPORT: "transportFeePaid",
+      BOOKS:     "booksFeePaid",
+      LAB:       "labFeePaid",
+      MISC:      "miscFeePaid",
+    };
+    const catCol = categoryColumnMap[category.toUpperCase()] || null;
+
+    const newPaidAmount = Number(existing.paidAmount || 0) + amt;
+
+    const updated = await prisma.studentList.update({
+      where: { id: Number(id) },
+      data: {
+        paidAmount:   newPaidAmount,
+        paymentMode,
+        paymentDate:  new Date(),
+        paymentStatus: newPaidAmount >= Number(existing.fees || 0) ? "PAID" : "PARTIAL",
+        ...(catCol ? { [catCol]: { increment: amt } } : {}),
+      },
+    });
+
+    // Log to StudentFeePayment table
+    await prisma.studentFeePayment.create({
+      data: {
+        studentListId: Number(id),
+        amount:        amt,
+        category:      category.toUpperCase(),
+        paymentMode,
+      },
+    });
+
+    return res.json({ success: true, data: updated, recorded: amt });
+  } catch (error) {
+    console.error("[superAdminFinance] recordStudentPayment:", error);
+    return res.status(500).json({ success: false, message: "Failed to record payment", error: error.message });
   }
 };
