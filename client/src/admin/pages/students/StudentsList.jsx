@@ -1346,26 +1346,29 @@ function StudentsList() {
 
   const level0Items = useMemo(() => {
     if (!classSections.length) return [];
-    if (schoolType === "SCHOOL") {
-      const gradeMap = {};
-      classSections.forEach((cs) => {
-        const num = cs.grade?.match(/\d+/)?.[0];
-        if (!num) return;
-        if (!gradeMap[num]) gradeMap[num] = [];
-        gradeMap[num].push(cs);
-      });
-      return Object.keys(gradeMap)
-        .sort((a, b) => parseInt(a) - parseInt(b))
-        .map((num) => ({
-          id: `grade-${num}`,
-          label: `Grade ${num}`,
-          sublabel: `${gradeMap[num].length} section${gradeMap[num].length !== 1 ? "s" : ""}`,
-          chips: gradeMap[num].map((s) => s.section).filter(Boolean),
-          icon: GraduationCap,
-          children: gradeMap[num],
-          isLeafGroup: true,
-        }));
-    }
+   if (schoolType === "SCHOOL") {
+  const gradeMap = {};
+
+  classSections.forEach((cs) => {
+    const grade = cs.grade?.trim();
+    if (!grade) return;
+
+    if (!gradeMap[grade]) gradeMap[grade] = [];
+    gradeMap[grade].push(cs);
+  });
+
+  return Object.keys(gradeMap)
+    .sort((a, b) => a.localeCompare(b))
+    .map((grade) => ({
+      id: `grade-${grade}`,
+      label: grade,
+      sublabel: `${gradeMap[grade].length} section${gradeMap[grade].length !== 1 ? "s" : ""}`,
+      chips: gradeMap[grade].map((s) => s.section).filter(Boolean),
+      icon: GraduationCap,
+      children: gradeMap[grade],
+      isLeafGroup: true,
+    }));
+}
     if (schoolType === "PUC") {
       const streamMap = {};
       classSections.forEach((cs) => {
@@ -1421,7 +1424,9 @@ function StudentsList() {
   const buildLevel1Items = useCallback(
     (children) => {
       if (schoolType === "SCHOOL")
-        return children.map((cs) => ({
+      return children
+        .filter((cs) => cs.section && cs.section.trim() !== "")
+        .map((cs) => ({
           id: cs.id,
           label: `Section ${cs.section}`,
           sublabel: cs.name,
@@ -1660,19 +1665,37 @@ function StudentsList() {
       ? navStack.length
       : navStack.length + 1;
 
-  const handleLevel0Select = (item) => {
-    if (item.isLeaf) {
-      setNavStack([{ label: item.label, icon: item.icon }]);
-      setSelectedSection(item.sectionObj);
-      setStudents([]);
-      setPage(1);
-    } else {
+    const handleLevel0Select = (item) => {
+      if (item.isLeaf) {
+        setNavStack([{ label: item.label, icon: item.icon }]);
+        setSelectedSection(item.sectionObj);
+        setStudents([]);
+        setPage(1);
+        return;
+      }
+
+      // SCHOOL: check whether class has sections
+      if (schoolType === "SCHOOL") {
+        const hasSections = item.children.some(
+          (cs) => cs.section && cs.section.trim() !== ""
+        );
+
+        // No sections → open students directly
+        if (!hasSections && item.children.length > 0) {
+          setNavStack([{ label: item.label, icon: item.icon }]);
+          setSelectedSection(item.children[0]);
+          setStudents([]);
+          setPage(1);
+          return;
+        }
+      }
+
       const l1 = buildLevel1Items(item.children);
       setLevel1Items(l1);
       setNavStack([{ label: item.label, icon: item.icon }]);
       setSelectedSection(null);
-    }
-  };
+    };
+
   const handleLevel1Select = (item) => {
     if (item.isLeaf) {
       setNavStack((p) => [

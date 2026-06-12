@@ -486,7 +486,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         // Restore cascade
         if (cs) {
           if (schoolType === "SCHOOL") {
-            setSelectedGrade(cs.grade?.replace("Grade ", "") || "");
+            setSelectedGrade(cs.grade || "");
             setSelectedSectionLetter(cs.section || "");
           } else if (schoolType === "PUC") {
             setSelectedGrade(cs.grade || "");
@@ -522,28 +522,29 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   // ── Cascade derived data ──────────────────────────────────────────────────
   const schoolGrades = useMemo(() => {
     if (schoolType !== "SCHOOL") return [];
-    const nums = [
+
+    return [
       ...new Set(
         classSections
-          .map((cs) => {
-            const m = cs.grade?.match(/\d+/);
-            return m ? parseInt(m[0]) : null;
-          })
-          .filter(Boolean),
+          .map((cs) => cs.grade?.trim())
+          .filter(Boolean)
       ),
-    ].sort((a, b) => a - b);
-    return nums;
+    ].sort((a, b) => a.localeCompare(b));
   }, [classSections, schoolType]);
 
   const schoolSections = useMemo(() => {
     if (schoolType !== "SCHOOL" || !selectedGrade) return [];
+
     return classSections.filter(
-      (cs) =>
-        cs.grade === `Grade ${selectedGrade}` || // stored as "Grade 1"
-        cs.grade === String(selectedGrade) || // stored as "1"
-        cs.grade === `${selectedGrade}`, // any other plain format
+      (cs) => cs.grade?.trim() === selectedGrade?.trim()
     );
   }, [classSections, schoolType, selectedGrade]);
+
+  const hasSections = useMemo(() => {
+    return schoolSections.some(
+      (s) => s.section && s.section.trim() !== ""
+    );
+  }, [schoolSections]);
 
   const pucGrades = useMemo(() => {
     if (schoolType !== "PUC") return [];
@@ -676,17 +677,30 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   // ── Auto-resolve classSectionId ───────────────────────────────────────────
   useEffect(() => {
     if (schoolType === "SCHOOL") {
-      if (!selectedGrade || !selectedSectionLetter) {
+      if (!selectedGrade) {
         setF((p) => ({ ...p, classSectionId: "" }));
         return;
       }
-      const match = classSections.find(
+
+      if (!hasSections) {
+        const match = schoolSections[0];
+
+        setF((p) => ({
+          ...p,
+          classSectionId: match?.id || "",
+        }));
+
+        return;
+      }
+
+      if (!selectedSectionLetter) {
+        setF((p) => ({ ...p, classSectionId: "" }));
+        return;
+      }
+     const match = classSections.find(
         (cs) =>
-          (cs.grade === `Grade ${selectedGrade}` ||
-            cs.grade === String(selectedGrade) ||
-            cs.grade === `${selectedGrade}`) &&
-          (cs.section === selectedSectionLetter ||
-            cs.id === selectedSectionLetter),
+          cs.grade?.trim() === selectedGrade?.trim() &&
+          cs.section === selectedSectionLetter
       );
       setF((p) => ({ ...p, classSectionId: match?.id || "" }));
     }
@@ -1160,78 +1174,99 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
   // ── Academic cascade picker ───────────────────────────────────────────────
   const renderAcademicCascade = () => {
-    if (schoolType === "SCHOOL") {
-      return (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-1">
-            <div
-              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-              style={{ background: COLORS.primary }}
-            >
-              1
-            </div>
-            <p
-              className="text-xs font-bold"
-              style={{ color: COLORS.secondary }}
-            >
-              Select Grade & Section
-            </p>
+  if (schoolType === "SCHOOL") {
+    const hasSections = schoolSections.some(
+      (cs) => cs.section && cs.section.trim() !== ""
+    );
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <div
+            className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+            style={{ background: COLORS.primary }}
+          >
+            1
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <StyledSelect
-              label="Grade *"
-              value={selectedGrade}
-              onChange={(e) => {
-                setSelectedGrade(e.target.value);
-                setSelectedSectionLetter("");
-              }}
-            >
-              <option value="">
-                {loadingDropdowns ? "Loading…" : "Select grade"}
+          <p
+            className="text-xs font-bold"
+            style={{ color: COLORS.secondary }}
+          >
+            Select Class
+          </p>
+        </div>
+
+        <div
+          className={`grid gap-4 ${
+            hasSections
+              ? "grid-cols-1 sm:grid-cols-2"
+              : "grid-cols-1"
+          }`}
+        >
+          <StyledSelect
+            label="Class *"
+            value={selectedGrade}
+            onChange={(e) => {
+              setSelectedGrade(e.target.value);
+              setSelectedSectionLetter("");
+            }}
+          >
+            <option value="">
+              {loadingDropdowns ? "Loading…" : "Select class"}
+            </option>
+
+            {schoolGrades.map((g) => (
+              <option key={g} value={g}>
+                {g}
               </option>
-              {schoolGrades.map((g) => (
-                <option key={g} value={g}>
-                  Grade {g}
-                </option>
-              ))}
-            </StyledSelect>
+            ))}
+          </StyledSelect>
+
+          {hasSections && (
             <StyledSelect
               label="Section *"
               value={selectedSectionLetter}
-              onChange={(e) => setSelectedSectionLetter(e.target.value)}
+              onChange={(e) =>
+                setSelectedSectionLetter(e.target.value)
+              }
               disabled={!selectedGrade}
             >
               <option value="">
                 {!selectedGrade
-                  ? "Select grade first"
+                  ? "Select class first"
                   : schoolSections.length === 0
                     ? "No sections"
                     : "Select section"}
               </option>
+
               {schoolSections.map((cs) => (
                 <option key={cs.id} value={cs.section}>
-                  Section {cs.section}
+                  {cs.section}
                 </option>
               ))}
             </StyledSelect>
-          </div>
-          {f.classSectionId && resolvedSection && (
-            <div
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
-              style={{
-                background: "rgba(136,189,242,0.12)",
-                color: COLORS.primary,
-                border: `1px solid ${COLORS.border}`,
-              }}
-            >
-              <BookOpen size={12} />
-              Assigned:{" "}
-              <span className="font-bold ml-1">{resolvedSection.name}</span>
-            </div>
           )}
         </div>
-      );
-    }
+
+        {f.classSectionId && resolvedSection && (
+          <div
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
+            style={{
+              background: "rgba(136,189,242,0.12)",
+              color: COLORS.primary,
+              border: `1px solid ${COLORS.border}`,
+            }}
+          >
+            <BookOpen size={12} />
+            Assigned:
+            <span className="font-bold ml-1">
+              {resolvedSection.name}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
 
     if (schoolType === "PUC") {
       return (

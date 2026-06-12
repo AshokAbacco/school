@@ -28,9 +28,10 @@
     const num = parseInt((grade || "").replace(/\D/g, ""));
 
     if (schoolType === "SCHOOL") {
-      if (isNaN(num) || num < 1 || num > 10)
-        return "School only allows Grade 1 to Grade 10";
-    }
+        if (!grade?.trim()) {
+          return "Class name is required";
+        }
+      }
 
     if (schoolType === "PUC") {
       if (isNaN(num) || (num !== 11 && num !== 12))

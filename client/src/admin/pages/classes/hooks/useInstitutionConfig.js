@@ -7,20 +7,18 @@ import { getUser } from "../../../../auth/storage";
 
 const CONFIGS = {
   SCHOOL: {
-    gradeLabel: "Grade",
-    gradesLabel: "Grades",
+    gradeLabel: "Class",
+    gradesLabel: "Classes",
     sectionLabel: "Section",
     studentLabel: "Student",
     studentsLabel: "Students",
 
-    gradeInputType: "number",
-    gradePrefix: "Grade",
-    gradeMin: 1,
-    gradeMax: 10,
-    gradeOptions: Array.from({ length: 10 }, (_, i) => ({
-      value: `Grade ${i + 1}`,
-      label: `Grade ${i + 1}`,
-    })),
+    gradeInputType: "text",
+    gradePrefix: "",
+    gradeMin: null,
+    gradeMax: null,
+
+    gradeOptions: [],
 
     showStream: false,
     showCourse: false,
@@ -112,7 +110,7 @@ const CONFIGS = {
       "promotion",
     ],
   },
-
+ 
   DEGREE: {
     gradeLabel: "Semester",
     gradesLabel: "Semesters",

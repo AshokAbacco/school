@@ -113,7 +113,7 @@ function BulkRow({ row, onChange, onRemove }) {
   return (
     <div className="flex items-center gap-2">
       <input
-        placeholder="Section (e.g. A)"
+        placeholder="Section (Optional)"
         value={row.section}
         onChange={(e) => onChange("section", e.target.value)}
         style={{ ...IS, flex: 1 }}
@@ -192,7 +192,6 @@ export default function CreateSectionsPage() {
   const [bRows, setBRows] = useState([
     { id: 1, section: "A", capacity: "" },
     { id: 2, section: "B", capacity: "" },
-    { id: 3, section: "C", capacity: "" },
   ]);
 
   // Activate modal
@@ -346,14 +345,13 @@ export default function CreateSectionsPage() {
         msg: "Branch is required for this course",
       });
 
-    const sections = bRows
-      .filter((r) => r.section.trim())
-      .map((r) => ({
-        section: r.section.trim(),
+      const sections = bRows.map((r) => ({
+        section: r.section?.trim() || null,
         capacity: r.capacity ? Number(r.capacity) : undefined,
       }));
-    if (sections.length === 0)
-      return setToast({ type: "error", msg: "Add at least one section" });
+
+      if (sections.length === 0)
+        return setToast({ type: "error", msg: "Add at least one class" });
 
     setSaving(true);
     try {
@@ -490,13 +488,15 @@ export default function CreateSectionsPage() {
         const errs = [];
         dataRows.forEach((r, i) => {
           const grade = String(r[0] ?? "").trim();
-          const section = String(r[1] ?? "").trim();
+          const section = String(r[1] ?? "").trim() || null;
           const capacity = r[2] !== "" ? Number(r[2]) : undefined;
           const streamOrCourse = String(r[3] ?? "").trim();
           const branch = String(r[4] ?? "").trim();
+          if (!grade) {
+            errs.push(`Row ${i + 1}: Grade is required`);
+            return;
+          }
 
-          if (!grade) { errs.push(`Row ${i + 1}: Grade is required`); return; }
-          if (!section) { errs.push(`Row ${i + 1}: Section is required`); return; }
           if (capacity !== undefined && (isNaN(capacity) || capacity < 1)) {
             errs.push(`Row ${i + 1}: Capacity must be a positive number`);
             return;
@@ -777,7 +777,7 @@ export default function CreateSectionsPage() {
               ) : (
                 <Inp
                   label={`${gradeLabel} *`}
-                  placeholder="e.g. 1–10"
+                  placeholder="e.g. lkg, ukg, nursery, grade 1"
                   value={sForm.grade}
                   onChange={(e) =>
                     setSForm((f) => ({ ...f, grade: e.target.value }))
@@ -787,7 +787,7 @@ export default function CreateSectionsPage() {
 
               {/* ── Section ────────────────────────────────────────────────── */}
               <Inp
-                label="Section *"
+                label="Section (Optional)"
                 placeholder="e.g. A, B, 1"
                 value={sForm.section}
                 onChange={(e) =>
@@ -964,7 +964,7 @@ export default function CreateSectionsPage() {
               ) : (
                 <Inp
                   label={`${gradeLabel} *`}
-                  placeholder="e.g. 1–10"
+                  placeholder="e.g. lkg, ukg, nursery, grade 1"
                   value={bGrade}
                   onChange={(e) => setBGrade(e.target.value)}
                   style={{ maxWidth: 220 }}
@@ -1049,7 +1049,7 @@ export default function CreateSectionsPage() {
               ) : (
                 <GraduationCap size={14} />
               )}
-              Create {bRows.filter((r) => r.section).length} Section(s)
+              Create {bRows.length} Class(es)
             </button>
           </div>
         )}
