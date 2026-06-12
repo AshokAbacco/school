@@ -18,10 +18,20 @@ import React, { useState, useEffect } from "react";
 const API_URL = import.meta.env.VITE_API_URL;
 const BASE    = `${API_URL}/api/biometric`;
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+const getToken = () => {
+  try { return JSON.parse(localStorage.getItem("auth"))?.token || null; }
+  catch { return null; }
+};
+const authHeaders = (extra = {}) => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${getToken()}`,
+  ...extra,
+});
 
+// ─── API helpers ──────────────────────────────────────────────────────────────
 async function apiFetch(url) {
-  const res  = await fetch(url);
+  const res  = await fetch(url, { headers: authHeaders() });
   const json = await res.json();
   if (!res.ok) throw new Error(json.message || "Request failed");
   return json.data;
@@ -30,7 +40,7 @@ async function apiFetch(url) {
 async function apiPost(url, body) {
   const res = await fetch(url, {
     method:  "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body:    JSON.stringify(body),
   });
   const json = await res.json();
@@ -39,7 +49,7 @@ async function apiPost(url, body) {
 }
 
 async function apiPatch(url) {
-  const res  = await fetch(url, { method: "PATCH" });
+  const res  = await fetch(url, { method: "PATCH", headers: authHeaders() });
   const json = await res.json();
   if (!res.ok) throw new Error(json.message || "Request failed");
   return json.data;

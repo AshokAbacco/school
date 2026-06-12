@@ -6,6 +6,15 @@ import LogsTab      from "./LogsTab";
 const API_URL = import.meta.env.VITE_API_URL;
 const BASE    = `${API_URL}/api/biometric`;
 
+const getToken = () => {
+  try { return JSON.parse(localStorage.getItem("auth"))?.token || null; }
+  catch { return null; }
+};
+const authHeaders = () => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${getToken()}`,
+});
+
 const TABS = [
   { key: "devices",   label: "Devices"            },
   { key: "mappings",  label: "Enrollment Mapping"  },
@@ -19,7 +28,7 @@ export default function BiometricManagement() {
 
   useEffect(() => {
     setStatsLoading(true);
-    fetch(`${BASE}/stats`)
+    fetch(`${BASE}/stats`, { headers: authHeaders() })
       .then((r) => r.json())
       .then((j) => setStats(j.data || null))
       .catch(() => setStats(null))

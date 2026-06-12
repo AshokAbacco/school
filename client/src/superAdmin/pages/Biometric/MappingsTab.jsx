@@ -28,21 +28,31 @@ const PT_COLOR = {
   FINANCE: { bg: "#FFF1F2", text: "#9F1239", dot: "#F43F5E", border: "#FECDD3" },
 };
 
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+const getToken = () => {
+  try { return JSON.parse(localStorage.getItem("auth"))?.token || null; }
+  catch { return null; }
+};
+const authHeaders = () => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${getToken()}`,
+});
+
 // ─── API helpers ──────────────────────────────────────────────────────────────
 async function apiFetch(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: authHeaders() });
   const json = await res.json();
   if (!res.ok) throw new Error(json.message || "Request failed");
   return json;
 }
 async function apiPost(url, body) {
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const res = await fetch(url, { method: "POST", headers: authHeaders(), body: JSON.stringify(body) });
   const json = await res.json();
   if (!res.ok) throw new Error(json.message || "Request failed");
   return json.data;
 }
 async function apiPatch(url) {
-  const res = await fetch(url, { method: "PATCH" });
+  const res = await fetch(url, { method: "PATCH", headers: authHeaders() });
   const json = await res.json();
   if (!res.ok) throw new Error(json.message || "Request failed");
   return json.data;
@@ -544,6 +554,7 @@ const MappingsTab = ({ isSuperAdmin = true, schoolId: fixedSchoolId = null, curr
                           {deactivating === m.id ? "…" : "Deactivate"}
                         </button>
                       )}
+                      
                       {!m.isActive && m.deactivatedAt && (
                         <span style={{ fontSize: 11, color: "#9CA3AF" }}>{new Date(m.deactivatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</span>
                       )}

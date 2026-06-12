@@ -28,6 +28,11 @@ export const saveAuth = (data) => {
 
     // ✅ IMPORTANT
     planName: data.user?.planName || "Silver",
+      universityId:
+    data.user?.universityId ||
+    data.user?.university?.id ||
+    data.universityId ||
+    null,
   };
 
   const normalized = {

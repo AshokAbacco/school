@@ -34,10 +34,20 @@ const PT_COLOR = {
 
 const PAGE_SIZE = 20;
 
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+const getToken = () => {
+  try { return JSON.parse(localStorage.getItem("auth"))?.token || null; }
+  catch { return null; }
+};
+const authHeaders = () => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${getToken()}`,
+});
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 async function apiFetch(url) {
-  const res  = await fetch(url);
+  const res  = await fetch(url, { headers: authHeaders() });
   const json = await res.json();
   if (!res.ok) throw new Error(json.message || "Request failed");
   return json;   // return full envelope (data + meta)

@@ -1,6 +1,7 @@
 // src/biometric/biometric.routes.js
 
 import express from "express";
+import { requireAuth } from "../middlewares/auth.middleware.js";
 import {
   receivePunch,
   getSchools,
@@ -18,43 +19,34 @@ import {
 
 const router = express.Router();
 
-// ── Health ────────────────────────────────────────────────────────────────────
-router.get("/test", (_req, res) =>
-  res.json({ success: true, message: "Biometric API Working" })
-);
+// ── PUBLIC routes (called by biometric hardware — no JWT) ─────────────────────
+router.get ("/test",  (_req, res) => res.json({ success: true, message: "Biometric API Working" }));
+router.post("/punch", receivePunch);
+
+// ── All routes below require a valid JWT (requireAuth sets req.user) ──────────
+router.use(requireAuth);
 
 // ── Dashboard stats ───────────────────────────────────────────────────────────
 router.get("/stats", getStats);
 
-// ── Device punch (called by biometric hardware) ───────────────────────────────
-router.post("/punch", receivePunch);
-
 // ── Schools & Classes ─────────────────────────────────────────────────────────
-router.get("/schools", getSchools);
-router.get("/classes", getClasses);   // ?schoolId=  → class sections with student counts
+router.get("/schools", getSchools);   // scoped to req.user.universityId
+router.get("/classes", getClasses);   // ?schoolId=
 
 // ── Devices ───────────────────────────────────────────────────────────────────
-// GET  /api/biometric/devices?schoolId=&includeInactive=true
-// POST /api/biometric/devices
-// PATCH /api/biometric/devices/:id/toggle
-router.get   ("/devices",             getDevicesFull);
-router.post  ("/devices",             addDevice);
-router.patch ("/devices/:id/toggle",  toggleDevice);
+router.get   ("/devices",            getDevicesFull);   // ?schoolId=&includeInactive=true
+router.post  ("/devices",            addDevice);
+router.patch ("/devices/:id/toggle", toggleDevice);
 
 // ── Person search ─────────────────────────────────────────────────────────────
-// GET /api/biometric/persons?schoolId=&personType=&q=
-router.get("/persons", searchPersons);
+router.get("/persons", searchPersons);   // ?schoolId=&personType=&q=&classSectionId=
 
 // ── Enrollment mappings ───────────────────────────────────────────────────────
-// GET   /api/biometric/mappings?schoolId=&personType=&isActive=
-// POST  /api/biometric/mappings
-// PATCH /api/biometric/mappings/:id/deactivate
-router.get  ("/mappings",                 getMappings);
-router.post ("/mappings",                 assignMapping);
-router.patch("/mappings/:id/deactivate",  deactivateMapping);
+router.get  ("/mappings",                getMappings);       // ?schoolId=&personType=&isActive=
+router.post ("/mappings",                assignMapping);
+router.patch("/mappings/:id/deactivate", deactivateMapping);
 
 // ── Punch logs ────────────────────────────────────────────────────────────────
-// GET /api/biometric/logs?schoolId=&from=&to=&personType=&mapped=&page=&limit=
-router.get("/logs", getLogs);
+router.get("/logs", getLogs);   // ?schoolId=&from=&to=&personType=&mapped=&page=&limit=
 
 export default router;

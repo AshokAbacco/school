@@ -88,12 +88,18 @@ export const receivePunch = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/biometric/schools
-// Returns all active schools (for Super Admin school picker).
+// Returns only the schools that belong to the logged-in super admin's university.
 // ─────────────────────────────────────────────────────────────────────────────
 export const getSchools = async (req, res) => {
   try {
+    const universityId = req.user?.universityId;
+
+    if (!universityId) {
+      return res.status(400).json({ success: false, message: "universityId missing in token" });
+    }
+
     const schools = await prisma.school.findMany({
-      where: { isActive: true, deletedAt: null },
+      where: { universityId, isActive: true, deletedAt: null },
       select: { id: true, name: true, code: true },
       orderBy: { name: "asc" },
     });
@@ -654,20 +660,34 @@ export const deactivateMapping = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const getStats = async (req, res) => {
   try {
+    const universityId = req.user?.universityId;
+
+    if (!universityId) {
+      return res.status(400).json({ success: false, message: "universityId missing in token" });
+    }
+
+    // Resolve school IDs for this university
+    const schools = await prisma.school.findMany({
+      where: { universityId },
+      select: { id: true },
+    });
+    const schoolIds = schools.map((s) => s.id);
+
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
     const [totalDevices, mappedUsers, todayPunches, unmappedPunches] = await Promise.all([
-      prisma.biometricDevice.count({ where: { isActive: true } }),
-
-      prisma.biometricUserMapping.count({ where: { isActive: true } }),
-
-      prisma.biometricLog.count({
-        where: { punchDateTime: { gte: todayStart } },
+      prisma.biometricDevice.count({
+        where: { isActive: true, schoolId: { in: schoolIds } },
       }),
-
+      prisma.biometricUserMapping.count({
+        where: { isActive: true, schoolId: { in: schoolIds } },
+      }),
       prisma.biometricLog.count({
-        where: { biometricUserMappingId: null },
+        where: { schoolId: { in: schoolIds }, punchDateTime: { gte: todayStart } },
+      }),
+      prisma.biometricLog.count({
+        where: { schoolId: { in: schoolIds }, biometricUserMappingId: null },
       }),
     ]);
 
@@ -752,9 +772,17 @@ export const toggleDevice = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const getDevicesFull = async (req, res) => {
   try {
+    const universityId = req.user?.universityId;
     const { schoolId, includeInactive } = req.query;
 
-    const where = {};
+    if (!universityId) {
+      return res.status(400).json({ success: false, message: "universityId missing in token" });
+    }
+
+    const where = {
+      // Always scope to this university's schools
+      school: { universityId },
+    };
     if (schoolId) where.schoolId = schoolId;
     if (includeInactive !== "true") where.isActive = true;
 
@@ -788,20 +816,23 @@ export const getDevicesFull = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const getLogs = async (req, res) => {
   try {
+    const universityId = req.user?.universityId;
     const {
-      schoolId,
-      from,
-      to,
-      personType,
-      mapped,
-      page  = "1",
-      limit = "20",
+      schoolId, from, to, personType, mapped,
+      page = "1", limit = "20",
     } = req.query;
 
-    const skip  = (parseInt(page)  - 1) * parseInt(limit);
-    const take  = parseInt(limit);
+    if (!universityId) {
+      return res.status(400).json({ success: false, message: "universityId missing in token" });
+    }
 
-    const where = {};
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+
+    // Scope to this university's schools
+    const where = {
+      school: { universityId },
+    };
 
     if (schoolId)   where.schoolId   = schoolId;
     if (personType && personType !== "ALL") where.personType = personType;
