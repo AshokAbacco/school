@@ -554,6 +554,7 @@ const MappingsTab = ({ isSuperAdmin = true, schoolId: fixedSchoolId = null, curr
                           {deactivating === m.id ? "…" : "Deactivate"}
                         </button>
                       )}
+                      
                       {!m.isActive && m.deactivatedAt && (
                         <span style={{ fontSize: 11, color: "#9CA3AF" }}>{new Date(m.deactivatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</span>
                       )}
