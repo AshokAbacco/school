@@ -140,12 +140,11 @@ export default function AttendanceConfig({ schoolId }) {
               Read from your Timetable Configuration
             </p>
           </div>
-          <a
-            href="/admin/timetable"
+          <div
             className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
           >
-            Edit in Timetable <ExternalLink size={11} />
-          </a>
+            Edit TimeTable In Admin Login
+          </div>
         </div>
 
         {noTimetable ? (
