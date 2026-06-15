@@ -341,6 +341,10 @@ model School {
   biometricUserMappings  BiometricUserMapping[]
   biometricLogs          BiometricLog[]
 
+  payrollConfig      SchoolPayrollConfig?
+  teacherAttendances TeacherDailyAttendance[]
+  teacherPayrolls    TeacherMonthlyPayroll[]
+
   @@index([universityId])
   @@index([type])
   @@index([code])
@@ -561,6 +565,11 @@ model User {
 
   biometricLogs         BiometricLog[]
   biometricUserMappings BiometricUserMapping[]
+
+  attendancesCorrected TeacherDailyAttendance[] @relation("AttendanceCorrectedBy")
+  auditLogsPerformed   AttendanceAuditLog[]     @relation("AuditPerformedBy")
+  payrollsLocked       TeacherMonthlyPayroll[]  @relation("PayrollLockedBy")
+  payrollsGenerated    TeacherMonthlyPayroll[]  @relation("PayrollGeneratedBy")
 
   biometricAssignedMappings BiometricUserMapping[] @relation("BiometricAssignedBy")
 
@@ -876,6 +885,8 @@ model TeacherProfile {
   TeacherTutorialProfile TeacherTutorialProfile[]
   biometricUserMappings  BiometricUserMapping[]
   biometricLogs          BiometricLog[]
+  dailyAttendances       TeacherDailyAttendance[]
+  monthlyPayrolls        TeacherMonthlyPayroll[]
 
   @@index([schoolId])
   @@index([department])
@@ -3537,4 +3548,198 @@ model BiometricUserMapping {
   @@index([enrollmentId])
   @@index([schoolId, enrollmentId])
   @@index([isActive])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PRISMA SCHEMA ADDITIONS — Biometric Teacher Payroll System
+// Add these models to your existing schema.prisma
+//
+// ⚠️  SchoolAttendanceConfig is NOT added here.
+//     School timings (start time, end time, required hours) are derived
+//     from the EXISTING TimetableConfig → PeriodDefinition models.
+//     First PERIOD startTime = school start.
+//     Last  PERIOD endTime   = school end.
+//     No duplication of timing data.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. SCHOOL PAYROLL CONFIG  (grace periods only — timing comes from TimetableConfig)
+// ─────────────────────────────────────────────────────────────────────────────
+model SchoolPayrollConfig {
+  id       String @id @default(cuid())
+  schoolId String @unique
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // Grace periods (minutes)
+  lateGraceMinutes      Int @default(15)
+  earlyExitGraceMinutes Int @default(15)
+
+  // Worked-time thresholds as fraction of gross school hours (from timetable)
+  halfDayThresholdPct Float @default(0.5)
+  absentThresholdPct  Float @default(0.25)
+
+  // Leave quotas per year (0 = unlimited / not enforced)
+  casualLeavePerYear Int @default(12)
+  sickLeavePerYear   Int @default(6)
+  earnedLeavePerYear Int @default(0)
+
+  updatedAt     DateTime @updatedAt
+  updatedById   String?
+  updatedByName String?
+
+  @@map("school_payroll_configs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. TEACHER DAILY ATTENDANCE
+//    One record per teacher per calendar day — the finalized attendance record.
+//    Salary is NEVER calculated from raw BiometricLog — always from this table.
+// ─────────────────────────────────────────────────────────────────────────────
+model TeacherDailyAttendance {
+  id        String         @id @default(cuid())
+  schoolId  String
+  school    School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  date          DateTime // midnight IST of the calendar day (stored as UTC)
+  firstPunch    DateTime? // MIN(punchDateTime) for the day
+  lastPunch     DateTime? // MAX(punchDateTime) for the day
+  workedMinutes Int? // (lastPunch - firstPunch) in minutes
+
+  status                 PayrollAttendanceStatus
+  isLate                 Boolean                 @default(false)
+  lateMinutes            Int? // minutes past grace period
+  isLateExcused          Boolean                 @default(false)
+  isMissingPunchReviewed Boolean                 @default(false)
+
+  // Manual correction tracking
+  originalStatus PayrollAttendanceStatus? // status before first correction
+  correctedAt    DateTime?
+  correctedById  String?
+  correctedBy    User?                    @relation("AttendanceCorrectedBy", fields: [correctedById], references: [id])
+
+  // Leave fields (set when admin marks ON_LEAVE)
+  leaveType       String? // CASUAL | SICK | EARNED | OTHER
+  leaveReason     String? // admin notes
+  isLeaveDeducted Boolean @default(true) // true = cut salary, false = paid leave (no deduction)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AttendanceAuditLog[]
+
+  @@unique([teacherId, date])
+  @@index([schoolId, date])
+  @@index([teacherId, date])
+  @@index([schoolId, status])
+  @@map("teacher_daily_attendance")
+}
+
+// Separate enum name to avoid clash with existing AttendanceStatus / TeacherAttendanceStatus
+enum PayrollAttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LATE
+  MISSING_PUNCH
+  HOLIDAY
+  PENDING
+  ON_LEAVE
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. ATTENDANCE AUDIT LOG — immutable, append-only
+// ─────────────────────────────────────────────────────────────────────────────
+model AttendanceAuditLog {
+  id           String                 @id @default(cuid())
+  attendanceId String
+  attendance   TeacherDailyAttendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+
+  action             AttendanceAuditAction
+  previousStatus     PayrollAttendanceStatus?
+  newStatus          PayrollAttendanceStatus?
+  previousFirstPunch DateTime?
+  newFirstPunch      DateTime?
+  previousLastPunch  DateTime?
+  newLastPunch       DateTime?
+  reason             String?
+  performedById      String?
+  performedByName    String?
+  performedBy        User?                    @relation("AuditPerformedBy", fields: [performedById], references: [id])
+  performedAt        DateTime                 @default(now())
+
+  @@index([attendanceId])
+  @@map("attendance_audit_logs")
+}
+
+enum AttendanceAuditAction {
+  APPROVE_PRESENT
+  MARK_LATE
+  MARK_HALF_DAY
+  MARK_ABSENT
+  EXCUSE_LATE
+  UPDATE_IN_TIME
+  UPDATE_OUT_TIME
+  UPDATE_STATUS
+  SYSTEM_CALCULATED
+  MISSING_PUNCH_REVIEWED
+  MARK_ON_LEAVE
+  MARK_SCHOOL_HOLIDAY
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. TEACHER MONTHLY PAYROLL
+//    Generated from TeacherDailyAttendance — never from BiometricLog directly.
+//    Locked payrolls cannot be regenerated.
+// ─────────────────────────────────────────────────────────────────────────────
+model TeacherMonthlyPayroll {
+  id        String         @id @default(cuid())
+  schoolId  String
+  school    School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  month Int // 1–12
+  year  Int
+
+  // Calendar breakdown
+  totalDays    Int
+  sundayCount  Int
+  holidayCount Int
+  workingDays  Int // totalDays - sundays - holidays
+
+  // Attendance summary (copied from TeacherDailyAttendance at generation time)
+  presentDays      Int @default(0)
+  lateDays         Int @default(0)
+  halfDays         Int @default(0)
+  absentDays       Int @default(0)
+  holidayDays      Int @default(0)
+  missingPunchDays Int @default(0)
+  paidLeaveDays    Int @default(0) // ON_LEAVE where isLeaveDeducted = false
+  unpaidLeaveDays  Int @default(0) // ON_LEAVE where isLeaveDeducted = true
+
+  // Salary
+  monthlySalary    Decimal @db.Decimal(12, 2)
+  dailySalary      Decimal @db.Decimal(12, 2)
+  absentDeduction  Decimal @default(0) @db.Decimal(12, 2)
+  halfDayDeduction Decimal @default(0) @db.Decimal(12, 2)
+  lateDeduction    Decimal @default(0) @db.Decimal(12, 2)
+  leaveDeduction   Decimal @default(0) @db.Decimal(12, 2) // unpaid leave deduction
+  totalDeduction   Decimal @default(0) @db.Decimal(12, 2)
+  netSalary        Decimal @db.Decimal(12, 2)
+
+  isLocked   Boolean   @default(false)
+  lockedAt   DateTime?
+  lockedById String?
+  lockedBy   User?     @relation("PayrollLockedBy", fields: [lockedById], references: [id])
+
+  generatedAt   DateTime @default(now())
+  generatedById String?
+  generatedBy   User?    @relation("PayrollGeneratedBy", fields: [generatedById], references: [id])
+  updatedAt     DateTime @updatedAt
+
+  @@unique([teacherId, month, year])
+  @@index([schoolId, month, year])
+  @@map("teacher_monthly_payrolls")
 }

@@ -46,6 +46,7 @@ import reEvaluationRequestRoutes from "./staffRoutes/reEvaluationRequestRoutes.j
 import superAdminActivityRoute from "./staffRoutes/superAdminActivityRoute.js";
 import superAdminFinanceRoutes from "./staffRoutes/superAdminFinance.routes.js";
 import superAdminExamsRoutes from "./staffRoutes/superAdminExams.routes.js";
+import payrollRoutes from "./payroll/routes/payroll.routes.js";
 
 
 import logoRoutes from "./utils/logoRoutes.js";
@@ -158,6 +159,7 @@ staff.use(
   "/api/superadmin-exams",
   superAdminExamsRoutes
 );
+staff.use("/api/payroll", payrollRoutes); 
 staff.use(
   "/api/superadmin/activities",
   superAdminActivityRoute
