@@ -10,7 +10,7 @@ import Addstudent from "./Addstudent";
 import { PayModal } from "../../../finance/pages/Studentfinance/PayModal";
 import { InvoiceModal } from "./FeesInvoce.jsx";
 import { downloadStudentFinanceExcel } from "../../../utils/downloadStudentFinanceExcel.js";
-import { FaWhatsapp } from "react-icons/fa";
+import { FaWhatsapp, FaPhone } from "react-icons/fa";
 import { useSchoolLogo } from "../../../hooks/useSchoolLogo";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -250,6 +250,123 @@ function ReceiptConfirmModal({ student, onClose, onConfirm }) {
     );
 }
 
+function VoiceCallConfirmModal({
+    student,
+    onClose,
+    onConfirm
+}) {
+    return (
+        <div className="inv-overlay" onClick={onClose}>
+            <div
+                style={{
+                    background: "#fff",
+                    borderRadius: 16,
+                    width: "100%",
+                    maxWidth: 340,
+                    overflow: "hidden",
+                    boxShadow: "0 16px 40px rgba(0,0,0,.22)"
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div
+                    style={{
+                        background:
+                            "linear-gradient(135deg,#1C3044,#27435B)",
+                        padding: "16px 20px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 10,
+                            background: "rgba(255,255,255,.14)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                        }}
+                    >
+                        <FaPhone size={18} color="#fff" />
+                    </div>
+
+                    <div>
+                        <div
+                            style={{
+                                color: "#fff",
+                                fontWeight: 700
+                            }}
+                        >
+                            Voice Call Reminder
+                        </div>
+
+                        <div
+                            style={{
+                                color: "rgba(255,255,255,.6)",
+                                fontSize: 12
+                            }}
+                        >
+                            Automated Voice Call
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    style={{
+                        padding: "24px 22px",
+                        textAlign: "center"
+                    }}
+                >
+                    <FaPhone
+                        size={28}
+                        color="#2563eb"
+                        style={{ marginBottom: 12 }}
+                    />
+
+                    <p>
+                        Send voice fee reminder to
+                        <strong> {student.name}</strong> ?
+                    </p>
+                </div>
+
+                <div
+                    style={{
+                        padding: "20px",
+                        display: "flex",
+                        gap: 10
+                    }}
+                >
+                    <button
+                        onClick={onClose}
+                        style={{
+                            flex: 1,
+                            padding: 10
+                        }}
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        onClick={onConfirm}
+                        style={{
+                            flex: 1,
+                            padding: 10,
+                            background: "#2563eb",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: 8
+                        }}
+                    >
+                        Call Now
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────────────────────
@@ -269,8 +386,50 @@ export default function StudentFeesPage() {
     const [feeCategory, setFeeCategory] = useState("ALL");
     const [paymentFilter, setPaymentFilter] = useState("ALL");
     const [selectedDate, setSelectedDate] = useState("");
+    const [voiceStudent, setVoiceStudent] = useState(null);
     const schoolLogoUrl = useSchoolLogo();
 
+
+    const handleSendVoiceCall = async () => {
+        if (!voiceStudent) return;
+
+        try {
+            const auth = JSON.parse(localStorage.getItem("auth"));
+            const token = auth?.token;
+
+            const response = await fetch(
+                `${API_URL}/api/voice/send-fee-voice`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        phone: voiceStudent.phone,
+                        studentName: voiceStudent.name,
+                        pendingAmount:
+                            Number(voiceStudent.fees || 0) -
+                            Number(voiceStudent.paidAmount || 0),
+                        schoolName: schoolInfo.name,
+                    }),
+                }
+            );
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert("✅ Voice call sent successfully");
+            } else {
+                alert(data.message || "Voice call failed");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Failed to send voice call");
+        }
+
+        setVoiceStudent(null);
+    };
 
     useEffect(() => {
         if (!window.jspdf) {
@@ -374,46 +533,46 @@ export default function StudentFeesPage() {
     };
 
     const handleSendReceipt = async (student) => {
-    try {
-        // Step 1: generate PDF as a Blob (same logic as handleDownload)
-        if (!window.jspdf) {
-        alert("PDF library not loaded yet. Please try again in a moment.");
-        return;
-        }
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        try {
+            // Step 1: generate PDF as a Blob (same logic as handleDownload)
+            if (!window.jspdf) {
+                alert("PDF library not loaded yet. Please try again in a moment.");
+                return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-        const W = 210, m = 18;
-        const paidAmount = Number(student.paidAmount || 0);
-        const totalFees  = Number(student.fees || 0);
-        const due = Math.max(0, totalFees - paidAmount);
-        const invoiceNo = `INV-${String(student.id || "").slice(-4).padStart(4, "0")}-${new Date().getFullYear()}`;
-        const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-        let breakdown = null;
-        try { breakdown = student.feeBreakdown ? JSON.parse(student.feeBreakdown) : null; } catch {}
+            const W = 210, m = 18;
+            const paidAmount = Number(student.paidAmount || 0);
+            const totalFees = Number(student.fees || 0);
+            const due = Math.max(0, totalFees - paidAmount);
+            const invoiceNo = `INV-${String(student.id || "").slice(-4).padStart(4, "0")}-${new Date().getFullYear()}`;
+            const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+            let breakdown = null;
+            try { breakdown = student.feeBreakdown ? JSON.parse(student.feeBreakdown) : null; } catch { }
 
-        // Header
-        const schoolName = schoolInfo.name;
-        const schoolAddress = `${schoolInfo.address || ""}${schoolInfo.city ? ", " + schoolInfo.city : ""}`;
-        const headerH = schoolAddress ? 50 : 44;
-        doc.setFillColor(28, 48, 68); doc.rect(0, 0, W, headerH, "F");
-        doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(255, 255, 255);
-        doc.text(schoolName || "Fee Invoice", m, 16);
-        doc.setFontSize(9.5); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 205, 220);
-        doc.text("Fee Invoice & Payment Receipt", m, 25);
-        if (schoolAddress) {
-        doc.setFontSize(8.5); doc.setTextColor(140, 175, 200);
-        doc.text(schoolAddress, m, 33);
-        }
-        doc.setFillColor(255, 255, 255); doc.roundedRect(W - m - 52, 8, 52, 22, 3, 3, "F");
-        doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(28, 48, 68);
-        doc.text("INVOICE", W - m - 26, 16, { align: "center" });
-        doc.setFontSize(10); doc.text(invoiceNo, W - m - 26, 24, { align: "center" });
-        doc.setFillColor(39, 67, 91); doc.rect(0, headerH, W, 10, "F");
-        doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 205, 220);
-        doc.text(`Date: ${today}`, m, headerH + 7);
-        doc.text(`Status: ${due === 0 ? "PAID" : "PARTIALLY PAID"}`, W - m, headerH + 7, { align: "right" });
-    
+            // Header
+            const schoolName = schoolInfo.name;
+            const schoolAddress = `${schoolInfo.address || ""}${schoolInfo.city ? ", " + schoolInfo.city : ""}`;
+            const headerH = schoolAddress ? 50 : 44;
+            doc.setFillColor(28, 48, 68); doc.rect(0, 0, W, headerH, "F");
+            doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(255, 255, 255);
+            doc.text(schoolName || "Fee Invoice", m, 16);
+            doc.setFontSize(9.5); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 205, 220);
+            doc.text("Fee Invoice & Payment Receipt", m, 25);
+            if (schoolAddress) {
+                doc.setFontSize(8.5); doc.setTextColor(140, 175, 200);
+                doc.text(schoolAddress, m, 33);
+            }
+            doc.setFillColor(255, 255, 255); doc.roundedRect(W - m - 52, 8, 52, 22, 3, 3, "F");
+            doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(28, 48, 68);
+            doc.text("INVOICE", W - m - 26, 16, { align: "center" });
+            doc.setFontSize(10); doc.text(invoiceNo, W - m - 26, 24, { align: "center" });
+            doc.setFillColor(39, 67, 91); doc.rect(0, headerH, W, 10, "F");
+            doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 205, 220);
+            doc.text(`Date: ${today}`, m, headerH + 7);
+            doc.text(`Status: ${due === 0 ? "PAID" : "PARTIALLY PAID"}`, W - m, headerH + 7, { align: "right" });
+
             // Student details
             let y = headerH + 18;
             const hasAddress = !!student.address;
@@ -437,97 +596,97 @@ export default function StudentFeesPage() {
 
             // Row 3: Address (full width, only if present)
             if (hasAddress) {
-            doc.setFont("helvetica", "bold"); doc.text("Address:", m + 4, y + 30);
-            doc.setFont("helvetica", "normal");
-            const addrLines = doc.splitTextToSize(student.address, W - m * 2 - 34);
-            doc.text(addrLines, m + 22, y + 30);
+                doc.setFont("helvetica", "bold"); doc.text("Address:", m + 4, y + 30);
+                doc.setFont("helvetica", "normal");
+                const addrLines = doc.splitTextToSize(student.address, W - m * 2 - 34);
+                doc.text(addrLines, m + 22, y + 30);
             }
 
             y += boxHeight + 12;
 
-        // Fee table
-        doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(28, 48, 68);
-        doc.text("FEE SUMMARY", m, y); y += 5;
-        doc.setFillColor(28, 48, 68); doc.rect(m, y, W - m * 2, 9, "F");
-        doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
-        doc.text("Description", m + 4, y + 6); doc.text("Amount (INR)", m + 145, y + 6); y += 9;
-        const rows = breakdown
-        ? Object.entries(breakdown).filter(([k, v]) => k !== "customFees" && Number(v) > 0)
-            .map(([k, v]) => [k.replace(/Fee$/, "").replace(/([A-Z])/g, " $1").trim(), v])
-        : [["Total Fees", totalFees]];
-        rows.forEach(([label, amt], i) => {
-        doc.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 252 : 255, 255);
-        doc.rect(m, y, W - m * 2, 9, "F");
-        doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(30, 50, 70);
-        doc.text(label, m + 4, y + 6);
-        doc.setFont("helvetica", "bold"); doc.text(`Rs. ${Number(amt).toLocaleString("en-IN")}`, m + 145, y + 6); y += 9;
-        });
-        y += 12;
-        const bx = W - m - 80;
-        doc.setFillColor(240, 247, 252); doc.roundedRect(bx, y, 80, 34, 3, 3, "F");
-        doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(80, 100, 120);
-        doc.text("Total Fees:", bx + 4, y + 9);
-        doc.setFont("helvetica", "bold"); doc.setTextColor(28, 48, 68);
-        doc.text(`Rs. ${totalFees.toLocaleString("en-IN")}`, bx + 78, y + 9, { align: "right" });
-        doc.setFont("helvetica", "normal"); doc.setTextColor(80, 100, 120);
-        doc.text("Amount Paid:", bx + 4, y + 18);
-        doc.setFont("helvetica", "bold"); doc.setTextColor(28, 68, 48);
-        doc.text(`Rs. ${paidAmount.toLocaleString("en-IN")}`, bx + 78, y + 18, { align: "right" });
-        doc.setDrawColor(28, 48, 68); doc.setLineWidth(0.5); doc.line(bx + 4, y + 22, bx + 76, y + 22);
-        doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(28, 48, 68);
-        doc.text("Balance Due:", bx + 4, y + 30);
-        doc.setTextColor(due === 0 ? 28 : 180, due === 0 ? 90 : 30, due === 0 ? 50 : 30);
-        doc.text(`Rs. ${due.toLocaleString("en-IN")}`, bx + 78, y + 30, { align: "right" });
-        y = 272;
-        doc.setFillColor(28, 48, 68); doc.rect(0, y, W, 25, "F");
-        doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(180, 205, 220);
-        doc.text(`${schoolName || "School"} · System-generated invoice. No signature required.`, W / 2, y + 9, { align: "center" });
+            // Fee table
+            doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(28, 48, 68);
+            doc.text("FEE SUMMARY", m, y); y += 5;
+            doc.setFillColor(28, 48, 68); doc.rect(m, y, W - m * 2, 9, "F");
+            doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
+            doc.text("Description", m + 4, y + 6); doc.text("Amount (INR)", m + 145, y + 6); y += 9;
+            const rows = breakdown
+                ? Object.entries(breakdown).filter(([k, v]) => k !== "customFees" && Number(v) > 0)
+                    .map(([k, v]) => [k.replace(/Fee$/, "").replace(/([A-Z])/g, " $1").trim(), v])
+                : [["Total Fees", totalFees]];
+            rows.forEach(([label, amt], i) => {
+                doc.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 252 : 255, 255);
+                doc.rect(m, y, W - m * 2, 9, "F");
+                doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(30, 50, 70);
+                doc.text(label, m + 4, y + 6);
+                doc.setFont("helvetica", "bold"); doc.text(`Rs. ${Number(amt).toLocaleString("en-IN")}`, m + 145, y + 6); y += 9;
+            });
+            y += 12;
+            const bx = W - m - 80;
+            doc.setFillColor(240, 247, 252); doc.roundedRect(bx, y, 80, 34, 3, 3, "F");
+            doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(80, 100, 120);
+            doc.text("Total Fees:", bx + 4, y + 9);
+            doc.setFont("helvetica", "bold"); doc.setTextColor(28, 48, 68);
+            doc.text(`Rs. ${totalFees.toLocaleString("en-IN")}`, bx + 78, y + 9, { align: "right" });
+            doc.setFont("helvetica", "normal"); doc.setTextColor(80, 100, 120);
+            doc.text("Amount Paid:", bx + 4, y + 18);
+            doc.setFont("helvetica", "bold"); doc.setTextColor(28, 68, 48);
+            doc.text(`Rs. ${paidAmount.toLocaleString("en-IN")}`, bx + 78, y + 18, { align: "right" });
+            doc.setDrawColor(28, 48, 68); doc.setLineWidth(0.5); doc.line(bx + 4, y + 22, bx + 76, y + 22);
+            doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(28, 48, 68);
+            doc.text("Balance Due:", bx + 4, y + 30);
+            doc.setTextColor(due === 0 ? 28 : 180, due === 0 ? 90 : 30, due === 0 ? 50 : 30);
+            doc.text(`Rs. ${due.toLocaleString("en-IN")}`, bx + 78, y + 30, { align: "right" });
+            y = 272;
+            doc.setFillColor(28, 48, 68); doc.rect(0, y, W, 25, "F");
+            doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(180, 205, 220);
+            doc.text(`${schoolName || "School"} · System-generated invoice. No signature required.`, W / 2, y + 9, { align: "center" });
 
-        // Step 2: Get PDF as ArrayBuffer and upload to R2
-        const pdfArrayBuffer = doc.output("arraybuffer");
+            // Step 2: Get PDF as ArrayBuffer and upload to R2
+            const pdfArrayBuffer = doc.output("arraybuffer");
 
-        const auth = JSON.parse(localStorage.getItem("auth"));
-        const token = auth?.token;
+            const auth = JSON.parse(localStorage.getItem("auth"));
+            const token = auth?.token;
 
-        const uploadRes = await fetch(`${API_URL}/api/finance/uploadFeeReceipt/${student.id}`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/pdf",
-            Authorization: `Bearer ${token}`,
-        },
-        body: pdfArrayBuffer,
-        });
+            const uploadRes = await fetch(`${API_URL}/api/finance/uploadFeeReceipt/${student.id}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/pdf",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: pdfArrayBuffer,
+            });
 
-        const uploadData = await uploadRes.json();
-        if (!uploadData.success || !uploadData.pdfUrl) {
-        alert("Failed to upload receipt PDF: " + (uploadData.message || "unknown error"));
-        return;
+            const uploadData = await uploadRes.json();
+            if (!uploadData.success || !uploadData.pdfUrl) {
+                alert("Failed to upload receipt PDF: " + (uploadData.message || "unknown error"));
+                return;
+            }
+
+            const pdfUrl = uploadData.pdfUrl;
+            console.log("Uploaded PDF URL:", pdfUrl);
+
+            // Step 3: Send WhatsApp with the real URL
+            const res = await fetch(`${API_URL}/api/finance/sendFeeReceipt/${student.id}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ pdfUrl }),
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                alert("✅ WhatsApp receipt sent successfully!");
+            } else {
+                alert(data.message || "Failed to send");
+            }
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed to send receipt: " + err.message);
         }
-
-        const pdfUrl = uploadData.pdfUrl;
-        console.log("Uploaded PDF URL:", pdfUrl);
-
-        // Step 3: Send WhatsApp with the real URL
-        const res = await fetch(`${API_URL}/api/finance/sendFeeReceipt/${student.id}`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ pdfUrl }),
-        });
-
-        const data = await res.json();
-        if (data.success) {
-        alert("✅ WhatsApp receipt sent successfully!");
-        } else {
-        alert(data.message || "Failed to send");
-        }
-
-    } catch (err) {
-        console.error(err);
-        alert("Failed to send receipt: " + err.message);
-    }
     };
 
 
@@ -806,20 +965,20 @@ export default function StudentFeesPage() {
                             <Download size={15} />
                             Date-wise
                         </button>
-                      <button
-                        className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0"
-                        style={{
-                            background: "rgba(39, 73, 107, 0.85)",
-                            border: "1.5px solid rgba(136,189,242,0.4)",
-                            color: "#BDDDFC",
-                            backdropFilter: "blur(6px)", 
-                            transition: "border-color 0.2s, background 0.2s",
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(136,189,242,0.75)"; e.currentTarget.style.background = "rgba(39,67,91,0.9)"; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(136,189,242,0.4)"; e.currentTarget.style.background = "rgba(28,48,68,0.85)"; }}
-                        onClick={() => { setEditData(null); setOpenPopup(true); }}
+                        <button
+                            className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0"
+                            style={{
+                                background: "rgba(39, 73, 107, 0.85)",
+                                border: "1.5px solid rgba(136,189,242,0.4)",
+                                color: "#BDDDFC",
+                                backdropFilter: "blur(6px)",
+                                transition: "border-color 0.2s, background 0.2s",
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(136,189,242,0.75)"; e.currentTarget.style.background = "rgba(39,67,91,0.9)"; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(136,189,242,0.4)"; e.currentTarget.style.background = "rgba(28,48,68,0.85)"; }}
+                            onClick={() => { setEditData(null); setOpenPopup(true); }}
                         >
-                        <UserPlus size={15} /> Add Student
+                            <UserPlus size={15} /> Add Student
                         </button>
                     </div>
                 </div>
@@ -860,10 +1019,10 @@ export default function StudentFeesPage() {
                     {/* ── KPI CARDS ── */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
                         {[
-                            { lbl: "Total Fees",    val: `₹${totalFeesAll.toLocaleString("en-IN")}`, Icon: IndianRupee },
-                            { lbl: "Amount Paid",   val: `₹${totalPaidAll.toLocaleString("en-IN")}`, Icon: CheckCircle },
-                            { lbl: "Amount Due",    val: `₹${totalDueAll.toLocaleString("en-IN")}`,  Icon: AlertCircle },
-                            { lbl: "Paid Students", val: `${paidCount} / ${students.length}`,         Icon: CalendarDays },
+                            { lbl: "Total Fees", val: `₹${totalFeesAll.toLocaleString("en-IN")}`, Icon: IndianRupee },
+                            { lbl: "Amount Paid", val: `₹${totalPaidAll.toLocaleString("en-IN")}`, Icon: CheckCircle },
+                            { lbl: "Amount Due", val: `₹${totalDueAll.toLocaleString("en-IN")}`, Icon: AlertCircle },
+                            { lbl: "Paid Students", val: `${paidCount} / ${students.length}`, Icon: CalendarDays },
                         ].map((k, i) => (
                             <div
                                 key={i}
@@ -966,50 +1125,50 @@ export default function StudentFeesPage() {
                                     ))}
                                 </select>
                                 <select
-                                value={feeCategory}
-                                onChange={(e) => setFeeCategory(e.target.value)}
-                                style={{
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    color: "#1C3044",
-                                    background: "#fff",
-                                    border: "1.5px solid rgba(255,255,255,.35)",
-                                    borderRadius: 8,
-                                    padding: "7px 28px 7px 10px",
-                                    fontFamily: "'DM Sans',sans-serif",
-                                    outline: "none",
-                                    cursor: "pointer",
-                                    appearance: "none",
-                                    minWidth: 130
-                                }}
+                                    value={feeCategory}
+                                    onChange={(e) => setFeeCategory(e.target.value)}
+                                    style={{
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        color: "#1C3044",
+                                        background: "#fff",
+                                        border: "1.5px solid rgba(255,255,255,.35)",
+                                        borderRadius: 8,
+                                        padding: "7px 28px 7px 10px",
+                                        fontFamily: "'DM Sans',sans-serif",
+                                        outline: "none",
+                                        cursor: "pointer",
+                                        appearance: "none",
+                                        minWidth: 130
+                                    }}
                                 >
-                                <option value="ALL">All Fees</option>
-                                {[
-                                    { value: "SCHOOL",    label: "School Fee"    },
-                                    { value: "TUITION",   label: "Tuition Fee"   },
-                                    { value: "EXAM",      label: "Exam Fee"      },
-                                    { value: "TRANSPORT", label: "Transport Fee" },
-                                    { value: "BOOKS",     label: "Books Fee"     },
-                                    { value: "LAB",       label: "Lab Fee"       },
-                                    { value: "MISC",      label: "Misc Fee"      },
-                                ].filter(opt => {
-                                    // Only show categories that at least one student has
-                                    return students.some(s => {
-                                    const bd = JSON.parse(s.feeBreakdown || "{}");
-                                    const keyMap = {
-                                        SCHOOL:    "collegeFee",
-                                        TUITION:   "tuitionFee",
-                                        EXAM:      "examFee",
-                                        TRANSPORT: "transportFee",
-                                        BOOKS:     "booksFee",
-                                        LAB:       "labFee",
-                                        MISC:      "miscFee",
-                                    };
-                                    return Number(bd[keyMap[opt.value]] || 0) > 0;
-                                    });
-                                }).map(opt => (
-                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
+                                    <option value="ALL">All Fees</option>
+                                    {[
+                                        { value: "SCHOOL", label: "School Fee" },
+                                        { value: "TUITION", label: "Tuition Fee" },
+                                        { value: "EXAM", label: "Exam Fee" },
+                                        { value: "TRANSPORT", label: "Transport Fee" },
+                                        { value: "BOOKS", label: "Books Fee" },
+                                        { value: "LAB", label: "Lab Fee" },
+                                        { value: "MISC", label: "Misc Fee" },
+                                    ].filter(opt => {
+                                        // Only show categories that at least one student has
+                                        return students.some(s => {
+                                            const bd = JSON.parse(s.feeBreakdown || "{}");
+                                            const keyMap = {
+                                                SCHOOL: "collegeFee",
+                                                TUITION: "tuitionFee",
+                                                EXAM: "examFee",
+                                                TRANSPORT: "transportFee",
+                                                BOOKS: "booksFee",
+                                                LAB: "labFee",
+                                                MISC: "miscFee",
+                                            };
+                                            return Number(bd[keyMap[opt.value]] || 0) > 0;
+                                        });
+                                    }).map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
                                 </select>
                                 <select
                                     value={paymentFilter}
@@ -1150,29 +1309,29 @@ export default function StudentFeesPage() {
                                                     feeCategory === "SCHOOL"
                                                         ? schoolFee
                                                         : feeCategory === "TUITION"
-                                                        ? tuitionFee
-                                                        : totalFee;
+                                                            ? tuitionFee
+                                                            : totalFee;
 
                                                 const displayPaid =
                                                     feeCategory === "SCHOOL"
                                                         ? schoolPaid
                                                         : feeCategory === "TUITION"
-                                                        ? tuitionPaid
-                                                        : paidAmt;
+                                                            ? tuitionPaid
+                                                            : paidAmt;
 
                                                 const displayRemaining =
                                                     feeCategory === "SCHOOL"
                                                         ? schoolRemaining
                                                         : feeCategory === "TUITION"
-                                                        ? tuitionRemaining
-                                                        : remaining;
+                                                            ? tuitionRemaining
+                                                            : remaining;
 
                                                 const isPaid =
                                                     feeCategory === "SCHOOL"
                                                         ? schoolFee > 0 && schoolPaid >= schoolFee
                                                         : feeCategory === "TUITION"
-                                                        ? tuitionFee > 0 && tuitionPaid >= tuitionFee
-                                                        : totalFee > 0 && paidAmt >= totalFee;
+                                                            ? tuitionFee > 0 && tuitionPaid >= tuitionFee
+                                                            : totalFee > 0 && paidAmt >= totalFee;
                                                 return (
                                                     <tr key={student.id}>
                                                         <td
@@ -1348,6 +1507,21 @@ export default function StudentFeesPage() {
                                                                         <FaWhatsapp size={13} />
                                                                     </button>
                                                                 )}
+
+                                                                {isPremium && (
+                                                                    <button
+                                                                        className="sf2-act"
+                                                                        title="Send Voice Call"
+                                                                        onClick={() => setVoiceStudent(student)}
+                                                                        style={{
+                                                                            background: "#eff6ff",
+                                                                            color: "#2563eb",
+                                                                            border: "1px solid #bfdbfe"
+                                                                        }}
+                                                                    >
+                                                                        <FaPhone size={12} />
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1376,6 +1550,13 @@ export default function StudentFeesPage() {
                         handleSendReceipt(receiptStudent);
                         setReceiptStudent(null);
                     }}
+                />
+            )}
+            {voiceStudent && (
+                <VoiceCallConfirmModal
+                    student={voiceStudent}
+                    onClose={() => setVoiceStudent(null)}
+                    onConfirm={handleSendVoiceCall}
                 />
             )}
         </>
