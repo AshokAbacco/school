@@ -945,10 +945,8 @@ const handleBulkUpload = async (file) => {
     // ── Build period lookup: periodNumber → slot (weekday & sat) ─
     // slots/satSlots are already loaded in state
     const weekdayPeriods = slots
-      .filter((s) => s.slotType === "PERIOD")
       .sort((a, b) => a.order - b.order);
     const saturdayPeriods = satSlots
-      .filter((s) => s.slotType === "PERIOD")
       .sort((a, b) => a.order - b.order);
 
     if (weekdayPeriods.length === 0)
@@ -971,6 +969,10 @@ const handleBulkUpload = async (file) => {
         : weekdayPeriods;
 
       for (let col = 1; col <= periodSlots.length; col++) {
+        const slot = periodSlots[col - 1];    // ← move this UP before the raw check
+        if (!slot) continue;
+        if (slot.slotType !== "PERIOD") continue;  // ← ADD THIS: skip break columns
+
         const raw = String(row[col] || "").trim();
         if (!raw) continue;
 
@@ -983,9 +985,6 @@ const handleBulkUpload = async (file) => {
           warnings.push(`"${subjectName}" on ${day} P${col} — not assigned to this class, skipped`);
           continue;
         }
-
-        const slot = periodSlots[col - 1];
-        if (!slot) continue;
 
         map[day][slot.id] = {
           subjectId: subject.id,
@@ -1003,12 +1002,21 @@ const handleBulkUpload = async (file) => {
       (sum, dayMap) => sum + Object.keys(dayMap).length, 0
     );
 
-    setToast({
-      type: "success",
-      msg: warnings.length > 0
-        ? `Excel loaded (${totalCells} periods). ${warnings.length} subject(s) skipped. Click "Save Timetable" to save.`
-        : `Excel loaded — ${totalCells} periods ready. Click "Save Timetable" to save.`,
-    });
+    if (warnings.length > 0) {
+      // Show error so admin notices — list the skipped subjects
+      const skippedSubjects = [...new Set(
+        warnings.map(w => w.split('"')[1]).filter(Boolean)
+      )].join(", ");
+      setToast({
+        type: "error",
+        msg: `${totalCells} periods loaded but ${warnings.length} skipped — subjects not assigned to this class: ${skippedSubjects}. Assign them first, then re-upload.`,
+      });
+    } else {
+      setToast({
+        type: "success",
+        msg: `Excel loaded — ${totalCells} periods ready. Click "Save Timetable" to save.`,
+      });
+    }
 
   } catch (err) {
     setToast({ type: "error", msg: err.message });

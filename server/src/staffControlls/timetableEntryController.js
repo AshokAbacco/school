@@ -366,43 +366,52 @@ export const bulkUploadTimetable = async (req, res) => {
         ? saturdayPeriods
         : weekdayPeriods;
 
-      for (let col = 1; col <= periodSlots.length; col++) {
-        const raw = row[col];
-        if (!raw) continue;
+          const totalExcelPeriods = row.length - 1; // minus the DAY column
 
-        const lines = String(raw).split("\n").map((x) => x.trim()).filter(Boolean);
-        const subjectName = lines[0];
-        const teacherName = lines[1] || null;
+    for (let col = 1; col <= totalExcelPeriods; col++) {
+      const raw = row[col];
+      if (!raw) continue;
 
-        const subject = subjects.find(
-          (s) => s.name.toLowerCase() === subjectName.toLowerCase()
+      const lines = String(raw).split("\n").map((x) => x.trim()).filter(Boolean);
+      const subjectName = lines[0];
+      const teacherName = lines[1] || null;
+
+      const subject = subjects.find(
+        (s) => s.name.toLowerCase() === subjectName.toLowerCase()
+      );
+      if (!subject) continue;
+
+      let teacher = null;
+      if (teacherName) {
+        teacher = teachers.find(
+          (t) =>
+            `${t.firstName} ${t.lastName}`.toLowerCase().trim() ===
+            teacherName.toLowerCase().trim()
         );
-        if (!subject) continue;
-
-        let teacher = null;
-        if (teacherName) {
-          teacher = teachers.find(
-            (t) =>
-              `${t.firstName} ${t.lastName}`.toLowerCase().trim() ===
-              teacherName.toLowerCase().trim()
-          );
-        }
-
-        // ✅ col-1 maps directly to periodSlots index (no breaks in array)
-        const period = periodSlots[col - 1];
-        if (!period) continue;
-
-        entries.push({
-          schoolId,
-          academicYearId,
-          classSectionId,
-          configId: config.id,
-          periodDefinitionId: period.id,
-          day,
-          subjectId: subject.id,
-          teacherId: teacher?.id || null,
-        });
       }
+
+      // col-1 maps directly to periodSlots index (no breaks in array)
+      const period = periodSlots[col - 1];
+      if (!period) {
+        // No period definition exists in DB config for this column — skipping
+        console.warn(`No period definition found for column ${col} (${day}) — add it to timetable config`);
+        continue; // silently skip instead of crashing
+      }
+
+      entries.push({
+        schoolId,
+        academicYearId,
+        classSectionId,
+        configId: config.id,
+        periodDefinitionId: period.id,
+        day,
+        subjectId: subject.id,
+        teacherId: teacher?.id || null,
+      });
+    }
+
+
+
     }
 
     await prisma.$transaction(async (tx) => {
