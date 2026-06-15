@@ -1214,35 +1214,33 @@ function ChangeWarningModal({ changes, serverError, onConfirm, onCancel, saving 
 // ── Change 5: Full Timetable View Modal with color + Download Excel ─────────────
 function FullTimetableModal({ weekdayCfg, schoolName, onClose }) {
   const slots = genEditableSlots(weekdayCfg);
-
   const downloadExcel = () => {
     const school = schoolName || "School";
 
-    const buildRows = (slots, title) => {
-      const last = slots[slots.length - 1];
-      const dispersalStart = last?.end || "";
-      const dispersalEnd = dispersalStart ? toTime(toMin(dispersalStart) + 15) : "";
-      return [
-        [title],
-        ["Activity", "Time"],
-        ...slots.map((s) => [s.label, `${fmtTime(s.start)} – ${fmtTime(s.end)}`]),
-        ["Dispersal / Closing", `${fmtTime(dispersalStart)} – ${fmtTime(dispersalEnd)}`],
-        [],
-      ];
-    };
+    const last = slots[slots.length - 1];
+    const dispersalStart = last?.end || "";
+    const dispersalEnd = dispersalStart ? toTime(toMin(dispersalStart) + 15) : "";
 
-    const rows = [
-      [`${school} — Timetable Schedule`],
-      [],
-      ...buildRows(slots, "Monday – Saturday Schedule"),
+    const dataRows = [
+      ...slots.map((s) => [s.label, fmtTime(s.start), fmtTime(s.end)]),
+      ["Dispersal / Closing", fmtTime(dispersalStart), fmtTime(dispersalEnd)],
     ];
 
-    const tsv = rows.map((r) => r.join("\t")).join("\n");
-    const blob = new Blob([tsv], { type: "application/vnd.ms-excel" });
+    const BOM = "\uFEFF";
+    const lines = [
+      `${school} - Timetable Schedule,,`,
+      `,,`,
+      `Monday - Saturday Schedule,,`,
+      `Activity,Start Time,End Time`,
+      ...dataRows.map((r) => r.join(",")),
+    ];
+
+    const csv = lines.join("\n");
+    const blob = new Blob([BOM + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${school.replace(/\s+/g, "_")}_Timetable_Schedule.xls`;
+    a.download = `${school.replace(/\s+/g, "_")}_Timetable_Schedule.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
