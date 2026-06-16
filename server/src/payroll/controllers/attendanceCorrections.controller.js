@@ -14,7 +14,7 @@ import { processTeacherDayAttendance } from "../../services/attendanceCalculatio
 // ─────────────────────────────────────────────────────────────────────────────
 export const getAttendanceCorrections = async (req, res) => {
   try {
-    const { schoolId, month, year, status, teacherId, page = "1", limit = "20" } = req.query;
+    const { schoolId, month, year, date: dateParam, status, teacherId, page = "1", limit = "20" } = req.query;
     if (!schoolId) return res.status(400).json({ success: false, message: "schoolId is required" });
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -24,27 +24,38 @@ export const getAttendanceCorrections = async (req, res) => {
     if (teacherId) where.teacherId = teacherId;
     if (status && status !== "ALL") where.status = status;
 
-    let isCurrentMonth = false;
-    let todayDateOnly = null;
+    // IST today — used across day-view and month-view logic
+    const nowUtc = new Date();
+    const istNow = new Date(nowUtc.getTime() + 5.5 * 60 * 60 * 1000);
+    const todayISTStr  = istNow.toISOString().slice(0, 10); // "2026-06-16"
+    const todayDayStart = new Date(todayISTStr + "T00:00:00+05:30");
 
-    if (month && year) {
+    let isCurrentMonth = false;
+    let isDayView = false;
+    const todayDateOnly = todayDayStart;
+
+    if (dateParam) {
+      // ── Day view: filter to exact IST calendar day ─────────────────────────
+      isDayView = true;
+      const dayStart = new Date(dateParam + "T00:00:00+05:30");
+      const dayEnd   = new Date(dateParam + "T23:59:59+05:30");
+      where.date = { gte: dayStart, lte: dayEnd };
+      // Mark as "today" so we can inject placeholder rows if needed
+      isCurrentMonth = (dateParam === todayISTStr);
+
+    } else if (month && year) {
+      // ── Month view ─────────────────────────────────────────────────────────
       const y = parseInt(year);
       const m = parseInt(month);
 
       where.date = {
         gte: new Date(`${y}-${String(m).padStart(2, "0")}-01T00:00:00+05:30`),
-        lt: new Date(y, m, 1),
+        lt:  new Date(y, m, 1),
       };
 
-      // Determine "today" in IST
-      const now = new Date();
-      const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-      const dateStr = istNow.toISOString().slice(0, 10);
-      todayDateOnly = new Date(dateStr + "T00:00:00+05:30");
-
-      if (y === todayDateOnly.getFullYear() && m === todayDateOnly.getMonth() + 1) {
+      if (y === todayDayStart.getFullYear() && m === todayDayStart.getMonth() + 1) {
         isCurrentMonth = true;
-        where.date.lte = todayDateOnly;
+        where.date.lte = todayDayStart;
       }
     }
 
@@ -89,42 +100,56 @@ export const getAttendanceCorrections = async (req, res) => {
       recentAudit: r.auditLogs,
     }));
 
-    // ── If today's date has no row yet for some teachers, synthesize pending rows ──
+    // ── If today has no DB row yet for some teachers, inject placeholder rows ───
+    // Compares IST date strings to avoid UTC-shift bugs
     if (isCurrentMonth && (!status || status === "ALL" || status === "ABSENT")) {
-      const todayHasRecord = records.some(
-        (r) => new Date(r.date).toISOString().slice(0, 10) === todayDateOnly.toISOString().slice(0, 10)
+      const targetDateStr = dateParam || todayISTStr; // "2026-06-16"
+
+      // Convert each record's stored UTC date back to IST date string for comparison
+      const recordedTeacherIds = new Set(
+        records
+          .filter((r) => {
+            const recIST = new Date(new Date(r.date).getTime() + 5.5 * 60 * 60 * 1000);
+            return recIST.toISOString().slice(0, 10) === targetDateStr;
+          })
+          .map((r) => r.teacherId)
       );
 
-      if (!todayHasRecord) {
-        const teachers = await prisma.teacherProfile.findMany({
-          where: { schoolId, deletedAt: null, status: "ACTIVE" },
-          select: { id: true, firstName: true, lastName: true, employeeCode: true, designation: true },
-        });
+      const allTeachers = await prisma.teacherProfile.findMany({
+        where: { schoolId, deletedAt: null, status: "ACTIVE" },
+        select: { id: true, firstName: true, lastName: true, employeeCode: true, designation: true },
+      });
 
-        const placeholderRows = teachers
-          .filter((t) => !teacherId || t.id === teacherId)
-          .map((t) => ({
-            id: `pending-${t.id}-${todayDateOnly.toISOString().slice(0, 10)}`,
-            teacherId: t.id,
-            teacherName: `${t.firstName} ${t.lastName}`,
-            employeeCode: t.employeeCode,
-            designation: t.designation,
-            date: todayDateOnly,
-            firstPunch: null,
-            lastPunch: null,
-            workedMinutes: null,
-            status: "ABSENT",
-            isLate: false,
-            lateMinutes: null,
-            isLateExcused: false,
-            isMissingPunchReviewed: false,
-            originalStatus: null,
-            correctedAt: null,
-            correctedBy: null,
-            recentAudit: [],
-            isPending: true, // flag so frontend can show "Not processed yet" instead of Correct button
-          }));
+      const missingTeachers = allTeachers.filter(
+        (t) => (!teacherId || t.id === teacherId) && !recordedTeacherIds.has(t.id)
+      );
 
+      if (missingTeachers.length > 0) {
+        const placeholderDate = new Date(targetDateStr + "T00:00:00+05:30");
+        const placeholderRows = missingTeachers.map((t) => ({
+          id: `pending-${t.id}-${targetDateStr}`,
+          teacherId: t.id,
+          teacherName: `${t.firstName} ${t.lastName}`,
+          employeeCode: t.employeeCode,
+          designation: t.designation,
+          date: placeholderDate,
+          firstPunch: null,
+          lastPunch: null,
+          workedMinutes: null,
+          status: "PENDING",         // distinct from ABSENT — not processed yet
+          isLate: false,
+          lateMinutes: null,
+          isLateExcused: false,
+          isMissingPunchReviewed: false,
+          leaveType: null,
+          leaveReason: null,
+          isLeaveDeducted: true,
+          originalStatus: null,
+          correctedAt: null,
+          correctedBy: null,
+          recentAudit: [],
+          isPending: true,
+        }));
         data = [...placeholderRows, ...data];
       }
     }

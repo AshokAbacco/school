@@ -58,7 +58,6 @@ const MappingsTab = ({ isSuperAdmin=true, schoolId:fixedSchoolId=null, currentUs
   const [personSearch,   setPersonSearch]   = useState("");
   const [personResults,  setPersonResults]  = useState([]);
   const [personLoading,  setPersonLoading]  = useState(false);
-  const [showDropdown,   setShowDropdown]   = useState(false);
   // Device + enrollment
   const [devices,        setDevices]        = useState([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
@@ -74,20 +73,8 @@ const MappingsTab = ({ isSuperAdmin=true, schoolId:fixedSchoolId=null, currentUs
   const [filterType,   setFilterType]   = useState("ALL");
   const [filterActive, setFilterActive] = useState("ALL");
   const [deactivating, setDeactivating] = useState(null);
-  const dropdownRef  = useRef(null);
   const searchTimer  = useRef(null);
-  // FIX: track whether we are mid-type so resetPersonSelection doesn't kill results
   const isSearching  = useRef(false);
-
-  useEffect(() => {
-    const fn=(e)=>{
-      if(dropdownRef.current && !dropdownRef.current.contains(e.target)){
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown",fn);
-    return () => document.removeEventListener("mousedown",fn);
-  },[]);
 
   useEffect(() => {
     if(!isSuperAdmin) return;
@@ -136,13 +123,7 @@ const MappingsTab = ({ isSuperAdmin=true, schoolId:fixedSchoolId=null, currentUs
   // eslint-disable-next-line
   },[filterType,filterActive]);
 
-  // FIX: Complete rewrite of the non-student search effect
-  // Key changes:
-  //   1. setPersonLoading(true) moved INSIDE the setTimeout so it doesn't
-  //      trigger a re-render before results arrive (which was clearing the dropdown).
-  //   2. showDropdown is set based on results.length, not unconditionally.
-  //   3. Fires immediately on mount/personType-change with empty q so the list
-  //      pre-populates as soon as a school is selected.
+  // Non-student search effect: debounced, fires on personSearch / personType / selectedSchool change
   useEffect(() => {
     if (personType === "STUDENT" || !selectedSchool) return;
 
@@ -158,7 +139,6 @@ const MappingsTab = ({ isSuperAdmin=true, schoolId:fixedSchoolId=null, currentUs
         `${BASE}/persons?schoolId=${selectedSchool}&personType=${personType}&q=${encodeURIComponent(personSearch || "")}`
       )
         .then((j) => {
-          // Handle both { data: [...] } and { data: { data: [...] } } shapes
           const results = Array.isArray(j?.data)
             ? j.data
             : Array.isArray(j?.data?.data)
@@ -166,12 +146,9 @@ const MappingsTab = ({ isSuperAdmin=true, schoolId:fixedSchoolId=null, currentUs
             : [];
 
           setPersonResults(results);
-          // FIX: always show dropdown after fetch (even empty, so "No results" message shows)
-          setShowDropdown(true);
         })
         .catch(() => {
           setPersonResults([]);
-          setShowDropdown(false);
         })
         .finally(() => {
           setPersonLoading(false);
@@ -194,7 +171,6 @@ const MappingsTab = ({ isSuperAdmin=true, schoolId:fixedSchoolId=null, currentUs
     setSelectedPerson(null);
     setPersonSearch("");
     setPersonResults([]);
-    setShowDropdown(false);
     setSelectedClass("");
     setClassStudents([]);
     setStudentSearch("");
@@ -252,11 +228,22 @@ const MappingsTab = ({ isSuperAdmin=true, schoolId:fixedSchoolId=null, currentUs
     }
   }
 
+  // IDs of persons who already have an active mapping — hide them from all lists
+  const assignedPersonIds = new Set(
+    mappings
+      .filter((m) => m.isActive && m.personType === personType)
+      .map((m) => m.studentId || m.teacherId || m.staffId || m.userId)
+      .filter(Boolean)
+  );
+
   const filteredStudents = classStudents.filter((s) => {
+    if(assignedPersonIds.has(s.id)) return false;
     if(!studentSearch) return true;
     const q=studentSearch.toLowerCase();
     return s.name.toLowerCase().includes(q)||(s.code||"").toLowerCase().includes(q)||(s.rollNumber||"").toString().includes(q);
   });
+
+  const filteredPersonResults = personResults.filter((p) => !assignedPersonIds.has(p.id));
 
   const inp = { width:"100%",padding:"9px 12px",border:"1.5px solid #E5E7EB",borderRadius:8,fontSize:14,color:"#111827",outline:"none",boxSizing:"border-box",background:"#FAFAFA" };
   const sel = { ...inp,cursor:"pointer",appearance:"auto" };
@@ -348,10 +335,10 @@ const MappingsTab = ({ isSuperAdmin=true, schoolId:fixedSchoolId=null, currentUs
 
               {/* Student list with search + scroll */}
               <div style={{ gridColumn:"1/-1" }}>
-                <label style={lbl}>
+                  <label style={lbl}>
                   <span style={{ display:"flex",alignItems:"center",gap:5 }}>
                     Student
-                    {selectedClass&&classStudents.length>0&&<span style={{ fontWeight:400,textTransform:"none",color:"#9CA3AF",fontSize:11 }}>{filteredStudents.length} of {classStudents.length} students</span>}
+                    {selectedClass&&classStudents.length>0&&<span style={{ fontWeight:400,textTransform:"none",color:"#9CA3AF",fontSize:11 }}>{filteredStudents.length} available of {classStudents.length}</span>}
                   </span>
                 </label>
 
@@ -395,98 +382,65 @@ const MappingsTab = ({ isSuperAdmin=true, schoolId:fixedSchoolId=null, currentUs
             </>
           )}
 
-          {/* NON-STUDENT: search dropdown */}
+          {/* NON-STUDENT: scrollable inline list (same style as students) */}
           {personType!=="STUDENT" && (
             <>
-              {/* FIX: ref moved to the outer wrapper div so mousedown outside closes it */}
-              <div style={{ position:"relative" }} ref={dropdownRef}>
-                <label style={lbl}>{PT_LABEL[personType]}</label>
+              <div style={{ gridColumn:"1/-1" }}>
+                <label style={lbl}>
+                  <span style={{ display:"flex",alignItems:"center",gap:5 }}>
+                    {PT_LABEL[personType]}
+                    {!selectedPerson && filteredPersonResults.length>0 && (
+                      <span style={{ fontWeight:400,textTransform:"none",color:"#9CA3AF",fontSize:11 }}>{filteredPersonResults.length} available</span>
+                    )}
+                  </span>
+                </label>
 
-                {selectedPerson ? (
+                {!selectedSchool ? (
+                  <div style={{ padding:"14px 16px",background:"#F9FAFB",border:"1.5px solid #E5E7EB",borderRadius:8,fontSize:13,color:"#9CA3AF",display:"flex",alignItems:"center",gap:8 }}>
+                    <AlertCircle size={15}/> Select a school first.
+                  </div>
+                ) : selectedPerson ? (
                   <PersonChip person={selectedPerson}/>
                 ) : (
-                  <>
-                    <div style={{ position:"relative" }}>
-                      <Search size={14} color="#9CA3AF" style={{ position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none" }}/>
+                  <div style={{ border:"1.5px solid #E5E7EB",borderRadius:8,overflow:"hidden" }}>
+                    <div style={{ padding:"8px 12px",background:"#F9FAFB",borderBottom:"1px solid #E5E7EB",display:"flex",alignItems:"center",gap:8 }}>
+                      <Search size={14} color="#9CA3AF"/>
                       <input
-                        style={{ ...inp, paddingLeft:30 }}
+                        style={{ border:"none",outline:"none",background:"transparent",fontSize:13,color:"#111827",width:"100%" }}
                         placeholder={`Search ${PT_LABEL[personType].toLowerCase()} by name or code…`}
                         value={personSearch}
-                        onChange={(e) => setPersonSearch(e.target.value)}
-                        // FIX: onFocus shows dropdown if results already loaded (pre-populated list)
-                        onFocus={() => setShowDropdown(true)}
+                        onChange={(e)=>setPersonSearch(e.target.value)}
                         disabled={!selectedSchool}
                       />
-                      {personLoading && (
-                        <span style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)" }}>
-                          <Spinner size={14}/>
-                        </span>
-                      )}
+                      {personSearch && <button onClick={()=>setPersonSearch("")} style={{ background:"none",border:"none",cursor:"pointer",color:"#9CA3AF",padding:0,display:"flex" }}><X size={14}/></button>}
+                      {personLoading && <Spinner size={14}/>}
                     </div>
-
-                    {!selectedSchool && (
-                      <p style={{ fontSize:11,color:"#9CA3AF",marginTop:4,marginBottom:0 }}>Select a school first.</p>
-                    )}
-
-                    {/* FIX: dropdown — removed overflow:"hidden" which was overriding overflowY:"auto"
-                         and hiding all list items. Only overflowY:"auto" is needed here. */}
-                    {showDropdown && selectedSchool && (
-                      <div style={{
-                        position:"absolute",
-                        top:"calc(100% + 4px)",
-                        left:0,
-                        right:0,
-                        background:"#fff",
-                        border:"1.5px solid #E5E7EB",
-                        borderRadius:8,
-                        boxShadow:"0 8px 24px rgba(0,0,0,0.12)",
-                        zIndex:99999,
-                        maxHeight:260,
-                        overflowY:"auto",  // FIX: was overridden by overflow:"hidden" before
-                        WebkitOverflowScrolling:"touch",
-                      }}>
-                        {personLoading ? (
-                          <div style={{ padding:"14px 16px",display:"flex",alignItems:"center",gap:10,color:"#6B7280",fontSize:13 }}>
-                            <Spinner size={14}/> Searching…
+                    <div style={{ maxHeight:280,overflowY:"auto",WebkitOverflowScrolling:"touch" }}>
+                      {personLoading && filteredPersonResults.length===0 ? (
+                        <div style={{ padding:"20px",display:"flex",alignItems:"center",justifyContent:"center",gap:10,color:"#6B7280",fontSize:13 }}><Spinner size={14}/> Loading…</div>
+                      ) : filteredPersonResults.length===0 ? (
+                        <div style={{ padding:"20px",textAlign:"center",color:"#9CA3AF",fontSize:13 }}>
+                          {personSearch ? `No results for "${personSearch}"` : `No unassigned ${PT_LABEL[personType].toLowerCase()}s found.`}
+                        </div>
+                      ) : filteredPersonResults.map((p,i)=>(
+                        <div key={p.id} onClick={()=>setSelectedPerson(p)}
+                          style={{ padding:"10px 14px",cursor:"pointer",borderBottom:i<filteredPersonResults.length-1?"1px solid #F3F4F6":"none",display:"flex",alignItems:"center",gap:12,transition:"background 0.1s" }}
+                          onMouseEnter={(e)=>e.currentTarget.style.background=PT_COLOR[personType]?.bg||"#F9FAFB"}
+                          onMouseLeave={(e)=>e.currentTarget.style.background="transparent"}>
+                          <div style={{ width:36,height:36,borderRadius:"50%",background:PT_COLOR[personType]?.bg,color:PT_COLOR[personType]?.text,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,flexShrink:0 }}>{p.name[0].toUpperCase()}</div>
+                          <div style={{ flex:1,minWidth:0 }}>
+                            <div style={{ fontWeight:600,fontSize:14 }}>{p.name}</div>
+                            <div style={{ fontSize:11,color:"#9CA3AF" }}>{p.code!=="—"&&<span>{p.code}</span>}{p.extra&&<span style={{ marginLeft:6 }}>· {p.extra}</span>}</div>
                           </div>
-                        ) : personResults.length === 0 ? (
-                          <div style={{ padding:"12px 14px",color:"#9CA3AF",fontSize:13 }}>
-                            {personSearch ? `No results for "${personSearch}"` : `No ${PT_LABEL[personType].toLowerCase()}s found in this school.`}
-                          </div>
-                        ) : (
-                          personResults.map((p) => (
-                            <div
-                              key={p.id}
-                              // FIX: use onMouseDown (not onClick) so it fires before the
-                              //      input's onBlur which would close the dropdown first
-                              onMouseDown={(e) => {
-                                e.preventDefault(); // prevent input blur
-                                setSelectedPerson(p);
-                                setShowDropdown(false);
-                                setPersonResults([]);
-                                setPersonSearch("");
-                              }}
-                              style={{ padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid #F3F4F6",display:"flex",alignItems:"center",gap:10 }}
-                              onMouseEnter={(e)=>e.currentTarget.style.background="#F9FAFB"}
-                              onMouseLeave={(e)=>e.currentTarget.style.background="transparent"}
-                            >
-                              <div style={{ width:34,height:34,borderRadius:"50%",background:PT_COLOR[personType]?.bg,color:PT_COLOR[personType]?.text,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13,flexShrink:0 }}>
-                                {p.name[0].toUpperCase()}
-                              </div>
-                              <div>
-                                <div style={{ fontWeight:600,fontSize:14 }}>{p.name}</div>
-                                <div style={{ fontSize:11,color:"#6B7280" }}>{p.code}{p.extra?` · ${p.extra}`:""}</div>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </>
+                          <span style={{ fontSize:12,color:"#9CA3AF",flexShrink:0,display:"flex",alignItems:"center",gap:4 }}>Select <ChevronRight size={13}/></span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 
-              <div>
+              <div style={{ gridColumn:"1/-1" }}>
                 <label style={lbl}>Device <span style={{ color:"#9CA3AF",fontWeight:400,textTransform:"none" }}>(optional)</span></label>
                 <div style={{ position:"relative" }}>
                   <select style={sel} value={selectedDevice} onChange={(e)=>setSelectedDevice(e.target.value)} disabled={!selectedSchool||devicesLoading}>

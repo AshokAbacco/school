@@ -17,6 +17,151 @@ function parseIST(dateStr) {
   return new Date(s + "+05:30");
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REAL-TIME TEACHER ATTENDANCE UPDATE
+//
+// Called immediately after every teacher punch is stored in BiometricLog.
+// Rules:
+//   - firstPunch = earliest punch of the IST calendar day → set ONCE, never overwrite
+//   - lastPunch  = latest punch of the IST calendar day  → always update to newest
+//   - status is recalculated every time a new punch arrives
+//   - PunchMode (IN/OUT) is completely ignored — only timestamps matter
+// ─────────────────────────────────────────────────────────────────────────────
+async function updateTeacherAttendanceOnPunch(schoolId, teacherId, punchDateTime) {
+  try {
+    // IST date string for this punch e.g. "2026-06-16"
+    const istMs     = punchDateTime.getTime() + 5.5 * 60 * 60 * 1000;
+    const istDate   = new Date(istMs);
+    const dateStr   = istDate.toISOString().slice(0, 10);
+
+    // IST calendar day boundaries stored as UTC in DB
+    const dayStart  = new Date(dateStr + "T00:00:00+05:30"); // "2026-06-15T18:30:00Z"
+    const dayEnd    = new Date(dateStr + "T23:59:59+05:30"); // "2026-06-16T18:29:59Z"
+
+    // ── Fetch ALL punches for this teacher on this IST day ────────────────────
+    // Deduplicate by timestamp in case of double-sends
+    const rawPunches = await prisma.biometricLog.findMany({
+      where: { teacherId, schoolId, punchDateTime: { gte: dayStart, lte: dayEnd } },
+      orderBy: { punchDateTime: "asc" },
+      select: { punchDateTime: true },
+    });
+
+    const seen = new Set();
+    const punches = rawPunches.filter((p) => {
+      const k = p.punchDateTime.getTime();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+
+    if (punches.length === 0) return; // nothing to do
+
+    const firstPunch = punches[0].punchDateTime;                   // earliest = entry
+    const lastPunch  = punches[punches.length - 1].punchDateTime;  // latest   = exit
+
+    // ── Calculate worked minutes and status ───────────────────────────────────
+    let workedMinutes = null;
+    let status        = "MISSING_PUNCH"; // default when only 1 punch
+
+    if (punches.length >= 2 && firstPunch.getTime() !== lastPunch.getTime()) {
+      workedMinutes = Math.floor((lastPunch.getTime() - firstPunch.getTime()) / 60000);
+
+      // Load thresholds from config (fallback to safe defaults)
+      const cfg              = await prisma.schoolPayrollConfig.findUnique({ where: { schoolId } });
+      const halfDayPct       = cfg?.halfDayThresholdPct ?? 0.5;
+      const absentPct        = cfg?.absentThresholdPct  ?? 0.25;
+      const lateGraceMins    = cfg?.lateGraceMinutes    ?? 15;
+
+      // Load school total minutes from timetable
+      let totalSchoolMins = 450; // default 7.5h
+      let schoolStartMins = 540; // default 09:00
+      try {
+        const activeYear = await prisma.academicYear.findFirst({
+          where: { schoolId, isActive: true }, select: { id: true },
+        });
+        if (activeYear) {
+          const jsDay   = new Date(dateStr + "T12:00:00+05:30").getDay();
+          const dayType = jsDay === 6 ? "SATURDAY" : "WEEKDAY";
+          const tt = await prisma.timetableConfig.findUnique({
+            where: { schoolId_academicYearId: { schoolId, academicYearId: activeYear.id } },
+            include: { periodDefinitions: { where: { slotType: "PERIOD", dayType }, orderBy: { order: "asc" } } },
+          });
+          if (tt?.periodDefinitions?.length) {
+            const toMins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+            const first  = tt.periodDefinitions[0];
+            const last   = tt.periodDefinitions[tt.periodDefinitions.length - 1];
+            schoolStartMins = toMins(first.startTime);
+            totalSchoolMins = toMins(last.endTime) - schoolStartMins;
+          }
+        }
+      } catch (_) {}
+
+      const halfDayMins = totalSchoolMins * halfDayPct;
+      const absentMins  = totalSchoolMins * absentPct;
+
+      // Late check: compare first punch IST minutes vs school start + grace
+      const firstPunchISTMins = (firstPunch.getTime() + 5.5 * 60 * 60 * 1000) / 60000 % (24 * 60);
+      const isLate = firstPunchISTMins > (schoolStartMins + lateGraceMins);
+
+      if (workedMinutes >= totalSchoolMins) {
+        status = isLate ? "LATE" : "PRESENT";
+      } else if (workedMinutes >= halfDayMins) {
+        status = "HALF_DAY";
+      } else if (workedMinutes >= absentMins) {
+        status = "HALF_DAY";
+      } else {
+        status = "MISSING_PUNCH"; // very short stay — needs review
+      }
+    }
+
+    // ── Upsert TeacherDailyAttendance ─────────────────────────────────────────
+    const existing = await prisma.teacherDailyAttendance.findFirst({
+      where: { teacherId, date: { gte: dayStart, lte: dayEnd } },
+    });
+
+    if (existing) {
+      // Only update if NOT manually corrected by admin
+      if (!existing.correctedAt) {
+        await prisma.teacherDailyAttendance.update({
+          where: { id: existing.id },
+          data: {
+            // firstPunch: NEVER overwrite — keep the earliest one already stored
+            firstPunch: existing.firstPunch ?? firstPunch,
+            // lastPunch: always update to the latest punch of the day
+            lastPunch:  lastPunch,
+            workedMinutes,
+            status,
+            isProcessed: true,
+          },
+        });
+      }
+    } else {
+      // First punch of the day for this teacher — create the record
+      await prisma.teacherDailyAttendance.create({
+        data: {
+          schoolId,
+          teacherId,
+          date:         dayStart,        // canonical IST midnight stored as UTC
+          firstPunch,                    // earliest punch = entry time
+          lastPunch:    punches.length >= 2 ? lastPunch : null, // null if only 1 punch
+          workedMinutes,
+          status,
+          isLate:       false,
+          lateMinutes:  null,
+          isMissingPunchReviewed: false,
+        },
+      });
+    }
+
+    console.log(`[attendance] teacherId=${teacherId} date=${dateStr} punches=${punches.length} firstPunch=${firstPunch.toISOString()} lastPunch=${lastPunch.toISOString()} worked=${workedMinutes}min status=${status}`);
+
+  } catch (err) {
+    // Never fail the punch response because of attendance update errors
+    console.error("[attendance] updateTeacherAttendanceOnPunch failed:", err.message);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/biometric/punch
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,6 +220,8 @@ export const receivePunch = async (req, res) => {
       }
 
       // 5. Store log
+      const resolvedTeacherId = mapping?.teacherId || null;
+
       await prisma.biometricLog.create({
         data: {
           schoolId,
@@ -83,7 +230,7 @@ export const receivePunch = async (req, res) => {
           academicYearId:         academicYear?.id   || null,
           personType:             mapping?.personType || null,
           studentId:              mapping?.studentId  || null,
-          teacherId:              mapping?.teacherId  || null,
+          teacherId:              resolvedTeacherId,
           staffId:                mapping?.staffId    || null,
           userId:                 mapping?.userId     || null,
           punchMode,
@@ -94,6 +241,12 @@ export const receivePunch = async (req, res) => {
       });
 
       inserted++;
+
+      // 6. Real-time attendance update for teachers
+      // Fires immediately on every punch — no need to wait for batch processing
+      if (resolvedTeacherId && schoolId && punchDateTime) {
+        await updateTeacherAttendanceOnPunch(schoolId, resolvedTeacherId, punchDateTime);
+      }
     }
 
     return res.status(200).json({ success: true, message: "Biometric data processed", inserted, skipped });
