@@ -39,6 +39,74 @@ function parseFeeBreakdown(raw) {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
+// Map feeBreakdown keys → FEE_CATEGORIES entries
+const BREAKDOWN_KEY_MAP = {
+  collegeFee:   "schoolFeePaid",
+  schoolFee:    "schoolFeePaid",
+  tuitionFee:   "tuitionFeePaid",
+  examFee:      "examFeePaid",
+  transportFee: "transportFeePaid",
+  booksFee:     "booksFeePaid",
+  labFee:       "labFeePaid",
+  miscFee:      "miscFeePaid",
+};
+
+// Payment API category string map (matches backend categoryColumnMap)
+const PAID_FIELD_TO_CAT = {
+  schoolFeePaid:    "SCHOOL",
+  tuitionFeePaid:   "TUITION",
+  examFeePaid:      "EXAM",
+  transportFeePaid: "TRANSPORT",
+  booksFeePaid:     "BOOKS",
+  labFeePaid:       "LAB",
+  miscFeePaid:      "MISC",
+};
+
+// Derive the list of categories THIS student actually has fees for
+// Returns: [{ key, label, icon, color, bg, total, paid, pending, catCode }]
+function deriveStudentCategories(student) {
+  const bd = parseFeeBreakdown(student.feeBreakdown);
+  const result = [];
+
+  if (bd) {
+    // Walk known breakdown keys
+    for (const [bdKey, paidField] of Object.entries(BREAKDOWN_KEY_MAP)) {
+      const bdEntry = bd[bdKey];
+      if (!bdEntry) continue;
+      const total = Number(typeof bdEntry === "object" ? (bdEntry.total ?? bdEntry.amount ?? 0) : bdEntry);
+      if (total <= 0) continue;
+      const cat = FEE_CATEGORIES.find(c => c.key === paidField);
+      if (!cat) continue;
+      if (result.find(r => r.key === paidField)) continue; // dedup
+      const paid = Number(student[paidField] || 0);
+      result.push({ ...cat, total, paid, pending: Math.max(0, total - paid), catCode: PAID_FIELD_TO_CAT[paidField] });
+    }
+    // Custom fees from feeBreakdown
+    const customFees = Array.isArray(bd.customFees) ? bd.customFees : [];
+    customFees.forEach((cf, i) => {
+      const total = Number(cf.total ?? cf.amount ?? 0);
+      if (total <= 0) return;
+      result.push({
+        key: `custom_${i}`, label: cf.label || `Custom Fee ${i + 1}`,
+        icon: "💼", color: "#6366f1", bg: "#eef2ff",
+        total, paid: 0, pending: total, catCode: "MISC", isCustom: true,
+      });
+    });
+  }
+
+  // Fallback: if no feeBreakdown, show categories where the student has any paid amount
+  if (result.length === 0) {
+    for (const cat of FEE_CATEGORIES) {
+      const paid = Number(student[cat.key] || 0);
+      if (paid > 0) {
+        result.push({ ...cat, total: paid, paid, pending: 0, catCode: PAID_FIELD_TO_CAT[cat.key] });
+      }
+    }
+  }
+
+  return result;
+}
+
 // Compute derived fee totals from the StudentList record
 function computeFeeSummary(student) {
     
@@ -126,11 +194,12 @@ export default function StudentFeeDetail({ student: initialStudent, onBack }) {
   const [payModal, setPayModal]   = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payMode, setPayMode]     = useState("CASH");
-  const [payCategory, setPayCategory] = useState("SCHOOL");
+  const [payCategory, setPayCategory] = useState("");
   const [payLoading, setPayLoading]   = useState(false);
   const [payError, setPayError]       = useState("");
 
   const { totalFees, totalPaid, totalDue, pctCollected, catPaid, feeBreakdown } = computeFeeSummary(student);
+  const studentCategories = deriveStudentCategories(student);
   // ── DEBUG: remove after fixing ──
 console.log("=== FEE DEBUG ===");
 console.log("totalPaid (paidAmount field):", totalPaid);
@@ -203,6 +272,9 @@ FEE_CATEGORIES.forEach(c => {
   // ── Payment recording ───────────────────────────────────────────────────────
   const handlePayment = async () => {
     if (!payAmount || Number(payAmount) <= 0) { setPayError("Enter a valid amount"); return; }
+    const selCat = studentCategories.find(c => c.key === payCategory);
+    if (!selCat) { setPayError("Select a fee category"); return; }
+    if (Number(payAmount) > selCat.pending) { setPayError(`Max payable for this category: ${fmt(selCat.pending)}`); return; }
     setPayLoading(true); setPayError("");
     try {
       const res = await fetch(
@@ -210,22 +282,21 @@ FEE_CATEGORIES.forEach(c => {
         {
           method:  "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-          body:    JSON.stringify({ amount: Number(payAmount), paymentMode: payMode, category: payCategory }),
+          body:    JSON.stringify({ amount: Number(payAmount), paymentMode: payMode, category: selCat.catCode }),
         }
       );
       const result = await res.json();
       if (!res.ok) throw new Error(result.message || "Payment failed");
       // Optimistically update local state
-      const catKey = FEE_CATEGORIES.find(c => c.label.toUpperCase().startsWith(payCategory))?.key;
       setStudent(prev => ({
         ...prev,
         paidAmount:  Number(prev.paidAmount  || 0) + Number(payAmount),
         paymentMode: payMode,
         paymentDate: new Date().toISOString(),
-        ...(catKey ? { [catKey]: Number(prev[catKey] || 0) + Number(payAmount) } : {}),
+        ...(!selCat.isCustom && selCat.key ? { [selCat.key]: Number(prev[selCat.key] || 0) + Number(payAmount) } : {}),
       }));
       setPayModal(false);
-      setPayAmount(""); setPayMode("CASH"); setPayCategory("SCHOOL");
+      setPayAmount(""); setPayMode("CASH"); setPayCategory("");
     } catch (e) {
       setPayError(e.message || "Failed to record payment");
     } finally {
@@ -316,7 +387,7 @@ FEE_CATEGORIES.forEach(c => {
 
       {/* ── Header ── */}
       <div className="bg-gradient-to-r from-[#1C3044] to-[#2d4a64] px-4 sm:px-6 py-5 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={onBack}
@@ -362,7 +433,7 @@ FEE_CATEGORIES.forEach(c => {
       </div>
 
       {/* ── Body ── */}
-      <div className="max-w-5xl mx-auto px-3 sm:px-6 py-5 space-y-5">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5 space-y-5">
 
         {saveError && (
           <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
@@ -398,35 +469,58 @@ FEE_CATEGORIES.forEach(c => {
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
               <BarChart3 size={12} /> Fee Collection Progress
             </p>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6 mb-4">
               <ProgressRing pct={pctCollected} size={90} stroke={9}
                 color={pctCollected === 100 ? "#10b981" : pctCollected > 50 ? "#3b82f6" : "#f59e0b"} />
-              <div className="flex-1 space-y-3 min-w-0">
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-500">Paid</span>
-                    <span className="font-bold text-emerald-600">{fmt(totalPaid)}</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full transition-all duration-700"
-                      style={{ width: `${pctCollected}%` }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-500">Due</span>
-                    <span className="font-bold text-red-500">{fmt(totalDue)}</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-red-400 rounded-full transition-all duration-700"
-                      style={{ width: `${totalFees > 0 ? 100 - pctCollected : 0}%` }} />
-                  </div>
-                </div>
-                <div className="pt-2 border-t border-slate-100 flex justify-between text-xs">
-                  <span className="text-slate-400">Total Fees</span>
+              <div className="flex-1 space-y-1 min-w-0">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Total Fees</span>
                   <span className="font-bold text-slate-700">{fmt(totalFees)}</span>
                 </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-emerald-600">Paid</span>
+                  <span className="font-bold text-emerald-600">{fmt(totalPaid)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-red-500">Pending</span>
+                  <span className="font-bold text-red-500">{fmt(totalDue)}</span>
+                </div>
               </div>
+            </div>
+
+            {/* Per-category progress bars */}
+            <div className="space-y-3">
+              {studentCategories.map(cat => {
+                const pct = cat.total > 0 ? Math.min(100, Math.round((cat.paid / cat.total) * 100)) : 0;
+                return (
+                  <div key={cat.key}>
+                    <div className="flex items-center justify-between mb-1 gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs">{cat.icon}</span>
+                        <span className="text-[11px] font-semibold text-slate-600 truncate">{cat.label}</span>
+                        <span className="text-[10px] text-slate-400 flex-shrink-0">({fmt(cat.total)})</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 text-[10px]">
+                        <span className="text-emerald-600 font-bold">{fmt(cat.paid)}</span>
+                        {cat.pending > 0 && <span className="text-red-500">/ {fmt(cat.pending)}</span>}
+                      </div>
+                    </div>
+                    <div className="h-2 rounded-full overflow-hidden bg-slate-100">
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${pct}%`, background: pct === 100 ? "#10b981" : cat.color }} />
+                    </div>
+                    <div className="flex justify-between text-[9px] text-slate-400 mt-0.5">
+                      <span>Paid {pct}%</span>
+                      {pct === 100
+                        ? <span className="text-emerald-500 font-bold">✓ Cleared</span>
+                        : <span className="text-red-400">{100 - pct}% pending</span>}
+                    </div>
+                  </div>
+                );
+              })}
+              {studentCategories.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-2">No fee categories found</p>
+              )}
             </div>
 
             {/* Record Payment CTA */}
@@ -439,48 +533,39 @@ FEE_CATEGORIES.forEach(c => {
             )}
           </div>
 
-          {/* Category-wise Breakdown */}
+          {/* Category Summary Panel */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5">
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
               <Layers size={12} /> Fee Category Breakdown
             </p>
             <div className="space-y-2.5">
-              {FEE_CATEGORIES.map(cat => {
-                const paid = catPaid[cat.key] || 0;
-                // Try to get total from feeBreakdown JSON if available
-                const breakdownTotal = feeBreakdown?.[cat.label] || feeBreakdown?.[cat.key] || null;
-                const catTotal = breakdownTotal || (paid > 0 ? paid : 0);
-                const pct = catTotal > 0 ? Math.min(100, Math.round((paid / catTotal) * 100)) : 0;
-                return (
-                  <div key={cat.key} className="space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm">{cat.icon}</span>
-                        <span className="text-xs font-semibold text-slate-600 truncate">{cat.label}</span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs font-bold" style={{ color: cat.color }}>
-                          {paid > 0 ? fmt(paid) : <span className="text-slate-300">₹0</span>}
-                        </span>
-                        {pct === 100 && paid > 0 && (
-                          <span className="text-[10px] text-emerald-500 font-bold">✓</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: cat.bg }}>
-                      <div className="h-full rounded-full transition-all duration-700"
-                        style={{ width: paid > 0 ? "100%" : "0%", background: cat.color, opacity: 0.7 }} />
+              {studentCategories.map(cat => (
+                <div key={cat.key} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                    style={{ background: cat.bg }}>
+                    {cat.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-slate-700 truncate">{cat.label}</div>
+                    <div className="text-[10px] text-slate-400">Total: {fmt(cat.total)}</div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-xs font-bold text-emerald-600">{fmt(cat.paid)}</div>
+                    <div className={`text-[10px] font-semibold ${cat.pending > 0 ? "text-red-500" : "text-emerald-500"}`}>
+                      {cat.pending > 0 ? `−${fmt(cat.pending)}` : "✓ Cleared"}
                     </div>
                   </div>
-                );
-              })}
-
-              {/* Total row */}
+                </div>
+              ))}
+              {studentCategories.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-4">No fee categories assigned</p>
+              )}
               <div className="pt-2 border-t-2 border-slate-100 flex justify-between items-center">
-                <span className="text-xs font-bold text-slate-600">Total Paid (categories)</span>
-                <span className="text-sm font-black text-slate-800">
-                  {fmt(FEE_CATEGORIES.reduce((a, c) => a + (catPaid[c.key] || 0), 0))}
-                </span>
+                <span className="text-xs font-bold text-slate-600">Total</span>
+                <div className="text-right">
+                  <div className="text-sm font-black text-slate-800">{fmt(totalFees)}</div>
+                  <div className="text-[10px] text-slate-400">Paid: {fmt(totalPaid)} · Due: {fmt(totalDue)}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -602,55 +687,61 @@ FEE_CATEGORIES.forEach(c => {
             <span className="text-sm font-bold text-slate-700">Category-wise Fee Details</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-[12px] min-w-[500px]">
+            <table className="w-full text-[12px] min-w-[520px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wide">Category</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wide">Total Fees</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wide">Paid</th>
-                  <th className="px-4 py-3 text-center text-[10px] font-bold text-slate-400 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-wide">Pending</th>
                 </tr>
               </thead>
               <tbody>
-                {FEE_CATEGORIES.map(cat => {
-                  const paid = catPaid[cat.key] || 0;
-                  return (
-                    <tr key={cat.key} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
-                            style={{ background: cat.bg }}>
-                            {cat.icon}
-                          </div>
-                          <span className="font-semibold text-slate-700">{cat.label}</span>
+                {studentCategories.length > 0 ? studentCategories.map(cat => (
+                  <tr key={cat.key} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                          style={{ background: cat.bg }}>
+                          {cat.icon}
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold" style={{ color: paid > 0 ? cat.color : "#cbd5e1" }}>
-                        {paid > 0 ? fmt(paid) : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {paid > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                            <CheckCircle size={10} /> Paid
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
-                            <Clock size={10} /> Not paid
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                        <span className="font-semibold text-slate-700">{cat.label}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-700">{fmt(cat.total)}</td>
+                    <td className="px-4 py-3 text-right font-bold" style={{ color: cat.paid > 0 ? cat.color : "#cbd5e1" }}>
+                      {cat.paid > 0 ? fmt(cat.paid) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {cat.pending > 0 ? (
+                        <span className="font-bold text-red-500">{fmt(cat.pending)}</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          <CheckCircle size={10} /> Cleared
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-400">No fee categories found for this student</td>
+                  </tr>
+                )}
               </tbody>
-              <tfoot>
-                <tr className="bg-[#EEF4F8] border-t-2 border-slate-200">
-                  <td className="px-4 py-3 text-xs font-bold text-slate-600">TOTAL</td>
-                  <td className="px-4 py-3 text-right font-bold text-slate-700">
-                    {fmt(FEE_CATEGORIES.reduce((a, c) => a + (catPaid[c.key] || 0), 0))}
-                  </td>
-                  <td className="px-4 py-3" />
-                </tr>
-              </tfoot>
+              {studentCategories.length > 0 && (
+                <tfoot>
+                  <tr className="bg-[#EEF4F8] border-t-2 border-slate-200">
+                    <td className="px-4 py-3 text-xs font-bold text-slate-600">TOTAL</td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-700">{fmt(studentCategories.reduce((a, c) => a + c.total, 0))}</td>
+                    <td className="px-4 py-3 text-right font-bold text-emerald-700">{fmt(studentCategories.reduce((a, c) => a + c.paid, 0))}</td>
+                    <td className="px-4 py-3 text-right font-bold text-red-600">
+                      {studentCategories.reduce((a, c) => a + c.pending, 0) > 0
+                        ? fmt(studentCategories.reduce((a, c) => a + c.pending, 0))
+                        : <span className="text-emerald-600">Fully Paid ✓</span>}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
@@ -676,33 +767,66 @@ FEE_CATEGORIES.forEach(c => {
                   <AlertCircle size={12} /> {payError}
                 </div>
               )}
+
+              {/* 1. Category */}
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Amount (₹)</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Fee Category</label>
+                <select value={payCategory} onChange={e => { setPayCategory(e.target.value); setPayAmount(""); }}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1C3044] bg-white">
+                  <option value="">— Select Category —</option>
+                  {studentCategories.filter(c => c.pending > 0).map(c => (
+                    <option key={c.key} value={c.key}>
+                      {c.label} (Pending: {fmt(c.pending)})
+                    </option>
+                  ))}
+                </select>
+                {payCategory && (() => {
+                  const sc = studentCategories.find(c => c.key === payCategory);
+                  return sc ? (
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-slate-50 border border-slate-100 rounded-lg p-2">
+                        <div className="text-[9px] font-bold text-slate-400 uppercase">Total</div>
+                        <div className="text-xs font-bold text-slate-700 mt-0.5">{fmt(sc.total)}</div>
+                      </div>
+                      <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2">
+                        <div className="text-[9px] font-bold text-slate-400 uppercase">Paid</div>
+                        <div className="text-xs font-bold text-emerald-700 mt-0.5">{fmt(sc.paid)}</div>
+                      </div>
+                      <div className="bg-red-50 border border-red-100 rounded-lg p-2">
+                        <div className="text-[9px] font-bold text-slate-400 uppercase">Pending</div>
+                        <div className="text-xs font-bold text-red-600 mt-0.5">{fmt(sc.pending)}</div>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+
+              {/* 2. Amount */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Amount (₹){payCategory && studentCategories.find(c => c.key === payCategory) ? ` — max ${fmt(studentCategories.find(c => c.key === payCategory).pending)}` : ""}
+                </label>
                 <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)}
-                  placeholder={`Max: ${totalDue}`} max={totalDue}
+                  placeholder="Enter amount"
+                  max={payCategory ? (studentCategories.find(c => c.key === payCategory)?.pending ?? totalDue) : totalDue}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1C3044]" />
               </div>
+
+              {/* 3. Payment Mode */}
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Payment Mode</label>
                 <select value={payMode} onChange={e => setPayMode(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1C3044] bg-white">
-                  {["CASH","ONLINE","CHEQUE","DD","UPI","NEFT","RTGS"].map(m => <option key={m}>{m}</option>)}
+                  {["CASH","UPI","ONLINE","CHEQUE","DD","NEFT","RTGS"].map(m => <option key={m}>{m}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Category</label>
-                <select value={payCategory} onChange={e => setPayCategory(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1C3044] bg-white">
-                  <option value="FULL">Full Payment</option>
-                  {FEE_CATEGORIES.map(c => <option key={c.key} value={c.label.toUpperCase().split(" ")[0]}>{c.label}</option>)}
-                </select>
-              </div>
+
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setPayModal(false)}
                   className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors">
                   Cancel
                 </button>
-                <button onClick={handlePayment} disabled={payLoading}
+                <button onClick={handlePayment} disabled={payLoading || !payCategory}
                   className="flex-1 py-2.5 bg-[#1C3044] text-white rounded-xl text-sm font-bold hover:bg-[#27435B] transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
                   <CreditCard size={14} /> {payLoading ? "Saving…" : "Record"}
                 </button>
