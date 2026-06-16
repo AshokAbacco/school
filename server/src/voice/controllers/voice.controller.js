@@ -7,6 +7,9 @@ export const sendVoiceReminder = async (req, res) => {
       studentName,
       pendingAmount,
       schoolName,
+      language = "en-in",
+      message = null,
+      voice = null,
     } = req.body;
 
     if (!phone) {
@@ -21,23 +24,25 @@ export const sendVoiceReminder = async (req, res) => {
       studentName,
       pendingAmount,
       schoolName,
+      language,
+      message,
+      voice,
     });
 
     return res.status(200).json({
       success: true,
       message: "Voice reminder sent successfully",
-      data: result,
+      messageId: result.messageId,
+      bulkId: result.bulkId,
+      status: result.status,
+      providerResponse: result.providerResponse,
     });
   } catch (error) {
-    console.error(
-      "VOICE CALL ERROR:",
-      error?.response?.data || error.message
-    );
+    console.error("[VOICE ERROR]", error.message);
 
     return res.status(500).json({
       success: false,
-      message: "Failed to send voice reminder",
-      error: error?.response?.data || error.message,
+      message: error.message || "Voice reminder failed",
     });
   }
 };
