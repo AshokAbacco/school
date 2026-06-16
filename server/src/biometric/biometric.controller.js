@@ -17,151 +17,6 @@ function parseIST(dateStr) {
   return new Date(s + "+05:30");
 }
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// REAL-TIME TEACHER ATTENDANCE UPDATE
-//
-// Called immediately after every teacher punch is stored in BiometricLog.
-// Rules:
-//   - firstPunch = earliest punch of the IST calendar day → set ONCE, never overwrite
-//   - lastPunch  = latest punch of the IST calendar day  → always update to newest
-//   - status is recalculated every time a new punch arrives
-//   - PunchMode (IN/OUT) is completely ignored — only timestamps matter
-// ─────────────────────────────────────────────────────────────────────────────
-async function updateTeacherAttendanceOnPunch(schoolId, teacherId, punchDateTime) {
-  try {
-    // IST date string for this punch e.g. "2026-06-16"
-    const istMs     = punchDateTime.getTime() + 5.5 * 60 * 60 * 1000;
-    const istDate   = new Date(istMs);
-    const dateStr   = istDate.toISOString().slice(0, 10);
-
-    // IST calendar day boundaries stored as UTC in DB
-    const dayStart  = new Date(dateStr + "T00:00:00+05:30"); // "2026-06-15T18:30:00Z"
-    const dayEnd    = new Date(dateStr + "T23:59:59+05:30"); // "2026-06-16T18:29:59Z"
-
-    // ── Fetch ALL punches for this teacher on this IST day ────────────────────
-    // Deduplicate by timestamp in case of double-sends
-    const rawPunches = await prisma.biometricLog.findMany({
-      where: { teacherId, schoolId, punchDateTime: { gte: dayStart, lte: dayEnd } },
-      orderBy: { punchDateTime: "asc" },
-      select: { punchDateTime: true },
-    });
-
-    const seen = new Set();
-    const punches = rawPunches.filter((p) => {
-      const k = p.punchDateTime.getTime();
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-
-    if (punches.length === 0) return; // nothing to do
-
-    const firstPunch = punches[0].punchDateTime;                   // earliest = entry
-    const lastPunch  = punches[punches.length - 1].punchDateTime;  // latest   = exit
-
-    // ── Calculate worked minutes and status ───────────────────────────────────
-    let workedMinutes = null;
-    let status        = "MISSING_PUNCH"; // default when only 1 punch
-
-    if (punches.length >= 2 && firstPunch.getTime() !== lastPunch.getTime()) {
-      workedMinutes = Math.floor((lastPunch.getTime() - firstPunch.getTime()) / 60000);
-
-      // Load thresholds from config (fallback to safe defaults)
-      const cfg              = await prisma.schoolPayrollConfig.findUnique({ where: { schoolId } });
-      const halfDayPct       = cfg?.halfDayThresholdPct ?? 0.5;
-      const absentPct        = cfg?.absentThresholdPct  ?? 0.25;
-      const lateGraceMins    = cfg?.lateGraceMinutes    ?? 15;
-
-      // Load school total minutes from timetable
-      let totalSchoolMins = 450; // default 7.5h
-      let schoolStartMins = 540; // default 09:00
-      try {
-        const activeYear = await prisma.academicYear.findFirst({
-          where: { schoolId, isActive: true }, select: { id: true },
-        });
-        if (activeYear) {
-          const jsDay   = new Date(dateStr + "T12:00:00+05:30").getDay();
-          const dayType = jsDay === 6 ? "SATURDAY" : "WEEKDAY";
-          const tt = await prisma.timetableConfig.findUnique({
-            where: { schoolId_academicYearId: { schoolId, academicYearId: activeYear.id } },
-            include: { periodDefinitions: { where: { slotType: "PERIOD", dayType }, orderBy: { order: "asc" } } },
-          });
-          if (tt?.periodDefinitions?.length) {
-            const toMins = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
-            const first  = tt.periodDefinitions[0];
-            const last   = tt.periodDefinitions[tt.periodDefinitions.length - 1];
-            schoolStartMins = toMins(first.startTime);
-            totalSchoolMins = toMins(last.endTime) - schoolStartMins;
-          }
-        }
-      } catch (_) {}
-
-      const halfDayMins = totalSchoolMins * halfDayPct;
-      const absentMins  = totalSchoolMins * absentPct;
-
-      // Late check: compare first punch IST minutes vs school start + grace
-      const firstPunchISTMins = (firstPunch.getTime() + 5.5 * 60 * 60 * 1000) / 60000 % (24 * 60);
-      const isLate = firstPunchISTMins > (schoolStartMins + lateGraceMins);
-
-      if (workedMinutes >= totalSchoolMins) {
-        status = isLate ? "LATE" : "PRESENT";
-      } else if (workedMinutes >= halfDayMins) {
-        status = "HALF_DAY";
-      } else if (workedMinutes >= absentMins) {
-        status = "HALF_DAY";
-      } else {
-        status = "MISSING_PUNCH"; // very short stay — needs review
-      }
-    }
-
-    // ── Upsert TeacherDailyAttendance ─────────────────────────────────────────
-    // lastPunchToStore: only set if we have 2+ distinct punches
-    const lastPunchToStore = punches.length >= 2 ? lastPunch : null;
-
-    const existing = await prisma.teacherDailyAttendance.findFirst({
-      where: { teacherId, date: { gte: dayStart, lte: dayEnd } },
-    });
-
-    if (existing) {
-      // Only update if NOT manually corrected by admin
-      if (!existing.correctedAt) {
-        await prisma.teacherDailyAttendance.update({
-          where: { id: existing.id },
-          data: {
-            firstPunch:    existing.firstPunch ?? firstPunch, // NEVER overwrite earliest
-            lastPunch:     lastPunchToStore,                  // always update to latest
-            workedMinutes,
-            status,
-          },
-        });
-      }
-    } else {
-      // First punch of the day — create the attendance record immediately
-      await prisma.teacherDailyAttendance.create({
-        data: {
-          schoolId,
-          teacherId,
-          date:          dayStart,         // IST midnight stored as UTC
-          firstPunch,                      // entry time — set on first punch, never changed
-          lastPunch:     lastPunchToStore, // null until 2nd punch arrives
-          workedMinutes,
-          status,
-          isLate:        false,
-          lateMinutes:   null,
-          isMissingPunchReviewed: false,
-        },
-      });
-    }
-
-    console.log(`[attendance] teacherId=${teacherId} date=${dateStr} punches=${punches.length} firstPunch=${firstPunch?.toISOString()} lastPunch=${lastPunch?.toISOString()} worked=${workedMinutes}min status=${status}`);
-
-  } catch (err) {
-    // Never fail the punch response because of attendance update errors
-    console.error("[attendance] updateTeacherAttendanceOnPunch failed:", err.message, err.stack);
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/biometric/punch
 // ─────────────────────────────────────────────────────────────────────────────
@@ -220,8 +75,6 @@ export const receivePunch = async (req, res) => {
       }
 
       // 5. Store log
-      const resolvedTeacherId = mapping?.teacherId || null;
-
       await prisma.biometricLog.create({
         data: {
           schoolId,
@@ -230,7 +83,7 @@ export const receivePunch = async (req, res) => {
           academicYearId:         academicYear?.id   || null,
           personType:             mapping?.personType || null,
           studentId:              mapping?.studentId  || null,
-          teacherId:              resolvedTeacherId,
+          teacherId:              mapping?.teacherId  || null,
           staffId:                mapping?.staffId    || null,
           userId:                 mapping?.userId     || null,
           punchMode,
@@ -241,12 +94,6 @@ export const receivePunch = async (req, res) => {
       });
 
       inserted++;
-
-      // 6. Real-time attendance update for teachers
-      // Fires immediately on every punch — no need to wait for batch processing
-      if (resolvedTeacherId && schoolId && punchDateTime) {
-        await updateTeacherAttendanceOnPunch(schoolId, resolvedTeacherId, punchDateTime);
-      }
     }
 
     return res.status(200).json({ success: true, message: "Biometric data processed", inserted, skipped });
@@ -730,6 +577,163 @@ export const getDevicesFull = async (req, res) => {
   }
 };
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/biometric/attendance-logs
+// Returns per-person per-day summary: firstPunch (entry) + lastPunch (exit)
+// Groups raw BiometricLog records — much cleaner than raw punch list
+// ─────────────────────────────────────────────────────────────────────────────
+export const getAttendanceLogs = async (req, res) => {
+  try {
+    const universityId = req.user?.universityId;
+    const { schoolId, from, to, personType, page = "1", limit = "20" } = req.query;
+
+    if (!universityId) {
+      return res.status(400).json({ success: false, message: "universityId missing in token" });
+    }
+
+    // Date range — default to today IST
+    const nowIST    = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const todayStr  = nowIST.toISOString().slice(0, 10);
+    const fromStr   = from || todayStr;
+    const toStr     = to   || todayStr;
+
+    const fromDate  = new Date(fromStr + "T00:00:00+05:30");
+    const toDate    = new Date(toStr   + "T23:59:59+05:30");
+
+    const where = { school: { universityId }, punchDateTime: { gte: fromDate, lte: toDate } };
+    if (schoolId)                              where.schoolId  = schoolId;
+    if (personType && personType !== "ALL")    where.personType = personType;
+    // Only mapped punches for attendance summary
+    where.biometricUserMappingId = { not: null };
+
+    // Fetch all punches in range (no pagination at raw level — we group first)
+    const rawLogs = await prisma.biometricLog.findMany({
+      where,
+      orderBy: { punchDateTime: "asc" },
+      select: {
+        id: true, punchDateTime: true, personType: true,
+        biometricUserMappingId: true, schoolId: true,
+        studentId: true, teacherId: true, staffId: true, userId: true,
+        biometricDevice: { select: { deviceName: true, deviceCode: true } },
+        student: { select: { name: true, studentCode: true } },
+        teacher: { select: { firstName: true, lastName: true, employeeCode: true } },
+        staff:   { select: { firstName: true, lastName: true } },
+        user:    { select: { name: true } },
+      },
+    });
+
+    // ── Group by personId + IST date ──────────────────────────────────────────
+    const groups = new Map(); // key = "personId|dateStr"
+
+    for (const log of rawLogs) {
+      if (!log.punchDateTime) continue;
+
+      // Convert to IST date
+      const istMs   = log.punchDateTime.getTime() + 5.5 * 60 * 60 * 1000;
+      const dateStr = new Date(istMs).toISOString().slice(0, 10);
+
+      // Determine person
+      let personId   = null;
+      let personName = null;
+      let personCode = null;
+
+      if (log.personType === "STUDENT" && log.studentId) {
+        personId   = log.studentId;
+        personName = log.student?.name || "Unknown";
+        personCode = log.student?.studentCode || null;
+      } else if (log.personType === "TEACHER" && log.teacherId) {
+        personId   = log.teacherId;
+        personName = log.teacher ? `${log.teacher.firstName} ${log.teacher.lastName}` : "Unknown";
+        personCode = log.teacher?.employeeCode || null;
+      } else if (log.personType === "STAFF" && log.staffId) {
+        personId   = log.staffId;
+        personName = log.staff ? `${log.staff.firstName} ${log.staff.lastName}` : "Unknown";
+      } else if (log.userId) {
+        personId   = log.userId;
+        personName = log.user?.name || "Unknown";
+      }
+
+      if (!personId) continue;
+
+      const key = `${personId}|${dateStr}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          personId,
+          personName,
+          personCode,
+          personType:  log.personType,
+          date:        dateStr,
+          schoolId:    log.schoolId,
+          firstPunch:  log.punchDateTime,  // earliest
+          lastPunch:   log.punchDateTime,  // will update
+          punchCount:  0,
+          deviceName:  log.biometricDevice?.deviceName || null,
+          deviceCode:  log.biometricDevice?.deviceCode || null,
+        });
+      }
+
+      const g = groups.get(key);
+      g.punchCount++;
+      if (log.punchDateTime < g.firstPunch) g.firstPunch = log.punchDateTime;
+      if (log.punchDateTime > g.lastPunch)  g.lastPunch  = log.punchDateTime;
+    }
+
+    // ── Convert to array, compute worked time and status ──────────────────────
+    const fmtTime = (dt) => dt
+      ? new Date(dt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true })
+      : null;
+
+    let summaries = Array.from(groups.values()).map((g) => {
+      const sameTime      = g.firstPunch.getTime() === g.lastPunch.getTime();
+      const workedMinutes = sameTime ? null : Math.floor((g.lastPunch - g.firstPunch) / 60000);
+      const hasExit       = g.punchCount >= 2 && !sameTime;
+
+      return {
+        personId:     g.personId,
+        personName:   g.personName,
+        personCode:   g.personCode,
+        personType:   g.personType,
+        date:         g.date,
+        firstPunch:   g.firstPunch,   // entry time (raw UTC)
+        lastPunch:    hasExit ? g.lastPunch : null,  // null if only 1 punch
+        firstPunchFmt: fmtTime(g.firstPunch),
+        lastPunchFmt:  hasExit ? fmtTime(g.lastPunch) : null,
+        workedMinutes,
+        workedFmt:    workedMinutes != null
+          ? `${Math.floor(workedMinutes / 60)}h ${workedMinutes % 60}m`
+          : null,
+        punchCount:   g.punchCount,
+        hasExit,
+        deviceName:   g.deviceName,
+        deviceCode:   g.deviceCode,
+      };
+    });
+
+    // Sort by date desc, then personName asc
+    summaries.sort((a, b) => {
+      if (b.date !== a.date) return b.date.localeCompare(a.date);
+      return (a.personName || "").localeCompare(b.personName || "");
+    });
+
+    // Paginate after grouping
+    const total      = summaries.length;
+    const pageNum    = parseInt(page);
+    const limitNum   = parseInt(limit);
+    const skip       = (pageNum - 1) * limitNum;
+    const paginated  = summaries.slice(skip, skip + limitNum);
+
+    return res.status(200).json({
+      success: true,
+      data:    paginated,
+      meta:    { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+    });
+
+  } catch (error) {
+    console.error("[getAttendanceLogs]", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/biometric/logs
 // ─────────────────────────────────────────────────────────────────────────────
@@ -803,7 +807,6 @@ export const getLogs = async (req, res) => {
       };
     });
 
-    
     return res.status(200).json({
       success: true,
       data: logs,

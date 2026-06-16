@@ -17,7 +17,6 @@ const STATUS_CONFIG = {
   MISSING_PUNCH: { label: "Missing Punch", color: "bg-purple-100 text-purple-700", icon: AlertTriangle },
   HOLIDAY:       { label: "Holiday",       color: "bg-blue-100 text-blue-700",     icon: CheckCircle },
   ON_LEAVE:      { label: "On Leave",      color: "bg-teal-100 text-teal-700",     icon: Clock },
-  PENDING:       { label: "Not Processed", color: "bg-gray-100 text-gray-500",     icon: Clock },
 };
 
 const StatusBadge = ({ status, isLate, isLateExcused }) => {
@@ -34,19 +33,16 @@ const StatusBadge = ({ status, isLate, isLateExcused }) => {
 };
 
 const fmtTime = (dt) => {
-  if (!dt) return null;
-  return new Date(dt).toLocaleTimeString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    hour: "2-digit", minute: "2-digit", hour12: true,
-  });
+  if (!dt) return "—";
+  const d = new Date(dt);
+  const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+  console.log(`[fmtTime] raw=${dt} utc=${d.toISOString()} ist=${ist.toISOString()}`);
+  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 };
 
 const fmtDate = (dt) => {
   if (!dt) return "—";
-  return new Date(dt).toLocaleDateString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    day: "2-digit", month: "short", year: "numeric",
-  });
+  return new Date(dt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 };
 
 const fmtMins = (m) => {
@@ -371,6 +367,73 @@ function AuditModal({ attendanceId, onClose }) {
   );
 }
 
+
+// ── How It Works Modal ────────────────────────────────────────────────────────
+function HowItWorksModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-800 text-base flex items-center gap-2">
+            ℹ️ How Attendance & Status Works
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm text-gray-700">
+
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <p className="font-bold text-blue-800 mb-1">📡 How punches are captured</p>
+            <p className="text-blue-700">Every time a teacher taps the biometric device, the punch is recorded instantly. The system ignores whether the device says IN or OUT — only the <strong>timestamp</strong> matters.</p>
+          </div>
+
+          <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+            <p className="font-bold text-green-800 mb-2">⏱️ How time is calculated</p>
+            <ul className="text-green-700 space-y-1">
+              <li>• <strong>First Punch</strong> = earliest tap of the day = Entry time (never changes)</li>
+              <li>• <strong>Last Punch</strong> = latest tap of the day = Exit time (updates on every new punch)</li>
+              <li>• <strong>Worked</strong> = Last Punch − First Punch</li>
+            </ul>
+          </div>
+
+          <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
+            <p className="font-bold text-purple-800 mb-2">🏷️ How status is decided</p>
+            <ul className="text-purple-700 space-y-1.5">
+              <li>• <strong>Present</strong> — worked ≥ full school hours</li>
+              <li>• <strong>Late</strong> — present but arrived after grace period</li>
+              <li>• <strong>Half Day</strong> — worked ≥ 50% of school hours</li>
+              <li>• <strong>Absent</strong> — worked &lt; 25% of school hours</li>
+              <li>• <strong>Missing Punch</strong> — only 1 punch recorded (no exit), OR worked time is suspiciously short → needs admin review</li>
+              <li>• <strong>Holiday</strong> — marked as school holiday for that day</li>
+              <li>• <strong>On Leave</strong> — manually marked by admin</li>
+              <li>• <strong>Not Processed</strong> — no punch data yet for today</li>
+            </ul>
+          </div>
+
+          <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+            <p className="font-bold text-orange-800 mb-2">🔧 What you can do</p>
+            <ul className="text-orange-700 space-y-1">
+              <li>• <strong>Reprocess</strong> — recalculates attendance fresh from raw punch data</li>
+              <li>• <strong>Correct</strong> — manually override status, punch times, or mark leave</li>
+              <li>• <strong>Mark School Holiday</strong> — marks all teachers as Holiday for that date</li>
+            </ul>
+          </div>
+
+          <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+            <p className="font-bold text-gray-700 mb-1">⚙️ Grace period & thresholds</p>
+            <p className="text-gray-600">Late grace period, half-day threshold, and absent threshold are configured in <strong>School Config</strong> tab. School start/end times come from the Timetable configuration.</p>
+          </div>
+
+        </div>
+        <div className="p-4 border-t border-gray-100">
+          <button onClick={onClose} className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition">
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const todayIST = () =>
   new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -394,6 +457,7 @@ export default function AttendanceCorrections({ defaultSchoolId, schools = [] })
   const [selected, setSelected]       = useState(null);
   const [auditId, setAuditId]         = useState(null);
   const [markingHoliday, setMarkingHoliday] = useState(false);
+  const [showHelp, setShowHelp]               = useState(false);
 
   // Sync when parent resolves schoolId after async fetch
   useEffect(() => {
@@ -465,13 +529,9 @@ export default function AttendanceCorrections({ defaultSchoolId, schools = [] })
     }
   };
 
-  // Reprocess (or first-time process) a teacher's attendance from raw biometric punches
+  // Reprocess single record from biometric raw data
   const reprocess = async (r) => {
-    // Convert stored UTC date back to IST date string "YYYY-MM-DD"
-    const dateStr = new Date(
-      new Date(r.date).getTime() + 5.5 * 60 * 60 * 1000
-    ).toISOString().slice(0, 10);
-
+    const dateStr = new Date(r.date).toISOString().slice(0, 10);
     try {
       const res = await fetch(`${API}/api/payroll/corrections/reprocess-single`, {
         method: "POST",
@@ -480,12 +540,7 @@ export default function AttendanceCorrections({ defaultSchoolId, schools = [] })
       });
       const d = await res.json();
       if (d.success) {
-        const s = d.data?.status || "—";
-        const worked = d.data?.workedMinutes != null ? `${d.data.workedMinutes}min` : "no exit punch";
-        const fp = d.data?.firstPunch
-          ? new Date(d.data.firstPunch).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true })
-          : "—";
-        alert(`Done! Status: ${s} | First punch: ${fp} | Worked: ${worked}`);
+        alert(`Reprocessed! New status: ${d.data?.status} | worked: ${d.data?.workedMinutes}min`);
         fetch_();
       } else {
         alert(`Error: ${d.message}`);
@@ -510,6 +565,9 @@ export default function AttendanceCorrections({ defaultSchoolId, schools = [] })
       )}
       {auditId && (
         <AuditModal attendanceId={auditId} onClose={() => setAuditId(null)} />
+      )}
+      {showHelp && (
+        <HowItWorksModal onClose={() => setShowHelp(false)} />
       )}
 
       {/* Filters */}
@@ -608,9 +666,16 @@ export default function AttendanceCorrections({ defaultSchoolId, schools = [] })
           </button>
         )}
 
-        <span className="ml-auto text-sm text-gray-500 self-center">
-          {meta.total} records
-        </span>
+        <div className="ml-auto flex items-center gap-3">
+          <button
+            onClick={() => setShowHelp(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 rounded-xl font-medium transition"
+            title="How does attendance status work?"
+          >
+            ℹ️ How it works
+          </button>
+          <span className="text-sm text-gray-500">{meta.total} records</span>
+        </div>
       </div>
 
       {/* Table */}
@@ -643,108 +708,59 @@ export default function AttendanceCorrections({ defaultSchoolId, schools = [] })
                   </td>
                 </tr>
               ) : records.map((r) => (
-                <tr key={r.id} className={`hover:bg-gray-50/50 transition-colors ${r.isPending ? "opacity-60" : ""}`}>
+                <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-4 py-3">
                     <p className="font-semibold text-gray-800">{r.teacherName}</p>
                     <p className="text-xs text-gray-400">{r.employeeCode}</p>
                   </td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(r.date)}</td>
-
-                  {/* First Punch — green if present */}
-                  <td className="px-4 py-3 font-mono text-xs">
-                    {fmtTime(r.firstPunch)
-                      ? <span className="text-green-700 font-semibold">{fmtTime(r.firstPunch)}</span>
-                      : <span className="text-gray-300">—</span>}
-                  </td>
-
-                  {/* Last Punch — blue "In Office" if firstPunch exists but no lastPunch */}
-                  <td className="px-4 py-3 font-mono text-xs">
-                    {fmtTime(r.lastPunch) ? (
-                      <span className="text-gray-700">{fmtTime(r.lastPunch)}</span>
-                    ) : r.firstPunch ? (
-                      <span className="inline-flex items-center gap-1 text-blue-600 font-semibold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse inline-block" />
-                        In Office
-                      </span>
-                    ) : (
-                      <span className="text-gray-300">—</span>
-                    )}
-                  </td>
-
-                  {/* Worked — show "Since HH:MM" if only punch-in */}
-                  <td className="px-4 py-3 text-gray-600 text-xs">
-                    {r.workedMinutes != null
-                      ? fmtMins(r.workedMinutes)
-                      : r.firstPunch && !r.lastPunch
-                        ? <span className="text-blue-500">Since {fmtTime(r.firstPunch)}</span>
-                        : <span className="text-gray-300">—</span>}
-                  </td>
-
+                  <td className="px-4 py-3 font-mono text-gray-700 text-xs">{fmtTime(r.firstPunch)}</td>
+                  <td className="px-4 py-3 font-mono text-gray-700 text-xs">{fmtTime(r.lastPunch)}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">{fmtMins(r.workedMinutes)}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={r.status} isLate={r.isLate} isLateExcused={r.isLateExcused} />
                   </td>
-
                   <td className="px-4 py-3 text-xs text-gray-500">
-                    {r.isPending && (
-                      <span className="text-gray-400 italic">Not processed yet</span>
+                    {r.status === "MISSING_PUNCH" && !r.isMissingPunchReviewed && (
+                      <span className="text-purple-600 font-medium">Needs review</span>
                     )}
-                    {!r.isPending && r.status === "MISSING_PUNCH" && !r.isMissingPunchReviewed && (
-                      <span className="text-purple-600 font-medium">
-                        {r.firstPunch && !r.lastPunch ? "Punched IN — no OUT" : "Needs review"}
-                      </span>
-                    )}
-                    {!r.isPending && r.status === "ABSENT" && r.firstPunch && !r.lastPunch && (
-                      <span className="text-blue-600 font-medium">Punched IN — no OUT</span>
-                    )}
-                    {!r.isPending && r.status === "ON_LEAVE" && (
+                    {r.status === "ON_LEAVE" && (
                       <span className={`font-medium ${r.isLeaveDeducted ? "text-red-500" : "text-teal-600"}`}>
                         {r.leaveType || "Leave"} · {r.isLeaveDeducted ? "Unpaid" : "Paid"}
                         {r.leaveReason && <span className="block text-gray-400 font-normal truncate max-w-[120px]">{r.leaveReason}</span>}
                       </span>
                     )}
-                    {!r.isPending && r.isLate && !r.isLateExcused && r.status !== "ON_LEAVE" && (
+                    {r.isLate && !r.isLateExcused && r.status !== "ON_LEAVE" && (
                       <span className="text-orange-600 font-medium">Late {r.lateMinutes}m</span>
                     )}
-                    {!r.isPending && r.correctedAt && r.status !== "ON_LEAVE" && (
+                    {r.correctedAt && r.status !== "ON_LEAVE" && (
                       <span className="text-gray-400">Corrected by {r.correctedBy || "—"}</span>
                     )}
-                    {!r.isPending && !r.correctedAt && r.status === "PRESENT" && !r.isLate && "—"}
+                    {!r.correctedAt && r.status === "PRESENT" && !r.isLate && "—"}
                   </td>
-
                   <td className="px-4 py-3">
-                    {r.isPending ? (
-                      // No DB record yet — only Reprocess makes sense (it will create the record)
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => reprocess(r)}
                         className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg font-medium transition"
-                        title="Process attendance from biometric punches"
+                        title="Delete old record and recalculate from biometric punches"
                       >
-                        ↺ Process
+                        ↺ Reprocess
                       </button>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => reprocess(r)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg font-medium transition"
-                          title="Delete old record and recalculate from biometric punches"
-                        >
-                          ↺ Reprocess
-                        </button>
-                        <button
-                          onClick={() => setSelected(r)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition"
-                        >
-                          <Edit3 size={12} />
-                          Correct
-                        </button>
-                        <button
-                          onClick={() => setAuditId(r.id)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg font-medium transition"
-                        >
-                          <History size={12} />
-                        </button>
-                      </div>
-                    )}
+                      <button
+                        onClick={() => setSelected(r)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition"
+                      >
+                        <Edit3 size={12} />
+                        Correct
+                      </button>
+                      <button
+                        onClick={() => setAuditId(r.id)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg font-medium transition"
+                      >
+                        <History size={12} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

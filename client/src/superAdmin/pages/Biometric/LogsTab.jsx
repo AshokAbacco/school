@@ -107,7 +107,6 @@ const LogsTab = () => {
   const [fromDate,     setFromDate]     = useState(today);
   const [toDate,       setToDate]       = useState(today);
   const [filterType,   setFilterType]   = useState("ALL");
-  const [filterMapped, setFilterMapped] = useState("ALL");
   const [searchQ,      setSearchQ]      = useState("");
   const [logs,         setLogs]         = useState([]);
   const [totalCount,   setTotalCount]   = useState(0);
@@ -120,7 +119,7 @@ const LogsTab = () => {
     apiFetch(`${BASE}/schools`).then((j)=>setSchools(j.data||[])).catch(()=>{});
   },[]);
 
-  useEffect(() => { loadLogs(); },[filterSchool,fromDate,toDate,filterType,filterMapped,page]); // eslint-disable-line
+  useEffect(() => { loadLogs(); },[filterSchool,fromDate,toDate,filterType,page]); // eslint-disable-line
 
   function loadLogs() {
     setLoading(true); setError("");
@@ -129,11 +128,9 @@ const LogsTab = () => {
     if(fromDate)     p.set("from",fromDate);
     if(toDate)       p.set("to",toDate);
     if(filterType!=="ALL") p.set("personType",filterType);
-    if(filterMapped==="MAPPED")   p.set("mapped","true");
-    if(filterMapped==="UNMAPPED") p.set("mapped","false");
     console.log("Selected School:", filterSchool);
     console.log("Request URL:", `${BASE}/logs?${p.toString()}`);
-    apiFetch(`${BASE}/logs?${p}`).then((j)=>{setLogs(j.data||[]);setTotalCount(j.meta?.total||0);}).catch((e)=>setError(e.message||"Failed")).finally(()=>setLoading(false));
+    apiFetch(`${BASE}/attendance-logs?${p}`).then((j)=>{setLogs(j.data||[]);setTotalCount(j.meta?.total||0);}).catch((e)=>setError(e.message||"Failed")).finally(()=>setLoading(false));
   }
 
   const handleFC=(setter)=>(e)=>{setter(e.target.value);setPage(1);};
@@ -143,7 +140,9 @@ const LogsTab = () => {
   const displayedLogs = searchQ
     ? logs.filter((l)=>{
         const q=searchQ.toLowerCase();
-        return (l.personName||"").toLowerCase().includes(q)||(l.personCode||"").toLowerCase().includes(q)||(l.deviceName||"").toLowerCase().includes(q)||(l.rawData?.enrollmentId||l.rawData?.EnrollmentId||"").toLowerCase().includes(q);
+        return (l.personName||"").toLowerCase().includes(q)
+          || (l.personCode||"").toLowerCase().includes(q)
+          || (l.deviceName||"").toLowerCase().includes(q);
       })
     : logs;
 
@@ -156,32 +155,21 @@ const LogsTab = () => {
 
   return (
     <div style={{ fontFamily:"system-ui,-apple-system,sans-serif",color:"#111827" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @media(max-width:640px){.log-filter-grid{grid-template-columns:1fr 1fr!important} .log-table-wrap{font-size:12px!important}}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}} @media(max-width:640px){.log-filter-grid{grid-template-columns:1fr 1fr!important} .log-table-wrap{font-size:12px!important}}`}</style>
 
       <div style={{ marginBottom:16 }}>
         <div style={{ display:"flex",alignItems:"center",gap:8 }}><FileText size={20} color="#4F46E5"/><h2 style={{ margin:0,fontSize:18,fontWeight:700 }}>Punch Logs</h2></div>
-        <p style={{ margin:"4px 0 0",fontSize:13,color:"#6B7280" }}>Biometric punch records. Unmapped punches are stored but the person is unknown.</p>
+        <p style={{ margin:"4px 0 0",fontSize:13,color:"#6B7280" }}>Daily attendance summary — Entry and Exit time per person per day.</p>
       </div>
 
       {/* Filters */}
       <div style={card}>
-        <div className="log-filter-grid" style={{ display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"10px 14px",alignItems:"end" }}>
+        <div className="log-filter-grid" style={{ display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:"10px 14px",alignItems:"end" }}>
           <div>
             <label style={lbl}><span style={{ display:"flex",alignItems:"center",gap:4 }}><Filter size={10}/>School</span></label>
-           <select
-              style={sel}
-              value={filterSchool}
-              onChange={(e) => {
-                console.log("School Selected:", e.target.value);
-                setFilterSchool(e.target.value);
-              }}
-            >
+            <select style={sel} value={filterSchool} onChange={(e)=>{ setFilterSchool(e.target.value); setPage(1); }}>
               <option value="">All Schools</option>
-              {schools.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.code})
-                </option>
-              ))}
+              {schools.map((s)=><option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
             </select>
           </div>
           <div>
@@ -199,18 +187,12 @@ const LogsTab = () => {
               {PERSON_TYPES.map((pt)=><option key={pt} value={pt}>{PT_LABEL[pt]}</option>)}
             </select>
           </div>
-          <div>
-            <label style={lbl}>Mapping</label>
-            <select style={sel} value={filterMapped} onChange={handleFC(setFilterMapped)}>
-              <option value="ALL">All</option><option value="MAPPED">Mapped</option><option value="UNMAPPED">Unmapped</option>
-            </select>
-          </div>
         </div>
 
         {/* Search + count row */}
         <div style={{ marginTop:12,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap" }}>
           <div style={{ fontSize:13,color:"#6B7280" }}>
-            {loading?"Loading…":<><span style={{ fontWeight:700,color:"#111827" }}>{totalCount.toLocaleString("en-IN")}</span> punch records found</>}
+            {loading?"Loading…":<><span style={{ fontWeight:700,color:"#111827" }}>{totalCount.toLocaleString("en-IN")}</span> attendance records found</>}
           </div>
           <div style={{ position:"relative",minWidth:200,flex:"0 0 auto" }}>
             <Search size={14} color="#9CA3AF" style={{ position:"absolute",left:9,top:"50%",transform:"translateY(-50%)" }}/>
@@ -219,77 +201,90 @@ const LogsTab = () => {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Info banner */}
+      <div style={{ marginBottom:12,padding:"10px 14px",background:"#EEF2FF",border:"1px solid #C7D2FE",borderRadius:10,fontSize:12,color:"#3730A3",display:"flex",alignItems:"flex-start",gap:8 }}>
+        <Info size={15} style={{ flexShrink:0,marginTop:1 }} color="#4F46E5"/>
+        <span>Showing <b>Entry</b> and <b>Exit</b> times per person per day. Entry = earliest punch, Exit = latest punch. Device IN/OUT label is ignored.</span>
+      </div>
+
+      {/* Attendance summary table */}
       <div style={card}>
         <div className="log-table-wrap" style={{ overflowX:"auto",WebkitOverflowScrolling:"touch" }}>
-          <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:640 }}>
+          <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600 }}>
             <thead>
-              <tr>{["Date & Time","Person","Type","Enrollment ID","Device","Punch Mode","Mapping","Details"].map((h)=><th key={h} style={thS}>{h}</th>)}</tr>
+              <tr>{["Date","Person","Type","Entry Time","Exit Time","Duration","Punches","Device"].map((h)=><th key={h} style={thS}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {loading ? <tr><td colSpan={8} style={{ textAlign:"center",padding:"40px 0" }}><Spinner size={20}/></td></tr>
               : error   ? <tr><td colSpan={8} style={{ textAlign:"center",padding:"32px 0",color:"#EF4444" }}>{error}</td></tr>
-              : displayedLogs.length===0 ? <tr><td colSpan={8} style={{ textAlign:"center",padding:"40px 0",color:"#9CA3AF",fontSize:13 }}>No punch records found.</td></tr>
-              : displayedLogs.map((log)=>(
-                <React.Fragment key={log.id}>
-                  <tr style={{ background:log.biometricUserMappingId?"transparent":"#FFFBEB" }}>
-                    <td style={{ ...tdS,whiteSpace:"nowrap" }}>
-                     <div style={{ fontWeight:600,fontSize:13 }}>
-                      {log.punchDateTime
-                        ? new Date(log.punchDateTime).toLocaleDateString("en-IN",{
-                            timeZone:"Asia/Kolkata",
-                            day:"2-digit",
-                            month:"short",
-                            year:"numeric"
-                          })
-                        : "—"}
-                    </div>
+              : displayedLogs.length===0 ? <tr><td colSpan={8} style={{ textAlign:"center",padding:"40px 0",color:"#9CA3AF",fontSize:13 }}>No records found.</td></tr>
+              : displayedLogs.map((log,i)=>(
+                <tr key={`${log.personId}|${log.date}`} style={{ background:i%2===0?"#fff":"#FAFAFA" }}>
 
-                    <div style={{ fontSize:11,color:"#6B7280",display:"flex",alignItems:"center",gap:3 }}>
-                      <Clock size={10}/>
-                      {log.punchDateTime
-                        ? new Date(log.punchDateTime).toLocaleTimeString("en-IN",{
-                            timeZone:"Asia/Kolkata",
-                            hour:"2-digit",
-                            minute:"2-digit",
-                            second:"2-digit"
-                          })
-                        : ""}
+                  {/* Date */}
+                  <td style={{ ...tdS,whiteSpace:"nowrap" }}>
+                    <div style={{ fontWeight:700,fontSize:13 }}>
+                      {new Date(log.date+"T12:00:00+05:30").toLocaleDateString("en-IN",{ timeZone:"Asia/Kolkata",day:"2-digit",month:"short",year:"numeric" })}
                     </div>
-                    </td>
-                    <td style={tdS}>
-                      {log.personName
-                        ? <><div style={{ fontWeight:600,display:"flex",alignItems:"center",gap:5 }}><User size={12} color="#6B7280"/>{log.personName}</div>{log.personCode&&<div style={{ fontSize:11,color:"#9CA3AF" }}>{log.personCode}</div>}</>
-                        : <span style={{ color:"#D1D5DB",fontSize:12,display:"flex",alignItems:"center",gap:4 }}><User size={12}/>Unknown</span>}
-                    </td>
-                    <td style={tdS}><Badge type={log.personType}/></td>
-                    <td style={tdS}><code style={{ fontFamily:"monospace",fontWeight:700,fontSize:13 }}>{log.rawData?.enrollmentId||log.rawData?.EnrollmentId||log.rawData?.EnrollmentID||"—"}</code></td>
-                    <td style={tdS}>
-                      <div style={{ fontSize:13,display:"flex",alignItems:"center",gap:5 }}><Monitor size={12} color="#6B7280"/>{log.deviceName||<span style={{ color:"#D1D5DB" }}>—</span>}</div>
-                      {log.deviceCode&&<div style={{ fontSize:11,color:"#9CA3AF" }}>{log.deviceCode}</div>}
-                    </td>
-                    <td style={tdS}>
-                      <span style={{ display:"inline-flex",alignItems:"center",gap:4,background:log.punchMode==="IN"?"#F0FDF4":log.punchMode==="OUT"?"#FFF1F2":"#F3F4F6",color:log.punchMode==="IN"?"#166534":log.punchMode==="OUT"?"#9F1239":"#374151",padding:"3px 9px",borderRadius:99,fontSize:11,fontWeight:700 }}>
-                        {log.punchMode==="IN"?<LogIn size={10}/>:log.punchMode==="OUT"?<LogOut size={10}/>:null}
-                        {log.punchMode||"—"}
+                    <div style={{ fontSize:11,color:"#9CA3AF" }}>
+                      {new Date(log.date+"T12:00:00+05:30").toLocaleDateString("en-IN",{ timeZone:"Asia/Kolkata",weekday:"short" })}
+                    </div>
+                  </td>
+
+                  {/* Person */}
+                  <td style={tdS}>
+                    <div style={{ fontWeight:600,display:"flex",alignItems:"center",gap:5 }}><User size={12} color="#6B7280"/>{log.personName||"Unknown"}</div>
+                    {log.personCode&&<div style={{ fontSize:11,color:"#9CA3AF" }}>{log.personCode}</div>}
+                  </td>
+
+                  {/* Type */}
+                  <td style={tdS}><Badge type={log.personType}/></td>
+
+                  {/* Entry Time — green dot */}
+                  <td style={tdS}>
+                    <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                      <span style={{ width:8,height:8,borderRadius:"50%",background:"#22C55E",display:"inline-block",flexShrink:0 }}/>
+                      <span style={{ fontWeight:700,fontSize:13,color:"#166534",fontFamily:"monospace" }}>{log.firstPunchFmt||"—"}</span>
+                    </div>
+                    <div style={{ fontSize:10,color:"#9CA3AF",marginLeft:14 }}>Entry</div>
+                  </td>
+
+                  {/* Exit Time — red dot or "Still In" pulse */}
+                  <td style={tdS}>
+                    {log.lastPunchFmt ? (
+                      <>
+                        <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                          <span style={{ width:8,height:8,borderRadius:"50%",background:"#EF4444",display:"inline-block",flexShrink:0 }}/>
+                          <span style={{ fontWeight:700,fontSize:13,color:"#9F1239",fontFamily:"monospace" }}>{log.lastPunchFmt}</span>
+                        </div>
+                        <div style={{ fontSize:10,color:"#9CA3AF",marginLeft:14 }}>Exit</div>
+                      </>
+                    ) : (
+                      <span style={{ display:"inline-flex",alignItems:"center",gap:5,color:"#2563EB",fontWeight:600,fontSize:12 }}>
+                        <span style={{ width:7,height:7,borderRadius:"50%",background:"#3B82F6",display:"inline-block",animation:"blink 1.2s infinite" }}/>
+                        Still In
                       </span>
-                    </td>
-                    <td style={tdS}><MappedPill mapped={!!log.biometricUserMappingId}/></td>
-                    <td style={tdS}>
-                      <button onClick={()=>setExpandedRow(expandedRow===log.id?null:log.id)}
-                        style={{ display:"inline-flex",alignItems:"center",gap:5,padding:"5px 11px",background:expandedRow===log.id?"#EEF2FF":"#F3F4F6",border:"none",borderRadius:6,fontSize:11,fontWeight:600,color:expandedRow===log.id?"#4338CA":"#374151",cursor:"pointer" }}>
-                        <Info size={12}/>{expandedRow===log.id?"Close":"Details"}
-                      </button>
-                    </td>
-                  </tr>
-                  {expandedRow===log.id&&(
-                    <tr>
-                      <td colSpan={8} style={{ padding:"0 14px 14px",background:"#F9FAFB",borderBottom:"2px solid #E5E7EB" }}>
-                        <PunchDetail log={log}/>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
+                    )}
+                  </td>
+
+                  {/* Duration */}
+                  <td style={tdS}>
+                    {log.workedFmt
+                      ? <span style={{ fontWeight:600,color:"#374151" }}>{log.workedFmt}</span>
+                      : <span style={{ color:"#D1D5DB" }}>—</span>}
+                  </td>
+
+                  {/* Punch count */}
+                  <td style={{ ...tdS,textAlign:"center" }}>
+                    <span style={{ background:"#EEF2FF",color:"#4338CA",padding:"2px 10px",borderRadius:99,fontSize:12,fontWeight:600 }}>{log.punchCount}</span>
+                  </td>
+
+                  {/* Device */}
+                  <td style={tdS}>
+                    <div style={{ fontSize:12,display:"flex",alignItems:"center",gap:4 }}><Monitor size={11} color="#9CA3AF"/>{log.deviceName||<span style={{ color:"#D1D5DB" }}>—</span>}</div>
+                    {log.deviceCode&&<div style={{ fontSize:10,color:"#D1D5DB" }}>{log.deviceCode}</div>}
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>

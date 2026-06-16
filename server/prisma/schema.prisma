@@ -345,6 +345,8 @@ model School {
   teacherAttendances TeacherDailyAttendance[]
   teacherPayrolls    TeacherMonthlyPayroll[]
 
+  biometricStudentAttendances BiometricStudentAttendance[]
+
   @@index([universityId])
   @@index([type])
   @@index([code])
@@ -662,6 +664,7 @@ model Student {
   reEvaluationRequests          ReEvaluationRequest[]
   biometricUserMappings         BiometricUserMapping[]
   biometricLogs                 BiometricLog[]
+  biometricAttendances          BiometricStudentAttendance[]
 
   @@unique([email, schoolId])
   @@index([schoolId])
@@ -977,6 +980,8 @@ model AcademicYear {
   reEvaluationSettings ReEvaluationSetting[]
   biometricLogs        BiometricLog[]
 
+  biometricStudentAttendances BiometricStudentAttendance[]
+
   @@unique([name, schoolId])
   @@index([schoolId])
   @@index([schoolId, isActive])
@@ -1022,6 +1027,7 @@ model ClassSection {
   assignmentSections   AssignmentSection[]
   classFees            ClassFee[]
   reEvaluationSettings ReEvaluationSetting[]
+  biometricAttendances BiometricStudentAttendance[]
 
   @@index([schoolId])
   @@index([grade, schoolId])
@@ -3742,4 +3748,64 @@ model TeacherMonthlyPayroll {
   @@unique([teacherId, month, year])
   @@index([schoolId, month, year])
   @@map("teacher_monthly_payrolls")
+}
+
+model BiometricStudentAttendance {
+  id String @id @default(cuid())
+
+  // ── Core relations ──────────────────────────────────────────────────────────
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  classSectionId String
+  classSection   ClassSection @relation(fields: [classSectionId], references: [id], onDelete: Cascade)
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  // ── Date (IST midnight stored as UTC) ──────────────────────────────────────
+  // e.g. 2026-06-16 00:00:00 IST = 2026-06-15 18:30:00 UTC
+  date DateTime
+
+  // ── Punch times (PunchMode from device is IGNORED — timestamps only) ───────
+  firstPunch DateTime? // MIN(punchDateTime) for the day — entry time, set once
+  lastPunch  DateTime? // MAX(punchDateTime) for the day — exit time, updated on each punch
+
+  // ── Status ─────────────────────────────────────────────────────────────────
+  // Uses same PayrollAttendanceStatus enum (already exists in schema)
+  // PRESENT       = worked >= school hours
+  // LATE          = present but arrived after grace period
+  // HALF_DAY      = worked >= 50% of school hours
+  // MISSING_PUNCH = only 1 punch recorded (no exit), or very short stay
+  // (ABSENT rows are NOT created — absent = no row for that student on that date)
+  status BiometricStudentStatus @default(MISSING_PUNCH)
+
+  isLate      Boolean @default(false)
+  lateMinutes Int? // minutes past grace period
+
+  // ── Audit ───────────────────────────────────────────────────────────────────
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ── Constraints ─────────────────────────────────────────────────────────────
+  @@unique([studentId, date]) // one row per student per day
+  @@index([schoolId, date]) // query all students for a school on a date
+  @@index([classSectionId, date]) // query by class on a date (most common UI query)
+  @@index([studentId, date]) // query one student's history
+  @@index([schoolId, status]) // filter by status
+  @@index([academicYearId, date]) // year-wise reports
+  @@map("biometric_student_attendance")
+}
+
+// Separate enum for student biometric attendance status
+// (avoids clash with existing AttendanceStatus and PayrollAttendanceStatus)
+enum BiometricStudentStatus {
+  PRESENT
+  LATE
+  HALF_DAY
+  MISSING_PUNCH // 1 punch only — no exit recorded
+  HOLIDAY // school holiday — can be set by admin
 }

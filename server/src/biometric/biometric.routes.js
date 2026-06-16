@@ -15,6 +15,7 @@ import {
   deactivateMapping,
   getStats,
   getLogs,
+  getAttendanceLogs,
 } from "./biometric.controller.js";
 
 const router = express.Router();
@@ -47,6 +48,7 @@ router.post ("/mappings",                assignMapping);
 router.patch("/mappings/:id/deactivate", deactivateMapping);
 
 // ── Punch logs ────────────────────────────────────────────────────────────────
-router.get("/logs", getLogs);   // ?schoolId=&from=&to=&personType=&mapped=&page=&limit=
+router.get("/logs",             getLogs);             // raw individual punches
+router.get("/attendance-logs",  getAttendanceLogs);   // grouped: firstPunch + lastPunch per person per day
 
 export default router;
