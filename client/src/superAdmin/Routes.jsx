@@ -23,6 +23,8 @@ import FinanceReports from "./pages/FinanceReports/FinanceReports.jsx";
 import ResultReports from "./pages/ResultReports/ResultReports";
 import BiometricManagement from "./pages/Biometric/BiometricManagement";
 import PayrollManagement from "./pages/PayrollManagement/PayrollManagement.jsx"; // ← ADD THIS
+import VehicleManagement from "./pages/VehicleTracking/VehicleManagement";
+
 
 function SuperAdminRoutes() {
   return (
@@ -49,7 +51,8 @@ function SuperAdminRoutes() {
         <Route path="finance-reports" element={<FinanceReports />} />
         <Route path="results-reports" element={<ResultReports />} />
         <Route path="biometric" element={<BiometricManagement />} />
-        <Route path="payroll" element={<PayrollManagement />} /> {/* ← ADD THIS */}
+        <Route path="payroll" element={<PayrollManagement />} />
+        <Route path="vehicles" element={<VehicleManagement />} /> 
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
     </PageLayout>

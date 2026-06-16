@@ -344,6 +344,8 @@ model School {
   payrollConfig      SchoolPayrollConfig?
   teacherAttendances TeacherDailyAttendance[]
   teacherPayrolls    TeacherMonthlyPayroll[]
+  schoolVehicles     SchoolVehicle[]
+  vehicleLocations   VehicleLocation[]
 
   biometricStudentAttendances BiometricStudentAttendance[]
 
@@ -3808,4 +3810,89 @@ enum BiometricStudentStatus {
   HALF_DAY
   MISSING_PUNCH // 1 punch only — no exit recorded
   HOLIDAY // school holiday — can be set by admin
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. SCHOOL VEHICLE — admin registers vehicle once with regNo
+//    regNo is the join key between our DB and GPS API response
+// ─────────────────────────────────────────────────────────────────────────────
+model SchoolVehicle {
+  id String @id @default(cuid())
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  regNo       String // "KA50EL0766" — must match what GPS API returns
+  vehicleName String? // "School Bus 1", "Van 2" — friendly name for UI
+  vehicleType String? // "BUS", "VAN", "SCOOTY", "AUTO" etc — from GPS API or manual
+
+  // GPS hardware device ID — comes from API response, stored for reference
+  deviceId String?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locations VehicleLocation[]
+
+  @@unique([schoolId, regNo]) // same regNo cannot be added twice to same school
+  @@index([schoolId])
+  @@index([regNo]) // fast lookup when matching API response
+  @@map("school_vehicles")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. VEHICLE LOCATION — stores every GPS API response
+//    One row per API poll per vehicle
+//    Use latest row for current location, all rows for history
+// ─────────────────────────────────────────────────────────────────────────────
+model VehicleLocation {
+  id String @id @default(cuid())
+
+  schoolVehicleId String
+  schoolVehicle   SchoolVehicle @relation(fields: [schoolVehicleId], references: [id], onDelete: Cascade)
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  regNo String // stored directly for easy querying without join
+
+  // ── Location data (from GPS API) ──────────────────────────────────────────
+  latitude  Float?
+  longitude Float?
+  speed     Float? // km/h
+  bearing   Float? // direction in degrees
+
+  // ── Status ────────────────────────────────────────────────────────────────
+  status         String? // "PARKED", "MOVING", "IDLE", "OFF"
+  ignitionStatus String? // "ON", "OFF"
+  vehicleStatus  String? // "PARKED", "MOVING"
+
+  // ── Address (reverse geocoded by GPS provider) ────────────────────────────
+  address String?
+
+  // ── Extra data from API ───────────────────────────────────────────────────
+  odoDistance  Float? // total odometer distance in km
+  fuelLitre    Float? // fuel level if available
+  batteryLevel Float?
+
+  // ── Timestamps ────────────────────────────────────────────────────────────
+  gpsTimestamp DateTime? // "isoDate" from API — when GPS recorded this position
+  recordedAt   DateTime  @default(now()) // when we stored it in our DB
+
+  // ── Raw API response (store everything for future use) ────────────────────
+  rawData Json?
+
+  @@index([schoolVehicleId, recordedAt]) // latest location per vehicle
+  @@index([schoolId, recordedAt]) // all vehicles for a school
+  @@index([regNo, recordedAt]) // lookup by regNo
+  @@index([recordedAt]) // time-based queries
+  @@map("vehicle_locations")
+}
+
+enum VehicleStatusType {
+  PARKED
+  MOVING
+  IDLE
+  OFF
 }
