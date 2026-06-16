@@ -24,7 +24,7 @@ import "./src/whatsapp/anniversaryCron.js";
 import contactRoutes from "./src/contactUs/contact.route.js";
 import subscriptionRoutes from "./src/payment/Upgrade.routes.js";
 import examTimetableRoutes from "./src/whatsapp/Exams/examTimetable.routes.js";
-// import voiceRoutes from "./src/voice/routes/voice.routes.js";
+import voiceRoutes from "./src/voice/routes/voice.routes.js";
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -91,7 +91,7 @@ app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/exam-timetable-whatsapp", examTimetableRoutes);
 app.use("/api/contact", contactRoutes);
 
-// app.use("/api/voice", voiceRoutes);
+app.use("/api/voice", voiceRoutes);
 
 const server = createServer(app);
 
