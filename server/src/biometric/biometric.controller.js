@@ -116,6 +116,9 @@ async function updateTeacherAttendanceOnPunch(schoolId, teacherId, punchDateTime
     }
 
     // ── Upsert TeacherDailyAttendance ─────────────────────────────────────────
+    // lastPunchToStore: only set if we have 2+ distinct punches
+    const lastPunchToStore = punches.length >= 2 ? lastPunch : null;
+
     const existing = await prisma.teacherDailyAttendance.findFirst({
       where: { teacherId, date: { gte: dayStart, lte: dayEnd } },
     });
@@ -126,39 +129,36 @@ async function updateTeacherAttendanceOnPunch(schoolId, teacherId, punchDateTime
         await prisma.teacherDailyAttendance.update({
           where: { id: existing.id },
           data: {
-            // firstPunch: NEVER overwrite — keep the earliest one already stored
-            firstPunch: existing.firstPunch ?? firstPunch,
-            // lastPunch: always update to the latest punch of the day
-            lastPunch:  lastPunch,
+            firstPunch:    existing.firstPunch ?? firstPunch, // NEVER overwrite earliest
+            lastPunch:     lastPunchToStore,                  // always update to latest
             workedMinutes,
             status,
-            isProcessed: true,
           },
         });
       }
     } else {
-      // First punch of the day for this teacher — create the record
+      // First punch of the day — create the attendance record immediately
       await prisma.teacherDailyAttendance.create({
         data: {
           schoolId,
           teacherId,
-          date:         dayStart,        // canonical IST midnight stored as UTC
-          firstPunch,                    // earliest punch = entry time
-          lastPunch:    punches.length >= 2 ? lastPunch : null, // null if only 1 punch
+          date:          dayStart,         // IST midnight stored as UTC
+          firstPunch,                      // entry time — set on first punch, never changed
+          lastPunch:     lastPunchToStore, // null until 2nd punch arrives
           workedMinutes,
           status,
-          isLate:       false,
-          lateMinutes:  null,
+          isLate:        false,
+          lateMinutes:   null,
           isMissingPunchReviewed: false,
         },
       });
     }
 
-    console.log(`[attendance] teacherId=${teacherId} date=${dateStr} punches=${punches.length} firstPunch=${firstPunch.toISOString()} lastPunch=${lastPunch.toISOString()} worked=${workedMinutes}min status=${status}`);
+    console.log(`[attendance] teacherId=${teacherId} date=${dateStr} punches=${punches.length} firstPunch=${firstPunch?.toISOString()} lastPunch=${lastPunch?.toISOString()} worked=${workedMinutes}min status=${status}`);
 
   } catch (err) {
     // Never fail the punch response because of attendance update errors
-    console.error("[attendance] updateTeacherAttendanceOnPunch failed:", err.message);
+    console.error("[attendance] updateTeacherAttendanceOnPunch failed:", err.message, err.stack);
   }
 }
 
