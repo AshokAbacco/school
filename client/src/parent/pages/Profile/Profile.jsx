@@ -185,6 +185,9 @@ export default function ParentProfile() {
             try {
                 const res = await apiFetch("/api/parent/students");
                 const raw = Array.isArray(res.data) ? res.data : (res.data?.students ?? []);
+                // Build the child list first with null profileImage.
+                // profileImage from the API is a raw R2 storage key, not a URL —
+                // we fetch signed URLs below before setting state.
                 const list = raw.map((s) => ({
                     studentId: s.id,
                     name: s.personalInfo
@@ -192,8 +195,30 @@ export default function ParentProfile() {
                         : s.name,
                     className: s.enrollments?.[0]?.classSection?.name
                         ?? s.enrollment?.className ?? null,
-                    profileImage: s.personalInfo?.profileImage ?? null,
+                    profileImage: null, // filled in below if image exists
+                    _hasImage: !!s.personalInfo?.profileImage,
                 }));
+
+                // Fetch signed profile-image URLs for children who have one
+                await Promise.all(
+                    list.map(async (child) => {
+                        if (!child._hasImage) return;
+                        try {
+                            const r = await fetch(
+                                `${API}/api/students/${child.studentId}/profile-image`,
+                                {
+                                    credentials: "include",
+                                    headers: { Authorization: `Bearer ${getToken()}` },
+                                }
+                            );
+                            if (r.ok) {
+                                const j = await r.json();
+                                child.profileImage = j.url ?? null;
+                            }
+                        } catch (_) { /* avatar fallback is fine */ }
+                    })
+                );
+
                 setChildren(list);
                 if (list.length > 0) setSelectedChild(list[0].studentId);
             } catch (e) {
@@ -211,9 +236,33 @@ export default function ParentProfile() {
         setProfileData(null); setDocs([]); setDocsFetched(false);
 
         apiFetch(`/api/parent/profile?studentId=${selectedChild}`)
-            .then(json => {
+            .then(async (json) => {
                 if (!json.student) throw new Error("No student data returned");
-                setProfileData(json.student);
+                const student = json.student;
+
+                // If admin uploaded a profile image, fetch its signed URL.
+                // personalInfo.profileImage holds the raw R2 key — not a URL.
+                // We call the dedicated signed-URL endpoint to get a viewable link.
+                if (student.personalInfo?.profileImage) {
+                    try {
+                        const imgRes = await fetch(
+                            `${API}/api/students/${selectedChild}/profile-image`,
+                            {
+                                credentials: "include",
+                                headers: { Authorization: `Bearer ${getToken()}` },
+                            }
+                        );
+                        if (imgRes.ok) {
+                            const imgJson = await imgRes.json();
+                            // Inject the signed URL so ProfileSidebar can use it
+                            student.personalInfo.profileImageUrl = imgJson.url ?? null;
+                        }
+                    } catch (_) {
+                        // Non-critical — avatar fallback will show if this fails
+                    }
+                }
+
+                setProfileData(student);
             })
             .catch(e => setProfileError(e.message))
             .finally(() => setProfileLoading(false));

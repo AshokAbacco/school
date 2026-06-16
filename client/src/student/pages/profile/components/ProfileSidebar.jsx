@@ -105,6 +105,9 @@ export default function ProfileSidebar({ profileData, enrollment, parents, loadi
 
   const avatarImage = avatarRef.current; // null while loading
 
+  // Real profile photo uploaded by admin takes priority over avatar
+  const profileImageUrl = profileData?.personalInfo?.profileImageUrl ?? null;
+
   const section     = enrollment?.classSection?.section ?? "—";
   const admNo       = enrollment?.admissionNumber ?? "—";
   const rollNo      = enrollment?.rollNumber ?? "—";
@@ -142,7 +145,22 @@ export default function ProfileSidebar({ profileData, enrollment, parents, loadi
         alignItems: "center",
         justifyContent: "center",
       }}>
-        {numericGrade < 5 ? (
+        {profileImageUrl ? (
+          // Real photo uploaded by admin — always show it regardless of grade
+          <img
+            key={profileImageUrl}
+            src={profileImageUrl}
+            alt="student photo"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              objectPosition: "center top",
+              display: "block",
+            }}
+          />
+        ) : numericGrade < 5 ? (
+          // No real photo: use 2D avatar for younger students
           // Only mount <img> once avatarImage is the correct gender-specific path.
           // The placeholder container shows while data loads — zero flicker.
           avatarImage && (
@@ -160,6 +178,7 @@ export default function ProfileSidebar({ profileData, enrollment, parents, loadi
             />
           )
         ) : (
+          // No real photo: use 3D avatar for older students
           <Avatar3D gender={gender ?? "MALE"} studentId={profileData?.id} />
         )}
       </div>
