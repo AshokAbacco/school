@@ -940,22 +940,29 @@ function FeePlansTab({ showToast }) {
 //  TAB: STUDENT ASSIGNMENTS
 // ═══════════════════════════════════════════════════════════════
 function StudentsTab({ showToast }) {
-  const [assignments, setAssignments] = useState([]);
-  const [routes,      setRoutes]      = useState([]);
-  const [stops,       setStops]       = useState([]);
-  const [years,       setYears]       = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [showModal,   setShowModal]   = useState(false);
-  const [form,        setForm]        = useState({});
-  const [saving,      setSaving]      = useState(false);
-  const [error,       setError]       = useState("");
-  const [search,      setSearch]      = useState("");
-  const [filterYear,  setFilterYear]  = useState("");
-  const [routeStops,  setRouteStops]  = useState([]);
+  const [assignments,     setAssignments]     = useState([]);
+  const [routes,          setRoutes]          = useState([]);
+  const [stops,           setStops]           = useState([]);
+  const [years,           setYears]           = useState([]);
+  const [classes,         setClasses]         = useState([]);
+  const [classStudents,   setClassStudents]   = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [loading,         setLoading]         = useState(true);
+  const [showModal,       setShowModal]       = useState(false);
+  const [form,            setForm]            = useState({});
+  const [saving,          setSaving]          = useState(false);
+  const [error,           setError]           = useState("");
+  const [search,          setSearch]          = useState("");
+  const [filterYear,      setFilterYear]      = useState("");
+  const [routeStops,      setRouteStops]      = useState([]);
   const winW = useWindowWidth();
   const isMobile = winW < 600;
 
-  const f = (k) => ({ value: form[k] ?? "", onChange: (e) => setForm((p) => ({ ...p, [k]: e.target.value })) });
+  const sel = { width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 11, padding: "9px 13px", fontSize: 13, color: C.text, background: C.bg, outline: "none" };
+  const lbl = { fontSize: 11, fontWeight: 700, color: C.textLight, display: "block", marginBottom: 6 };
+
+  // Already assigned student IDs (to filter from dropdown)
+  const assignedStudentIds = new Set(assignments.map((a) => a.student?.id).filter(Boolean));
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -969,13 +976,50 @@ function StudentsTab({ showToast }) {
         fetch(`${API_URL}/api/admin/transport/academic-years`,     { headers: authOnly() }),
       ]);
       const [a, r, s, y] = await Promise.all([aR.json(), rR.json(), sR.json(), yR.json()]);
-      setAssignments(a.data || []); setRoutes(r.data || []); setStops(s.data || []); setYears(y.data || []);
-    } catch { }
+      setAssignments(a.data || []);
+      setRoutes(r.data || []);
+      setStops(s.data || []);
+      setYears(y.data || []);
+
+      // Load classes using the active academic year
+      const activeYear = (y.data || []).find((yr) => yr.isActive) || (y.data || [])[0];
+      if (activeYear) {
+        // Use the biometric classes endpoint which is available and returns class sections
+        const token = authOnly().Authorization;
+        const schoolId = JSON.parse(atob(token.replace("Bearer ", "").split(".")[1]))?.schoolId;
+        if (schoolId) {
+          const cR = await fetch(`${API_URL}/api/biometric/classes?schoolId=${schoolId}`, { headers: authOnly() });
+          const c  = await cR.json();
+          setClasses(c.data || []);
+        }
+      }
+    } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [filterYear]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  // When class changes → load students for that class, filter already assigned
+  useEffect(() => {
+    if (!form.classSectionId) { setClassStudents([]); return; }
+    setStudentsLoading(true);
+    // Use the biometric persons endpoint which supports classSectionId filter
+    const token = authOnly().Authorization;
+    let schoolId = "";
+    try { schoolId = JSON.parse(atob(token.replace("Bearer ", "").split(".")[1]))?.schoolId || ""; } catch {}
+
+    fetch(`${API_URL}/api/biometric/persons?schoolId=${schoolId}&personType=STUDENT&classSectionId=${form.classSectionId}`, { headers: authOnly() })
+      .then((r) => r.json())
+      .then((d) => {
+        const all = d.data || [];
+        // Filter out already-assigned students
+        setClassStudents(all.filter((s) => !assignedStudentIds.has(s.id)));
+      })
+      .catch(() => setClassStudents([]))
+      .finally(() => setStudentsLoading(false));
+  }, [form.classSectionId, assignments]);
+
+  // When route changes → load stops for that route
   useEffect(() => {
     if (!form.routeId) { setRouteStops([]); return; }
     fetch(`${API_URL}/api/admin/transport/${form.routeId}/stops`, { headers: authOnly() })
@@ -985,12 +1029,29 @@ function StudentsTab({ showToast }) {
   }, [form.routeId]);
 
   const save = async () => {
+    if (!form.studentId)      { setError("Please select a student"); return; }
+    if (!form.routeId)        { setError("Please select a route"); return; }
+    if (!form.stopId)         { setError("Please select a stop"); return; }
+    if (!form.academicYearId) { setError("Please select academic year"); return; }
+    if (!form.feeAmount)      { setError("Please enter fee amount"); return; }
     setSaving(true); setError("");
     try {
-      const res  = await fetch(`${API_URL}/api/admin/transport/students`, { method: "POST", headers: authHeaders(), body: JSON.stringify(form) });
+      const payload = {
+        studentId:      form.studentId,
+        routeId:        form.routeId,
+        stopId:         form.stopId,
+        academicYearId: form.academicYearId,
+        feePlanId:      form.feePlanId || null,
+        pickupType:     form.pickupType || "BOTH",
+        feeAmount:      form.feeAmount,
+        startDate:      form.startDate || undefined,
+      };
+      const res  = await fetch(`${API_URL}/api/admin/transport/students`, { method: "POST", headers: authHeaders(), body: JSON.stringify(payload) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setShowModal(false); showToast("Student assigned to transport"); fetchAll();
+      setShowModal(false);
+      showToast("Student assigned to transport");
+      fetchAll();
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -1024,7 +1085,8 @@ function StudentsTab({ showToast }) {
           {years.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}
         </select>
         <IconBtn icon={RefreshCw} size={36} onClick={fetchAll} title="Refresh" />
-        <button onClick={() => { setForm({}); setRouteStops([]); setError(""); setShowModal(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 11, border: "none", background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={() => { setForm({}); setRouteStops([]); setClassStudents([]); setError(""); setShowModal(true); }}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 11, border: "none", background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
           <Plus size={14} /> {isMobile ? "Assign" : "Assign Student"}
         </button>
       </div>
@@ -1062,47 +1124,109 @@ function StudentsTab({ showToast }) {
       )}
 
       {showModal && (
-        <Modal title="Assign Student to Transport" subtitle="Link a student to a route and stop" onClose={() => setShowModal(false)}>
+        <Modal title="Assign Student to Transport" subtitle="Select class → student → route → stop" onClose={() => setShowModal(false)} width={520}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <ErrBanner msg={error} />
+
+            {/* Academic Year */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: C.textLight, display: "block", marginBottom: 6 }}>Academic Year <span style={{ color: C.red }}>*</span></label>
-              <select value={form.academicYearId ?? ""} onChange={(e) => setForm((p) => ({ ...p, academicYearId: e.target.value }))} style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 11, padding: "9px 13px", fontSize: 13, color: C.text, background: C.bg, outline: "none" }}>
+              <label style={lbl}>Academic Year <span style={{ color: C.red }}>*</span></label>
+              <select value={form.academicYearId ?? ""} onChange={(e) => setForm((p) => ({ ...p, academicYearId: e.target.value }))} style={sel}>
                 <option value="">Select year…</option>
                 {years.map((y) => <option key={y.id} value={y.id}>{y.name}{y.isActive ? " (Active)" : ""}</option>)}
               </select>
             </div>
-            <Field label="Student ID" required {...f("studentId")} placeholder="Student UUID" />
+
+            {/* Step 1 — Class */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: C.textLight, display: "block", marginBottom: 6 }}>Route <span style={{ color: C.red }}>*</span></label>
-              <select value={form.routeId ?? ""} onChange={(e) => setForm((p) => ({ ...p, routeId: e.target.value, stopId: "" }))} style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 11, padding: "9px 13px", fontSize: 13, color: C.text, background: C.bg, outline: "none" }}>
-                <option value="">Select route…</option>
-                {routes.map((r) => <option key={r.id} value={r.id}>{r.name} ({r.code})</option>)}
+              <label style={lbl}>
+                Class / Section <span style={{ color: C.red }}>*</span>
+                <span style={{ fontWeight: 400, textTransform: "none", color: C.textLight, fontSize: 10, marginLeft: 6 }}>Select class to load students</span>
+              </label>
+              <select
+                value={form.classSectionId ?? ""}
+                onChange={(e) => setForm((p) => ({ ...p, classSectionId: e.target.value, studentId: "" }))}
+                style={sel}
+              >
+                <option value="">— Select Class —</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name || `${c.grade}${c.section ? `-${c.section}` : ""}`}</option>
+                ))}
               </select>
             </div>
+
+            {/* Step 2 — Student */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: C.textLight, display: "block", marginBottom: 6 }}>Stop <span style={{ color: C.red }}>*</span></label>
+              <label style={lbl}>
+                Student <span style={{ color: C.red }}>*</span>
+                {form.classSectionId && classStudents.length === 0 && !studentsLoading && (
+                  <span style={{ fontWeight: 400, textTransform: "none", color: C.amber, fontSize: 10, marginLeft: 6 }}>All students already assigned</span>
+                )}
+              </label>
+              {!form.classSectionId ? (
+                <div style={{ padding: "10px 14px", borderRadius: 10, background: `${C.sky}12`, border: `1px solid ${C.sky}44`, fontSize: 12, color: C.textLight }}>
+                  ← Select a class first
+                </div>
+              ) : studentsLoading ? (
+                <div style={{ padding: "10px 14px", borderRadius: 10, background: C.bg, border: `1.5px solid ${C.border}`, fontSize: 12, color: C.textLight, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> Loading students…
+                </div>
+              ) : classStudents.length === 0 ? (
+                <div style={{ padding: "10px 14px", borderRadius: 10, background: `${C.amber}12`, border: `1px solid ${C.amber}44`, fontSize: 12, color: C.amber }}>
+                  No unassigned students in this class.
+                </div>
+              ) : (
+                <select
+                  value={form.studentId ?? ""}
+                  onChange={(e) => setForm((p) => ({ ...p, studentId: e.target.value }))}
+                  style={sel}
+                >
+                  <option value="">— Select Student —</option>
+                  {classStudents.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}{s.code && s.code !== "—" ? ` (${s.code})` : ""}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Route */}
+            <div>
+              <label style={lbl}>Route <span style={{ color: C.red }}>*</span></label>
+              <select value={form.routeId ?? ""} onChange={(e) => setForm((p) => ({ ...p, routeId: e.target.value, stopId: "" }))} style={sel}>
+                <option value="">Select route…</option>
+                {routes.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name} ({r.code}){r.vehicleNumber ? ` · ${r.vehicleNumber}` : ""}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Stop */}
+            <div>
+              <label style={lbl}>Stop <span style={{ color: C.red }}>*</span></label>
               {form.routeId && routeStops.length === 0 ? (
                 <div style={{ padding: "10px 14px", borderRadius: 10, background: `${C.amber}12`, border: `1px solid ${C.amber}44`, fontSize: 12, color: C.amber }}>No stops on this route yet.</div>
               ) : (
-                <select value={form.stopId ?? ""} onChange={(e) => setForm((p) => ({ ...p, stopId: e.target.value }))} style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 11, padding: "9px 13px", fontSize: 13, color: C.text, background: C.bg, outline: "none" }}>
+                <select value={form.stopId ?? ""} onChange={(e) => setForm((p) => ({ ...p, stopId: e.target.value }))} style={sel}>
                   <option value="">Select stop…</option>
                   {(form.routeId ? routeStops : stops).map((s) => <option key={s.id} value={s.id}>{s.name}{s.area ? ` (${s.area})` : ""}</option>)}
                 </select>
               )}
             </div>
+
             <FormRow>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.textLight, display: "block", marginBottom: 6 }}>Pickup Type</label>
-                <select value={form.pickupType ?? "BOTH"} onChange={(e) => setForm((p) => ({ ...p, pickupType: e.target.value }))} style={{ width: "100%", border: `1.5px solid ${C.border}`, borderRadius: 11, padding: "9px 13px", fontSize: 13, color: C.text, background: C.bg, outline: "none" }}>
+                <label style={lbl}>Pickup Type</label>
+                <select value={form.pickupType ?? "BOTH"} onChange={(e) => setForm((p) => ({ ...p, pickupType: e.target.value }))} style={sel}>
                   <option value="BOTH">Both</option>
                   <option value="PICKUP">Pickup Only</option>
                   <option value="DROP">Drop Only</option>
                 </select>
               </div>
-              <Field label="Fee Amount (₹)" required {...f("feeAmount")} placeholder="1500" type="number" />
+              <Field label="Fee Amount (₹)" required value={form.feeAmount ?? ""} onChange={(e) => setForm((p) => ({ ...p, feeAmount: e.target.value }))} placeholder="1500" type="number" />
             </FormRow>
-            <Field label="Start Date" {...f("startDate")} type="date" />
+
+            <Field label="Start Date" value={form.startDate ?? ""} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} type="date" />
+
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", paddingTop: 4, flexWrap: "wrap" }}>
               <button onClick={() => setShowModal(false)} style={{ padding: "9px 18px", borderRadius: 10, border: `1.5px solid ${C.borderLight}`, background: C.white, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
               <SaveBtn loading={saving} onClick={save} label="Assign Student" />

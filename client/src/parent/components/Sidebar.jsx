@@ -15,7 +15,8 @@ import {
   Library,
   MessageCircle,
   BookOpen,
-  FileSearch
+  FileSearch,
+  Bus 
 } from "lucide-react";
 import { getAuth } from "../../auth/storage";
 
@@ -39,6 +40,7 @@ function Sidebar({ isOpen, onClose }) {
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: `${base}/dashboard` },
     { icon: User, label: "My Child Profile", href: `${base}/profile` },
+    { icon: Bus, label: "Bus Tracking", href: `${base}/bus-tracking` },
     { icon: ClipboardCheck, label: "Attendance", href: `${base}/attendance` },
     { icon: BarChart2, label: "Results", href: `${base}/marks` },
     { icon: Calendar, label: "Time Table", href: `${base}/timetable` },

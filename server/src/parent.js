@@ -14,6 +14,8 @@ import syllabusProgressRoutes from "./parent/routes/SyllabusProgressRoutes.js";
 import tutorialRoutes from "./parent/routes/tutorialRoutes.js";
 import parentReEvaluationRoutes from "./parent/routes/reEvaluationRoutes.js";
 import assessmentGroupRoutes from "./parent/routes/assessmentGroupRoutes.js";
+import vehicleTrackingRoutes from "./parent/routes/vehicleTracking.routes.js";
+
 
 import logoRoutes from "./utils/logoRoutes.js";
 import { requireAuth } from "./middlewares/auth.middleware.js";
@@ -75,6 +77,7 @@ parent.use(
   "/assessment-groups",
   assessmentGroupRoutes
 );
+parent.use("/vehicle-tracking", vehicleTrackingRoutes);
 // ── Parent read-only holidays  (GET / and GET /check) ────────────────────────
 // NOTE: parent server uses no /api prefix on most routes — keeping consistent
 parent.use("/holidays", makeHolidayRouter(requireAuth));
