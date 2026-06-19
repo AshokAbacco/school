@@ -26,9 +26,11 @@ export const fetchSchools = () =>
 export const fetchClassSections = (schoolId) =>
   client.get("/api/biometric/classes", { params: { schoolId } }).then((r) => r.data.data || []);
 
-export const searchStudents = (schoolId, q) =>
+export const searchStudents = (schoolId, q, classSectionId) =>
   client
-    .get("/api/biometric/persons", { params: { schoolId, personType: "STUDENT", q } })
+    .get("/api/biometric/persons", {
+      params: { schoolId, personType: "STUDENT", q, classSectionId: classSectionId || undefined },
+    })
     .then((r) => r.data.data || []);
 
 // ── Voice announcement endpoints ─────────────────────────────────────────────
