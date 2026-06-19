@@ -1,6 +1,6 @@
 // client/src/superAdmin/pages/VoiceAnnouncements/AnnouncementForm.jsx
 import React, { useEffect, useState, useCallback } from "react";
-import { School, Users, UserCheck, Search, X, Loader2, Send } from "lucide-react";
+import { School, Users, UserCheck, Search, X, Loader2, Send, ChevronDown, ChevronRight } from "lucide-react";
 import VoiceRecorder from "./VoiceRecorder";
 import { fetchClassSections, searchStudents, uploadVoiceAudio, createVoiceAnnouncement } from "./voiceApi";
 import { colors, fontFamily } from "./theme";
@@ -68,9 +68,13 @@ export default function AnnouncementForm({ schools, schoolId, onSchoolChange, on
     setStudentResults([]);
   }, [schoolId, targetType]);
 
-  // ── Load class sections when needed ──────────────────────────────────────
+  // ── Per-class student cache (for the "Specific students" accordion) ───────
+  const [expandedClassId, setExpandedClassId] = useState(null);
+  const [studentsByClass, setStudentsByClass] = useState({}); // { [classId]: { loading, items } }
+
+  // ── Load class sections when needed (both CLASS and STUDENT modes use it) ─
   useEffect(() => {
-    if (targetType !== "CLASS" || !schoolId) return;
+    if ((targetType !== "CLASS" && targetType !== "STUDENT") || !schoolId) return;
     setClassesLoading(true);
     fetchClassSections(schoolId)
       .then(setClassSections)
@@ -78,9 +82,17 @@ export default function AnnouncementForm({ schools, schoolId, onSchoolChange, on
       .finally(() => setClassesLoading(false));
   }, [targetType, schoolId, notify]);
 
-  // ── Debounced student search ─────────────────────────────────────────────
   useEffect(() => {
-    if (targetType !== "STUDENT" || !schoolId) return;
+    setExpandedClassId(null);
+    setStudentsByClass({});
+  }, [schoolId, targetType]);
+
+  // ── Debounced cross-class student search (only active once the admin types) ─
+  useEffect(() => {
+    if (targetType !== "STUDENT" || !schoolId || !studentQuery.trim()) {
+      setStudentResults([]);
+      return;
+    }
     const handle = setTimeout(() => {
       setStudentSearchLoading(true);
       searchStudents(schoolId, studentQuery)
@@ -90,6 +102,29 @@ export default function AnnouncementForm({ schools, schoolId, onSchoolChange, on
     }, 350);
     return () => clearTimeout(handle);
   }, [targetType, schoolId, studentQuery, notify]);
+
+  // ── Expand a class → lazy-load its students once, then cache ──────────────
+  const toggleClassExpand = (classId) => {
+    setExpandedClassId((prev) => (prev === classId ? null : classId));
+    setStudentsByClass((prev) => {
+      if (prev[classId]) return prev; // already loaded / loading
+      return { ...prev, [classId]: { loading: true, items: [] } };
+    });
+  };
+
+  useEffect(() => {
+    if (!expandedClassId || !schoolId) return;
+    const entry = studentsByClass[expandedClassId];
+    if (!entry || !entry.loading) return;
+    searchStudents(schoolId, "", expandedClassId)
+      .then((items) => {
+        setStudentsByClass((prev) => ({ ...prev, [expandedClassId]: { loading: false, items } }));
+      })
+      .catch(() => {
+        notify("error", "Couldn't load students for this class");
+        setStudentsByClass((prev) => ({ ...prev, [expandedClassId]: { loading: false, items: [] } }));
+      });
+  }, [expandedClassId, schoolId, studentsByClass, notify]);
 
   const toggleClass = (id) => {
     setSelectedClassIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
@@ -306,40 +341,116 @@ export default function AnnouncementForm({ schools, schoolId, onSchoolChange, on
                 type="text"
                 value={studentQuery}
                 onChange={(e) => setStudentQuery(e.target.value)}
-                placeholder={schoolId ? "Search students by name or code…" : "Select a school first"}
+                placeholder={schoolId ? "Search students across all classes…" : "Select a school first"}
                 disabled={!schoolId}
                 style={{ ...inputStyle, paddingLeft: "32px" }}
               />
             </div>
 
-            <div className="max-h-44 overflow-y-auto rounded-lg" style={{ border: "1px solid rgba(106,137,167,0.15)" }}>
-              {studentSearchLoading ? (
-                <div className="flex items-center gap-2 text-sm p-3" style={{ color: colors.slate }}>
-                  <Loader2 size={14} className="animate-spin" /> Searching…
-                </div>
-              ) : studentResults.length === 0 ? (
-                <p className="text-sm p-3" style={{ color: colors.slate }}>
-                  {schoolId ? "No students found." : "—"}
-                </p>
-              ) : (
-                studentResults.map((s) => {
-                  const checked = selectedStudents.some((sel) => sel.id === s.id);
-                  return (
-                    <label
-                      key={s.id}
-                      className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer border-b last:border-b-0"
-                      style={{ borderColor: "rgba(106,137,167,0.1)", background: checked ? colors.skyTint : "transparent" }}
-                    >
-                      <input type="checkbox" checked={checked} onChange={() => toggleStudent(s)} className="accent-[#88BDF2]" />
-                      <span style={{ color: colors.navyDark }}>{s.name}</span>
-                      <span className="ml-auto text-xs" style={{ color: colors.slate }}>
-                        {s.code} · {s.extra}
-                      </span>
-                    </label>
-                  );
-                })
-              )}
-            </div>
+            {studentQuery.trim() ? (
+              // ── Cross-class search results (flat list) ──────────────────
+              <div className="max-h-60 overflow-y-auto rounded-lg" style={{ border: "1px solid rgba(106,137,167,0.15)" }}>
+                {studentSearchLoading ? (
+                  <div className="flex items-center gap-2 text-sm p-3" style={{ color: colors.slate }}>
+                    <Loader2 size={14} className="animate-spin" /> Searching…
+                  </div>
+                ) : studentResults.length === 0 ? (
+                  <p className="text-sm p-3" style={{ color: colors.slate }}>No students found.</p>
+                ) : (
+                  studentResults.map((s) => {
+                    const checked = selectedStudents.some((sel) => sel.id === s.id);
+                    return (
+                      <label
+                        key={s.id}
+                        className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer border-b last:border-b-0"
+                        style={{ borderColor: "rgba(106,137,167,0.1)", background: checked ? colors.skyTint : "transparent" }}
+                      >
+                        <input type="checkbox" checked={checked} onChange={() => toggleStudent(s)} className="accent-[#88BDF2]" />
+                        <span style={{ color: colors.navyDark }}>{s.name}</span>
+                        <span className="ml-auto text-xs" style={{ color: colors.slate }}>
+                          {s.code} {s.className ? `· ${s.className}` : ""}
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
+              // ── Browse-by-class accordion ────────────────────────────────
+              <div className="rounded-lg max-h-72 overflow-y-auto" style={{ border: "1px solid rgba(106,137,167,0.15)" }}>
+                {classesLoading ? (
+                  <div className="flex items-center gap-2 text-sm p-3" style={{ color: colors.slate }}>
+                    <Loader2 size={14} className="animate-spin" /> Loading classes…
+                  </div>
+                ) : classSections.length === 0 ? (
+                  <p className="text-sm p-3" style={{ color: colors.slate }}>
+                    {schoolId ? "No class sections found for this school." : "Select a school to browse its classes."}
+                  </p>
+                ) : (
+                  classSections.map((c) => {
+                    const isOpen = expandedClassId === c.id;
+                    const entry = studentsByClass[c.id];
+                    const selectedInClass = entry?.items
+                      ? entry.items.filter((s) => selectedStudents.some((sel) => sel.id === s.id)).length
+                      : 0;
+                    return (
+                      <div key={c.id} className="border-b last:border-b-0" style={{ borderColor: "rgba(106,137,167,0.1)" }}>
+                        <button
+                          type="button"
+                          onClick={() => toggleClassExpand(c.id)}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left"
+                          style={{ background: isOpen ? colors.skyTint : "transparent", border: "none", cursor: "pointer" }}
+                        >
+                          {isOpen ? <ChevronDown size={15} color={colors.slate} /> : <ChevronRight size={15} color={colors.slate} />}
+                          <span className="font-medium" style={{ color: colors.navyDark }}>{c.name}</span>
+                          <span className="text-xs" style={{ color: colors.slate }}>{c.studentCount} students</span>
+                          {selectedInClass > 0 && (
+                            <span
+                              className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                              style={{ background: colors.sky, color: "#fff" }}
+                            >
+                              {selectedInClass} selected
+                            </span>
+                          )}
+                        </button>
+
+                        {isOpen && (
+                          <div className="pl-7 pr-2 pb-2">
+                            {!entry || entry.loading ? (
+                              <div className="flex items-center gap-2 text-sm py-2" style={{ color: colors.slate }}>
+                                <Loader2 size={13} className="animate-spin" /> Loading students…
+                              </div>
+                            ) : entry.items.length === 0 ? (
+                              <p className="text-sm py-2" style={{ color: colors.slate }}>No students in this class.</p>
+                            ) : (
+                              entry.items.map((s) => {
+                                const checked = selectedStudents.some((sel) => sel.id === s.id);
+                                return (
+                                  <label
+                                    key={s.id}
+                                    className="flex items-center gap-2 py-1.5 text-sm cursor-pointer"
+                                    style={{ color: colors.navyDark }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => toggleStudent(s)}
+                                      className="accent-[#88BDF2]"
+                                    />
+                                    <span>{s.name}</span>
+                                    <span className="ml-auto text-xs" style={{ color: colors.slate }}>{s.code}</span>
+                                  </label>
+                                );
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>

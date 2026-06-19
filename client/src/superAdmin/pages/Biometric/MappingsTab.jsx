@@ -101,8 +101,11 @@ const MappingsTab = ({ isSuperAdmin=true, schoolId:fixedSchoolId=null, currentUs
   useEffect(() => {
     if(personType!=="STUDENT"||!selectedSchool) return;
     setClassesLoading(true); setClasses([]); setSelectedClass([]); setClassStudents([]); setSelectedPerson(null);
-    apiFetch(`${BASE}/classes?schoolId=${selectedSchool}`)
-      .then((j)=>setClasses(j.data||[]))
+apiFetch(`${BASE}/classes?schoolId=${selectedSchool}`)
+  .then((j) => {
+    console.log("API RESPONSE", j.data);
+    setClasses(j.data || []);
+  })
       .catch(()=>setClasses([]))
       .finally(()=>setClassesLoading(false));
   },[personType,selectedSchool]);
@@ -166,6 +169,10 @@ const MappingsTab = ({ isSuperAdmin=true, schoolId:fixedSchoolId=null, currentUs
     resetPersonSelection();
   // eslint-disable-next-line
   }, [personType]);
+
+  useEffect(() => {
+  console.log("CLASSES STATE", classes);
+}, [classes]);
 
   function resetPersonSelection() {
     setSelectedPerson(null);
