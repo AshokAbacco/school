@@ -2,7 +2,6 @@
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { uploadToR2, generateSignedUrl } from "../lib/r2.js";
-import cacheService from "../utils/cacheService.js";
 import { getExpiryByRole } from "../utils/fileAccessPolicy.js";
 import { uploadToCloud } from "../utils/cloud.service.js";
 import XLSX from "xlsx";
@@ -10,12 +9,7 @@ import {
   createFullSchoolBackup
 } from "../modules/backup/backup.service.js";
 
-
 import { prisma } from "../config/db.js";
-
-async function bustStudentCache(schoolId) {
-  await cacheService.invalidateSchool(schoolId);
-}
 
 // ── checkStudentLimit ─────────────────────────────────────────────────────────
 async function checkStudentLimit(schoolId, countToAdd = 1) {
@@ -55,23 +49,10 @@ async function checkStudentLimit(schoolId, countToAdd = 1) {
 
   return { allowed: true, used: currentCount, limit };
 }
-// Increments usedStudents after successful add
-async function incrementStudentCount(subscriptionId, by = 1) {
-  await prisma.subscription.update({
-    where: { id: subscriptionId },
-    data: { usedStudents: { increment: by } },
-  });
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const toEnum = (v) => (v ? v.toUpperCase().replace(/\s+/g, "_") : undefined);
 
-/**
- * Strips spaces/hyphens and ensures a "91" country-code prefix.
- * "91 98765-43210" → "919876543210"
- * "98765-43210"    → "919876543210"
- * "919876543210"   → "919876543210"
- */
 const normalizePhone = (v) => {
   if (!v) return v;
   const stripped = String(v).replace(/[\s\-]/g, "");
@@ -99,10 +80,8 @@ const bloodGroupMap = {
   O_NEG: "O_NEG",
 };
 
-
 const VALID_CASTE_CATEGORIES = ["SC", "ST", "OBC", "GM", "OTHER"];
 
-// Valid values for SchoolBoard enum
 const VALID_SCHOOL_BOARDS = [
   "KSEEB",
   "CBSE",
@@ -118,46 +97,35 @@ const compact = (obj) =>
   Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== undefined && v !== ""),
   );
+
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const NUMBERS = "0123456789";
 
 function generateStudentCode() {
   let code = "";
-
-  // 6 numbers first
   for (let i = 0; i < 6; i++) {
-    code += NUMBERS.charAt(
-      Math.floor(Math.random() * NUMBERS.length)
-    );
+    code += NUMBERS.charAt(Math.floor(Math.random() * NUMBERS.length));
   }
-
-  // 4 alphabets last
   for (let i = 0; i < 4; i++) {
-    code += LETTERS.charAt(
-      Math.floor(Math.random() * LETTERS.length)
-    );
+    code += LETTERS.charAt(Math.floor(Math.random() * LETTERS.length));
   }
-
   return code;
 }
 
 async function createUniqueStudentCode() {
   let studentCode;
   let exists = true;
-
   while (exists) {
     studentCode = generateStudentCode();
-
     const student = await prisma.student.findUnique({
       where: { studentCode },
       select: { id: true },
     });
-
     exists = !!student;
   }
-
   return studentCode;
 }
+
 // ── registerStudent ───────────────────────────────────────────────────────────
 export const registerStudent = async (req, res) => {
   try {
@@ -170,7 +138,6 @@ export const registerStudent = async (req, res) => {
     if (!schoolId)
       return res.status(400).json({ message: "schoolId missing from token" });
 
-    // ── ✅ Plan limit check ──────────────────────────────────────────────────
     const limitCheck = await checkStudentLimit(schoolId, 1);
     if (!limitCheck.allowed) {
       return res.status(403).json({
@@ -180,7 +147,6 @@ export const registerStudent = async (req, res) => {
         code:    "STUDENT_LIMIT_REACHED",
       });
     }
-    // ────────────────────────────────────────────────────────────────────────
 
     const exists = await prisma.student.findFirst({ where: { email, schoolId } });
     if (exists)
@@ -195,8 +161,6 @@ export const registerStudent = async (req, res) => {
       data: { studentCode, name, email, password: hashed, schoolId },
     });
 
- 
-    await bustStudentCache(schoolId);
     return res.status(201).json({ student });
   } catch (err) {
     console.error("[registerStudent]", err);
@@ -208,18 +172,14 @@ export const registerStudent = async (req, res) => {
 export const createParentLogin = async (req, res) => {
   try {
     const { id: studentId } = req.params;
-    const { name, email, password, phone, occupation, relation,  anniversaryDate, } = req.body;
+    const { name, email, password, phone, occupation, relation, anniversaryDate } = req.body;
 
     if (!name || !email || !password || !relation)
-      return res
-        .status(400)
-        .json({ message: "name, email, password and relation are required" });
+      return res.status(400).json({ message: "name, email, password and relation are required" });
 
     const validRelations = ["FATHER", "MOTHER", "GUARDIAN"];
     if (!validRelations.includes(relation.toUpperCase()))
-      return res
-        .status(400)
-        .json({ message: "relation must be FATHER, MOTHER or GUARDIAN" });
+      return res.status(400).json({ message: "relation must be FATHER, MOTHER or GUARDIAN" });
 
     const student = await prisma.student.findUnique({
       where: { id: studentId },
@@ -244,7 +204,6 @@ export const createParentLogin = async (req, res) => {
 
     if (!parent) {
       const hashed = await bcrypt.hash(password, 10);
-
       parent = await prisma.parent.create({
         data: {
           name,
@@ -252,9 +211,7 @@ export const createParentLogin = async (req, res) => {
           password: hashed,
           phone: normalizePhone(phone) || null,
           occupation: occupation || null,
-          anniversaryDate: anniversaryDate
-            ? new Date(anniversaryDate)
-            : null,
+          anniversaryDate: anniversaryDate ? new Date(anniversaryDate) : null,
           schoolId,
         },
       });
@@ -262,10 +219,7 @@ export const createParentLogin = async (req, res) => {
       try {
         await createFullSchoolBackup(schoolId);
       } catch (error) {
-        console.error(
-          "[createParentLogin] Backup failed:",
-          error.message
-        );
+        console.error("[createParentLogin] Backup failed:", error.message);
       }
     }
 
@@ -290,14 +244,7 @@ export const createParentLogin = async (req, res) => {
         },
       },
     });
-// await saveSchoolBackup({
-//   schoolId,
-//   module: "studentList",
-//   recordId: String(student.id),
-//   data: student,
-//   action: "create",
-// });
-    await bustStudentCache(schoolId);
+
     return res.status(201).json({
       parent: link.parent,
       relation: link.relation,
@@ -306,9 +253,7 @@ export const createParentLogin = async (req, res) => {
     });
   } catch (err) {
     console.error("[createParentLogin]", err);
-    return res
-      .status(500)
-      .json({ message: "Server error", detail: err.message });
+    return res.status(500).json({ message: "Server error", detail: err.message });
   }
 };
 
@@ -317,76 +262,26 @@ export const savePersonalInfo = async (req, res) => {
   try {
     const { id: studentId } = req.params;
 
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-    });
+    const student = await prisma.student.findUnique({ where: { id: studentId } });
     if (!student) return res.status(404).json({ message: "Student not found" });
 
     const {
-      // ── Basic personal ──────────────────────────────────────
-      firstName,
-      lastName,
-      dateOfBirth,
-      gender,
-      phone,
-      address,
-      city,
-      state,
-      zipCode,
-      admissionDate,
-      status,
-      parentName,
-      parentEmail,
-      parentPhone,
-      emergencyContact,
-      bloodGroup,
-      medicalConditions,
-      allergies,
-
-      // ── Government / Identity ───────────────────────────────
-      aadhaarNumber,
-      panNumber,
-      satsNumber,
-      nationality,
-      religion,
-      casteCategory,
-
-      // ── NEW: Karnataka-specific personal fields ─────────────
-      motherTongue,
-      subcaste,
-      domicileState,
-      annualIncome,
-      physicallyChallenged,
-      disabilityType,
-
-      // ── NEW: Health measurements ────────────────────────────
-      heightCm,
-      weightKg,
-      identifyingMarks,
-
-      // ── Academic enrollment ─────────────────────────────────
-      classSectionId,
-      academicYearId,
-      admissionNumber,
-      rollNumber,
-      externalId,
-
-      // ── NEW: Previous institution ───────────────────────────
-      previousSchoolName,
-      previousSchoolBoard,
-      udiseCode,
-      lateralEntry,
+      firstName, lastName, dateOfBirth, gender, phone, address, city, state, zipCode,
+      admissionDate, status, parentName, parentEmail, parentPhone, emergencyContact,
+      bloodGroup, medicalConditions, allergies,
+      aadhaarNumber, panNumber, satsNumber, nationality, religion, casteCategory,
+      motherTongue, subcaste, domicileState, annualIncome, physicallyChallenged, disabilityType,
+      heightCm, weightKg, identifyingMarks,
+      classSectionId, academicYearId, admissionNumber, rollNumber, externalId,
+      previousSchoolName, previousSchoolBoard, udiseCode, lateralEntry,
     } = req.body;
 
     if (!firstName || !lastName)
-      return res
-        .status(400)
-        .json({ message: "firstName and lastName are required" });
+      return res.status(400).json({ message: "firstName and lastName are required" });
 
     if (!admissionDate)
       return res.status(400).json({ message: "admissionDate is required" });
 
-    // ── Validate enums ──────────────────────────────────────────────────────
     if (casteCategory) {
       const castEnum = toEnum(casteCategory);
       if (!VALID_CASTE_CATEGORIES.includes(castEnum))
@@ -403,7 +298,6 @@ export const savePersonalInfo = async (req, res) => {
         });
     }
 
-    // ── Check admissionNumber uniqueness ────────────────────────────────────
     if (admissionNumber?.trim() && academicYearId) {
       const admExists = await prisma.studentEnrollment.findFirst({
         where: {
@@ -414,71 +308,48 @@ export const savePersonalInfo = async (req, res) => {
       });
       if (admExists)
         return res.status(409).json({
-          message:
-            "A student with this admission number already exists for this academic year",
+          message: "A student with this admission number already exists for this academic year",
         });
     }
 
-    // ── Profile image upload ────────────────────────────────────────────────
     let profileImageUrl;
     if (req.file) {
       const key = `schools/${student.schoolId}/students/${studentId}/profile/${Date.now()}-${req.file.originalname}`;
-      profileImageUrl = await uploadToR2(
-        key,
-        req.file.buffer,
-        req.file.mimetype,
-      );
+      profileImageUrl = await uploadToR2(key, req.file.buffer, req.file.mimetype);
     }
 
-    // ── Blood group normalisation ───────────────────────────────────────────
     const rawBloodGroup = toEnum(bloodGroup)
       ?.replace(/\+/g, "_PLUS")
       .replace(/-/g, "_MINUS");
     const fixedBloodGroup = bloodGroupMap[rawBloodGroup] || rawBloodGroup;
 
-    // ── PersonalInfo payload ────────────────────────────────────────────────
     const data = compact({
-      firstName,
-      lastName,
+      firstName, lastName,
       phone: normalizePhone(phone),
-      address,
-      city,
-      state,
-      zipCode,
-      parentName,
-      parentEmail,
+      address, city, state, zipCode,
+      parentName, parentEmail,
       parentPhone: normalizePhone(parentPhone),
       emergencyContact,
       bloodGroup: fixedBloodGroup,
-      medicalConditions,
-      allergies,
-
-      // Government / Identity
+      medicalConditions, allergies,
       aadhaarNumber: aadhaarNumber?.trim() || undefined,
       panNumber: panNumber?.trim() || undefined,
       satsNumber: satsNumber?.trim() || undefined,
       nationality: nationality?.trim() || undefined,
       religion: religion?.trim() || undefined,
       casteCategory: casteCategory ? toEnum(casteCategory) : undefined,
-
-      // Karnataka-specific
       motherTongue: motherTongue?.trim() || undefined,
       subcaste: subcaste?.trim() || undefined,
       domicileState: domicileState?.trim() || undefined,
       annualIncome: annualIncome ? parseFloat(annualIncome) : undefined,
-      // physicallyChallenged comes as string "true"/"false" from FormData
       physicallyChallenged:
         physicallyChallenged !== undefined
           ? physicallyChallenged === true || physicallyChallenged === "true"
           : undefined,
       disabilityType: disabilityType?.trim() || undefined,
-
-      // Health measurements
       heightCm: heightCm ? parseFloat(heightCm) : undefined,
       weightKg: weightKg ? parseFloat(weightKg) : undefined,
       identifyingMarks: identifyingMarks?.trim() || undefined,
-
-      // Dates and enums
       ...(profileImageUrl ? { profileImage: profileImageUrl } : {}),
       ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
       ...(gender ? { gender: toEnum(gender) } : {}),
@@ -490,28 +361,21 @@ export const savePersonalInfo = async (req, res) => {
       update: data,
     });
 
-    // ── Enrollment upsert ───────────────────────────────────────────────────
     let enrollment = null;
     if (classSectionId && academicYearId) {
       enrollment = await prisma.studentEnrollment.upsert({
         where: { studentId_academicYearId: { studentId, academicYearId } },
         create: {
-          studentId,
-          classSectionId,
-          academicYearId,
+          studentId, classSectionId, academicYearId,
           admissionNumber: admissionNumber?.trim() || null,
           admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
           rollNumber: rollNumber?.trim() || null,
           externalId: externalId?.trim() || null,
           status: toEnum(status) || "ACTIVE",
-          // Previous institution
           previousSchoolName: previousSchoolName?.trim() || null,
-          previousSchoolBoard: previousSchoolBoard
-            ? toEnum(previousSchoolBoard)
-            : null,
+          previousSchoolBoard: previousSchoolBoard ? toEnum(previousSchoolBoard) : null,
           udiseCode: udiseCode?.trim() || null,
-          lateralEntry:
-            lateralEntry === true || lateralEntry === "true" || false,
+          lateralEntry: lateralEntry === true || lateralEntry === "true" || false,
         },
         update: {
           classSectionId,
@@ -519,25 +383,18 @@ export const savePersonalInfo = async (req, res) => {
           rollNumber: rollNumber?.trim() || null,
           externalId: externalId?.trim() || null,
           status: toEnum(status) || "ACTIVE",
-          // Previous institution
           previousSchoolName: previousSchoolName?.trim() || null,
-          previousSchoolBoard: previousSchoolBoard
-            ? toEnum(previousSchoolBoard)
-            : null,
+          previousSchoolBoard: previousSchoolBoard ? toEnum(previousSchoolBoard) : null,
           udiseCode: udiseCode?.trim() || null,
-          lateralEntry:
-            lateralEntry === true || lateralEntry === "true" || false,
+          lateralEntry: lateralEntry === true || lateralEntry === "true" || false,
         },
       });
     }
 
-    await bustStudentCache(student.schoolId);
     return res.status(200).json({ personalInfo, enrollment });
   } catch (err) {
     console.error("[savePersonalInfo]", err);
-    return res
-      .status(500)
-      .json({ message: "Server error", detail: err.message });
+    return res.status(500).json({ message: "Server error", detail: err.message });
   }
 };
 
@@ -546,9 +403,7 @@ export const uploadDocumentsBulk = async (req, res) => {
   try {
     const { id: studentId } = req.params;
 
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-    });
+    const student = await prisma.student.findUnique({ where: { id: studentId } });
     if (!student) return res.status(404).json({ message: "Student not found" });
 
     if (!req.files?.length)
@@ -556,25 +411,13 @@ export const uploadDocumentsBulk = async (req, res) => {
 
     const metadata = JSON.parse(req.body.metadata || "[]");
     if (metadata.length !== req.files.length)
-      return res
-        .status(400)
-        .json({ message: "metadata length must match files length" });
+      return res.status(400).json({ message: "metadata length must match files length" });
 
-    // Validate all documentName values are valid enum members
     const VALID_DOC_TYPES = [
-      "AADHAR_CARD",
-      "BIRTH_CERTIFICATE",
-      "PASSBOOK",
-      "TRANSFER_CERTIFICATE",
-      "MARKSHEET",
-      "MIGRATION_CERTIFICATE",
-      "CHARACTER_CERTIFICATE",
-      "MEDICAL_CERTIFICATE",
-      "PASSPORT",
-      "CASTE_CERTIFICATE",
-      "INCOME_CERTIFICATE",
-      "PHOTO",
-      "CUSTOM",
+      "AADHAR_CARD", "BIRTH_CERTIFICATE", "PASSBOOK", "TRANSFER_CERTIFICATE",
+      "MARKSHEET", "MIGRATION_CERTIFICATE", "CHARACTER_CERTIFICATE",
+      "MEDICAL_CERTIFICATE", "PASSPORT", "CASTE_CERTIFICATE",
+      "INCOME_CERTIFICATE", "PHOTO", "CUSTOM",
     ];
 
     for (const [i, meta] of metadata.entries()) {
@@ -583,7 +426,6 @@ export const uploadDocumentsBulk = async (req, res) => {
           message: `Invalid documentName "${meta.documentName}" at index ${i}. Must be one of: ${VALID_DOC_TYPES.join(", ")}`,
         });
       }
-      // CUSTOM requires a customLabel
       if (meta.documentName === "CUSTOM" && !meta.customLabel?.trim()) {
         return res.status(400).json({
           message: `customLabel is required when documentName is CUSTOM (index ${i})`,
@@ -594,7 +436,7 @@ export const uploadDocumentsBulk = async (req, res) => {
     const created = await Promise.all(
       req.files.map(async (file, idx) => {
         const { documentName, customLabel } = metadata[idx];
-       const key = `schools/${student.schoolId}/students/${studentId}/documents/${Date.now()}-${file.originalname}`;
+        const key = `schools/${student.schoolId}/students/${studentId}/documents/${Date.now()}-${file.originalname}`;
         await uploadToR2(key, file.buffer, file.mimetype);
         return prisma.studentDocumentInfo.create({
           data: {
@@ -609,7 +451,6 @@ export const uploadDocumentsBulk = async (req, res) => {
       }),
     );
 
-    await bustStudentCache(student.schoolId);
     return res.status(201).json({ documents: created });
   } catch (err) {
     console.error("[uploadDocumentsBulk]", err);
@@ -625,12 +466,6 @@ export const getStudent = async (req, res) => {
       return res.status(400).json({ message: "schoolId missing from token" });
 
     const { id } = req.params;
-    const baseKey = `students:one:${schoolId}:${id}`;
-    const key = await cacheService.buildKey(schoolId, baseKey);
-
-    const cached = await cacheService.get(key);
-    if (cached)
-      return res.json({ student: JSON.parse(cached), fromCache: true });
 
     const student = await prisma.student.findUnique({
       where: { id, schoolId },
@@ -640,7 +475,7 @@ export const getStudent = async (req, res) => {
         email: true,
         isActive: true,
         createdAt: true,
-        personalInfo: true, // full model — all new fields included
+        personalInfo: true,
         documents: { orderBy: { createdAt: "desc" } },
         enrollments: {
           include: {
@@ -651,9 +486,7 @@ export const getStudent = async (req, res) => {
                 section: true,
                 name: true,
                 streamId: true,
-                stream: {
-                  select: { id: true, name: true, hasCombinations: true },
-                },
+                stream: { select: { id: true, name: true, hasCombinations: true } },
                 combinationId: true,
                 combination: { select: { id: true, name: true, code: true } },
                 courseId: true,
@@ -694,7 +527,6 @@ export const getStudent = async (req, res) => {
 
     if (!student) return res.status(404).json({ message: "Student not found" });
 
-    await cacheService.set(key, student);
     return res.json({ student, fromCache: false });
   } catch (err) {
     console.error("[getStudent]", err);
@@ -716,12 +548,6 @@ export const listStudents = async (req, res) => {
     const academicYearId = req.query.academicYearId || null;
     const status = req.query.status?.toUpperCase() || null;
 
-    const baseKey = `students:list:${schoolId}:${JSON.stringify({ page, limit, search, classSectionId, academicYearId, status })}`;
-    const key = await cacheService.buildKey(schoolId, baseKey);
-
-    const cached = await cacheService.get(key);
-    if (cached) return res.json({ ...JSON.parse(cached), fromCache: true });
-
     const hasEnrollmentFilter = classSectionId || academicYearId || status;
     const enrollmentFilter = {
       ...(classSectionId ? { classSectionId } : {}),
@@ -729,56 +555,22 @@ export const listStudents = async (req, res) => {
       ...(status ? { status } : {}),
     };
 
-  const where = {
-  schoolId,
-  deletedAt: null,
-
-  ...(hasEnrollmentFilter
-    ? { enrollments: { some: enrollmentFilter } }
-    : {}),
-
-  ...(search
-    ? {
-        OR: [
-          { name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-
-          {
-            personalInfo: {
-              is: {
-                firstName: {
-                  contains: search,
-                  mode: "insensitive",
-                },
-              },
-            },
-          },
-
-          {
-            personalInfo: {
-              is: {
-                lastName: {
-                  contains: search,
-                  mode: "insensitive",
-                },
-              },
-            },
-          },
-
-          {
-            enrollments: {
-              some: {
-                admissionNumber: {
-                  contains: search,
-                  mode: "insensitive",
-                },
-              },
-            },
-          },
-        ],
-      }
-    : {}),
-};
+    const where = {
+      schoolId,
+      deletedAt: null,
+      ...(hasEnrollmentFilter ? { enrollments: { some: enrollmentFilter } } : {}),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
+              { personalInfo: { is: { firstName: { contains: search, mode: "insensitive" } } } },
+              { personalInfo: { is: { lastName: { contains: search, mode: "insensitive" } } } },
+              { enrollments: { some: { admissionNumber: { contains: search, mode: "insensitive" } } } },
+            ],
+          }
+        : {}),
+    };
 
     const total = await prisma.student.count({ where });
 
@@ -796,8 +588,8 @@ export const listStudents = async (req, res) => {
             phone: true,
             casteCategory: true,
             nationality: true,
-            motherTongue: true, // NEW
-            physicallyChallenged: true, // NEW
+            motherTongue: true,
+            physicallyChallenged: true,
           },
         },
         enrollments: {
@@ -822,15 +614,14 @@ export const listStudents = async (req, res) => {
       },
     });
 
-    const payload = {
+    return res.json({
       students,
       total,
       page,
       limit,
       pages: Math.ceil(total / limit),
-    };
-    await cacheService.set(key, payload);
-    return res.json({ ...payload, fromCache: false });
+      fromCache: false,
+    });
   } catch (err) {
     console.error("[listStudents]", err);
     return res.status(500).json({ message: "Server error" });
@@ -840,36 +631,21 @@ export const listStudents = async (req, res) => {
 // ── deleteStudent ─────────────────────────────────────────────────────────────
 export const deleteStudent = async (req, res) => {
   try {
-
     const { id } = req.params;
 
     const student = await prisma.student.update({
-      where: {
-        id,
-      },
-      data: {
-        deletedAt: new Date(),
-      },
+      where: { id },
+      data: { deletedAt: new Date() },
     });
-
-    // ✅ CLEAR CACHE
-    await bustStudentCache(student.schoolId);
 
     return res.json({
       success: true,
       message: "Student moved to recovery",
       student,
     });
-
   } catch (error) {
-
     console.log("DELETE ERROR:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -930,13 +706,6 @@ export const getMyStudent = async (req, res) => {
     if (!userId || !schoolId)
       return res.status(400).json({ message: "Invalid token" });
 
-    const baseKey = `students:me:${schoolId}:${userId}`;
-    const key = await cacheService.buildKey(schoolId, baseKey);
-
-    const cached = await cacheService.get(key);
-    if (cached)
-      return res.json({ student: JSON.parse(cached), fromCache: true });
-
     const student = await prisma.student.findUnique({
       where: { id: userId, schoolId },
       include: {
@@ -944,12 +713,7 @@ export const getMyStudent = async (req, res) => {
         enrollments: {
           include: {
             classSection: {
-              include: {
-                stream: true,
-                combination: true,
-                course: true,
-                branch: true,
-              },
+              include: { stream: true, combination: true, course: true, branch: true },
             },
             academicYear: true,
           },
@@ -957,9 +721,7 @@ export const getMyStudent = async (req, res) => {
         },
         parentLinks: {
           include: {
-            parent: {
-              select: { id: true, name: true, email: true, phone: true },
-            },
+            parent: { select: { id: true, name: true, email: true, phone: true } },
           },
         },
       },
@@ -967,7 +729,6 @@ export const getMyStudent = async (req, res) => {
 
     if (!student) return res.status(404).json({ message: "Student not found" });
 
-    await cacheService.set(key, student);
     return res.json({ student, fromCache: false });
   } catch (error) {
     console.error("[getMyStudent]", error);
@@ -983,13 +744,6 @@ export const getMyParentStudents = async (req, res) => {
     if (!parentId || !schoolId)
       return res.status(400).json({ message: "Invalid token" });
 
-    const baseKey = `students:parent:${schoolId}:${parentId}`;
-    const key = await cacheService.buildKey(schoolId, baseKey);
-
-    const cached = await cacheService.get(key);
-    if (cached)
-      return res.json({ students: JSON.parse(cached), fromCache: true });
-
     const links = await prisma.studentParent.findMany({
       where: { parentId, student: { schoolId } },
       include: {
@@ -999,12 +753,7 @@ export const getMyParentStudents = async (req, res) => {
             enrollments: {
               include: {
                 classSection: {
-                  include: {
-                    stream: true,
-                    combination: true,
-                    course: true,
-                    branch: true,
-                  },
+                  include: { stream: true, combination: true, course: true, branch: true },
                 },
                 academicYear: true,
               },
@@ -1022,7 +771,6 @@ export const getMyParentStudents = async (req, res) => {
       student: link.student,
     }));
 
-    await cacheService.set(key, students);
     return res.json({ students, fromCache: false });
   } catch (error) {
     console.error("[getMyParentStudents]", error);
@@ -1030,30 +778,26 @@ export const getMyParentStudents = async (req, res) => {
   }
 };
 
-
+// ── bulkImportRow ─────────────────────────────────────────────────────────────
 export const bulkImportRow = async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
     if (!schoolId) return res.status(400).json({ message: "schoolId missing from token" });
 
-    // Uses the unified worker to handle all database operations at once
     const student = await createStudentFull(req.body, schoolId);
-
-    await bustStudentCache(schoolId);
 
     return res.status(201).json({
       studentId: student.id,
       name: student.name,
       message: "Student imported successfully",
     });
-
   } catch (err) {
     console.error("[bulkImportRow]", err);
-    // Return specific error message (e.g., "Duplicate Email" or "Class not found")
     return res.status(400).json({ message: err.message || "Server error" });
   }
 };
 
+// ── bulkImportStudents ────────────────────────────────────────────────────────
 export const bulkImportStudents = async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
@@ -1064,7 +808,6 @@ export const bulkImportStudents = async (req, res) => {
     if (!students.length)
       return res.status(400).json({ message: "No students provided" });
 
-    // ── ✅ Plan limit check — check all at once before starting ──────────────
     const limitCheck = await checkStudentLimit(schoolId, students.length);
     if (!limitCheck.allowed) {
       return res.status(403).json({
@@ -1074,7 +817,6 @@ export const bulkImportStudents = async (req, res) => {
         code:    "STUDENT_LIMIT_REACHED",
       });
     }
-    // ────────────────────────────────────────────────────────────────────────
 
     const results = [];
     let successCount = 0;
@@ -1102,48 +844,42 @@ export const bulkImportStudents = async (req, res) => {
       failedCount,
       results,
     });
-
   } catch (err) {
     console.error("[bulkImportStudents]", err);
     return res.status(500).json({ message: "Bulk import failed", detail: err.message });
   }
 };
 
+// ── parseIndianDate ───────────────────────────────────────────────────────────
 const parseIndianDate = (dateStr) => {
   if (!dateStr) return undefined;
   if (dateStr instanceof Date) return dateStr;
-  const parts = dateStr.toString().trim().split(/[-/]/); 
+  const parts = dateStr.toString().trim().split(/[-/]/);
   if (parts.length === 3) {
     const d = parseInt(parts[0], 10);
-    const m = parseInt(parts[1], 10) - 1; // JS months are 0-11
+    const m = parseInt(parts[1], 10) - 1;
     let y = parseInt(parts[2], 10);
-    if (y < 100) y = y > 25 ? 1900 + y : 2000 + y; // Handle 2-digit years
+    if (y < 100) y = y > 25 ? 1900 + y : 2000 + y;
     const date = new Date(y, m, d);
     if (!isNaN(date.getTime())) return date;
   }
   return new Date(dateStr);
 };
 
-
-
+// ── createStudentFull ─────────────────────────────────────────────────────────
 async function createStudentFull(row, schoolId) {
   const {
-    // Basic & Identity
     firstName, lastName, email, password, gender, dateOfBirth, phone,
     address, city, state, zipCode, nationality, religion, casteCategory,
     motherTongue, subcaste, domicileState, annualIncome, physicallyChallenged,
     disabilityType, aadhaarNumber, panNumber, satsNumber,
-    // Academic
-    admissionNumber, classSectionName, academicYearName, rollNumber, externalId, 
+    admissionNumber, classSectionName, academicYearName, rollNumber, externalId,
     admissionDate, status, previousSchoolName, previousSchoolBoard, udiseCode, lateralEntry,
-    // Parent (Unified Single Login)
     parentName, parentPhone, parentEmail, parentPassword, parentOccupation, parentRelation,
     emergencyContact,
-    // Health
-    bloodGroup, heightCm, weightKg, identifyingMarks, medicalConditions, allergies
+    bloodGroup, heightCm, weightKg, identifyingMarks, medicalConditions, allergies,
   } = row;
 
-  // 1. Mandatory Pre-validations (Provides clear UI feedback)
   const studentEmail = (row.loginEmail || email)?.toLowerCase().trim();
   if (!studentEmail) throw new Error("Student login email is required.");
   if (!admissionNumber) throw new Error("Admission Number is required.");
@@ -1151,7 +887,7 @@ async function createStudentFull(row, schoolId) {
   const exists = await prisma.student.findFirst({ where: { email: studentEmail, schoolId } });
   if (exists) throw new Error(`Student email "${studentEmail}" is already registered.`);
 
-  // 2. Resolve Class Section (Smart lookup for "10-A", "10 A", or "10A")
+  // Resolve Class Section
   const classSection = await prisma.classSection.findFirst({
     where: {
       schoolId,
@@ -1160,35 +896,34 @@ async function createStudentFull(row, schoolId) {
         {
           AND: [
             { grade: { equals: classSectionName?.split(/[-\s]/)[0]?.trim(), mode: "insensitive" } },
-            { section: { equals: classSectionName?.split(/[-\s]/)[1]?.trim(), mode: "insensitive" } }
-          ]
-        }
+            { section: { equals: classSectionName?.split(/[-\s]/)[1]?.trim(), mode: "insensitive" } },
+          ],
+        },
       ],
     },
   });
   if (!classSection) throw new Error(`Class "${classSectionName}" not found in system.`);
 
-  // 3. Resolve Academic Year
+  // Resolve Academic Year
   const academicYear = await prisma.academicYear.findFirst({
     where: { schoolId, name: { equals: academicYearName?.trim(), mode: "insensitive" } },
   });
   if (!academicYear) throw new Error(`Academic year "${academicYearName}" not found.`);
 
-  // 4. Pre-check Roll Number Conflict
+  // Pre-check Roll Number Conflict
   if (rollNumber?.toString().trim()) {
     const rollExists = await prisma.studentEnrollment.findFirst({
-      where: { 
-        classSectionId: classSection.id, 
-        academicYearId: academicYear.id, 
-        rollNumber: rollNumber.toString().trim() 
-      }
+      where: {
+        classSectionId: classSection.id,
+        academicYearId: academicYear.id,
+        rollNumber: rollNumber.toString().trim(),
+      },
     });
     if (rollExists) throw new Error(`Roll No ${rollNumber} already assigned in ${classSection.name}.`);
   }
 
-  // 5. Atomic Transaction (Matches manual form Tabs 1-6)
   return await prisma.$transaction(async (tx) => {
-    // Step A: Register Student Base (Login)
+    // Step A: Register Student Base
     const student = await tx.student.create({
       data: {
         name: `${firstName} ${lastName}`.trim(),
@@ -1200,7 +935,7 @@ async function createStudentFull(row, schoolId) {
 
     // Step B: Personal & Health Info
     const normalizedBlood = bloodGroupMap[bloodGroup?.toUpperCase().replace(/\s/g, "")] || undefined;
-    
+
     await tx.studentPersonalInfo.create({
       data: {
         studentId: student.id,
@@ -1208,16 +943,17 @@ async function createStudentFull(row, schoolId) {
         dateOfBirth: parseIndianDate(dateOfBirth),
         gender: toEnum(gender),
         phone: phone?.toString(),
-        address, city, state, zipCode: zipCode?.toString(),
+        address, city, state,
+        zipCode: zipCode?.toString(),
         nationality: nationality || "Indian",
         religion,
-        aadhaarNumber: row.aadhaarNumber 
-        ? row.aadhaarNumber.toString()      // Convert to string first
-            .replace(/\s/g, "")             // Remove any spaces
-            .replace(/\.0$/, "")            // Remove ".0" if Excel added it
-            .replace(/[^0-9]/g, "")         // Remove anything else (dots, letters)
-            .slice(0, 12)                   // Keep exactly 12 digits
-        : null,
+        aadhaarNumber: row.aadhaarNumber
+          ? row.aadhaarNumber.toString()
+              .replace(/\s/g, "")
+              .replace(/\.0$/, "")
+              .replace(/[^0-9]/g, "")
+              .slice(0, 12)
+          : null,
         panNumber: panNumber?.toString().toUpperCase(),
         satsNumber: satsNumber?.toString(),
         casteCategory: toEnum(casteCategory),
@@ -1229,17 +965,15 @@ async function createStudentFull(row, schoolId) {
         bloodGroup: normalizedBlood,
         heightCm: heightCm ? parseFloat(heightCm) : null,
         weightKg: weightKg ? parseFloat(weightKg) : null,
-        identifyingMarks,
-        medicalConditions,
-        allergies,
-        parentName, 
+        identifyingMarks, medicalConditions, allergies,
+        parentName,
         parentPhone: parentPhone?.toString(),
         parentEmail,
         emergencyContact: emergencyContact || parentPhone?.toString(),
-      }
+      },
     });
 
-    // Step C: Enrollment (Assign to Class & History)
+    // Step C: Enrollment
     await tx.studentEnrollment.create({
       data: {
         studentId: student.id,
@@ -1254,16 +988,15 @@ async function createStudentFull(row, schoolId) {
         previousSchoolBoard: toEnum(previousSchoolBoard),
         udiseCode: udiseCode?.toString(),
         lateralEntry: lateralEntry === "true" || lateralEntry === true,
-      }
+      },
     });
 
-    // Step D: Unified Parent Account Sync (One Login per row)
+    // Step D: Unified Parent Account
     if (parentName && parentEmail) {
       const pEmail = parentEmail.toLowerCase().trim();
       let parent = await tx.parent.findFirst({ where: { email: pEmail, schoolId } });
-      
+
       if (!parent) {
-        // Use Excel password if provided, otherwise default
         const rawPw = parentPassword?.toString().trim() || "Parent@123";
         parent = await tx.parent.create({
           data: {
@@ -1273,19 +1006,18 @@ async function createStudentFull(row, schoolId) {
             phone: parentPhone?.toString(),
             occupation: parentOccupation,
             schoolId,
-          }
+          },
         });
       }
 
-      // Link Parent record to Student
       await tx.studentParent.create({
         data: {
           studentId: student.id,
           parentId: parent.id,
           relation: toEnum(parentRelation) || "GUARDIAN",
           isPrimary: true,
-          emergencyContact: true
-        }
+          emergencyContact: true,
+        },
       });
     }
 
@@ -1293,18 +1025,16 @@ async function createStudentFull(row, schoolId) {
   });
 }
 
+// ── exportStudentsExcel ───────────────────────────────────────────────────────
 export const exportStudentsExcel = async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
     const { classSectionId } = req.query;
 
-    // ── 1. Fetch students ──────────────────────────────────────────────────────
     const students = await prisma.student.findMany({
       where: {
         schoolId,
-        ...(classSectionId && {
-          enrollments: { some: { classSectionId } },
-        }),
+        ...(classSectionId && { enrollments: { some: { classSectionId } } }),
       },
       include: {
         personalInfo: true,
@@ -1321,21 +1051,18 @@ export const exportStudentsExcel = async (req, res) => {
       return res.status(404).json({ message: "No students found" });
     }
 
-    // ── 2. Meta ────────────────────────────────────────────────────────────────
     const exportDate = new Date().toLocaleDateString("en-IN", {
       day: "2-digit", month: "long", year: "numeric",
     });
 
-    // Derive a display label for the filter (class name or "All Classes")
     const filterLabel = classSectionId
       ? (students[0]?.enrollments?.[0]?.classSection?.name || "Filtered Class")
       : "All Classes";
 
-    // ── 3. Build workbook ──────────────────────────────────────────────────────
     const ExcelJS = (await import("exceljs")).default;
     const wb = new ExcelJS.Workbook();
-    wb.creator  = "School Management System";
-    wb.created  = new Date();
+    wb.creator = "School Management System";
+    wb.created = new Date();
     wb.modified = new Date();
 
     const ws = wb.addWorksheet("Students", {
@@ -1343,46 +1070,36 @@ export const exportStudentsExcel = async (req, res) => {
       views: [{ state: "frozen", ySplit: 6 }],
     });
 
-    // ── 4. Colour palette (same design language as Results export) ─────────────
     const C = {
-      headerBg:    "FF1E3A5F",   // deep navy
-      headerFg:    "FFFFFFFF",
-      subHeaderBg: "FF2E86AB",   // ocean blue
-      subHeaderFg: "FFFFFFFF",
-      metaBg:      "FFE8F4FD",   // very light blue
-      metaFg:      "FF1E3A5F",
-      colHeaderBg: "FF34495E",   // dark slate
-      colHeaderFg: "FFFFFFFF",
-      rowEven:     "FFF8FBFF",
-      rowOdd:      "FFFFFFFF",
-      borderCol:   "FFB0C4DE",
-      activeCell:  "FFE8F5E9",   // light green  – ACTIVE
-      inactiveCell:"FFFCE4E4",   // light red    – INACTIVE / other
-      statusActive:   { bg: "FF1A7A4A", fg: "FFFFFFFF" },
+      headerBg: "FF1E3A5F", headerFg: "FFFFFFFF",
+      subHeaderBg: "FF2E86AB", subHeaderFg: "FFFFFFFF",
+      metaBg: "FFE8F4FD", metaFg: "FF1E3A5F",
+      colHeaderBg: "FF34495E", colHeaderFg: "FFFFFFFF",
+      rowEven: "FFF8FBFF", rowOdd: "FFFFFFFF",
+      borderCol: "FFB0C4DE",
+      activeCell: "FFE8F5E9", inactiveCell: "FFFCE4E4",
+      statusActive: { bg: "FF1A7A4A", fg: "FFFFFFFF" },
       statusInactive: { bg: "FFC62828", fg: "FFFFFFFF" },
-      statusOther:    { bg: "FFF57F17", fg: "FFFFFFFF" },
+      statusOther: { bg: "FFF57F17", fg: "FFFFFFFF" },
     };
 
-    // ── 5. Column definitions ─────────────────────────────────────────────────
-    //  A  B            C        D       E            F           G       H
     ws.columns = [
-      { key: "rollNo",      width: 10  },  // A – Roll No
-      { key: "admNo",       width: 16  },  // B – Admission No
-      { key: "name",        width: 28  },  // C – Student Name
-      { key: "gender",      width: 10  },  // D – Gender
-      { key: "phone",       width: 16  },  // E – Phone
-      { key: "email",       width: 30  },  // F – Email
-      { key: "class",       width: 14  },  // G – Class
-      { key: "academicYear",width: 18  },  // H – Academic Year
-      { key: "dob",         width: 16  },  // I – Date of Birth
-      { key: "bloodGroup",  width: 12  },  // J – Blood Group
-      { key: "status",      width: 12  },  // K – Status
+      { key: "rollNo",       width: 10 },
+      { key: "admNo",        width: 16 },
+      { key: "name",         width: 28 },
+      { key: "gender",       width: 10 },
+      { key: "phone",        width: 16 },
+      { key: "email",        width: 30 },
+      { key: "class",        width: 14 },
+      { key: "academicYear", width: 18 },
+      { key: "dob",          width: 16 },
+      { key: "bloodGroup",   width: 12 },
+      { key: "status",       width: 12 },
     ];
 
-    const LAST_COL  = "K";
+    const LAST_COL = "K";
     const TOTAL_COLS = 11;
 
-    // ── 6. Helpers ────────────────────────────────────────────────────────────
     const thinBorder = (color = C.borderCol) => ({
       top:    { style: "thin", color: { argb: color } },
       left:   { style: "thin", color: { argb: color } },
@@ -1393,7 +1110,7 @@ export const exportStudentsExcel = async (req, res) => {
     const fillSolid = (argb) => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
 
     const addBanner = (text, bgArgb, fgArgb, fontSize, rowHeight) => {
-      const row  = ws.addRow([text]);
+      const row = ws.addRow([text]);
       const cell = row.getCell(1);
       ws.mergeCells(`A${row.number}:${LAST_COL}${row.number}`);
       cell.value     = text;
@@ -1405,30 +1122,22 @@ export const exportStudentsExcel = async (req, res) => {
       return row;
     };
 
-    // ── 7. Rows 1-4: Header block ──────────────────────────────────────────────
-    // Row 1 – Title banner
     addBanner("🎓  STUDENT LIST REPORT", C.headerBg, C.headerFg, 18, 36);
-
-    // Row 2 – Class filter
     addBanner(`Class: ${filterLabel}`, C.subHeaderBg, C.subHeaderFg, 13, 26);
-
-    // Row 3 – Meta info
     addBanner(
       `Exported on: ${exportDate}     |     Total Students: ${students.length}`,
       C.metaBg, C.metaFg, 10, 20,
     );
 
-    // Row 4 – spacer
     const spacer = ws.addRow([]);
     spacer.height = 6;
 
-    // ── 8. Row 5: Column headers ───────────────────────────────────────────────
     const headerLabels = [
       "Roll No", "Admission No", "Student Name", "Gender",
       "Phone", "Email", "Class", "Academic Year",
       "Date of Birth", "Blood Group", "Status",
     ];
-    const hdrRow  = ws.addRow(headerLabels);
+    const hdrRow = ws.addRow(headerLabels);
     hdrRow.height = 28;
     hdrRow.eachCell((cell) => {
       cell.font      = { bold: true, size: 11, color: { argb: C.colHeaderFg }, name: "Calibri" };
@@ -1437,11 +1146,10 @@ export const exportStudentsExcel = async (req, res) => {
       cell.border    = thinBorder("FF1A252F");
     });
 
-    // ── 9. Data rows ───────────────────────────────────────────────────────────
     students.forEach((s, idx) => {
-      const enroll  = s.enrollments?.[0];
-      const info    = s.personalInfo;
-      const status  = (enroll?.status || "UNKNOWN").toUpperCase();
+      const enroll   = s.enrollments?.[0];
+      const info     = s.personalInfo;
+      const status   = (enroll?.status || "UNKNOWN").toUpperCase();
       const isActive = status === "ACTIVE";
 
       const dobRaw = info?.dateOfBirth;
@@ -1451,9 +1159,7 @@ export const exportStudentsExcel = async (req, res) => {
 
       const fullName = [info?.firstName, info?.lastName].filter(Boolean).join(" ") || s.name || "";
 
-      const bloodRaw = info?.bloodGroup || "";
-      // Convert enum like "A_POS" → "A+" and "AB_NEG" → "AB-" for display
-      const bloodDisplay = bloodRaw
+      const bloodDisplay = (info?.bloodGroup || "")
         .replace(/_POS$/, "+")
         .replace(/_NEG$/, "-")
         .replace(/_/g, "");
@@ -1469,41 +1175,33 @@ export const exportStudentsExcel = async (req, res) => {
         academicYear:enroll?.academicYear?.name  || "",
         dob:         dobStr,
         bloodGroup:  bloodDisplay,
-        status:      status,
+        status,
       });
       dataRow.height = 22;
 
-      const rowBg = idx % 2 === 0 ? C.rowEven : C.rowOdd;
-
       dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
-        const isStatusCol = colNum === TOTAL_COLS;
-        const isCenterCol = colNum === 1 || colNum === 4 || colNum === 9 || colNum === 10;
+        const isStatusCol  = colNum === TOTAL_COLS;
+        const isCenterCol  = colNum === 1 || colNum === 4 || colNum === 9 || colNum === 10;
 
         cell.font      = { size: 10, name: "Calibri", color: { argb: "FF1A1A2E" } };
-        cell.alignment = {
-          horizontal: isCenterCol || isStatusCol ? "center" : "left",
-          vertical:   "middle",
-        };
-        cell.border = thinBorder(C.borderCol);
+        cell.alignment = { horizontal: isCenterCol || isStatusCol ? "center" : "left", vertical: "middle" };
+        cell.border    = thinBorder(C.borderCol);
 
-        // Row background – green for active, red for inactive
         if (!isStatusCol) {
           cell.fill = fillSolid(isActive ? C.activeCell : C.inactiveCell);
         }
 
-        // Status cell – bold coloured badge
         if (isStatusCol) {
           let sc = C.statusOther;
           if (status === "ACTIVE")   sc = C.statusActive;
           if (status === "INACTIVE") sc = C.statusInactive;
-          cell.fill      = fillSolid(sc.bg);
-          cell.font      = { bold: true, size: 10, name: "Calibri", color: { argb: sc.fg } };
+          cell.fill  = fillSolid(sc.bg);
+          cell.font  = { bold: true, size: 10, name: "Calibri", color: { argb: sc.fg } };
           cell.alignment = { horizontal: "center", vertical: "middle" };
         }
       });
     });
 
-    // ── 10. Summary footer ─────────────────────────────────────────────────────
     ws.addRow([]).height = 8;
     addBanner("SUMMARY", C.headerBg, C.headerFg, 11, 22);
 
@@ -1512,9 +1210,9 @@ export const exportStudentsExcel = async (req, res) => {
 
     const statsLabels = [
       ["Total Students", students.length],
-      ["Active",         activeCount],
-      ["Inactive",       inactiveCount],
-      ["Classes",        [...new Set(students.map((s) => s.enrollments?.[0]?.classSection?.name).filter(Boolean))].length],
+      ["Active", activeCount],
+      ["Inactive", inactiveCount],
+      ["Classes", [...new Set(students.map((s) => s.enrollments?.[0]?.classSection?.name).filter(Boolean))].length],
     ];
 
     const labels = [];
@@ -1545,28 +1243,25 @@ export const exportStudentsExcel = async (req, res) => {
       }
     });
 
-    // ── 11. Footer row ─────────────────────────────────────────────────────────
     ws.addRow([]).height = 6;
     addBanner(
       `This report was generated automatically on ${exportDate}. For official use only.`,
       "FFECF0F1", C.metaFg, 8, 18,
     );
 
-    // ── 12. Send response ──────────────────────────────────────────────────────
     const safeName = `Students_${filterLabel}`.replace(/[^a-zA-Z0-9_-]/g, "_");
     res.setHeader("Content-Disposition", `attachment; filename="${safeName}.xlsx"`);
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 
     await wb.xlsx.write(res);
     res.end();
-
   } catch (err) {
     console.error("[exportStudentsExcel]", err);
     res.status(500).json({ message: "Export failed", error: err.message });
   }
 };
 
- 
+// ── getStudentLimitStatus ─────────────────────────────────────────────────────
 export const getStudentLimitStatus = async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
@@ -1596,4 +1291,4 @@ export const getStudentLimitStatus = async (req, res) => {
     console.error("[getStudentLimitStatus]", err);
     return res.status(500).json({ message: "Server error" });
   }
-}; 
+};
