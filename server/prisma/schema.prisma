@@ -249,6 +249,8 @@ model SuperAdmin {
   Payment Payment[]
   schools School[]
 
+  voiceAnnouncements VoiceAnnouncement[]
+
   @@index([universityId])
   @@map("super_admins")
 }
@@ -346,6 +348,7 @@ model School {
   teacherPayrolls    TeacherMonthlyPayroll[]
   schoolVehicles     SchoolVehicle[]
   vehicleLocations   VehicleLocation[]
+  voiceAnnouncements VoiceAnnouncement[]
 
   biometricStudentAttendances BiometricStudentAttendance[]
 
@@ -502,6 +505,8 @@ model Parent {
   meetingParticipations MeetingParticipant[]
   reEvaluationRequests  ReEvaluationRequest[]
 
+  voiceAnnouncementListens VoiceAnnouncementListen[]
+
   @@unique([email, schoolId])
   @@index([schoolId])
   @@map("parents")
@@ -569,6 +574,7 @@ model User {
 
   biometricLogs         BiometricLog[]
   biometricUserMappings BiometricUserMapping[]
+  voiceAnnouncements    VoiceAnnouncement[]
 
   attendancesCorrected TeacherDailyAttendance[] @relation("AttendanceCorrectedBy")
   auditLogsPerformed   AttendanceAuditLog[]     @relation("AuditPerformedBy")
@@ -667,6 +673,7 @@ model Student {
   biometricUserMappings         BiometricUserMapping[]
   biometricLogs                 BiometricLog[]
   biometricAttendances          BiometricStudentAttendance[]
+  voiceAnnouncementTargets      VoiceAnnouncementTarget[]
 
   @@unique([email, schoolId])
   @@index([schoolId])
@@ -1030,6 +1037,8 @@ model ClassSection {
   classFees            ClassFee[]
   reEvaluationSettings ReEvaluationSetting[]
   biometricAttendances BiometricStudentAttendance[]
+
+  voiceAnnouncementTargets VoiceAnnouncementTarget[]
 
   @@index([schoolId])
   @@index([grade, schoolId])
@@ -3895,4 +3904,92 @@ enum VehicleStatusType {
   MOVING
   IDLE
   OFF
+}
+
+enum VoiceTargetType {
+  SCHOOL
+  CLASS
+  STUDENT
+}
+
+model VoiceAnnouncement {
+  id String @id @default(uuid())
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  title       String?
+  description String?
+
+  audioUrl String
+  audioKey String
+
+  durationSec Int?
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  createdBySuperAdminId String?
+  createdBySuperAdmin   SuperAdmin? @relation(fields: [createdBySuperAdminId], references: [id], onDelete: Cascade)
+
+  publishAt DateTime
+  expireAt  DateTime
+
+  totalRecipients Int @default(0)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  targets VoiceAnnouncementTarget[]
+  listens VoiceAnnouncementListen[]
+
+  @@index([schoolId])
+  @@index([publishAt])
+  @@index([expireAt])
+  @@map("voice_announcements")
+}
+
+model VoiceAnnouncementTarget {
+  id String @id @default(uuid())
+
+  announcementId String
+  announcement   VoiceAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  targetType VoiceTargetType
+
+  classSectionId String?
+  classSection   ClassSection? @relation(fields: [classSectionId], references: [id])
+
+  studentId String?
+  student   Student? @relation(fields: [studentId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([classSectionId])
+  @@index([studentId])
+  @@index([announcementId])
+  @@map("voice_announcement_targets")
+}
+
+model VoiceAnnouncementListen {
+  id String @id @default(uuid())
+
+  announcementId String
+  announcement   VoiceAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  parentId String
+  parent   Parent @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  listenCount Int @default(0)
+
+  firstListenedAt DateTime?
+  lastListenedAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([announcementId, parentId])
+  @@index([parentId])
+  @@map("voice_announcement_listens")
 }

@@ -22,8 +22,9 @@ import SchoolRecovery from "./pages/Recovery/SchoolRecovery";
 import FinanceReports from "./pages/FinanceReports/FinanceReports.jsx";
 import ResultReports from "./pages/ResultReports/ResultReports";
 import BiometricManagement from "./pages/Biometric/BiometricManagement";
-import PayrollManagement from "./pages/PayrollManagement/PayrollManagement.jsx"; // ← ADD THIS
+import PayrollManagement from "./pages/PayrollManagement/PayrollManagement.jsx";
 import VehicleManagement from "./pages/VehicleTracking/VehicleManagement";
+import VoiceAnnouncements from "./pages/VoiceAnnouncements/VoiceAnnouncements.jsx"; // ← ADD THIS
 
 
 function SuperAdminRoutes() {
@@ -52,7 +53,8 @@ function SuperAdminRoutes() {
         <Route path="results-reports" element={<ResultReports />} />
         <Route path="biometric" element={<BiometricManagement />} />
         <Route path="payroll" element={<PayrollManagement />} />
-        <Route path="vehicles" element={<VehicleManagement />} /> 
+        <Route path="vehicles" element={<VehicleManagement />} />
+        <Route path="voice-announcements" element={<VoiceAnnouncements />} /> {/* ← ADD THIS */}
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
     </PageLayout>
