@@ -863,6 +863,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       // Personal
       firstName: f.fn,
       lastName: f.ln,
+      email: f.lemail || f.email,
       phone: normalizePhone(f.phone),
       dateOfBirth: f.dob,
       gender: f.gender,

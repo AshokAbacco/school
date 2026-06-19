@@ -266,7 +266,7 @@ export const savePersonalInfo = async (req, res) => {
     if (!student) return res.status(404).json({ message: "Student not found" });
 
     const {
-      firstName, lastName, dateOfBirth, gender, phone, address, city, state, zipCode,
+      firstName, lastName,  email, dateOfBirth, gender, phone, address, city, state, zipCode,
       admissionDate, status, parentName, parentEmail, parentPhone, emergencyContact,
       bloodGroup, medicalConditions, allergies,
       aadhaarNumber, panNumber, satsNumber, nationality, religion, casteCategory,
@@ -354,6 +354,29 @@ export const savePersonalInfo = async (req, res) => {
       ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
       ...(gender ? { gender: toEnum(gender) } : {}),
     });
+
+    if (email?.trim()) {
+      const existingStudent = await prisma.student.findFirst({
+        where: {
+          email: email.trim(),
+          NOT: { id: studentId },
+        },
+      });
+
+      if (existingStudent) {
+        return res.status(409).json({
+          message: "Email already exists",
+        });
+      }
+
+      await prisma.student.update({
+        where: { id: studentId },
+        data: {
+          email: email.trim(),
+          name: `${firstName} ${lastName}`.trim(),
+        },
+      });
+    }
 
     const personalInfo = await prisma.studentPersonalInfo.upsert({
       where: { studentId },
@@ -904,11 +927,29 @@ async function createStudentFull(row, schoolId) {
   });
   if (!classSection) throw new Error(`Class "${classSectionName}" not found in system.`);
 
-  // Resolve Academic Year
-  const academicYear = await prisma.academicYear.findFirst({
+  // Resolve Academic Year — try exact match first, then strip spaces around dash
+  let academicYear = await prisma.academicYear.findFirst({
     where: { schoolId, name: { equals: academicYearName?.trim(), mode: "insensitive" } },
   });
-  if (!academicYear) throw new Error(`Academic year "${academicYearName}" not found.`);
+  // Fallback: normalise "2024 - 25" ↔ "2024-25" ↔ "2024 -25"
+  if (!academicYear && academicYearName) {
+    const normalized = academicYearName.trim().replace(/\s*-\s*/g, "-");
+    academicYear = await prisma.academicYear.findFirst({
+      where: { schoolId, name: { equals: normalized, mode: "insensitive" } },
+    });
+  }
+  if (!academicYear) {
+    // List what's available to help the admin fix it
+    const available = await prisma.academicYear.findMany({
+      where: { schoolId },
+      select: { name: true },
+      take: 10,
+    });
+    const names = available.map(y => `"${y.name}"`).join(", ");
+    throw new Error(
+      `Academic year "${academicYearName}" not found. Available years: ${names || "none"}`
+    );
+  }
 
   // Pre-check Roll Number Conflict
   if (rollNumber?.toString().trim()) {
@@ -922,13 +963,19 @@ async function createStudentFull(row, schoolId) {
     if (rollExists) throw new Error(`Roll No ${rollNumber} already assigned in ${classSection.name}.`);
   }
 
+  // ── Hash passwords BEFORE the transaction (bcrypt is slow and causes timeouts) ──
+  const hashedStudentPw = await bcrypt.hash(password.toString(), 10);
+  const rawParentPw = parentPassword?.toString().trim() || "Parent@123";
+  const hashedParentPw = await bcrypt.hash(rawParentPw, 10);
+
+  // timeout: 30s — plenty for 4 DB writes with no bcrypt inside
   return await prisma.$transaction(async (tx) => {
     // Step A: Register Student Base
     const student = await tx.student.create({
       data: {
         name: `${firstName} ${lastName}`.trim(),
         email: studentEmail,
-        password: await bcrypt.hash(password.toString(), 10),
+        password: hashedStudentPw,
         schoolId,
       },
     });
@@ -997,12 +1044,11 @@ async function createStudentFull(row, schoolId) {
       let parent = await tx.parent.findFirst({ where: { email: pEmail, schoolId } });
 
       if (!parent) {
-        const rawPw = parentPassword?.toString().trim() || "Parent@123";
         parent = await tx.parent.create({
           data: {
             name: parentName,
             email: pEmail,
-            password: await bcrypt.hash(rawPw, 10),
+            password: hashedParentPw,   // hashed before transaction
             phone: parentPhone?.toString(),
             occupation: parentOccupation,
             schoolId,
@@ -1022,7 +1068,7 @@ async function createStudentFull(row, schoolId) {
     }
 
     return student;
-  });
+  }, { timeout: 30000 }); // 30 seconds — safe since bcrypt is now outside
 }
 
 // ── exportStudentsExcel ───────────────────────────────────────────────────────
