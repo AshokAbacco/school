@@ -234,31 +234,76 @@ function validateRow(s, idx) {
   return errors;
 }
 
+// Required field indices (0-based) — First Name, Last Name, Email, Password, Admission No, Class Section, Academic Year
+const REQUIRED_COL_INDICES = new Set([0, 1, 4, 5, 23, 24, 25]);
+
 function downloadTemplate() {
   const headers = [
-    "First Name", "Last Name", "DOB", "Gender", "Email", "Password", "Phone",
-    "Address", "City", "State", "ZIP", "Aadhaar", "PAN Number", "SATS Number",
-    "Nationality", "Religion", "Caste Category", "Mother Tongue", "Subcaste",
-    "Domicile State", "Annual Income", "Physically Challenged", "Disability Type",
-    "Admission No", "Class Section", "Academic Year", "Roll No", "External ID",
-    "Admission Date", "Status", "Previous School", "Previous Board", "UDISE Code", "Lateral Entry",
-    "Parent Name", "Parent Phone", "Parent Email", "Parent Password", "Parent Occupation",
-    "Parent Relation", "Emergency Contact", "Blood Group", "Height CM", "Weight KG",
-    "Identifying Marks", "Medical Conditions", "Allergies",
+    "First Name",            // 0  REQUIRED
+    "Last Name",             // 1  REQUIRED
+    "DOB",                   // 2
+    "Gender",                // 3
+    "Email",                 // 4  REQUIRED
+    "Password",              // 5  REQUIRED
+    "Phone",                 // 6
+    "Address",               // 7
+    "City",                  // 8
+    "State",                 // 9
+    "ZIP",                   // 10
+    "Aadhaar",               // 11
+    "PAN Number",            // 12
+    "SATS Number",           // 13
+    "Nationality",           // 14
+    "Religion",              // 15
+    "Caste Category",        // 16
+    "Mother Tongue",         // 17
+    "Subcaste",              // 18
+    "Domicile State",        // 19
+    "Annual Income",         // 20
+    "Physically Challenged", // 21
+    "Disability Type",       // 22
+    "Admission No",          // 23 REQUIRED
+    "Class Section",         // 24 REQUIRED
+    "Academic Year",         // 25 REQUIRED
+    "Roll No",               // 26
+    "External ID",           // 27
+    "Admission Date",        // 28
+    "Status",                // 29
+    "Previous School",       // 30
+    "Previous Board",        // 31
+    "UDISE Code",            // 32
+    "Lateral Entry",         // 33
+    "Parent Name",           // 34
+    "Parent Phone",          // 35
+    "Parent Email",          // 36
+    "Parent Password",       // 37
+    "Parent Occupation",     // 38
+    "Parent Relation",       // 39
+    "Emergency Contact",     // 40
+    "Blood Group",           // 41
+    "Height CM",             // 42
+    "Weight KG",             // 43
+    "Identifying Marks",     // 44
+    "Medical Conditions",    // 45
+    "Allergies",             // 46
   ];
 
-  // IMPORTANT: Wrapped numbers in quotes "" to tell JavaScript these are strings, not math numbers
+  // Row 1: * REQUIRED / optional label row
+  const labelRow = headers.map((_, i) =>
+    REQUIRED_COL_INDICES.has(i) ? "* REQUIRED" : "optional"
+  );
+
   const sample = [
     "Rahul", "Kumar", "15-06-2008", "Male", "rahul@school.com", "Pass@123", "9876543210",
     "123 MG Road", "Bengaluru", "Karnataka", "560001",
-    "123456789012", // Aadhaar as String
+    "123456789012",
     "ABCDE1234F",
-    "123456789",    // SATS as String
+    "123456789",
     "Indian", "Hindu", "OBC", "Kannada", "Vokkaliga",
     "Karnataka", "300000", "No", "",
     "ADM2024001", "10-A", "2024-25", "1", "REG-998877",
     "01-06-2024", "ACTIVE", "St. Mary's School", "KSEEB",
-    "29140100102",  // UDISE as String
+    "29140100102",
     "No",
     "Suresh Kumar", "9876543211", "suresh@gmail.com", "Parent@123", "Engineer",
     "FATHER", "9876543211", "O+", "165", "55", "Mole on right hand",
@@ -267,25 +312,51 @@ function downloadTemplate() {
 
   const wb = XLSX.utils.book_new();
 
-  // Create worksheet
-  const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
+  // Sheet order: [labelRow, headers, sample]
+  const ws = XLSX.utils.aoa_to_sheet([labelRow, headers, sample]);
 
-  // 1. Set column widths
   ws["!cols"] = headers.map(() => ({ wch: 22 }));
+  ws["!rows"] = [{ hpt: 18 }, { hpt: 26 }, { hpt: 20 }];
 
-  // 2. Force Global Text Format
-  // This is the CRITICAL part for Aadhaar. It sets the Excel cell format to '@' (Text).
-  const range = XLSX.utils.decode_range(ws['!ref']);
+  const range = XLSX.utils.decode_range(ws["!ref"]);
   for (let R = range.s.r; R <= range.e.r; ++R) {
     for (let C = range.s.c; C <= range.e.c; ++C) {
-      const cell_address = { c: C, r: R };
-      const cell_ref = XLSX.utils.encode_cell(cell_address);
+      const ref = XLSX.utils.encode_cell({ r: R, c: C });
+      if (!ws[ref]) ws[ref] = { t: "s", v: "" };
 
-      if (!ws[cell_ref]) continue;
+      ws[ref].t = "s";
+      ws[ref].z = "@";
 
-      // Set format to 'Text' for all cells
-      ws[cell_ref].t = 's'; // Type: String
-      ws[cell_ref].z = '@'; // Excel Format: Text
+      const isReq = REQUIRED_COL_INDICES.has(C);
+
+      if (R === 0) {
+        // Label row: red text for required, grey for optional
+        ws[ref].s = {
+          font: { bold: true, sz: 8, color: { rgb: isReq ? "CC0000" : "888888" } },
+          fill: { patternType: "solid", fgColor: { rgb: isReq ? "FFE4E4" : "F5F5F5" } },
+          alignment: { horizontal: "center", vertical: "center" },
+        };
+      } else if (R === 1) {
+        // Header row: red background for required, dark for optional
+        ws[ref].s = {
+          font: { bold: true, sz: 10, color: { rgb: "FFFFFF" } },
+          fill: { patternType: "solid", fgColor: { rgb: isReq ? "C0392B" : "2C3E50" } },
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
+          border: {
+            top:    { style: "thin", color: { rgb: "999999" } },
+            bottom: { style: "thin", color: { rgb: "999999" } },
+            left:   { style: "thin", color: { rgb: "999999" } },
+            right:  { style: "thin", color: { rgb: "999999" } },
+          },
+        };
+      } else {
+        // Sample data row
+        ws[ref].s = {
+          font: { sz: 10, italic: true, color: { rgb: "444444" } },
+          fill: { patternType: "solid", fgColor: { rgb: "FAFAFA" } },
+          alignment: { horizontal: "left", vertical: "center" },
+        };
+      }
     }
   }
 
@@ -642,45 +713,72 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
           {/* ── STEP 1: Upload ────────────────────────────────────────────── */}
           {step === "upload" && (
             <div className="space-y-5">
-              {/* Instructions */}
-              {/* Instructions / How it works */}
+              {/* Required Fields Card */}
               <div
-                className="rounded-xl p-4 text-sm space-y-2"
-                style={{ background: "#eff6ff", border: "1px solid #bfdbfe" }}
+                className="rounded-xl overflow-hidden"
+                style={{ border: "1px solid #fecaca" }}
               >
-                <div className="flex items-center gap-2 font-bold" style={{ color: "#1d4ed8" }}>
-                  <Info size={14} /> Data Entry Tips
+                <div
+                  className="flex items-center gap-2 px-4 py-2.5"
+                  style={{ background: "#C0392B" }}
+                >
+                  <AlertCircle size={14} className="text-white shrink-0" />
+                  <span className="text-xs font-bold text-white">Required Fields — must be filled in every row</span>
                 </div>
-                <ul className="text-xs space-y-1.5" style={{ color: "#1e40af" }}>
-                  <li>
-                    • <strong>Download Template:</strong> Start by downloading the <code>.xlsx</code> template below and filling in your student data.
-                  </li>
-                  <li>
-                    • <strong>Date Format:</strong> Use the Indian format <strong>DD-MM-YYYY</strong> (e.g., <code>15-06-2008</code>) for DOB and Admission Date.
-                  </li>
-                  <li>
-                    • <strong>Class & Section:</strong> Use formats like "10-A" or "10 A". The system automatically splits these into Grade and Section.
-                  </li>
-                  <li>
-                    • <strong>Parent Login:</strong> Fill the <strong>Parent Email</strong> and <strong>Parent Password</strong> columns to automatically create one login for the family (Father, Mother, or Guardian).
-                  </li>
-                  <li>
-                    • <strong>Identity Numbers:</strong> Ensure <strong>Aadhaar</strong> (12 digits) and <strong>PAN</strong> are entered as text to prevent Excel from scientific notation (e.g., 1.23E+11).
-                  </li>
-                  <li>
-                    • <strong>Required Fields:</strong> First Name, Last Name, Student Email, Password, Admission No, Class, and Academic Year are mandatory.
-                  </li>
-                </ul>
+                <div className="px-4 py-3" style={{ background: "#fff5f5" }}>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      "First Name",
+                      "Last Name",
+                      "Email (Student Login)",
+                      "Password",
+                      "Admission No",
+                      "Class Section",
+                      "Academic Year",
+                    ].map((f) => (
+                      <span
+                        key={f}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold"
+                        style={{ background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5" }}
+                      >
+                        * {f}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[11px] mt-2" style={{ color: "#7f1d1d" }}>
+                    All other columns (DOB, Phone, Parent info, etc.) are optional — leave them blank if not available.
+                  </p>
+                </div>
               </div>
 
-              {/* Template download */}
-              <button
-                onClick={downloadTemplate}
-                className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90"
-                style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d" }}
+              {/* Template download + tips */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <button
+                  onClick={downloadTemplate}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90 shrink-0"
+                  style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d" }}
+                >
+                  <Download size={15} /> Download Template (.xlsx)
+                </button>
+                <p className="text-[11px]" style={{ color: "#6b7280" }}>
+                  The template has <strong>required fields highlighted in red</strong> and optional fields in dark. Row 1 shows labels, Row 2 is a sample — delete it before filling your data.
+                </p>
+              </div>
+
+              {/* Tips */}
+              <div
+                className="rounded-xl p-3.5 text-xs space-y-1.5"
+                style={{ background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af" }}
               >
-                <Download size={15} /> Download Sample Template (.xlsx)
-              </button>
+                <div className="flex items-center gap-1.5 font-bold mb-1" style={{ color: "#1d4ed8" }}>
+                  <Info size={13} /> Tips
+                </div>
+                <p>• <strong>Date format:</strong> DD-MM-YYYY (e.g. 15-06-2008) for DOB and Admission Date.</p>
+                <p>• <strong>Class & Section:</strong> "10-A" or "10 A" — system splits automatically.</p>
+                <p>• <strong>Aadhaar / UDISE:</strong> Enter as text to avoid scientific notation (1.23E+11).</p>
+                <p>• <strong>Parent login:</strong> Fill Parent Email + Parent Password to auto-create a family login.</p>
+                <p>• <strong>Academic Year:</strong> Must exactly match what's set in the system (e.g. "2024-25").</p>
+              </div>
 
               {/* Drop zone */}
               <label
