@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { MapPin, RefreshCw, Navigation, Clock, Zap } from "lucide-react";
-
+import VehicleMap from "./VehicleMap";
 const API_URL = import.meta.env.VITE_API_URL;
 const BASE    = `${API_URL}/api/vehicles`;
 
@@ -211,10 +211,14 @@ export default function LiveTrackingTab({ schoolId }) {
 
       {/* Vehicle cards grid */}
       {vehicles.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
-          {vehicles.map((v) => (
-            <VehicleCard key={v.id} vehicle={v} />
-          ))}
+        <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: "20px", }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {vehicles.map((v) => (
+              <VehicleCard key={v.id} vehicle={v} />
+            ))}
+          </div>
+
+          <VehicleMap vehicles={vehicles} />
         </div>
       )}
     </div>

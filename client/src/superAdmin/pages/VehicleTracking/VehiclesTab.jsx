@@ -11,7 +11,7 @@ const getToken = () => {
   catch { return null; }
 };
 const authHeaders = () => ({
-  "Content-Type": "application/json",
+  "Content-Type": "application/json", 
   Authorization: `Bearer ${getToken()}`,
 });
 
