@@ -848,57 +848,57 @@ export const bulkImportRow = async (req, res) => {
 };
 
 // ── bulkImportStudents ────────────────────────────────────────────────────────
-export const bulkImportStudents = async (req, res) => {
-  try {
-    const schoolId = req.user?.schoolId;
-    if (!schoolId)
-      return res.status(400).json({ message: "schoolId missing from token" });
+// export const bulkImportStudents = async (req, res) => {
+//   try {
+//     const schoolId = req.user?.schoolId;
+//     if (!schoolId)
+//       return res.status(400).json({ message: "schoolId missing from token" });
 
-    const students = Array.isArray(req.body.students) ? req.body.students : [];
-    if (!students.length)
-      return res.status(400).json({ message: "No students provided" });
+//     const students = Array.isArray(req.body.students) ? req.body.students : [];
+//     if (!students.length)
+//       return res.status(400).json({ message: "No students provided" });
 
-    const limitCheck = await checkStudentLimit(schoolId, students.length);
-    if (!limitCheck.allowed) {
-      return res.status(403).json({
-        message: limitCheck.message,
-        used:    limitCheck.used,
-        limit:   limitCheck.limit,
-        code:    "STUDENT_LIMIT_REACHED",
-      });
-    }
+//     const limitCheck = await checkStudentLimit(schoolId, students.length);
+//     if (!limitCheck.allowed) {
+//       return res.status(403).json({
+//         message: limitCheck.message,
+//         used:    limitCheck.used,
+//         limit:   limitCheck.limit,
+//         code:    "STUDENT_LIMIT_REACHED",
+//       });
+//     }
 
-    const results = [];
-    let successCount = 0;
+//     const results = [];
+//     let successCount = 0;
 
-    for (let i = 0; i < students.length; i++) {
-      const s = students[i];
-      try {
-        const student = await createStudentFull(s, schoolId);
-        successCount++;
-        results.push({ row: i + 1, success: true, studentId: student.id });
-      } catch (err) {
-        console.error(`[bulkImportStudents][Row ${i + 1}]`, err);
-        let message = err.message || "Unknown error";
-        if (err.code === "P2002") message = "Duplicate value — email or admission number already exists";
-        if (err.code === "P2003") message = "Related record not found (check class/year names)";
-        results.push({ row: i + 1, success: false, error: message });
-      }
-    }
+//     for (let i = 0; i < students.length; i++) {
+//       const s = students[i];
+//       try {
+//         const student = await createStudentFull(s, schoolId);
+//         successCount++;
+//         results.push({ row: i + 1, success: true, studentId: student.id });
+//       } catch (err) {
+//         console.error(`[bulkImportStudents][Row ${i + 1}]`, err);
+//         let message = err.message || "Unknown error";
+//         if (err.code === "P2002") message = "Duplicate value — email or admission number already exists";
+//         if (err.code === "P2003") message = "Related record not found (check class/year names)";
+//         results.push({ row: i + 1, success: false, error: message });
+//       }
+//     }
 
-    const failedCount = results.filter((r) => !r.success).length;
-    return res.status(200).json({
-      success: failedCount === 0,
-      total: students.length,
-      successCount,
-      failedCount,
-      results,
-    });
-  } catch (err) {
-    console.error("[bulkImportStudents]", err);
-    return res.status(500).json({ message: "Bulk import failed", detail: err.message });
-  }
-};
+//     const failedCount = results.filter((r) => !r.success).length;
+//     return res.status(200).json({
+//       success: failedCount === 0,
+//       total: students.length,
+//       successCount,
+//       failedCount,
+//       results,
+//     });
+//   } catch (err) {
+//     console.error("[bulkImportStudents]", err);
+//     return res.status(500).json({ message: "Bulk import failed", detail: err.message });
+//   }
+// };
 
 // ── parseIndianDate ───────────────────────────────────────────────────────────
 const parseIndianDate = (dateStr) => {
