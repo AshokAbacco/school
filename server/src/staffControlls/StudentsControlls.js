@@ -1205,15 +1205,13 @@ async function createStudentFull(row, schoolId) {
         rollNumber:     rollNumber.toString().trim(),
       },
       include: {
-        student:      { select: { name: true, firstName: true, lastName: true, email: true } },
+        student:      { select: { name: true, email: true, personalInfo: { select: { firstName: true, lastName: true } } } },
         classSection: { select: { name: true } },
         academicYear: { select: { name: true } },
       },
     });
     if (rollExists) {
-      const existingName  = rollExists.student?.name
-        || `${rollExists.student?.firstName || ""} ${rollExists.student?.lastName || ""}`.trim()
-        || "Unknown";
+      const existingName  = rollExists.student?.name || `${rollExists.student?.personalInfo?.firstName || ""} ${rollExists.student?.personalInfo?.lastName || ""}`.trim() || "Unknown";
       const existingEmail = rollExists.student?.email || "—";
       throw new Error(
         `Roll No "${rollNumber}" is already assigned in ${classSection.name} for this year. ` +
@@ -1229,15 +1227,13 @@ async function createStudentFull(row, schoolId) {
       academicYearId:  academicYear.id,
     },
     include: {
-      student:      { select: { name: true, firstName: true, lastName: true, email: true } },
+      student:      { select: { name: true, email: true, personalInfo: { select: { firstName: true, lastName: true } } } },
       classSection: { select: { name: true } },
       academicYear: { select: { name: true } },
     },
   });
   if (admExists) {
-    const existingName  = admExists.student?.name
-      || `${admExists.student?.firstName || ""} ${admExists.student?.lastName || ""}`.trim()
-      || "Unknown";
+    const existingName  = admExists.student?.name || `${admExists.student?.personalInfo?.firstName || ""} ${admExists.student?.personalInfo?.lastName || ""}`.trim() || "Unknown";
     const existingEmail = admExists.student?.email || "—";
     const existingClass = admExists.classSection?.name  || "Unknown Class";
     const existingYear  = admExists.academicYear?.name  || "Unknown Year";
