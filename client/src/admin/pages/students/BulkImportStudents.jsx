@@ -497,6 +497,80 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
   // If file has more valid rows than remaining slots, warn (but backend will block extras)
   const exceedsSlots = !isUnlimited && validCount > remainingSlots;
 
+  // ── Download Import Report ─────────────────────────────────────────────────
+  const parseExistingForReport = (raw) => {
+    if (!raw) return null;
+    const emailMatch = raw.match(/\[Existing student:\s*(.+?)\s*\|\s*Email:\s*(.+?)\s*\|\s*Class:\s*(.+?)\s*\|\s*Year:\s*(.+?)\]/i);
+    if (emailMatch) return { name: emailMatch[1], email: emailMatch[2], cls: emailMatch[3], year: emailMatch[4] };
+    const admMatch = raw.match(/\[Existing student:\s*(.+?)\s*\|\s*Class:\s*(.+?)\s*\|\s*Year:\s*(.+?)\s*\|\s*Adm No:\s*(.+?)\]/i);
+    if (admMatch)   return { name: admMatch[1], email: "", cls: admMatch[2], year: admMatch[3], admNo: admMatch[4] };
+    return null;
+  };
+
+  const categoriseForReport = (row) => {
+    if (row.status === "success") return { label: "✅ Imported", fix: "New student added successfully.", existing: null };
+    const raw = row.serverError || row.errors.join(" | ") || "";
+    const lo  = raw.toLowerCase();
+    const existing = parseExistingForReport(raw);
+    if (lo.includes("email") && (lo.includes("already registered") || lo.includes("already exists")))
+      return { label: "🔁 Email Already Registered", fix: "Student with this email already exists. Skipped to avoid duplicates.", existing };
+    if (lo.includes("admission no") && lo.includes("already exists"))
+      return { label: "🔁 Admission No Already Taken", fix: `Adm No "${row.student.admissionNumber}" is already used. Change it and re-upload.`, existing };
+    if (lo.includes("roll no") && lo.includes("already assigned"))
+      return { label: "🔁 Roll No Conflict", fix: `Roll No "${row.student.rollNumber}" already assigned. Use a different roll number.`, existing };
+    if (lo.includes("class") && lo.includes("not found"))
+      return { label: "❌ Class Not Found", fix: `Class "${row.student.classSectionName}" not found. Check spelling in Settings → Classes.`, existing: null };
+    if (lo.includes("academic year") && lo.includes("not found"))
+      return { label: "❌ Academic Year Not Found", fix: `Year "${row.student.academicYearName}" not found. Create it in Settings first.`, existing: null };
+    if (lo.includes("missing") || lo.includes("required"))
+      return { label: "⚠️ Missing Field", fix: raw, existing: null };
+    return { label: "❌ Server Error", fix: raw, existing: null };
+  };
+
+  const downloadImportReport = () => {
+    const reportRows = rows.map((row) => {
+      const { label, fix, existing } = categoriseForReport(row);
+      return {
+        "Row #":                    row._idx,
+        "Admission No (Excel)":     row.student.admissionNumber || "",
+        "First Name":               row.student.firstName || "",
+        "Last Name":                row.student.lastName || "",
+        "Email (Excel)":            row.student.email || "",
+        "Class (Excel)":            row.student.classSectionName || "",
+        "Academic Year":            row.student.academicYearName || "",
+        "Status":                   label,
+        "Already Exists: Name":     existing?.name  || "",
+        "Already Exists: Email":    existing?.email || "",
+        "Already Exists: Class":    existing?.cls   || "",
+        "Already Exists: Year":     existing?.year  || "",
+        "What Happened / Fix":      fix,
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(reportRows);
+    ws["!cols"] = [
+      { wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
+      { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 26 },
+      { wch: 20 }, { wch: 28 }, { wch: 16 }, { wch: 14 }, { wch: 50 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Import Report");
+
+    const summaryData = [
+      { "Summary": "Total Rows in File",          "Count": rows.length },
+      { "Summary": "✅ Imported Successfully",     "Count": successCount },
+      { "Summary": "❌ Failed (Server Rejected)",  "Count": failCount },
+      { "Summary": "⚠️ Skipped (Missing Fields)", "Count": invalidCount },
+    ];
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    wsSummary["!cols"] = [{ wch: 32 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
+
+    const date = new Date().toLocaleDateString("en-IN").replace(/\//g, "-");
+    XLSX.writeFile(wb, `Import_Report_${date}.xlsx`);
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm overflow-hidden">
@@ -917,132 +991,219 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
           )}
 
           {/* ── STEP 3: Done ──────────────────────────────────────────────── */}
-          {step === "done" && (
-            <div className="space-y-4">
+          {step === "done" && (() => {
+            // ── Parse existing-student detail from backend error bracket ─────
+            // Backend embeds: [Existing student: NAME | Email: X | Class: Y | Year: Z]
+            //              or: [Existing student: NAME | Class: Y | Year: Z | Adm No: N]
+            const parseExisting = (raw) => {
+              if (!raw) return null;
+              const emailMatch = raw.match(/\[Existing student:\s*(.+?)\s*\|\s*Email:\s*(.+?)\s*\|\s*Class:\s*(.+?)\s*\|\s*Year:\s*(.+?)\]/i);
+              if (emailMatch) return { name: emailMatch[1], email: emailMatch[2], cls: emailMatch[3], year: emailMatch[4], admNo: "" };
+              const admMatch = raw.match(/\[Existing student:\s*(.+?)\s*\|\s*Class:\s*(.+?)\s*\|\s*Year:\s*(.+?)\s*\|\s*Adm No:\s*(.+?)\]/i);
+              if (admMatch)   return { name: admMatch[1], email: "", cls: admMatch[2], year: admMatch[3], admNo: admMatch[4] };
+              return null;
+            };
 
-              {/* ── Summary banner ── */}
-              <div
-                className="rounded-xl p-4"
-                style={{
-                  background: successCount > 0 ? "#f0fdf4" : "#fef2f2",
-                  border: `1px solid ${successCount > 0 ? "#bbf7d0" : "#fecaca"}`,
-                }}
-              >
-                {/* Headline */}
-                <div className="flex items-center gap-2 mb-3">
-                  <CheckCircle size={20} style={{ color: successCount > 0 ? "#16a34a" : "#dc2626", flexShrink: 0 }} />
-                  <p className="font-bold text-sm" style={{ color: successCount > 0 ? "#15803d" : "#dc2626" }}>
-                    {successCount > 0 && failCount === 0
-                      ? `All ${successCount} students imported successfully!`
-                      : successCount > 0
-                        ? `${successCount} imported, ${failCount} failed`
-                        : "Import failed — no students were added"}
-                  </p>
+            // ── Parse each row's error into a friendly category ──────────────
+            const categorise = (row) => {
+              if (row.status === "success") return { tag: "success", label: "Imported", color: "#15803d", bg: "#f0fdf4", fix: "", existing: null };
+              const raw = row.serverError || row.errors.join(" | ") || "";
+              const lo  = raw.toLowerCase();
+              const existing = parseExisting(raw);
+              if (lo.includes("email") && (lo.includes("already registered") || lo.includes("already exists")))
+                return { tag: "dup-email",  label: "Email Already Exists",      color: "#dc2626", bg: "#fef2f2", existing,
+                  fix: "This student's email is already registered. They were skipped to avoid duplicates." };
+              if (lo.includes("admission no") && lo.includes("already exists"))
+                return { tag: "dup-adm",   label: "Admission No Already Taken", color: "#9333ea", bg: "#faf5ff", existing,
+                  fix: `Admission No "${row.student.admissionNumber}" is already used. Change it in your Excel and re-upload.` };
+              if (lo.includes("roll no") && lo.includes("already assigned"))
+                return { tag: "dup-roll",  label: "Roll No Already Taken",      color: "#ea580c", bg: "#fff7ed", existing,
+                  fix: `Roll No "${row.student.rollNumber}" is already used in this class/year. Assign a different roll number.` };
+              if (lo.includes("class") && lo.includes("not found"))
+                return { tag: "no-class",  label: "Class Not Found",            color: "#b45309", bg: "#fffbeb", existing: null,
+                  fix: `Class "${row.student.classSectionName}" doesn't exist. Check spelling in Settings → Classes.` };
+              if (lo.includes("academic year") && lo.includes("not found"))
+                return { tag: "no-year",   label: "Academic Year Not Found",    color: "#b45309", bg: "#fffbeb", existing: null,
+                  fix: `Academic year "${row.student.academicYearName}" doesn't exist. Create it in Settings → Academic Years first.` };
+              if (lo.includes("missing") || lo.includes("required"))
+                return { tag: "missing",   label: "Missing Required Field",     color: "#b45309", bg: "#fffbeb", existing: null, fix: raw };
+              return   { tag: "other",     label: "Server Error",               color: "#dc2626", bg: "#fef2f2", existing: null, fix: raw };
+            };
+
+            const enriched = rows.map((r) => ({ ...r, cat: categorise(r) }));
+
+            // counts by category
+            const dupEmailRows = enriched.filter((r) => r.cat.tag === "dup-email");
+            const dupAdmRows   = enriched.filter((r) => r.cat.tag === "dup-adm");
+            const dupRollRows  = enriched.filter((r) => r.cat.tag === "dup-roll");
+            const noClassRows  = enriched.filter((r) => r.cat.tag === "no-class");
+            const noYearRows   = enriched.filter((r) => r.cat.tag === "no-year");
+            const missingRows  = enriched.filter((r) => r.cat.tag === "missing");
+            const otherErrRows = enriched.filter((r) => r.cat.tag === "other");
+
+            return (
+              <div className="space-y-4">
+
+                {/* ── Summary cards ───────────────────────────────────────── */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { label: "Total in File", value: rows.length, bg: COLORS.bgSoft, color: COLORS.primary, border: COLORS.border },
+                    { label: "✅ Imported",   value: successCount, bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
+                    { label: "❌ Failed",     value: failCount,    bg: "#fef2f2", color: "#dc2626", border: "#fecaca" },
+                    { label: "⚠️ Skipped",   value: invalidCount, bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
+                  ].map((c) => (
+                    <div key={c.label} className="rounded-xl p-3 text-center" style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+                      <p className="text-xl font-black" style={{ color: c.color }}>{c.value}</p>
+                      <p className="text-xs font-semibold mt-0.5" style={{ color: c.color, opacity: 0.8 }}>{c.label}</p>
+                    </div>
+                  ))}
                 </div>
 
-                {/* Stat pills */}
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold"
-                    style={{ background: "#dcfce7", color: "#15803d" }}>
-                    <CheckCircle size={10} /> {successCount} Uploaded
-                  </span>
-                  {failCount > 0 && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold"
-                      style={{ background: "#fee2e2", color: "#dc2626" }}>
-                      <AlertCircle size={10} /> {failCount} Failed (server rejected)
-                    </span>
-                  )}
-                  {invalidCount > 0 && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold"
-                      style={{ background: "#fef3c7", color: "#b45309" }}>
-                      <AlertCircle size={10} /> {invalidCount} Skipped (missing fields)
-                    </span>
-                  )}
-                </div>
-
-                {/* Reason hints */}
-                {failCount > 0 && (
-                  <p className="text-xs" style={{ color: "#991b1b" }}>
-                    ⚠ Failed rows were rejected by the server. Common reasons: email already registered,
-                    duplicate admission number, wrong class name, or academic year mismatch.
-                    Check the <strong>Reason</strong> column below for each row.
-                  </p>
+                {/* ── Failure breakdown cards ─────────────────────────────── */}
+                {(failCount > 0 || invalidCount > 0) && (
+                  <div className="rounded-xl p-3 space-y-2" style={{ background: "#fef9f0", border: "1px solid #fde68a" }}>
+                    <p className="text-xs font-bold mb-2" style={{ color: "#92400e" }}>⚠ Why some rows were not imported:</p>
+                    {dupEmailRows.length > 0 && (
+                      <div className="flex items-start gap-2 text-xs p-2 rounded-lg" style={{ background: "#fef2f2", border: "1px solid #fecaca" }}>
+                        <span className="font-black shrink-0" style={{ color: "#dc2626" }}>×{dupEmailRows.length}</span>
+                        <div style={{ color: "#991b1b" }}>
+                          <strong>Email already registered</strong> — These students are already in the system (same email). They were skipped to avoid duplicates.
+                          <br/><span style={{ opacity: 0.75 }}>Affected: {dupEmailRows.map(r => `${r.student.firstName} ${r.student.lastName} (Adm: ${r.student.admissionNumber || "—"})`).join(", ")}</span>
+                        </div>
+                      </div>
+                    )}
+                    {dupAdmRows.length > 0 && (
+                      <div className="flex items-start gap-2 text-xs p-2 rounded-lg" style={{ background: "#faf5ff", border: "1px solid #e9d5ff" }}>
+                        <span className="font-black shrink-0" style={{ color: "#9333ea" }}>×{dupAdmRows.length}</span>
+                        <div style={{ color: "#6b21a8" }}>
+                          <strong>Admission No already taken</strong> — Another student already has this admission number in the same academic year.
+                          <br/><span style={{ opacity: 0.75 }}>Affected Adm Nos: {dupAdmRows.map(r => r.student.admissionNumber).join(", ")}</span>
+                        </div>
+                      </div>
+                    )}
+                    {dupRollRows.length > 0 && (
+                      <div className="flex items-start gap-2 text-xs p-2 rounded-lg" style={{ background: "#fff7ed", border: "1px solid #fed7aa" }}>
+                        <span className="font-black shrink-0" style={{ color: "#ea580c" }}>×{dupRollRows.length}</span>
+                        <div style={{ color: "#9a3412" }}>
+                          <strong>Roll No conflict</strong> — Roll number already assigned in this class for this year.
+                          <br/><span style={{ opacity: 0.75 }}>Affected: {dupRollRows.map(r => `${r.student.firstName} (Roll: ${r.student.rollNumber})`).join(", ")}</span>
+                        </div>
+                      </div>
+                    )}
+                    {noClassRows.length > 0 && (
+                      <div className="flex items-start gap-2 text-xs p-2 rounded-lg" style={{ background: "#fffbeb", border: "1px solid #fde68a" }}>
+                        <span className="font-black shrink-0" style={{ color: "#b45309" }}>×{noClassRows.length}</span>
+                        <div style={{ color: "#78350f" }}>
+                          <strong>Class not found</strong> — The class name in your Excel doesn't match any class in the system. Check spelling in Settings → Classes.
+                          <br/><span style={{ opacity: 0.75 }}>Affected class names: {[...new Set(noClassRows.map(r => r.student.classSectionName))].join(", ")}</span>
+                        </div>
+                      </div>
+                    )}
+                    {noYearRows.length > 0 && (
+                      <div className="flex items-start gap-2 text-xs p-2 rounded-lg" style={{ background: "#fffbeb", border: "1px solid #fde68a" }}>
+                        <span className="font-black shrink-0" style={{ color: "#b45309" }}>×{noYearRows.length}</span>
+                        <div style={{ color: "#78350f" }}>
+                          <strong>Academic year not found</strong> — Create the academic year in Settings first.
+                          <br/><span style={{ opacity: 0.75 }}>Affected year: {[...new Set(noYearRows.map(r => r.student.academicYearName))].join(", ")}</span>
+                        </div>
+                      </div>
+                    )}
+                    {missingRows.length > 0 && (
+                      <div className="flex items-start gap-2 text-xs p-2 rounded-lg" style={{ background: "#fffbeb", border: "1px solid #fde68a" }}>
+                        <span className="font-black shrink-0" style={{ color: "#b45309" }}>×{missingRows.length}</span>
+                        <div style={{ color: "#78350f" }}>
+                          <strong>Missing required fields</strong> — These rows were skipped before sending to the server. Fill in the required columns and re-upload.
+                        </div>
+                      </div>
+                    )}
+                    {otherErrRows.length > 0 && (
+                      <div className="flex items-start gap-2 text-xs p-2 rounded-lg" style={{ background: "#fef2f2", border: "1px solid #fecaca" }}>
+                        <span className="font-black shrink-0" style={{ color: "#dc2626" }}>×{otherErrRows.length}</span>
+                        <div style={{ color: "#991b1b" }}>
+                          <strong>Other server error</strong> — See the Reason column in the table below for details.
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
-                {invalidCount > 0 && (
-                  <p className="text-xs mt-1" style={{ color: "#92400e" }}>
-                    ⚠ Skipped rows had missing required fields and were never sent to the server.
-                  </p>
-                )}
-              </div>
 
-              {/* ── Result table ── */}
-              <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${COLORS.border}` }}>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs" style={{ minWidth: 500 }}>
-                    <thead>
-                      <tr style={{ background: COLORS.bgSoft, borderBottom: `1px solid ${COLORS.border}` }}>
-                        <th className="px-3 py-2.5 text-left font-bold" style={{ color: COLORS.secondary }}>Row</th>
-                        <th className="px-3 py-2.5 text-left font-bold" style={{ color: COLORS.secondary }}>Name</th>
-                        <th className="px-3 py-2.5 text-left font-bold" style={{ color: COLORS.secondary }}>Email</th>
-                        <th className="px-3 py-2.5 text-left font-bold" style={{ color: COLORS.secondary }}>Result</th>
-                        <th className="px-3 py-2.5 text-left font-bold" style={{ color: COLORS.secondary }}>Reason</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((row) => {
-                        const reason = row.status === "success"
-                          ? ""
-                          : row.serverError
-                            ? row.serverError
-                            : row.errors.length
-                              ? row.errors.join(" | ")
-                              : "";
-                        return (
+                {/* ── Per-row detail table ─────────────────────────────────── */}
+                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${COLORS.border}` }}>
+                  <div className="px-3 py-2 flex items-center justify-between" style={{ background: COLORS.bgSoft, borderBottom: `1px solid ${COLORS.border}` }}>
+                    <p className="text-xs font-bold" style={{ color: COLORS.primary }}>Full Row-by-Row Report</p>
+                    <p className="text-xs" style={{ color: COLORS.secondary }}>{rows.length} rows total</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs" style={{ minWidth: 860 }}>
+                      <thead>
+                        <tr style={{ background: COLORS.bgSoft, borderBottom: `1px solid ${COLORS.border}` }}>
+                          <th className="px-3 py-2 text-left font-bold" style={{ color: COLORS.secondary, width: 40 }}>#</th>
+                          <th className="px-3 py-2 text-left font-bold" style={{ color: COLORS.secondary }}>Adm No</th>
+                          <th className="px-3 py-2 text-left font-bold" style={{ color: COLORS.secondary }}>Student Name</th>
+                          <th className="px-3 py-2 text-left font-bold" style={{ color: COLORS.secondary }}>Email</th>
+                          <th className="px-3 py-2 text-left font-bold" style={{ color: COLORS.secondary }}>Class</th>
+                          <th className="px-3 py-2 text-left font-bold" style={{ color: COLORS.secondary, width: 130 }}>Status</th>
+                          <th className="px-3 py-2 text-left font-bold" style={{ color: "#9333ea" }}>Already Exists As</th>
+                          <th className="px-3 py-2 text-left font-bold" style={{ color: "#9333ea" }}>Existing Class</th>
+                          <th className="px-3 py-2 text-left font-bold" style={{ color: "#9333ea" }}>Existing Year</th>
+                          <th className="px-3 py-2 text-left font-bold" style={{ color: COLORS.secondary }}>What Happened</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {enriched.map((row) => (
                           <tr
                             key={row._idx}
                             style={{
                               borderBottom: `1px solid ${COLORS.border}`,
-                              background:
-                                row.status === "success" ? "#f0fdf4"
-                                  : row.status === "error" ? "#fef2f2"
-                                    : row.errors.length ? "#fffbeb"
-                                      : "white",
+                              background: row.cat.bg,
                             }}
                           >
-                            <td className="px-3 py-2.5 font-mono" style={{ color: COLORS.secondary }}>
-                              #{row._idx}
+                            <td className="px-3 py-2 font-mono" style={{ color: COLORS.secondary }}>#{row._idx}</td>
+                            <td className="px-3 py-2 font-mono font-bold" style={{ color: COLORS.primary }}>
+                              {row.student.admissionNumber || "—"}
                             </td>
-                            <td className="px-3 py-2.5 font-semibold" style={{ color: COLORS.primary }}>
+                            <td className="px-3 py-2 font-semibold" style={{ color: COLORS.primary }}>
                               {row.student.firstName} {row.student.lastName}
                             </td>
-                            <td className="px-3 py-2.5" style={{ color: COLORS.secondary, wordBreak: "break-all" }}>
+                            <td className="px-3 py-2" style={{ color: COLORS.secondary, wordBreak: "break-all", maxWidth: 160 }}>
                               {row.student.email}
                             </td>
-                            <td className="px-3 py-2.5">
-                              <RowStatus status={row.status} errors={row.errors} />
+                            <td className="px-3 py-2" style={{ color: COLORS.secondary }}>
+                              {row.student.classSectionName || "—"}
                             </td>
-                            <td className="px-3 py-2.5" style={{
-                              color: row.status === "success" ? "#15803d"
-                                : row.status === "error" ? "#dc2626"
-                                  : "#b45309",
-                              fontSize: "11px",
-                              maxWidth: "260px",
-                            }}>
-                              {row.status === "success"
-                                ? "✓ Imported successfully"
-                                : reason
-                                  ? `✗ ${reason}`
-                                  : "—"}
+                            <td className="px-3 py-2">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap"
+                                style={{ background: row.cat.bg, color: row.cat.color, border: `1px solid ${row.cat.color}33` }}>
+                                {row.cat.tag === "success" ? "✅" : row.cat.tag.startsWith("dup") ? "🔁" : row.cat.tag === "missing" ? "⚠️" : "❌"}
+                                {" "}{row.cat.label}
+                              </span>
+                            </td>
+                            {/* ── Existing student columns ── */}
+                            <td className="px-3 py-2" style={{ color: "#6b21a8", fontWeight: row.cat.existing ? 600 : 400 }}>
+                              {row.cat.existing
+                                ? row.cat.existing.name || row.cat.existing.email || "—"
+                                : row.cat.tag === "success" ? "—" : "—"}
+                            </td>
+                            <td className="px-3 py-2" style={{ color: "#6b21a8" }}>
+                              {row.cat.existing?.cls || "—"}
+                            </td>
+                            <td className="px-3 py-2" style={{ color: "#6b21a8" }}>
+                              {row.cat.existing?.year || "—"}
+                            </td>
+                            <td className="px-3 py-2" style={{ color: row.cat.color, fontSize: "11px", maxWidth: 220 }}>
+                              {row.cat.tag === "success"
+                                ? "New student added successfully."
+                                : row.cat.fix || "—"}
                             </td>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Footer */}
@@ -1074,6 +1235,15 @@ export default function BulkImportStudents({ onClose, onSuccess }) {
                 ) : (
                   <><Users size={15} /> Import {validCount} Student{validCount !== 1 ? "s" : ""}</>
                 )}
+              </button>
+            )}
+            {step === "done" && (
+              <button
+                onClick={downloadImportReport}
+                className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition-all w-full sm:w-auto"
+                style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d" }}
+              >
+                <Download size={15} /> Download Report
               </button>
             )}
             {step === "done" && successCount > 0 && (

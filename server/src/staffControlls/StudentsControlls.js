@@ -1130,11 +1130,31 @@ async function createStudentFull(row, schoolId) {
   if (!firstName)        throw new Error("First Name is required.");
   if (!lastName)         throw new Error("Last Name is required.");
 
-  // 1. Duplicate email — also exclude soft-deleted students (the original bug)
-  const exists = await prisma.student.findFirst({
-    where: { email: studentEmail, schoolId, deletedAt: null },
+  // 1. Duplicate email check — only block if SAME email AND SAME admission number
+  //    (siblings can share a parent email — that is allowed)
+  //    The real unique identifier is admission number per academic year (checked in step 5)
+  const emailAndAdmExists = await prisma.student.findFirst({
+    where: {
+      email:     studentEmail,
+      schoolId,
+      deletedAt: null,
+      enrollments: {
+        some: {
+          admissionNumber: admissionNumber.toString().trim(),
+          academicYearId:  (await prisma.academicYear.findFirst({
+            where: { schoolId, name: { equals: academicYearName?.trim(), mode: "insensitive" } },
+            select: { id: true },
+          }))?.id || "none",
+        },
+      },
+    },
   });
-  if (exists) throw new Error(`Student email "${studentEmail}" is already registered.`);
+  if (emailAndAdmExists) {
+    throw new Error(
+      `Student with email "${studentEmail}" and Admission No "${admissionNumber}" is already registered. ` +
+      `This is an exact duplicate row.`
+    );
+  }
 
   // 2. Resolve Class Section
   const classSection = await prisma.classSection.findFirst({
@@ -1184,9 +1204,22 @@ async function createStudentFull(row, schoolId) {
         academicYearId: academicYear.id,
         rollNumber:     rollNumber.toString().trim(),
       },
+      include: {
+        student:      { select: { name: true, firstName: true, lastName: true, email: true } },
+        classSection: { select: { name: true } },
+        academicYear: { select: { name: true } },
+      },
     });
-    if (rollExists)
-      throw new Error(`Roll No "${rollNumber}" is already assigned in ${classSection.name} for this year.`);
+    if (rollExists) {
+      const existingName  = rollExists.student?.name
+        || `${rollExists.student?.firstName || ""} ${rollExists.student?.lastName || ""}`.trim()
+        || "Unknown";
+      const existingEmail = rollExists.student?.email || "—";
+      throw new Error(
+        `Roll No "${rollNumber}" is already assigned in ${classSection.name} for this year. ` +
+        `[Existing student: ${existingName} | Email: ${existingEmail} | Class: ${rollExists.classSection?.name} | Year: ${rollExists.academicYear?.name}]`
+      );
+    }
   }
 
   // 5. Admission number conflict
@@ -1195,9 +1228,24 @@ async function createStudentFull(row, schoolId) {
       admissionNumber: admissionNumber.toString().trim(),
       academicYearId:  academicYear.id,
     },
+    include: {
+      student:      { select: { name: true, firstName: true, lastName: true, email: true } },
+      classSection: { select: { name: true } },
+      academicYear: { select: { name: true } },
+    },
   });
-  if (admExists)
-    throw new Error(`Admission No "${admissionNumber}" already exists for this academic year.`);
+  if (admExists) {
+    const existingName  = admExists.student?.name
+      || `${admExists.student?.firstName || ""} ${admExists.student?.lastName || ""}`.trim()
+      || "Unknown";
+    const existingEmail = admExists.student?.email || "—";
+    const existingClass = admExists.classSection?.name  || "Unknown Class";
+    const existingYear  = admExists.academicYear?.name  || "Unknown Year";
+    throw new Error(
+      `Admission No "${admissionNumber}" already exists for this academic year. ` +
+      `[Existing student: ${existingName} | Email: ${existingEmail} | Class: ${existingClass} | Year: ${existingYear}]`
+    );
+  }
 
   // ─────────────────────────────────────────────────────────────────────────────
   // PHASE 2 — HASH PASSWORDS (outside transaction — bcrypt is slow)
