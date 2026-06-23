@@ -675,7 +675,7 @@ model Student {
   biometricAttendances          BiometricStudentAttendance[]
   voiceAnnouncementTargets      VoiceAnnouncementTarget[]
 
-  @@unique([email, schoolId])
+  @@index([email, schoolId])
   @@index([schoolId])
   @@index([studentCode])
   @@index([schoolId, isActive, createdAt])

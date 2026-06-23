@@ -97,7 +97,7 @@ async function processVehicle(apiVehicle) {
     },
   });
 
-  console.log(`[GPS] Stored: ${regNo} | status=${apiVehicle.status} | speed=${apiVehicle.speed}km/h | ${apiVehicle.address?.slice(0, 50)}`);
+  // console.log(`[GPS] Stored: ${regNo} | status=${apiVehicle.status} | speed=${apiVehicle.speed}km/h | ${apiVehicle.address?.slice(0, 50)}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ async function processVehicle(apiVehicle) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function pollGPS() {
   if (isRunning) {
-    console.log("[GPS] Previous poll still running — skipping this tick");
+    // console.log("[GPS] Previous poll still running — skipping this tick");
     return;
   }
 
@@ -113,18 +113,18 @@ async function pollGPS() {
 
   try {
     if (!GPS_API_BASE || !GPS_API_TOKEN || !GPS_API_EMAIL) {
-      console.warn("[GPS] Missing GPS_API_BASE / GPS_API_TOKEN / GPS_API_EMAIL in .env — skipping poll");
+      // console.warn("[GPS] Missing GPS_API_BASE / GPS_API_TOKEN / GPS_API_EMAIL in .env — skipping poll");
       return;
     }
 
     const vehicles = await fetchGPSData();
-    console.log(`[GPS] Poll: ${vehicles.length} vehicle(s) from API`);
+    // console.log(`[GPS] Poll: ${vehicles.length} vehicle(s) from API`);
 
     // Process all vehicles in parallel
     await Promise.allSettled(vehicles.map(processVehicle));
 
   } catch (err) {
-    console.error("[GPS] Poll failed:", err.message);
+    // console.error("[GPS] Poll failed:", err.message);
   } finally {
     isRunning = false;
   }
@@ -135,11 +135,11 @@ async function pollGPS() {
 // ─────────────────────────────────────────────────────────────────────────────
 export function startVehicleTrackingCron() {
   if (!GPS_API_TOKEN || !GPS_API_EMAIL) {
-    console.warn("[GPS] GPS env vars not set — vehicle tracking cron NOT started");
+    // console.warn("[GPS] GPS env vars not set — vehicle tracking cron NOT started");
     return;
   }
 
-  console.log("[GPS] Vehicle tracking cron started — polling every 30 seconds");
+  // console.log("[GPS] Vehicle tracking cron started — polling every 30 seconds");
 
   // Run immediately on startup
   pollGPS();
