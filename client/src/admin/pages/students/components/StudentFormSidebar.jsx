@@ -10,6 +10,8 @@ import {
   BadgeCheck,
   ChevronDown,
   ChevronUp,
+  Camera,
+  Upload,
 } from "lucide-react";
 import { COLORS } from "./FormFields";
 
@@ -20,6 +22,7 @@ export default function StudentFormSidebar({
   tabHasError,
   photoUrl,
   onPhotoClick,
+  onCameraClick,
   studentName,
   grade,
   cls,
@@ -30,6 +33,7 @@ export default function StudentFormSidebar({
   status,
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [photoMenuOpen, setPhotoMenuOpen] = useState(false);
 
   const previewRows = [
     { l: "Name", v: studentName || "—", I: User },
@@ -58,26 +62,43 @@ export default function StudentFormSidebar({
       >
         {/* Photo + name row */}
         <div className="flex items-center gap-3 px-4 pt-3 pb-2">
-          <button
-            onClick={onPhotoClick}
-            className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 shadow"
-            style={{
-              background: `linear-gradient(135deg, ${COLORS.secondary}, ${COLORS.primary})`,
-            }}
-          >
-            {photoUrl ? (
-              <img
-                src={photoUrl}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <User
-                size={18}
-                className="text-white/80 absolute inset-0 m-auto"
-              />
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setPhotoMenuOpen((v) => !v)}
+              className="relative w-10 h-10 rounded-xl overflow-hidden shadow"
+              style={{
+                background: `linear-gradient(135deg, ${COLORS.secondary}, ${COLORS.primary})`,
+              }}
+            >
+              {photoUrl ? (
+                <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <User size={18} className="text-white/80 absolute inset-0 m-auto" />
+              )}
+            </button>
+            {photoMenuOpen && (
+              <div
+                className="absolute left-0 top-12 z-20 rounded-xl shadow-lg overflow-hidden w-44"
+                style={{ border: `1px solid ${COLORS.border}`, background: "white" }}
+              >
+                <button
+                  onClick={() => { setPhotoMenuOpen(false); onPhotoClick(); }}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-semibold hover:bg-gray-50 transition-colors"
+                  style={{ color: COLORS.primary }}
+                >
+                  <Upload size={12} /> Upload from Gallery
+                </button>
+                <div style={{ borderTop: `1px solid ${COLORS.border}` }} />
+                <button
+                  onClick={() => { setPhotoMenuOpen(false); onCameraClick?.(); }}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-semibold hover:bg-gray-50 transition-colors"
+                  style={{ color: COLORS.primary }}
+                >
+                  <Camera size={12} /> Take Photo
+                </button>
+              </div>
             )}
-          </button>
+          </div>
           <div className="flex-1 min-w-0">
             <p
               className="text-sm font-bold truncate"
@@ -222,34 +243,38 @@ export default function StudentFormSidebar({
                 }}
               >
                 {photoUrl ? (
-                  <img
-                    src={photoUrl}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={photoUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <User size={26} className="text-white/80" />
                 )}
+              </div>
+              {/* Two buttons: gallery + camera */}
+              <div className="flex gap-1.5 w-full">
                 <button
                   onClick={onPhotoClick}
-                  className="absolute inset-0 bg-black/25 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity"
+                  title="Upload from gallery"
+                  className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all hover:opacity-80"
+                  style={{
+                    border: `1px solid ${COLORS.border}`,
+                    color: COLORS.secondary,
+                    background: "white",
+                  }}
                 >
-                  <span className="text-[9px] font-bold text-white">
-                    Update
-                  </span>
+                  <Upload size={10} /> Gallery
+                </button>
+                <button
+                  onClick={onCameraClick}
+                  title="Take photo with camera"
+                  className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all hover:opacity-80"
+                  style={{
+                    border: `1px solid ${COLORS.border}`,
+                    color: COLORS.secondary,
+                    background: "white",
+                  }}
+                >
+                  <Camera size={10} /> Camera
                 </button>
               </div>
-              <button
-                onClick={onPhotoClick}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:opacity-80"
-                style={{
-                  border: `1px solid ${COLORS.border}`,
-                  color: COLORS.secondary,
-                  background: "white",
-                }}
-              >
-                → {photoUrl ? "Change" : "Upload Photo"}
-              </button>
             </div>
           </div>
 

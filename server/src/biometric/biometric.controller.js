@@ -1,4 +1,5 @@
 import { prisma } from "../config/db.js";
+import { processPresent, processAbsent } from "./biometric_attendance_service.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIMEZONE HELPER
@@ -817,3 +818,57 @@ export const getLogs = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
+/**
+ * POST /api/biometric/trigger-attendance
+ * Body: { schoolId, type: "present" | "absent" | "both" }
+ *
+ * Manual backup trigger — admin fires this if cron missed or server restarted.
+ * Only works for schools that have at least one active biometric device.
+ */
+export const triggerBiometricAttendance = async (req, res) => {
+  try {
+    const { schoolId, type = "both" } = req.body;
+ 
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: "schoolId is required" });
+    }
+ 
+    // Verify school has an active biometric device
+    const hasDevice = await prisma.biometricDevice.findFirst({
+      where: { schoolId, isActive: true },
+      select: { id: true },
+    });
+ 
+    if (!hasDevice) {
+      return res.status(400).json({
+        success: false,
+        message: "This school has no active biometric device. Use manual attendance instead.",
+      });
+    }
+ 
+    // Fire in background — don't await, respond immediately
+    if (type === "present" || type === "both") {
+      processPresent(schoolId).catch((err) =>
+        console.error("[ManualTrigger] processPresent error:", err)
+      );
+    }
+ 
+    if (type === "absent" || type === "both") {
+      processAbsent(schoolId).catch((err) =>
+        console.error("[ManualTrigger] processAbsent error:", err)
+      );
+    }
+ 
+    return res.json({
+      success: true,
+      message: `Biometric attendance processing triggered (type: ${type}). Notifications will be sent shortly.`,
+    });
+ 
+  } catch (err) {
+    console.error("[triggerBiometricAttendance]", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+ 
