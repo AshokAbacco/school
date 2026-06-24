@@ -74,7 +74,7 @@ export const addVehicle = async (req, res) => {
     }
 
     // regNo always stored uppercase
-    regNo = regNo.toUpperCase().trim();
+   regNo = regNo.toUpperCase().replace(/\s+/g, "").trim();
 
     // Check duplicate
     const existing = await prisma.schoolVehicle.findFirst({

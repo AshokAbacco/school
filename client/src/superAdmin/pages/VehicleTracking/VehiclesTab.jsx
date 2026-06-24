@@ -167,7 +167,7 @@ export default function VehiclesTab({ schoolId, schools = [] }) {
                 style={{ ...inp, fontFamily: "monospace", fontWeight: 700, fontSize: 15, letterSpacing: 1, textTransform: "uppercase" }}
                 placeholder="KA50EL0766"
                 value={form.regNo}
-                onChange={(e) => setForm((p) => ({ ...p, regNo: e.target.value.toUpperCase() }))}
+                onChange={(e) => setForm((p) => ({ ...p, regNo: e.target.value.toUpperCase().replace(/\s+/g, "") }))}
               />
               <p style={{ fontSize: 11, color: "#9CA3AF", margin: "4px 0 0" }}>Must match exactly what the GPS device sends</p>
             </div>

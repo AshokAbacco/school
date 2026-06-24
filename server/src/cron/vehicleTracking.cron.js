@@ -49,7 +49,7 @@ async function fetchGPSData() {
 // PROCESS ONE VEHICLE from API response
 // ─────────────────────────────────────────────────────────────────────────────
 async function processVehicle(apiVehicle) {
-  const regNo = apiVehicle.regNo?.toUpperCase()?.trim();
+ const regNo = apiVehicle.regNo?.toUpperCase()?.replace(/\s+/g, "").trim();
   if (!regNo) return;
 
   // Match regNo to our SchoolVehicle table
