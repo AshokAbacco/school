@@ -16,6 +16,7 @@ import {
   getStats,
   getLogs,
   getAttendanceLogs,
+   triggerBiometricAttendance, 
 } from "./biometric.controller.js";
 
 const router = express.Router();
@@ -26,7 +27,7 @@ router.post("/punch", receivePunch);
 
 // ── All routes below require a valid JWT (requireAuth sets req.user) ──────────
 router.use(requireAuth);
-
+router.post("/trigger-attendance", triggerBiometricAttendance);
 // ── Dashboard stats ───────────────────────────────────────────────────────────
 router.get("/stats", getStats);
 
