@@ -211,29 +211,34 @@ function CustomizeTab({ onTemplateSaved }) {
                 background: selectedKey === key ? "#eff6ff" : "white",
               }}
             >
-              {/* Mini scaled preview */}
+              {/* Mini scaled preview — fixed height container, card scaled inside */}
               <div style={{
-                background: "#f3f4f6", padding: 8,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                minHeight: 160, overflow: "hidden",
+                background: "#f3f4f6",
+                height: 120,
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "center",
+                padding: 4,
               }}>
                 <div style={{
-                  transform: key === "NAVY_HORIZONTAL" ? "scale(0.32)" : "scale(0.38)",
+                  flexShrink: 0,
+                  transform: key === "NAVY_HORIZONTAL" ? "scale(0.22)" : "scale(0.27)",
                   transformOrigin: "top center",
-                  marginBottom: key === "NAVY_HORIZONTAL" ? -120 : -80,
+                  width: key === "NAVY_HORIZONTAL" ? 380 : 280,
                 }}>
-                  <Component theme={theme} logo={logo} student={SAMPLE_STUDENT} />
+                  <Component theme={theme} logo={null} student={SAMPLE_STUDENT} />
                 </div>
               </div>
               {/* Label */}
-              <div className="px-3 py-2 flex items-center justify-between">
-                <p className="text-xs font-bold" style={{ color: selectedKey === key ? COLORS.accent : COLORS.primary }}>
+              <div className="px-2 py-2">
+                <p className="text-[11px] font-bold truncate" style={{ color: selectedKey === key ? COLORS.accent : COLORS.primary }}>
                   {label}
                 </p>
                 {selectedKey === key && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                     style={{ background: COLORS.accent, color: "white" }}>
-                    Selected
+                    ✓ Selected
                   </span>
                 )}
               </div>
@@ -322,9 +327,11 @@ function CustomizeTab({ onTemplateSaved }) {
           <p className="text-xs font-bold uppercase tracking-wide self-start" style={{ color: COLORS.primary }}>
             Step 3 — Live Preview
           </p>
-          <div className="w-full flex items-center justify-center rounded-2xl p-6"
-            style={{ background: "white", border: `1px solid ${COLORS.border}`, minHeight: 500 }}>
-            <PreviewComp theme={theme} logo={logo} student={SAMPLE_STUDENT} />
+          <div className="w-full flex items-center justify-center rounded-2xl p-4 sm:p-6 overflow-x-auto"
+            style={{ background: "white", border: `1px solid ${COLORS.border}`, minHeight: 400 }}>
+            <div style={{ width: "100%", maxWidth: 400 }}>
+              <PreviewComp theme={theme} logo={logo} student={SAMPLE_STUDENT} />
+            </div>
           </div>
           <p className="text-xs text-center" style={{ color: COLORS.secondary }}>
             Preview with sample data — actual student info will appear on generated cards
@@ -647,9 +654,14 @@ export default function IdCardManagement() {
                 style={{ background: "#fff", border: `1px solid ${COLORS.border}` }}>
 
                 {/* Thumbnail — live card preview for CODED, image for UPLOADED */}
-                <div className="relative p-3 flex items-center justify-center" style={{ background: "#f3f4f6", minHeight: 140 }}>
+                <div className="relative p-3 flex items-start justify-center" style={{ background: "#f3f4f6", minHeight: 140, overflow: "hidden" }}>
                   {t.templateType === "CODED" ? (
-                    <div style={{ transform: "scale(0.38)", transformOrigin: "top center", marginBottom: -80 }}>
+                    <div style={{
+                      width: t.templateKey === "NAVY_HORIZONTAL" ? 380 : 280,
+                      transform: t.templateKey === "NAVY_HORIZONTAL" ? "scale(0.28)" : "scale(0.34)",
+                      transformOrigin: "top center",
+                      flexShrink: 0,
+                    }}>
                       {(() => {
                         const Comp = getTemplateComponent(t.templateKey);
                         return (

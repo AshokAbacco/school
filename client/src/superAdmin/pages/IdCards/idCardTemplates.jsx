@@ -10,6 +10,47 @@
 import React from "react";
 import { User, BookOpen, Hash, Users, Bus, Droplets, Phone } from "lucide-react";
 
+// ── Responsive card wrapper ───────────────────────────────────────────────────
+// Keeps the card at its natural pixel size internally (so design stays perfect)
+// but scales it down proportionally on small screens using CSS scale().
+// cardWidth: the natural pixel width of the card (280 for portrait, 380 for landscape)
+export function ResponsiveCard({ cardWidth = 280, children }) {
+  return (
+    <div style={{ width: "100%", maxWidth: cardWidth, margin: "0 auto" }}>
+      <div
+        style={{
+          width: cardWidth,
+          transformOrigin: "top left",
+          // Scale = container width / card natural width
+          // We use a CSS custom property trick via inline style + clamp
+        }}
+        className="id-card-scaler"
+      >
+        {children}
+      </div>
+      <style>{`
+        .id-card-scaler {
+          transform: scale(1);
+        }
+        @media (max-width: 320px) {
+          .id-card-scaler {
+            transform: scale(0.78);
+            transform-origin: top left;
+            margin-bottom: calc((${cardWidth}px * -0.22));
+          }
+        }
+        @media (min-width: 321px) and (max-width: 399px) {
+          .id-card-scaler {
+            transform: scale(0.88);
+            transform-origin: top left;
+            margin-bottom: calc((${cardWidth}px * -0.12));
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 // ── Sample data (used in previews) ───────────────────────────────────────────
 export const SAMPLE_STUDENT = {
   name:        "Aaliya Fathima",
@@ -33,7 +74,7 @@ export function ClassicVerticalCard({ theme, logo, student = SAMPLE_STUDENT }) {
 
   return (
     <div style={{
-      width: 280, minHeight: 460, background: "white",
+      width: "100%", maxWidth: 280, minHeight: 460, background: "white",
       borderRadius: 16, border: `2px solid ${primary}`,
       fontFamily: "sans-serif", overflow: "hidden",
       display: "flex", flexDirection: "column", position: "relative",
@@ -150,7 +191,7 @@ export function HorizontalSplitCard({ theme, logo, student = SAMPLE_STUDENT }) {
 
   return (
     <div style={{
-      width: 380, height: 240, background: "white",
+      width: "100%", maxWidth: 380, height: "auto", minHeight: 200, background: "white",
       borderRadius: 14, border: `2px solid ${primary}`,
       fontFamily: "sans-serif", overflow: "hidden",
       display: "flex", flexDirection: "row",
@@ -251,7 +292,7 @@ export function MinimalModernCard({ theme, logo, student = SAMPLE_STUDENT }) {
 
   return (
     <div style={{
-      width: 260, minHeight: 400, background: "white",
+      width: "100%", maxWidth: 260, minHeight: 400, background: "white",
       borderRadius: 16, border: `1.5px solid #e5e7eb`,
       fontFamily: "sans-serif", overflow: "hidden",
       display: "flex", flexDirection: "column",
@@ -351,7 +392,7 @@ export function RoyalSouthIndianCard({ theme, logo, student = SAMPLE_STUDENT }) 
 
   return (
     <div style={{
-      width: 280, minHeight: 480, background: "white",
+      width: "100%", maxWidth: 280, minHeight: 480, background: "white",
       borderRadius: 14, overflow: "hidden", fontFamily: "sans-serif",
       border: `3px solid ${primary}`, display: "flex", flexDirection: "column",
       position: "relative",
@@ -490,7 +531,7 @@ export function MaroonCreamCard({ theme, logo, student = SAMPLE_STUDENT }) {
 
   return (
     <div style={{
-      width: 280, minHeight: 480, background: cream,
+      width: "100%", maxWidth: 280, minHeight: 480, background: cream,
       borderRadius: 12, overflow: "hidden", fontFamily: "Georgia, serif",
       border: `3px double ${primary}`, display: "flex", flexDirection: "column",
     }}>
@@ -592,7 +633,7 @@ export function CBSEGreenCard({ theme, logo, student = SAMPLE_STUDENT }) {
 
   return (
     <div style={{
-      width: 280, minHeight: 480, background: "white",
+      width: "100%", maxWidth: 280, minHeight: 480, background: "white",
       borderRadius: 10, overflow: "hidden", fontFamily: "'Arial', sans-serif",
       border: `1.5px solid ${primary}`, display: "flex", flexDirection: "column",
     }}>
@@ -707,7 +748,7 @@ export function CorporateSidebarCard({ theme, logo, student = SAMPLE_STUDENT }) 
 
   return (
     <div style={{
-      width: 280, minHeight: 480, background: "white",
+      width: "100%", maxWidth: 280, minHeight: 480, background: "white",
       borderRadius: 12, overflow: "hidden", fontFamily: "'Arial', sans-serif",
       border: `1.5px solid #e5e7eb`, display: "flex", flexDirection: "row",
       boxShadow: "0 2px 16px rgba(0,0,0,0.10)",
