@@ -634,7 +634,7 @@ export default function Navbar({ onMenuClick, user }) {
       {/* ── Logout Modal ── */}
       {logoutModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
           style={{
             background: "rgba(56,73,89,0.35)",
             backdropFilter: "blur(4px)",
@@ -643,6 +643,8 @@ export default function Navbar({ onMenuClick, user }) {
           <div
             className="w-full max-w-sm rounded-2xl p-6"
             style={{
+              position: "relative",
+              zIndex: 9999,
               background: "#fff",
               boxShadow: "0 24px 64px rgba(56,73,89,0.22)",
               animation: "popIn .18s ease",

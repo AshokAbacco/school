@@ -167,7 +167,7 @@ export default function LiveTrackingTab({ schoolId }) {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
 
       {/* Header bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           {/* Stats */}
           {[
@@ -211,15 +211,16 @@ export default function LiveTrackingTab({ schoolId }) {
 
       {/* Vehicle cards grid */}
       {vehicles.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: "20px", }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {vehicles.map((v) => (
-              <VehicleCard key={v.id} vehicle={v} />
-            ))}
-          </div>
-
-          <VehicleMap vehicles={vehicles} />
-        </div>
+<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))", gap: "20px" }}>
+  <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+    {vehicles.map((v) => (
+      <VehicleCard key={v.id} vehicle={v} />
+    ))}
+  </div>
+  <div style={{ minWidth: 0 }}>
+    <VehicleMap vehicles={vehicles} />
+  </div>
+</div>
       )}
     </div>
   );

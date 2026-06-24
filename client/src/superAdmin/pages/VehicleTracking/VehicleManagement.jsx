@@ -42,6 +42,13 @@ export default function VehicleManagement() {
   return (
     <div style={{ padding: "16px", fontFamily: "system-ui,-apple-system,sans-serif", color: "#111827" }}>
 
+      {/* Responsive styles */}
+      <style>{`
+        @media (max-width: 480px) {
+          .vm-tab-content { padding: 12px 14px !important; }
+        }
+      `}</style>
+
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -99,7 +106,8 @@ export default function VehicleManagement() {
           })}
         </div>
 
-        <div style={{ padding: "20px 24px" }}>
+        {/* Tab content — tighter padding on mobile */}
+        <div className="vm-tab-content" style={{ padding: "20px 24px" }}>
           {activeTab === "live"     && <LiveTrackingTab schoolId={selectedSchool} />}
           {activeTab === "vehicles" && <VehiclesTab     schoolId={selectedSchool} schools={schools} />}
         </div>
