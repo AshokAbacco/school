@@ -30,6 +30,7 @@ import StudentFormSidebar from "./components/StudentFormSidebar";
 import DocumentUploadSection from "./components/DocumentUploadSection";
 import { useInstitutionConfig } from "../classes/hooks/useInstitutionConfig";
 import SignedProfileImage from "./components/SignedProfileImage";
+import CameraCapture from "./components/CameraCapture";
 
 
 const API = import.meta.env.VITE_API_URL;
@@ -308,6 +309,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const [toast, setToast] = useState(null);
   const [limitError, setLimitError] = useState(null);
   const [limitStatus, setLimitStatus] = useState(null); // { used, limit }
+  const [showCamera, setShowCamera] = useState(false);
 
   // ── Fetch live student limit status ─────────────────────────────────────────
   const fetchLimitStatus = async () => {
@@ -350,6 +352,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const [selectedSectionLetter, setSelectedSectionLetter] = useState("");
 
   const photoRef = useRef();
+  const cameraRef = useRef();
 
   const set = (k) => (e) => {
     setF((p) => ({ ...p, [k]: e.target.value }));
@@ -767,6 +770,23 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     degreeSectionLetters,
     showCourse,
   ]);
+
+  const handlePhotoFile = (fl) => {
+    if (fl) {
+      setPhoto(fl);
+      setPhotoUrl(URL.createObjectURL(fl));
+    }
+  };
+
+  // Opens webcam modal on desktop, native camera on mobile
+  const handleCameraClick = () => {
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    if (isMobile) {
+      cameraRef.current?.click();
+    } else {
+      setShowCamera(true);
+    }
+  };
 
   const resetStream = () => {
     setSelectedStreamId("");
@@ -1616,6 +1636,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           tabHasError={tabHasError}
           photoUrl={photoUrl}
           onPhotoClick={() => photoRef.current?.click()}
+          onCameraClick={handleCameraClick}
           studentName={[f.fn, f.ln].filter(Boolean).join(" ")}
           grade={resolvedSection?.grade || "—"}
           cls={resolvedSection?.name || "—"}
@@ -1626,19 +1647,36 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           status={f.status}
         />
 
+        {/* Gallery file picker */}
         <input
           ref={photoRef}
           type="file"
           accept="image/jpeg,image/png,image/webp"
           className="hidden"
-          onChange={(e) => {
-            const fl = e.target.files[0];
-            if (fl) {
-              setPhoto(fl);
-              setPhotoUrl(URL.createObjectURL(fl));
-            }
-          }}
+          onChange={(e) => handlePhotoFile(e.target.files[0])}
         />
+
+        {/* Mobile native camera (front-facing) */}
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          capture="user"
+          className="hidden"
+          onChange={(e) => handlePhotoFile(e.target.files[0])}
+        />
+
+        {/* Desktop webcam modal */}
+        {showCamera && (
+          <CameraCapture
+            onCapture={(file, previewUrl) => {
+              setPhoto(file);
+              setPhotoUrl(previewUrl);
+              setShowCamera(false);
+            }}
+            onClose={() => setShowCamera(false)}
+          />
+        )}
 
         <div
           className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 pb-32 md:pb-24"
