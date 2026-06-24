@@ -4038,10 +4038,15 @@ model IdCardTemplate {
   id          String  @id @default(uuid())
   title       String
   description String?
-  imageKey    String
+  imageKey    String?
   imageUrl    String?
   isActive    Boolean @default(true)
   isDefault   Boolean @default(false)
+
+  templateType String  @default("UPLOADED")
+  templateKey  String?
+  primaryColor String?
+  accentColor  String?
 
   schoolId String?
   school   School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
