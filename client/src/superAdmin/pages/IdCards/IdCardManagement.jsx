@@ -177,7 +177,13 @@ function CustomizeTab({ onTemplateSaved }) {
       const text = await res.text();
       let data = {};
       try { data = text ? JSON.parse(text) : {}; } catch { throw new Error(text); }
+// AFTER
       if (!res.ok) throw new Error(data.error || "Save failed");
+      if (data.alreadyExists) {
+        setSaveError("A template with these exact colors already exists. Try adjusting the colors.");
+        setSaving(false);
+        return;
+      }
       setShowNamePopup(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -425,6 +431,7 @@ export default function IdCardManagement() {
   const [uploading, setUploading]     = useState(false);
   const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef();
+  const seededRef    = useRef(false);
 
   const [orderForm, setOrderForm] = useState({
     schoolId: "", templateId: "", contactName: "",
@@ -477,8 +484,12 @@ export default function IdCardManagement() {
     finally { setLoadingClasses(false); }
   };
 
-  useEffect(() => {
-    seedCodedTemplates();
+// AFTER
+useEffect(() => {
+    if (!seededRef.current) {
+      seededRef.current = true;
+      seedCodedTemplates();
+    }
     if (tab === "templates") fetchTemplates();
     else if (tab === "orders") fetchOrders();
   }, [tab]);

@@ -282,9 +282,18 @@ export const createCodedTemplate = async (req, res) => {
     if (!title)       return res.status(400).json({ error: "title is required." });
     if (!templateKey) return res.status(400).json({ error: "templateKey is required." });
 
-    // Avoid duplicates on page reload
+    const resolvedPrimary = primaryColor || "#1a5c38";
+    const resolvedAccent  = accentColor  || "#c9a84c";
+
+    // Deduplicate on the full combination — same key + same colors
+    // This lets custom themes with different colors through
     const existing = await prisma.idCardTemplate.findFirst({
-      where: { templateKey, templateType: "CODED" },
+      where: {
+        templateKey,
+        primaryColor: resolvedPrimary,
+        accentColor:  resolvedAccent,
+        templateType: "CODED",
+      },
     });
     if (existing) return res.json({ template: existing, alreadyExists: true });
 
@@ -294,8 +303,8 @@ export const createCodedTemplate = async (req, res) => {
         description:  description || null,
         templateType: "CODED",
         templateKey,
-        primaryColor: primaryColor || "#1a5c38",
-        accentColor:  accentColor  || "#c9a84c",
+        primaryColor: resolvedPrimary,
+        accentColor:  resolvedAccent,
         imageKey:     null,
         isDefault:    true,
         isActive:     true,
