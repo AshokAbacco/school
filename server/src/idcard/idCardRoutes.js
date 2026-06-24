@@ -15,27 +15,20 @@ import {
   placeOrder,
   updateOrderStatus,
   getOrderStats,
+    getOrders,           // ← add
+  createCodedTemplate, // ← add
 } from "./idCardControlls.js";
 
 const router = express.Router();
 
-// ── Templates (SuperAdmin) ───────────────────────────────────────────────────
+// ✅ CORRECT ORDER — specific routes BEFORE param routes
+router.get("/templates",          authMiddleware, getTemplates);
+router.post("/templates/coded",   authMiddleware, createCodedTemplate);  // ← BEFORE :id
+router.delete("/templates/:id",   authMiddleware, deleteTemplate);        // ← AFTER
 
-// GET    /api/id-cards/templates         — fetch all templates with signed URLs
-router.get("/templates", authMiddleware, getTemplates);
-
-// DELETE /api/id-cards/templates/:id     — delete a template
-router.delete("/templates/:id", authMiddleware, deleteTemplate);
-
-// ── Orders (SuperAdmin) ──────────────────────────────────────────────────────
-
-// POST   /api/id-cards/orders/place      — place a new order for a school
-router.post("/orders/place", authMiddleware, placeOrder);
-
-// PATCH  /api/id-cards/orders/:id/status — update order status
-router.patch("/orders/:id/status", authMiddleware, updateOrderStatus);
-
-// GET    /api/id-cards/stats             — summary stats
-router.get("/stats", authMiddleware, getOrderStats);
+router.get("/orders",             authMiddleware, getOrders);
+router.post("/orders/place",      authMiddleware, placeOrder);
+router.patch("/orders/:id/status",authMiddleware, updateOrderStatus);
+router.get("/stats",              authMiddleware, getOrderStats);
 
 export default router;

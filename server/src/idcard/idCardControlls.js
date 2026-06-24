@@ -57,15 +57,19 @@ export const getTemplates = async (req, res) => {
 
     const withUrls = await Promise.all(
       templates.map(async (t) => ({
-        id:          t.id,
-        title:       t.title,
-        description: t.description,
-        imageKey:    t.imageKey,
-        imageUrl:    await getSignedImageUrl(t.imageKey),
-        isDefault:   t.isDefault,
-        schoolId:    t.schoolId,
-        isOwn:       t.schoolId === schoolId,
-        uploadedAt:  t.uploadedAt,
+        id:           t.id,
+        title:        t.title,
+        description:  t.description,
+        imageKey:     t.imageKey,
+        imageUrl:     t.imageKey ? await getSignedImageUrl(t.imageKey) : null,
+        isDefault:    t.isDefault,
+        schoolId:     t.schoolId,
+        isOwn:        t.schoolId === schoolId,
+        uploadedAt:   t.uploadedAt,
+        templateType: t.templateType,
+        templateKey:  t.templateKey,
+        primaryColor: t.primaryColor,
+        accentColor:  t.accentColor,
       }))
     );
 
@@ -87,7 +91,9 @@ export const deleteTemplate = async (req, res) => {
     const template = await prisma.idCardTemplate.findUnique({ where: { id } });
     if (!template) return res.status(404).json({ error: "Template not found." });
 
-    await r2.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: template.imageKey }));
+   if (template.imageKey) {
+  await r2.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: template.imageKey }));
+}
     await prisma.idCardTemplate.delete({ where: { id } });
 
     return res.json({ message: "Template deleted successfully." });
@@ -224,5 +230,81 @@ export const getOrderStats = async (req, res) => {
   } catch (err) {
     console.error("getOrderStats error:", err);
     return res.status(500).json({ error: "Failed to fetch stats." });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET ALL ORDERS — GET /api/id-cards/orders
+// ─────────────────────────────────────────────────────────────────────────────
+export const getOrders = async (req, res) => {
+  try {
+    const orders = await prisma.idCardOrder.findMany({
+      orderBy: { orderedAt: "desc" },
+      include: {
+        template: {
+          select: {
+            id: true, title: true, imageKey: true,
+            templateType: true, templateKey: true,
+            primaryColor: true, accentColor: true,
+          },
+        },
+      },
+    });
+
+    const withUrls = await Promise.all(
+      orders.map(async (o) => ({
+        ...o,
+        template: o.template
+          ? {
+              ...o.template,
+              imageUrl: o.template.imageKey
+                ? await getSignedImageUrl(o.template.imageKey)
+                : null,
+            }
+          : null,
+      }))
+    );
+
+    return res.json({ orders: withUrls });
+  } catch (err) {
+    console.error("getOrders error:", err);
+    return res.status(500).json({ error: "Failed to fetch orders." });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CREATE CODED TEMPLATE — POST /api/id-cards/templates/coded
+// ─────────────────────────────────────────────────────────────────────────────
+export const createCodedTemplate = async (req, res) => {
+  try {
+    const { title, templateKey, primaryColor, accentColor, description } = req.body;
+
+    if (!title)       return res.status(400).json({ error: "title is required." });
+    if (!templateKey) return res.status(400).json({ error: "templateKey is required." });
+
+    // Avoid duplicates on page reload
+    const existing = await prisma.idCardTemplate.findFirst({
+      where: { templateKey, templateType: "CODED" },
+    });
+    if (existing) return res.json({ template: existing, alreadyExists: true });
+
+    const template = await prisma.idCardTemplate.create({
+      data: {
+        title,
+        description:  description || null,
+        templateType: "CODED",
+        templateKey,
+        primaryColor: primaryColor || "#1a5c38",
+        accentColor:  accentColor  || "#c9a84c",
+        imageKey:     null,
+        isDefault:    true,
+        isActive:     true,
+      },
+    });
+
+    return res.status(201).json({ template });
+  } catch (err) {
+    console.error("createCodedTemplate error:", err);
+    return res.status(500).json({ error: "Failed to create coded template." });
   }
 };
