@@ -824,8 +824,9 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     const e = {};
     if (!f.fn.trim()) e.fn = "First Name is required";
     if (!f.ln.trim()) e.ln = "Last Name is required";
-    if (!f.email.trim()) e.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(f.email)) e.email = "Email is invalid";
+    if (f.email.trim() && !/\S+@\S+\.\S+/.test(f.email)) {
+      e.email = "Email is invalid";
+    }
     if (!f.phone.trim()) e.phone = "Phone is required";
     if (!isEdit) {
       if (!f.pw.trim()) e.pw = "Password is required";
@@ -856,7 +857,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         headers: { "Content-Type": "application/json", ...auth() },
         body: JSON.stringify({
           name: `${f.fn} ${f.ln}`.trim(),
-          email: f.lemail || f.email,
+          email: f.lemail?.trim() || f.email?.trim() || normalizePhone(f.phone),
           password: f.pw,
         }),
       });
@@ -883,7 +884,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       // Personal
       firstName: f.fn,
       lastName: f.ln,
-      email: f.lemail || f.email,
+      email: f.lemail?.trim() || f.email?.trim() || "",
       phone: normalizePhone(f.phone),
       dateOfBirth: f.dob,
       gender: f.gender,
@@ -1944,7 +1945,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           {tab === "contact" && (
             <div className="space-y-3">
               <InputField
-                label="Email Address *"
+                label="Email Address (Optional)"
                 icon={Mail}
                 type="email"
                 value={f.email}
@@ -1997,7 +1998,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           {tab === "login" && (
             <div className="space-y-3">
               <InputField
-                label={`Student Login Email${!isEdit ? " *" : ""}`}
+                label="Student Login Email (Optional)"
                 icon={Mail}
                 type="email"
                 value={f.lemail || f.email}

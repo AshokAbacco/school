@@ -215,12 +215,14 @@ export function PayModal({ student, onClose, onPaymentDone }) {
   const totalFees = Number(student.fees || 0);
   const bd = parseBreakdown(student.feeBreakdown);
 
+  // Key by lowercase name for case-insensitive matching
   const dbCategoryMap = {};
   if (Array.isArray(student.feeCategories)) {
     student.feeCategories.forEach((sfc) => {
-      if (sfc.category?.name) dbCategoryMap[sfc.category.name] = sfc;
+      if (sfc.category?.name) dbCategoryMap[sfc.category.name.toLowerCase()] = sfc;
     });
   }
+  console.log("[PayModal] feeCategories from student:", student.feeCategories?.length ?? 0, "| dbCategoryMap:", Object.keys(dbCategoryMap));
 
   const feeCategories = [];
   feeCategories.push({ id: "FULL", label: "Full Fee", total: totalFees, paidField: "paidAmount", dbSfcId: null });
@@ -232,18 +234,21 @@ export function PayModal({ student, onClose, onPaymentDone }) {
       : Number(student[def.flatKey] || 0);
 
     if (amount > 0) {
-      const dbSfc = Object.values(dbCategoryMap).find((sfc) => {
-        const nm = sfc.category?.name?.toLowerCase() || "";
-        return nm.includes(def.label.toLowerCase().replace(" fee", "").trim());
-      });
+      const labelLower = def.label.toLowerCase();
+      const dbSfc =
+        dbCategoryMap[labelLower] ||
+        Object.values(dbCategoryMap).find((sfc) => {
+          const nm = sfc.category?.name?.toLowerCase() || "";
+          return nm === labelLower || nm.includes(labelLower.replace(" fee", "").trim());
+        });
 
       feeCategories.push({
-        id:        def.key,
-        label:     def.label,
-        total:     amount,
-        paidField: def.paidField,
-        dbSfcId:   dbSfc ? sfc.categoryId : null,
-        dbCategoryId: dbSfc?.categoryId || null,
+        id:           def.key,
+        label:        def.label,
+        total:        amount,
+        paidField:    def.paidField,
+        dbSfcId:      dbSfc?.id || null,
+        dbCategoryId: dbSfc?.categoryId || null,  // ✅ was sfc.categoryId (bug), now dbSfc?.categoryId
       });
     }
   }
@@ -363,8 +368,84 @@ export function PayModal({ student, onClose, onPaymentDone }) {
     onPaymentDone(student.id, payload.paidAmount, payload.paymentStatus);
   };
 
+  // ── SESSION LOG — accumulates ALL categories paid in one PayModal open ────
+  // Problem: user pays School Fee, then Exam Fee in same modal open.
+  // Without this, each payment = separate receipt in dropdown.
+  // Solution: use a session log ID. All payments in one modal session
+  // share the same logId → backend UPDATES that row instead of creating new.
+  const [sessionLogId, setSessionLogId] = useState(null);
+
+  // Map of category field → amount paid IN THIS SESSION (accumulates)
+  const [sessionBreakdown, setSessionBreakdown] = useState({
+    amount:           0,
+    schoolFeePaid:    0,
+    tuitionFeePaid:   0,
+    examFeePaid:      0,
+    transportFeePaid: 0,
+    booksFeePaid:     0,
+    labFeePaid:       0,
+    miscFeePaid:      0,
+  });
+
+  // ── Map activeCat.id → breakdown field ───────────────────────────────────
+  const CAT_TO_FIELD = {
+    collegeFee:   "schoolFeePaid",
+    tuitionFee:   "tuitionFeePaid",
+    examFee:      "examFeePaid",
+    transportFee: "transportFeePaid",
+    booksFee:     "booksFeePaid",
+    labFee:       "labFeePaid",
+    miscFee:      "miscFeePaid",
+  };
+
+  // ── Called after every successful payment in this session ────────────────
+  // Creates the log row on first call, updates it on subsequent calls.
+  const updateSessionLog = async (amountPaid, mode) => {
+    try {
+      // Build the field that was just paid
+      const field = CAT_TO_FIELD[activeCat.id];
+
+      // Merge into session accumulator
+      const updated = {
+        ...sessionBreakdown,
+        amount:        sessionBreakdown.amount + amountPaid,
+        [field]:       field ? (sessionBreakdown[field] || 0) + amountPaid : sessionBreakdown[field] || 0,
+      };
+      setSessionBreakdown(updated);
+
+      const body = {
+        studentListId: student.id,
+        amount:        updated.amount,
+        paymentMode:   mode,
+        ...updated,
+        // Pass sessionLogId so backend can UPDATE instead of INSERT
+        sessionLogId:  sessionLogId || null,
+      };
+
+      console.log("[PayModal] updateSessionLog →", body);
+
+      const res = await fetch(`${API_URL}/api/finance/recordSimplePayment`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body:    JSON.stringify(body),
+      });
+      const data = await res.json();
+      console.log("[PayModal] session log result:", data);
+
+      // Save the log ID for subsequent payments in this session
+      if (data.logId && !sessionLogId) {
+        setSessionLogId(data.logId);
+      }
+    } catch (e) {
+      console.warn("[PayModal] session log update failed (non-fatal):", e.message);
+    }
+  };
+
   const doPayment = async (amount, mode) => {
+    console.log("[PayModal] doPayment →", { cat: activeCat.label, dbCategoryId: activeCat.dbCategoryId, amount, mode });
+
     if (activeCat.dbCategoryId && activeCat.id !== "FULL") {
+      console.log("[PayModal] → recordCategoryPayment (category system)");
       const result = await apiRecordCategoryPayment(activeCat.dbCategoryId, amount, mode);
       const newTotalPaid = result.newTotalPaid;
       setPaidMap(prev => {
@@ -375,10 +456,14 @@ export function PayModal({ student, onClose, onPaymentDone }) {
       });
       onPaymentDone(student.id, newTotalPaid, newTotalPaid >= totalFees ? "PAID" : "PARTIAL");
     } else {
+      console.log("[PayModal] → updateStudentFinance (legacy)");
       const payload = { ...buildPayload(amount), paymentMode: mode };
       await apiUpdate(payload);
       applyPatch(amount);
     }
+
+    // Always update session log AFTER payment succeeds
+    await updateSessionLog(amount, mode);
   };
 
   const handleFullPay = async () => {

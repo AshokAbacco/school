@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Building2,
   Mail,
+  Phone,
   Lock,
   Eye,
   EyeOff,
@@ -71,6 +72,7 @@ export default function Login({ onSwitchToRegister }) {
   const [type, setType] = useState("staff");
   const [staffRole, setStaffRole] = useState("admin");
   const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState(""); // email OR phone for student/parent
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -83,11 +85,20 @@ export default function Login({ onSwitchToRegister }) {
     setTimeout(() => setMounted(true), 50);
   }, []);
 
+  // Student and Parent use identifier (email OR phone); all others use email.
+  const isIdentifierLogin = type === "student" || type === "parent";
+
   const handleLogin = async () => {
     setError("");
 
-    if (!email || !password) {
-      return setError("Please enter email and password");
+    const loginValue = isIdentifierLogin ? identifier : email;
+
+    if (!loginValue || !password) {
+      return setError(
+        isIdentifierLogin
+          ? "Please enter your email or phone number and password"
+          : "Please enter email and password"
+      );
     }
 
     try {
@@ -105,39 +116,39 @@ export default function Login({ onSwitchToRegister }) {
         financer: "FINANCE",
       };
 
-      const result = await sendLoginOtp({
-        email,
-        password,
-        selectedRole:
-          type === "staff" ? staffRoleMap[staffRole] : roleMap[type],
-      });
+        const result = await sendLoginOtp({
+          email: isIdentifierLogin ? undefined : email,
+          identifier: isIdentifierLogin ? identifier : undefined,
+          password,
+          selectedRole:
+            type === "staff" ? staffRoleMap[staffRole] : roleMap[type],
+        });
 
-      // STAFF / SUPER ADMIN
-      if (result?.otpRequired) {
-        setShowOtp(true);
-
-        setOtpMessage("OTP sent to your registered mobile number");
-
-        setError("");
-
-        return;
-      }
-
-      // STUDENT / PARENT
-      if (result?.token) {
-        saveAuth(result);
-
-        const role = result?.user?.role;
-
-        if (!role) {
-          setError("Login failed: role not found");
+        // STAFF / SUPER ADMIN
+        if (result?.otpRequired) {
+          setShowOtp(true);
+         setOtpMessage(
+            `OTP sent to your registered mobile number ending with ${result.maskedPhone}`
+          );
+          setError("");
           return;
         }
 
-        window.location.href = REDIRECT[role] || "/dashboard";
+        // STUDENT / PARENT
+        if (result?.token) {
+          saveAuth(result);
 
-        return;
-      }
+          const role = result?.user?.role;
+
+          if (!role) {
+            setError("Login failed: role not found");
+            return;
+          }
+
+          window.location.href = REDIRECT[role] || "/dashboard";
+
+          return;
+        }
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {
@@ -156,7 +167,8 @@ export default function Login({ onSwitchToRegister }) {
       setLoading(true);
 
       const result = await verifyLoginOtp({
-        email,
+        identifier: isIdentifierLogin ? identifier : email,
+        email: isIdentifierLogin ? identifier : email,
         otp,
       });
 
@@ -709,7 +721,11 @@ export default function Login({ onSwitchToRegister }) {
                     className={`tab-btn ${type === tab.value ? "active" : ""}`}
                     onClick={() => {
                       setType(tab.value);
+                      setEmail("");
+                      setIdentifier("");
                       setError("");
+                      setShowOtp(false);
+                      setOtp("");
                     }}
                   >
                     <Icon size={14} />
@@ -758,21 +774,38 @@ export default function Login({ onSwitchToRegister }) {
             {/* Error */}
             {error && <div className="error-box">{error}</div>}
 
-            {/* Email */}
+            {/* Email / Identifier field */}
             <div className="field-group">
-              <label className="field-label">Email Address</label>
+              <label className="field-label">
+                {isIdentifierLogin ? "Email Address or Phone Number" : "Email Address"}
+              </label>
               <div className="field-wrap">
                 <span className="field-icon">
-                  <Mail size={15} color="#88BDF2" />
+                  {isIdentifierLogin ? (
+                    <Phone size={15} color="#88BDF2" />
+                  ) : (
+                    <Mail size={15} color="#88BDF2" />
+                  )}
                 </span>
-                <input
-                  className="field-input"
-                  type="email"
-                  placeholder="name@university.edu"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-                />
+                {isIdentifierLogin ? (
+                  <input
+                    className="field-input"
+                    type="text"
+                    placeholder="Enter your email or phone number"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  />
+                ) : (
+                  <input
+                    className="field-input"
+                    type="email"
+                    placeholder="name@university.edu"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  />
+                )}
               </div>
             </div>
 

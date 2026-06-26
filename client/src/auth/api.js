@@ -48,8 +48,30 @@ export const registerSuperAdmin = (data) =>
 
 // ── Login OTP ─────────────────────────────────────────────────────────────
 
-export const sendLoginOtp = (credentials) =>
-  post("/api/auth/login-with-otp", credentials);
+// Roles that use identifier (email OR phone) instead of email-only
+const IDENTIFIER_ROLES = new Set(["STUDENT", "PARENT"]);
 
-export const verifyLoginOtp = (data) =>
-  post("/api/auth/verify-login-otp", data);
+/**
+ * Step 1 — verify credentials and trigger OTP.
+ * For STUDENT / PARENT: sends `identifier` (email or phone).
+ * For STAFF / SUPER_ADMIN: sends `email` as before.
+ */
+export const sendLoginOtp = ({ email, identifier, password, selectedRole }) => {
+  const useIdentifier = IDENTIFIER_ROLES.has(selectedRole);
+  const body = useIdentifier
+    ? { identifier: identifier || email, password, selectedRole }
+    : { email, password, selectedRole };
+  return post("/api/auth/login-with-otp", body);
+};
+
+/**
+ * Step 2 — submit OTP.
+ * Sends whichever key the backend stored the record under.
+ */
+export const verifyLoginOtp = ({ email, identifier, otp }) =>
+  post("/api/auth/verify-login-otp", {
+    // Always send both; backend uses `identifier` with fallback to `email`
+    identifier: identifier || email,
+    email: identifier || email,
+    otp,
+  });

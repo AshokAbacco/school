@@ -98,6 +98,7 @@ export const loginWithOtp = async (req, res) => {
 
 export const verifyLoginOtp = async (req, res) => {
   try {
+    // Support both `identifier` (student/parent) and `email` (staff/superAdmin)
     const result = await verifyLoginOtpService(req.body);
 
     res.status(200).json({
