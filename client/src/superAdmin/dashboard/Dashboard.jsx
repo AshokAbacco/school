@@ -741,7 +741,7 @@ export default function Dashboard() {
           )}
 
           {/* ── 4 Charts Row — all backed by real API data ── */}
-          <div className="df df2 four-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 18, marginBottom: 20 }}>
+          <div className="df df2 four-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr  ", gap: 18, marginBottom: 20 }}>
             {/* Chart 1: student gender from /api/superadmin-finance/student-finance */}
             <StudentGenderChart financeData={financeData} financeLoading={financeLoading} />
             {/* Chart 2: teacher gender from /api/superadmin-finance/staff-salary teacherSalary[].gender */}
@@ -749,7 +749,7 @@ export default function Dashboard() {
             {/* Chart 3: fees paid/pending from /api/superadmin-finance/student-finance dueAmount */}
             <StudentFeesChart   financeData={financeData} financeLoading={financeLoading} />
             {/* Chart 4: salary paid/pending from /api/superadmin-finance/staff-salary all groups */}
-            <StaffSalaryChart   salaryData={salaryData}   salaryLoading={salaryLoading}   />
+            {/* <StaffSalaryChart   salaryData={salaryData}   salaryLoading={salaryLoading}   /> */}
           </div>
 
           {/* ── Top Students | Flagged Staff ── */}

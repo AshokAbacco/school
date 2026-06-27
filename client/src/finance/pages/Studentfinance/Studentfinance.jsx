@@ -12,6 +12,7 @@ import { InvoiceModal } from "./FeesInvoce.jsx";
 import { downloadStudentFinanceExcel } from "../../../utils/downloadStudentFinanceExcel.js";
 import { FaWhatsapp, FaPhone } from "react-icons/fa";
 import { useSchoolLogo } from "../../../hooks/useSchoolLogo";
+import VoiceCallModal from "./components/VoiceCallModal";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -250,122 +251,122 @@ function ReceiptConfirmModal({ student, onClose, onConfirm }) {
     );
 }
 
-function VoiceCallConfirmModal({
-    student,
-    onClose,
-    onConfirm
-}) {
-    return (
-        <div className="inv-overlay" onClick={onClose}>
-            <div
-                style={{
-                    background: "#fff",
-                    borderRadius: 16,
-                    width: "100%",
-                    maxWidth: 340,
-                    overflow: "hidden",
-                    boxShadow: "0 16px 40px rgba(0,0,0,.22)"
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div
-                    style={{
-                        background:
-                            "linear-gradient(135deg,#1C3044,#27435B)",
-                        padding: "16px 20px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10
-                    }}
-                >
-                    <div
-                        style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 10,
-                            background: "rgba(255,255,255,.14)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center"
-                        }}
-                    >
-                        <FaPhone size={18} color="#fff" />
-                    </div>
+// function VoiceCallConfirmModal({
+//     student,
+//     onClose,
+//     onConfirm
+// }) {
+//     return (
+//         <div className="inv-overlay" onClick={onClose}>
+//             <div
+//                 style={{
+//                     background: "#fff",
+//                     borderRadius: 16,
+//                     width: "100%",
+//                     maxWidth: 340,
+//                     overflow: "hidden",
+//                     boxShadow: "0 16px 40px rgba(0,0,0,.22)"
+//                 }}
+//                 onClick={(e) => e.stopPropagation()}
+//             >
+//                 <div
+//                     style={{
+//                         background:
+//                             "linear-gradient(135deg,#1C3044,#27435B)",
+//                         padding: "16px 20px",
+//                         display: "flex",
+//                         alignItems: "center",
+//                         gap: 10
+//                     }}
+//                 >
+//                     <div
+//                         style={{
+//                             width: 38,
+//                             height: 38,
+//                             borderRadius: 10,
+//                             background: "rgba(255,255,255,.14)",
+//                             display: "flex",
+//                             alignItems: "center",
+//                             justifyContent: "center"
+//                         }}
+//                     >
+//                         <FaPhone size={18} color="#fff" />
+//                     </div>
 
-                    <div>
-                        <div
-                            style={{
-                                color: "#fff",
-                                fontWeight: 700
-                            }}
-                        >
-                            Voice Call Reminder
-                        </div>
+//                     <div>
+//                         <div
+//                             style={{
+//                                 color: "#fff",
+//                                 fontWeight: 700
+//                             }}
+//                         >
+//                             Voice Call Reminder
+//                         </div>
 
-                        <div
-                            style={{
-                                color: "rgba(255,255,255,.6)",
-                                fontSize: 12
-                            }}
-                        >
-                            Automated Voice Call
-                        </div>
-                    </div>
-                </div>
+//                         <div
+//                             style={{
+//                                 color: "rgba(255,255,255,.6)",
+//                                 fontSize: 12
+//                             }}
+//                         >
+//                             Automated Voice Call
+//                         </div>
+//                     </div>
+//                 </div>
 
-                <div
-                    style={{
-                        padding: "24px 22px",
-                        textAlign: "center"
-                    }}
-                >
-                    <FaPhone
-                        size={28}
-                        color="#2563eb"
-                        style={{ marginBottom: 12 }}
-                    />
+//                 <div
+//                     style={{
+//                         padding: "24px 22px",
+//                         textAlign: "center"
+//                     }}
+//                 >
+//                     <FaPhone
+//                         size={28}
+//                         color="#2563eb"
+//                         style={{ marginBottom: 12 }}
+//                     />
 
-                    <p>
-                        Send voice fee reminder to
-                        <strong> {student.name}</strong> ?
-                    </p>
-                </div>
+//                     <p>
+//                         Send voice fee reminder to
+//                         <strong> {student.name}</strong> ?
+//                     </p>
+//                 </div>
 
-                <div
-                    style={{
-                        padding: "20px",
-                        display: "flex",
-                        gap: 10
-                    }}
-                >
-                    <button
-                        onClick={onClose}
-                        style={{
-                            flex: 1,
-                            padding: 10
-                        }}
-                    >
-                        Cancel
-                    </button>
+//                 <div
+//                     style={{
+//                         padding: "20px",
+//                         display: "flex",
+//                         gap: 10
+//                     }}
+//                 >
+//                     <button
+//                         onClick={onClose}
+//                         style={{
+//                             flex: 1,
+//                             padding: 10
+//                         }}
+//                     >
+//                         Cancel
+//                     </button>
 
-                    <button
-                        onClick={onConfirm}
-                        style={{
-                            flex: 1,
-                            padding: 10,
-                            background: "#2563eb",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: 8
-                        }}
-                    >
-                        Call Now
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
+//                     <button
+//                         onClick={onConfirm}
+//                         style={{
+//                             flex: 1,
+//                             padding: 10,
+//                             background: "#2563eb",
+//                             color: "#fff",
+//                             border: "none",
+//                             borderRadius: 8
+//                         }}
+//                     >
+//                         Call Now
+//                     </button>
+//                 </div>
+//             </div>
+//         </div>
+//     );
+// }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE
@@ -389,6 +390,10 @@ export default function StudentFeesPage() {
     const [dateTo, setDateTo] = useState("");
     const [voiceStudent, setVoiceStudent] = useState(null);
     const schoolLogoUrl = useSchoolLogo();
+    const [showExcelModal, setShowExcelModal] = useState(false);
+    const [excelMode, setExcelMode] = useState("today"); // "today" | "month" | "custom"
+    const [excelFrom, setExcelFrom] = useState("");
+    const [excelTo, setExcelTo] = useState("");
 
 
     const handleSendVoiceCall = async () => {
@@ -777,6 +782,245 @@ export default function StudentFeesPage() {
         );
     };
 
+    // Excel modal download handler — fetches actual payment log data for the date range
+    const handleExcelModalDownload = async () => {
+        const today = new Date();
+        let from, to;
+
+        if (excelMode === "today") {
+            from = today.toLocaleDateString("en-CA");
+            to   = today.toLocaleDateString("en-CA");
+        } else if (excelMode === "month") {
+            from = new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString("en-CA");
+            to   = new Date(today.getFullYear(), today.getMonth() + 1, 0).toLocaleDateString("en-CA");
+        } else {
+            from = excelFrom;
+            to   = excelTo;
+            if (!from || !to) { alert("Please select both From and To dates."); return; }
+        }
+
+        try {
+            const auth = JSON.parse(localStorage.getItem("auth") || "{}");
+            const token = auth?.token;
+
+            // Fetch payment logs for the date range from backend
+            const res = await fetch(
+                `${API_URL}/api/finance/paymentLogsByDateRange?from=${from}&to=${to}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (!res.ok) throw new Error("Failed to fetch payment data");
+            const logs = await res.json(); // [{studentListId, studentName, email, course, amount, schoolFeePaid, ...paidAt}]
+
+            if (logs.length === 0) {
+                alert(`No payments found between ${from} and ${to}.`);
+                return;
+            }
+
+            // Build Excel-compatible rows with ONLY the amount paid in that date range
+            // downloadDatewiseExcel loads ExcelJS then calls async buildAndDownload internally
+            downloadDatewiseExcel(logs, from, to, schoolInfo);
+            setShowExcelModal(false);
+        } catch (err) {
+            console.error("Excel download error:", err);
+            alert("Failed to download: " + err.message);
+        }
+    };
+
+    // Build and download date-wise Excel using ExcelJS (same engine as All Data)
+    const downloadDatewiseExcel = (logs, from, to, school) => {
+        const loadExcelJS = (cb) => {
+            if (window.ExcelJS) { cb(); return; }
+            const s = document.createElement("script");
+            s.src = "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js";
+            s.onload = cb;
+            document.head.appendChild(s);
+        };
+        loadExcelJS(() => buildAndDownload(logs, from, to, school));
+    };
+
+    const buildAndDownload = async (logs, from, to, school) => {
+        const ExcelJS = window.ExcelJS;
+
+        const fmtDate = d => d ? new Date(d).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "";
+        const rangeLabel = from === to
+            ? fmtDate(from + "T00:00:00")
+            : `${fmtDate(from + "T00:00:00")} to ${fmtDate(to + "T00:00:00")}`;
+
+        // ── Colour palette (matches All Data excel) ──────────────────────────
+        const DARK      = "FF1C3044";
+        const MID       = "FF27435B";
+        const LIGHT_HDR = "FF3A5E78";
+        const WHITE     = "FFFFFFFF";
+        const GREEN_TXT = "FF1A6E3E";
+        const STRIPE_ODD  = "FFFFFFFF";
+        const STRIPE_EVEN = "FFF7FAFC";
+        const TOTAL_BG  = "FFE1EDF5";
+        const ADDR_BG   = "FFEEF4F8";
+        const DARK_TXT  = "FF1C3044";
+        const GRAY_TXT  = "FF4A5568";
+
+        // ── Totals ───────────────────────────────────────────────────────────
+        const totalPaid      = logs.reduce((s,l) => s + Number(l.amount           || 0), 0);
+        const totalSchool    = logs.reduce((s,l) => s + Number(l.schoolFeePaid    || 0), 0);
+        const totalTuition   = logs.reduce((s,l) => s + Number(l.tuitionFeePaid   || 0), 0);
+        const totalExam      = logs.reduce((s,l) => s + Number(l.examFeePaid      || 0), 0);
+        const totalTransport = logs.reduce((s,l) => s + Number(l.transportFeePaid || 0), 0);
+        const totalBooks     = logs.reduce((s,l) => s + Number(l.booksFeePaid     || 0), 0);
+        const totalLab       = logs.reduce((s,l) => s + Number(l.labFeePaid       || 0), 0);
+        const totalMisc      = logs.reduce((s,l) => s + Number(l.miscFeePaid      || 0), 0);
+
+        const wb = new ExcelJS.Workbook();
+        wb.creator = school.name || "School";
+        wb.created = new Date();
+
+        const ws = wb.addWorksheet("Payment Report", {
+            views: [{ state: "frozen", ySplit: 5 }],
+        });
+
+        // ── Column definitions ───────────────────────────────────────────────
+        ws.columns = [
+            { key:"no",        width: 6  },
+            { key:"name",      width: 24 },
+            { key:"email",     width: 30 },
+            { key:"course",    width: 16 },
+            { key:"school",    width: 17 },
+            { key:"tuition",   width: 17 },
+            { key:"exam",      width: 15 },
+            { key:"transport", width: 18 },
+            { key:"books",     width: 15 },
+            { key:"lab",       width: 14 },
+            { key:"misc",      width: 14 },
+            { key:"total",     width: 18 },
+            { key:"mode",      width: 15 },
+            { key:"date",      width: 16 },
+        ];
+
+        const NCOLS = 14;
+
+        // ── Helper: apply fill + font + alignment + border to a cell ─────────
+        const style = (cell, opts = {}) => {
+            if (opts.bg)   cell.fill   = { type:"pattern", pattern:"solid", fgColor:{ argb: opts.bg } };
+            cell.font      = { name:"Calibri", size: opts.sz ?? 10, bold: opts.bold ?? false, color:{ argb: opts.color ?? "FF000000" } };
+            cell.alignment = { horizontal: opts.align ?? "left", vertical:"middle", wrapText: opts.wrap ?? false };
+            if (opts.border) {
+                const bs = { style:"thin", color:{ argb:"FFD0E2EE" } };
+                cell.border = { top:bs, bottom:bs, left:bs, right:bs };
+            }
+            if (opts.numFmt) cell.numFmt = opts.numFmt;
+        };
+
+        const INR = '"₹"#,##0.00';
+
+        const thinBorder = (c) => {
+            const bs = { style:"thin", color:{ argb:"FFD0E2EE" } };
+            c.border = { top:bs, bottom:bs, left:bs, right:bs };
+        };
+
+        // ── Row 1: School name ───────────────────────────────────────────────
+        const r1 = ws.addRow([school.name || "School", ...Array(NCOLS-1).fill("")]);
+        r1.height = 34;
+        ws.mergeCells(1, 1, 1, NCOLS);
+        style(r1.getCell(1), { bg:DARK, color:WHITE, sz:16, bold:true, align:"center" });
+
+        // ── Row 2: Report title ──────────────────────────────────────────────
+        const r2 = ws.addRow([`Date-wise Payment Report  |  Period: ${rangeLabel}`, ...Array(NCOLS-1).fill("")]);
+        r2.height = 22;
+        ws.mergeCells(2, 1, 2, NCOLS);
+        style(r2.getCell(1), { bg:MID, color:WHITE, sz:10, bold:true, align:"center" });
+
+        // ── Row 3: Address / Phone ───────────────────────────────────────────
+        const addrStr  = `Address: ${school.address || ""}${school.city ? ", " + school.city : ""}`;
+        const phoneStr = `Phone: ${school.phone || ""}`;
+        const r3 = ws.addRow([addrStr, ...Array(NCOLS-1).fill("")]);
+        r3.height = 18;
+        ws.mergeCells(3, 1, 3, 6);
+        style(r3.getCell(1), { bg:ADDR_BG, color:GRAY_TXT, sz:9 });
+        ws.mergeCells(3, 7, 3, NCOLS);
+        r3.getCell(7).value = phoneStr;
+        style(r3.getCell(7), { bg:ADDR_BG, color:GRAY_TXT, sz:9 });
+
+        // ── Row 4: blank spacer ──────────────────────────────────────────────
+        const r4 = ws.addRow(Array(NCOLS).fill(""));
+        r4.height = 6;
+        for (let c = 1; c <= NCOLS; c++) r4.getCell(c).fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FFF8FAFC" } };
+
+        // ── Row 5: Column headers ────────────────────────────────────────────
+        const headerLabels = [
+            ["#","center"],["Student Name","left"],["Email","left"],["Class / Course","center"],
+            ["School Fee Paid","right"],["Tuition Fee Paid","right"],["Exam Fee Paid","right"],
+            ["Transport Fee Paid","right"],["Books Fee Paid","right"],["Lab Fee Paid","right"],
+            ["Misc Fee Paid","right"],["Total Paid","right"],["Payment Mode","center"],["Payment Date","center"],
+        ];
+        const r5 = ws.addRow(headerLabels.map(([h]) => h));
+        r5.height = 24;
+        headerLabels.forEach(([, align], ci) => {
+            style(r5.getCell(ci+1), { bg:DARK, color:WHITE, bold:true, align, border:true, sz:10 });
+        });
+
+        // ── Data rows ────────────────────────────────────────────────────────
+        logs.forEach((log, i) => {
+            const bg   = i % 2 === 0 ? STRIPE_ODD : STRIPE_EVEN;
+            const paid = Number(log.amount || 0);
+            const row  = ws.addRow([
+                i + 1,
+                log.studentName || "",
+                log.email       || "",
+                log.course      || "",
+                Number(log.schoolFeePaid    || 0),
+                Number(log.tuitionFeePaid   || 0),
+                Number(log.examFeePaid      || 0),
+                Number(log.transportFeePaid || 0),
+                Number(log.booksFeePaid     || 0),
+                Number(log.labFeePaid       || 0),
+                Number(log.miscFeePaid      || 0),
+                paid,
+                log.paymentMode || "Cash",
+                fmtDate(log.paidAt),
+            ]);
+            row.height = 20;
+
+            style(row.getCell(1),  { bg, align:"center", border:true });
+            style(row.getCell(2),  { bg, bold:true, align:"left", color:DARK_TXT, border:true });
+            style(row.getCell(3),  { bg, align:"left", border:true });
+            style(row.getCell(4),  { bg, align:"center", border:true });
+            [5,6,7,8,9,10,11].forEach(ci => {
+                style(row.getCell(ci), { bg, align:"right", color:GREEN_TXT, numFmt:INR, border:true });
+            });
+            style(row.getCell(12), { bg, align:"right", bold:true, color:GREEN_TXT, numFmt:INR, border:true });
+            style(row.getCell(13), { bg, align:"center", border:true });
+            style(row.getCell(14), { bg, align:"center", border:true });
+        });
+
+        // ── Totals row ───────────────────────────────────────────────────────
+        const tr = ws.addRow([
+            "TOTALS", `${logs.length} payment(s)`, "", "",
+            totalSchool, totalTuition, totalExam, totalTransport,
+            totalBooks, totalLab, totalMisc, totalPaid, "", "",
+        ]);
+        tr.height = 24;
+        style(tr.getCell(1),  { bg:TOTAL_BG, bold:true, color:DARK_TXT, align:"left",   border:true });
+        style(tr.getCell(2),  { bg:TOTAL_BG, bold:true, color:DARK_TXT, align:"left",   border:true });
+        style(tr.getCell(3),  { bg:TOTAL_BG, border:true });
+        style(tr.getCell(4),  { bg:TOTAL_BG, border:true });
+        [5,6,7,8,9,10,11].forEach(ci => {
+            style(tr.getCell(ci), { bg:TOTAL_BG, bold:true, color:GREEN_TXT, align:"right", numFmt:INR, border:true });
+        });
+        style(tr.getCell(12), { bg:TOTAL_BG, bold:true, color:GREEN_TXT, align:"right", numFmt:INR, border:true });
+        style(tr.getCell(13), { bg:TOTAL_BG, border:true });
+        style(tr.getCell(14), { bg:TOTAL_BG, border:true });
+
+        // ── Download ─────────────────────────────────────────────────────────
+        const buffer   = await wb.xlsx.writeBuffer();
+        const blob     = new Blob([buffer], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const url      = URL.createObjectURL(blob);
+        const a        = document.createElement("a");
+        a.href         = url;
+        a.download     = `Payment_Report_${from}_to_${to}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <>
             <style>{`
@@ -993,27 +1237,14 @@ export default function StudentFeesPage() {
                             All Data
                         </button>
 
-                        {/* Download Date Range Data */}
+                        {/* Download Date Range Data — opens modal */}
                         <button
-                            onClick={handleDatewiseExcelDownload}
-                            disabled={(!dateFrom && !dateTo) || dateRangeFilteredStudents.length === 0}
-                            title={
-                                (!dateFrom && !dateTo)
-                                    ? "Select a date range to enable this download"
-                                    : dateRangeFilteredStudents.length === 0
-                                        ? "No records found in this date range"
-                                        : `Download ${dateRangeFilteredStudents.length} record(s) for selected range`
-                            }
+                            onClick={() => { setExcelMode("today"); setExcelFrom(""); setExcelTo(""); setShowExcelModal(true); }}
                             className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl border-none flex-shrink-0"
                             style={{
-                                background: ((!dateFrom && !dateTo) || dateRangeFilteredStudents.length === 0)
-                                    ? "rgba(255,255,255,.15)"
-                                    : "linear-gradient(135deg,#7c3aed,#5b21b6)",
-                                boxShadow: ((!dateFrom && !dateTo) || dateRangeFilteredStudents.length === 0)
-                                    ? "none"
-                                    : "0 3px 12px rgba(91,33,182,.28)",
-                                cursor: ((!dateFrom && !dateTo) || dateRangeFilteredStudents.length === 0) ? "not-allowed" : "pointer",
-                                opacity: ((!dateFrom && !dateTo) || dateRangeFilteredStudents.length === 0) ? 0.55 : 1,
+                                background: "linear-gradient(135deg,#7c3aed,#5b21b6)",
+                                boxShadow: "0 3px 12px rgba(91,33,182,.28)",
+                                cursor: "pointer",
                                 transition: "all .2s",
                             }}
                         >
@@ -1647,11 +1878,122 @@ export default function StudentFeesPage() {
                 />
             )}
             {voiceStudent && (
-                <VoiceCallConfirmModal
+                <VoiceCallModal
                     student={voiceStudent}
+                    schoolInfo={schoolInfo}
                     onClose={() => setVoiceStudent(null)}
-                    onConfirm={handleSendVoiceCall}
+                    apiUrl={API_URL}
                 />
+            )}
+
+            {/* ── EXCEL DOWNLOAD MODAL ── */}
+            {showExcelModal && (
+                <div
+                    style={{ position:"fixed",inset:0,background:"rgba(15,25,38,.65)",backdropFilter:"blur(6px)",zIndex:1300,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}
+                    onClick={() => setShowExcelModal(false)}
+                >
+                    <div
+                        style={{ background:"#fff",borderRadius:18,width:"100%",maxWidth:340,overflow:"hidden",boxShadow:"0 24px 60px rgba(28,48,64,.32)",fontFamily:"'DM Sans',sans-serif" }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div style={{ background:"linear-gradient(135deg,#1C3044,#27435B)",padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+                            <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                                <div style={{ width:36,height:36,borderRadius:10,background:"rgba(255,255,255,.14)",border:"1.5px solid rgba(255,255,255,.22)",display:"flex",alignItems:"center",justifyContent:"center" }}>
+                                    <Download size={16} color="#fff" />
+                                </div>
+                                <div>
+                                    <div style={{ color:"#fff",fontWeight:700,fontSize:15 }}>Download Excel</div>
+                                    <div style={{ color:"rgba(255,255,255,.55)",fontSize:11 }}>Select a period to export</div>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowExcelModal(false)} style={{ width:28,height:28,borderRadius:7,background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.75)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}>
+                                <X size={14} />
+                            </button>
+                        </div>
+
+                        {/* Mode selector */}
+                        <div style={{ padding:"20px 20px 0" }}>
+                            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16 }}>
+                                {[
+                                    { key:"today", label:"Today", icon:"📅" },
+                                    { key:"month", label:"This Month", icon:"🗓️" },
+                                    { key:"custom", label:"Custom", icon:"✏️" },
+                                ].map(opt => (
+                                    <button
+                                        key={opt.key}
+                                        onClick={() => setExcelMode(opt.key)}
+                                        style={{
+                                            padding:"12px 8px",borderRadius:11,border:"2px solid",
+                                            borderColor: excelMode === opt.key ? "#1C3044" : "#d0e2ee",
+                                            background: excelMode === opt.key ? "#1C3044" : "#f8fafc",
+                                            color: excelMode === opt.key ? "#fff" : "#27435B",
+                                            fontWeight:700,fontSize:12,cursor:"pointer",
+                                            display:"flex",flexDirection:"column",alignItems:"center",gap:4,
+                                            transition:"all .15s",
+                                        }}
+                                    >
+                                        <span style={{ fontSize:20 }}>{opt.icon}</span>
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Info text for today / month */}
+                            {excelMode === "today" && (
+                                <div style={{ background:"#f0f7fc",borderRadius:9,padding:"10px 14px",fontSize:13,color:"#27435B",fontWeight:500,marginBottom:16,border:"1px solid #d0e2ee" }}>
+                                    📅 Downloads all payments made <strong>today</strong> ({new Date().toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})})
+                                </div>
+                            )}
+                            {excelMode === "month" && (
+                                <div style={{ background:"#f0f7fc",borderRadius:9,padding:"10px 14px",fontSize:13,color:"#27435B",fontWeight:500,marginBottom:16,border:"1px solid #d0e2ee" }}>
+                                    🗓️ Downloads all payments for <strong>{new Date().toLocaleDateString("en-IN",{month:"long",year:"numeric"})}</strong>
+                                </div>
+                            )}
+
+                            {/* Custom date pickers */}
+                            {excelMode === "custom" && (
+                                <div style={{ display:"flex",flexDirection:"column",gap:10,marginBottom:16 }}>
+                                    <div>
+                                        <div style={{ fontSize:11,fontWeight:700,color:"#4A6B80",textTransform:"uppercase",letterSpacing:".7px",marginBottom:5 }}>FROM</div>
+                                        <input
+                                            type="date"
+                                            value={excelFrom}
+                                            onChange={e => setExcelFrom(e.target.value)}
+                                            style={{ width:"100%",padding:"9px 12px",borderRadius:9,border:"1.5px solid #A0C0D4",fontSize:13,fontFamily:"'DM Sans',sans-serif",outline:"none",color:"#1C3044" }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize:11,fontWeight:700,color:"#4A6B80",textTransform:"uppercase",letterSpacing:".7px",marginBottom:5 }}>TO</div>
+                                        <input
+                                            type="date"
+                                            value={excelTo}
+                                            min={excelFrom || undefined}
+                                            onChange={e => setExcelTo(e.target.value)}
+                                            style={{ width:"100%",padding:"9px 12px",borderRadius:9,border:"1.5px solid #A0C0D4",fontSize:13,fontFamily:"'DM Sans',sans-serif",outline:"none",color:"#1C3044" }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div style={{ padding:"12px 20px 20px",display:"flex",gap:10 }}>
+                            <button
+                                onClick={() => setShowExcelModal(false)}
+                                style={{ flex:1,padding:"10px",borderRadius:10,border:"1.5px solid #d0d5dd",background:"#fff",fontSize:13,fontWeight:600,color:"#4A6B80",cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleExcelModalDownload}
+                                style={{ flex:1,padding:"10px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#7c3aed,#5b21b6)",fontSize:13,fontWeight:700,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,fontFamily:"'DM Sans',sans-serif" }}
+                            >
+                                <Download size={14} /> Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </>
     );

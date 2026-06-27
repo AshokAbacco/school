@@ -842,6 +842,8 @@ export async function loginFinanceService({ phone, password }) {
 // ── Login with OTP (phone-based) ──────────────────────────────────────────
 export const loginWithOtpService = async ({ phone, password, selectedRole }) => {
   let result;
+  // The key used to store the OTP record (consistent per user type)
+  let otpKey;
 
   // SUPER ADMIN
   if (selectedRole === "SUPER_ADMIN") {
