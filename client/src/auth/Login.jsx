@@ -74,9 +74,13 @@ export default function Login({ onSwitchToRegister }) {
   const [error, setError]         = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted]     = useState(false);
-  const [showOtp, setShowOtp]     = useState(false);
-  const [otp, setOtp]             = useState("");
+  const [showOtp, setShowOtp]       = useState(false);
+  const [otp, setOtp]               = useState("");
   const [otpMessage, setOtpMessage] = useState("");
+  // Stores the real mobile number returned by the server after first-step auth.
+  // When the user typed an email, the server resolves the linked phone and returns
+  // it here — so the OTP verify call always sends a phone number, never an email.
+  const [resolvedPhone, setResolvedPhone] = useState("");
 
   useEffect(() => {
     setTimeout(() => setMounted(true), 50);
@@ -126,6 +130,9 @@ export default function Login({ onSwitchToRegister }) {
         setShowOtp(true);
         setOtpMessage("OTP sent to your registered mobile number");
         setError("");
+        // result.phone is always the real normalized mobile number from the server,
+        // even when the user logged in with an email address.
+        setResolvedPhone(result.phone || phone);
         return;
       }
 
@@ -152,7 +159,7 @@ export default function Login({ onSwitchToRegister }) {
     try {
       setLoading(true);
 
-      const result = await verifyLoginOtp({ phone, otp });
+      const result = await verifyLoginOtp({ phone: resolvedPhone || phone, otp });
 
       saveAuth(result);
 
@@ -170,7 +177,6 @@ export default function Login({ onSwitchToRegister }) {
   const activeTab = TOP_TABS.find((t) => t.value === type);
 
   // Student hint text
-  // For staff/superAdmin: allow email OR phone. Student/parent: phone only.
   const isPhoneOnlyType = type === "student" || type === "parent";
 
   const phonePlaceholder = isPhoneOnlyType
