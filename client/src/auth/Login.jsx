@@ -104,10 +104,13 @@ export default function Login({ onSwitchToRegister }) {
       return setError("Please enter mobile number and password");
     }
 
-    // Basic phone validation
-    const digits = phone.replace(/\D/g, "");
-    if (digits.length < 10) {
-      return setError("Please enter a valid 10-digit mobile number");
+    // Phone validation — only enforce for student/parent (staff/superAdmin allow email)
+    const isEmailInput = /\S+@\S+\.\S+/.test(phone.trim());
+    if (!isEmailInput) {
+      const digits = phone.replace(/\D/g, "");
+      if (digits.length < 10) {
+        return setError("Please enter a valid mobile number or email address");
+      }
     }
 
     try {
@@ -167,15 +170,19 @@ export default function Login({ onSwitchToRegister }) {
   const activeTab = TOP_TABS.find((t) => t.value === type);
 
   // Student hint text
-  const phonePlaceholder =
-    type === "student"
-      ? "Parent's mobile number"
-      : "Enter mobile number";
+  // For staff/superAdmin: allow email OR phone. Student/parent: phone only.
+  const isPhoneOnlyType = type === "student" || type === "parent";
+
+  const phonePlaceholder = isPhoneOnlyType
+    ? (type === "student" ? "Parent's mobile number" : "Enter mobile number")
+    : "Mobile number or email address";
 
   const phoneHint =
     type === "student"
       ? "Use the parent's registered mobile number"
-      : null;
+      : isPhoneOnlyType
+      ? null
+      : "You can sign in with your mobile number or email address";
 
   return (
     <>
@@ -737,7 +744,11 @@ export default function Login({ onSwitchToRegister }) {
             {/* Mobile Number */}
             <div className="field-group">
               <label className="field-label">
-                {type === "student" ? "Parent's Mobile Number" : "Mobile Number"}
+                {type === "student"
+                  ? "Parent's Mobile Number"
+                  : isPhoneOnlyType
+                  ? "Mobile Number"
+                  : "Mobile Number or Email"}
               </label>
               <div className="field-wrap">
                 <span className="field-icon">
@@ -745,12 +756,13 @@ export default function Login({ onSwitchToRegister }) {
                 </span>
                 <input
                   className="field-input"
-                  type="tel"
+                  type={isPhoneOnlyType ? "tel" : "text"}
                   placeholder={phonePlaceholder}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   onKeyDown={(e) => !showOtp && e.key === "Enter" && handleLogin()}
-                  maxLength={13}
+                  maxLength={isPhoneOnlyType ? 13 : undefined}
+                  autoComplete={isPhoneOnlyType ? "tel" : "username"}
                 />
               </div>
               {phoneHint && <span className="field-hint">{phoneHint}</span>}

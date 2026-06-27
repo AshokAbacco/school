@@ -19,6 +19,10 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// ── Identifier helpers ────────────────────────────────────────────────────
+// Returns true when the login identifier looks like an email address
+const isEmail = (val) => /\S+@\S+\.\S+/.test(String(val || "").trim());
+
 // ── Super Admin ────────────────────────────────────────────────────────────
 const DEACTIVATED_MSG =
   "This school account no longer exists. To restore access within 60 days, contact support@eduabaccotech.com";
@@ -327,30 +331,44 @@ const findUserByIdentifier = async (identifier) => {
   return null;
 };
 
-// ── Super Admin login (by phone) ──────────────────────────────────────────
+// ── Super Admin login (by phone OR email) ────────────────────────────────
 export const loginSuperAdminService = async ({ phone, password }) => {
-  const variants = phoneVariants(phone);
+  // `phone` field may carry an email address when user types one in the login box
+  const identifier = String(phone || "").trim();
+  const includeOpts = {
+    university: {
+      select: { id: true, name: true, code: true, isDeactivated: true },
+    },
+    Payment: {
+      where: { status: "SUCCESS" },
+      orderBy: { createdAt: "desc" },
+      take: 1,
+      select: { planName: true },
+    },
+  };
+
   let admin = null;
-  for (const v of variants) {
+
+  if (isEmail(identifier)) {
+    // ── Email lookup ──
     admin = await prisma.superAdmin.findFirst({
-      where: { phone: v },
-      include: {
-        university: {
-          select: { id: true, name: true, code: true, isDeactivated: true },
-        },
-        Payment: {
-          where: { status: "SUCCESS" },
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { planName: true },
-        },
-      },
+      where: { email: identifier },
+      include: includeOpts,
     });
-    if (admin) break;
+  } else {
+    // ── Phone lookup (original behaviour) ──
+    const variants = phoneVariants(identifier);
+    for (const v of variants) {
+      admin = await prisma.superAdmin.findFirst({
+        where: { phone: v },
+        include: includeOpts,
+      });
+      if (admin) break;
+    }
   }
 
   if (!admin)
-    throw { status: 401, message: "Invalid mobile number or password" };
+    throw { status: 401, message: "Invalid credentials" };
 
   if (!admin.isActive) throw { status: 403, message: DEACTIVATED_MSG };
 
@@ -359,7 +377,7 @@ export const loginSuperAdminService = async ({ phone, password }) => {
 
   const isValid = await bcrypt.compare(password, admin.password);
   if (!isValid)
-    throw { status: 401, message: "Invalid mobile number or password" };
+    throw { status: 401, message: "Invalid credentials" };
 
   await prisma.superAdmin.update({
     where: { id: admin.id },
@@ -387,14 +405,15 @@ export const loginSuperAdminService = async ({ phone, password }) => {
   };
 };
 
-// ── Staff login (by phone → profile → user) ───────────────────────────────
+// ── Staff login (by phone OR email → profile → user) ─────────────────────
 export const loginStaffService = async ({ phone, password, selectedRole }) => {
-  const variants = phoneVariants(phone);
+  // `phone` field may carry an email address
+  const identifier = String(phone || "").trim();
 
-  // Helper: find user id from any staff profile by phone
-  const findStaffUserByPhone = async () => {
+  // Helper: resolve userId from staff profiles by phone variants
+  const findUserIdByPhone = async () => {
+    const variants = phoneVariants(identifier);
     for (const v of variants) {
-      // Admin profile
       if (!selectedRole || selectedRole === "ADMIN") {
         const p = await prisma.schoolAdminProfile.findFirst({
           where: { phoneNumber: v },
@@ -402,7 +421,6 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
         });
         if (p) return p.userId;
       }
-      // Teacher profile
       if (!selectedRole || selectedRole === "TEACHER") {
         const p = await prisma.teacherProfile.findFirst({
           where: { phone: v },
@@ -410,7 +428,6 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
         });
         if (p) return p.userId;
       }
-      // Finance profile
       if (!selectedRole || selectedRole === "FINANCE") {
         const p = await prisma.financeProfile.findFirst({
           where: { phone: v },
@@ -422,7 +439,19 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
     return null;
   };
 
-  const userId = await findStaffUserByPhone();
+  // Helper: resolve userId from User.email (for email login)
+  const findUserIdByEmail = async () => {
+    const roleFilter = selectedRole ? { role: selectedRole } : {};
+    const u = await prisma.user.findFirst({
+      where: { email: identifier, ...roleFilter },
+      select: { id: true },
+    });
+    return u?.id || null;
+  };
+
+  const userId = isEmail(identifier)
+    ? await findUserIdByEmail()
+    : await findUserIdByPhone();
 
   // ── Check inactive account ──
   if (userId) {
@@ -445,7 +474,7 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
   }
 
   if (!userId) {
-    throw { status: 401, message: "Invalid mobile number or password" };
+    throw { status: 401, message: "Invalid credentials" };
   }
 
   // ── Fetch full active user ──
@@ -479,7 +508,7 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
   });
 
   if (!user)
-    throw { status: 401, message: "Invalid mobile number or password" };
+    throw { status: 401, message: "Invalid credentials" };
 
   // ── Enforce selected role ──
   if (selectedRole && user.role !== selectedRole) {
@@ -503,7 +532,7 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
   // ── Password check ──
   const isValid = await bcrypt.compare(password, user.password);
   if (!isValid)
-    throw { status: 401, message: "Invalid mobile number or password" };
+    throw { status: 401, message: "Invalid credentials" };
 
   await prisma.user.update({
     where: { id: user.id },
@@ -716,22 +745,34 @@ export const loginParentService = async ({ phone, password }) => {
   };
 };
 
-// ── Finance login (by phone) ──────────────────────────────────────────────
+// ── Finance login (by phone OR email) ────────────────────────────────────
 export async function loginFinanceService({ phone, password }) {
   if (!phone || !password) {
-    throw { status: 400, message: "Mobile number and password required" };
+    throw { status: 400, message: "Credentials are required" };
   }
 
-  const variants = phoneVariants(phone);
+  const identifier = String(phone || "").trim();
 
-  // Find finance profile by phone → get userId
+  // Find finance userId — by email or by phone
   let userId = null;
-  for (const v of variants) {
-    const fp = await prisma.financeProfile.findFirst({
-      where: { phone: v },
-      select: { userId: true },
+
+  if (isEmail(identifier)) {
+    // Email → look up User directly
+    const u = await prisma.user.findFirst({
+      where: { email: identifier, role: "FINANCE" },
+      select: { id: true },
     });
-    if (fp) { userId = fp.userId; break; }
+    userId = u?.id || null;
+  } else {
+    // Phone → look up financeProfile
+    const variants = phoneVariants(identifier);
+    for (const v of variants) {
+      const fp = await prisma.financeProfile.findFirst({
+        where: { phone: v },
+        select: { userId: true },
+      });
+      if (fp) { userId = fp.userId; break; }
+    }
   }
 
   // Check inactive
@@ -744,7 +785,7 @@ export async function loginFinanceService({ phone, password }) {
   }
 
   if (!userId)
-    throw { status: 401, message: "Invalid mobile number or password" };
+    throw { status: 401, message: "Invalid credentials" };
 
   const user = await prisma.user.findFirst({
     where: { id: userId, role: "FINANCE", isActive: true },
@@ -766,14 +807,14 @@ export async function loginFinanceService({ phone, password }) {
   });
 
   if (!user)
-    throw { status: 401, message: "Invalid mobile number or password" };
+    throw { status: 401, message: "Invalid credentials" };
 
   if (user.school?.university?.isDeactivated)
     throw { status: 403, message: DEACTIVATED_MSG };
 
   const valid = await bcrypt.compare(password, user.password);
   if (!valid)
-    throw { status: 401, message: "Invalid mobile number or password" };
+    throw { status: 401, message: "Invalid credentials" };
 
   const token = generateToken({
     id: user.id,
@@ -825,12 +866,59 @@ export const loginWithOtpService = async ({ phone, password, selectedRole }) => 
     throw { status: 400, message: "Invalid login type" };
   }
 
+  // ── Resolve the actual mobile number to send OTP to ────────────────────
+  // When the user logged in with an email address, `phone` is an email string.
+  // We must look up the real phone from the DB so the SMS can be delivered.
+  let otpPhone = null;
+
+  if (isEmail(String(phone || "").trim())) {
+    // Email login — resolve mobile from the relevant model
+    if (selectedRole === "SUPER_ADMIN") {
+      const sa = await prisma.superAdmin.findFirst({
+        where: { email: String(phone).trim() },
+        select: { phone: true },
+      });
+      otpPhone = sa?.phone || null;
+    } else if (
+      selectedRole === "ADMIN" ||
+      selectedRole === "TEACHER" ||
+      selectedRole === "FINANCE"
+    ) {
+      // Find the User record by email, then look for a profile with a phone number
+      const u = await prisma.user.findFirst({
+        where: { email: String(phone).trim() },
+        select: {
+          id: true,
+          schoolAdminProfile: { select: { phoneNumber: true } },
+          teacherProfile:     { select: { phone: true } },
+          financeProfile:     { select: { phone: true } },
+        },
+      });
+      otpPhone =
+        u?.schoolAdminProfile?.phoneNumber ||
+        u?.teacherProfile?.phone ||
+        u?.financeProfile?.phone ||
+        null;
+    }
+
+    if (!otpPhone) {
+      throw {
+        status: 400,
+        message:
+          "No mobile number is linked to this account. Please contact your administrator.",
+      };
+    }
+  } else {
+    // Phone login — use the identifier directly
+    otpPhone = phone;
+  }
+
+  const normalizedPhone = normalizePhone(otpPhone);
+
   // ── Generate & store OTP ──
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-  // Use normalized phone as identifier for OTP lookup
-  const normalizedPhone = normalizePhone(phone);
-
+  // Store OTP keyed to the normalized phone so verifyLoginOtp can find it
   await prisma.loginOtp.create({
     data: {
       identifier: normalizedPhone,
@@ -840,18 +928,11 @@ export const loginWithOtpService = async ({ phone, password, selectedRole }) => 
     },
   });
 
-  // ── Resolve the phone to send OTP to ──
-  // For STUDENT: send to the parent's phone (which is what they logged in with)
-  // For all others: send to the same phone they logged in with
-  let otpPhone = normalizedPhone;
-
-  // STUDENT — phone entered IS the parent phone, so use it directly
-  // (already resolved above since student login uses parent phone)
-
-  await sendSmsOtp({ phone: otpPhone, otp });
+  await sendSmsOtp({ phone: normalizedPhone, otp });
 
   return {
     otpRequired: true,
+    // Always return the phone (masked on the client) so VerifyOtp knows where OTP went
     phone: normalizedPhone,
   };
 };
@@ -899,15 +980,13 @@ export const verifyLoginOtpService = async ({ phone, otp }) => {
 };
 
 // ── Forgot Password — send OTP via SMS ───────────────────────────────────
-// ── Forgot Password — send OTP via SMS or Email ──────────────────────────
-// Replace the existing `sendOtp` export in auth.service.js with this version.
-// The `method` param is "sms" (default) | "email".
-export const sendOtp = async (phone, method = "sms") => {
+export const sendOtp = async (phone) => {
   const result = await findUserByIdentifier(phone);
 
   if (!result) throw new Error("No account found with this mobile number");
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
   const normalizedPhone = normalizePhone(phone);
 
   await prisma.otp.create({
@@ -918,47 +997,10 @@ export const sendOtp = async (phone, method = "sms") => {
     },
   });
 
-  console.log("Forgot Password OTP:", otp);
-
-  if (method === "email") {
-    // ── Send via Email ──────────────────────────────────────────────────
-    // Resolve the user's email from whichever model was found
-    const userEmail =
-      result.user?.email ||
-      result.user?.adminEmail ||
-      null;
-
-    if (!userEmail) {
-      throw new Error(
-        "No email address found for this account. Please use SMS instead."
-      );
-    }
-
-    await transporter.sendMail({
-      from: `"Abacco Technology" <${process.env.EMAIL_USER}>`,
-      to: userEmail,
-      subject: "Your OTP for Password Reset",
-      html: `
-        <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f0f6ff;border-radius:16px;">
-          <h2 style="color:#243340;margin-bottom:8px;">Password Reset OTP</h2>
-          <p style="color:#6A89A7;font-size:14px;margin-bottom:24px;">
-            Use the code below to reset your password. It is valid for <strong>10 minutes</strong>.
-          </p>
-          <div style="background:#243340;border-radius:12px;padding:20px 32px;text-align:center;margin-bottom:24px;">
-            <span style="font-size:36px;font-weight:800;letter-spacing:10px;color:#88BDF2;">${otp}</span>
-          </div>
-          <p style="color:#b91c1c;font-size:12px;">Do not share this OTP with anyone.</p>
-          <hr style="border:none;border-top:1px solid #DDE9F5;margin:20px 0;" />
-          <p style="color:#6A89A7;font-size:11px;">Abacco Technology CRM &nbsp;|&nbsp; This is an automated message.</p>
-        </div>
-      `,
-    });
-
-    return { message: "OTP sent successfully to your registered email address" };
-  }
-
-  // ── Send via SMS (default) ──────────────────────────────────────────────
+  // Send OTP via SMS
   await sendSmsOtp({ phone: normalizedPhone, otp });
+
+  console.log("Forgot Password OTP:", otp);
 
   return { message: "OTP sent successfully to your registered mobile number" };
 };
