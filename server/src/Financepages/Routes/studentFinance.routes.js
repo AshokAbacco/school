@@ -519,26 +519,53 @@ router.post("/sendFeeReminder/:id", authMiddleware, async (req, res) => {
     const financeStudent = await prisma.studentList.findUnique({ where: { id } });
     if (!financeStudent) return res.status(404).json({ message: "Student not found" });
 
-    const totalFees     = Number(financeStudent.fees       || 0);
-    const paidAmount    = Number(financeStudent.paidAmount  || 0);
+    const totalFees     = Number(financeStudent.fees      || 0);
+    const paidAmount    = Number(financeStudent.paidAmount || 0);
     const pendingAmount = totalFees - paidAmount;
     if (pendingAmount <= 0) return res.status(400).json({ message: "No pending fees" });
 
-    const realStudent = await prisma.student.findFirst({
-      where:   { id: financeStudent.studentId },
-      include: { parentLinks: { include: { parent: true } } },
-    });
-    if (!realStudent) return res.status(404).json({ message: "Real student record not found" });
-
     const school = await prisma.school.findUnique({ where: { id: req.user.schoolId } });
 
-    for (const link of realStudent.parentLinks) {
-      const parentPhone = link.parent?.phone;
-      if (!parentPhone) continue;
-      await sendFeePendingWhatsApp({ phone: parentPhone, pendingAmount, studentName: financeStudent.name, schoolName: school?.name || "School" });
+    let sent = 0;
+
+    // ── Try parent phone first (if studentId is linked) ──────────────────
+    if (financeStudent.studentId) {
+      const realStudent = await prisma.student.findFirst({
+        where:   { id: financeStudent.studentId },
+        include: { parentLinks: { include: { parent: true } } },
+      });
+
+      if (realStudent?.parentLinks?.length) {
+        for (const link of realStudent.parentLinks) {
+          const parentPhone = link.parent?.phone;
+          if (!parentPhone) continue;
+          await sendFeePendingWhatsApp({
+            phone: parentPhone,
+            pendingAmount,
+            studentName: financeStudent.name,
+            schoolName:  school?.name || "School",
+          });
+          sent++;
+        }
+      }
     }
 
-    res.json({ success: true, message: "Fee reminder sent successfully" });
+    // ── Fallback: use StudentList.phone directly ──────────────────────────
+    if (sent === 0 && financeStudent.phone) {
+      await sendFeePendingWhatsApp({
+        phone:       financeStudent.phone,
+        pendingAmount,
+        studentName: financeStudent.name,
+        schoolName:  school?.name || "School",
+      });
+      sent++;
+    }
+
+    if (sent === 0) {
+      return res.status(400).json({ message: "No phone number found to send reminder" });
+    }
+
+    res.json({ success: true, message: `Fee reminder sent to ${sent} contact(s)` });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: error.message });
@@ -552,22 +579,51 @@ router.post("/sendFeeReceipt/:id", authMiddleware, async (req, res) => {
     const financeStudent = await prisma.studentList.findUnique({ where: { id } });
     if (!financeStudent) return res.status(404).json({ message: "Student not found" });
 
-    const realStudent = await prisma.student.findFirst({
-      where:   { id: financeStudent.studentId },
-      include: { parentLinks: { include: { parent: true } } },
-    });
-    if (!realStudent) return res.status(404).json({ message: "Real student not found" });
-
     const school  = await prisma.school.findUnique({ where: { id: req.user.schoolId } });
     const pdfUrl  = req.body.pdfUrl;
 
-    for (const link of realStudent.parentLinks) {
-      const parentPhone = link.parent?.phone;
-      if (!parentPhone) continue;
-      await sendFeeReceiptWhatsApp({ phone: parentPhone, studentName: financeStudent.name, schoolName: school?.name || "School", pdfUrl });
+    if (!pdfUrl) return res.status(400).json({ message: "pdfUrl is required" });
+
+    let sent = 0;
+
+    // ── Try parent phone first (if studentId is linked) ───────────────────
+    if (financeStudent.studentId) {
+      const realStudent = await prisma.student.findFirst({
+        where:   { id: financeStudent.studentId },
+        include: { parentLinks: { include: { parent: true } } },
+      });
+
+      if (realStudent?.parentLinks?.length) {
+        for (const link of realStudent.parentLinks) {
+          const parentPhone = link.parent?.phone;
+          if (!parentPhone) continue;
+          await sendFeeReceiptWhatsApp({
+            phone:       parentPhone,
+            studentName: financeStudent.name,
+            schoolName:  school?.name || "School",
+            pdfUrl,
+          });
+          sent++;
+        }
+      }
     }
 
-    res.json({ success: true, message: "Fee receipt sent successfully" });
+    // ── Fallback: use StudentList.phone directly ──────────────────────────
+    if (sent === 0 && financeStudent.phone) {
+      await sendFeeReceiptWhatsApp({
+        phone:       financeStudent.phone,
+        studentName: financeStudent.name,
+        schoolName:  school?.name || "School",
+        pdfUrl,
+      });
+      sent++;
+    }
+
+    if (sent === 0) {
+      return res.status(400).json({ message: "No phone number found to send receipt" });
+    }
+
+    res.json({ success: true, message: `Fee receipt sent to ${sent} contact(s)` });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: error.message });
