@@ -698,7 +698,7 @@ model StudentPersonalInfo {
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   firstName    String
-  lastName     String
+  lastName     String?
   dateOfBirth  DateTime?
   gender       Gender?
   profileImage String?

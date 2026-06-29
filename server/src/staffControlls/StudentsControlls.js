@@ -276,8 +276,8 @@ export const savePersonalInfo = async (req, res) => {
       previousSchoolName, previousSchoolBoard, udiseCode, lateralEntry,
     } = req.body;
 
-    if (!firstName || !lastName)
-      return res.status(400).json({ message: "firstName and lastName are required" });
+    if (!firstName )
+      return res.status(400).json({ message: "firstName is required" });
 
     if (!admissionDate)
       return res.status(400).json({ message: "admissionDate is required" });
@@ -373,7 +373,8 @@ export const savePersonalInfo = async (req, res) => {
         where: { id: studentId },
         data: {
           email: email.trim(),
-          name: `${firstName} ${lastName}`.trim(),
+          // name: `${firstName} ${lastName}`.trim(),
+          name: [firstName, lastName].filter(Boolean).join(" "),
         },
       });
     }
@@ -1128,7 +1129,7 @@ async function createStudentFull(row, schoolId) {
   if (!classSectionName) throw new Error("Class Section is required.");
   if (!academicYearName) throw new Error("Academic Year is required.");
   if (!firstName)        throw new Error("First Name is required.");
-  if (!lastName)         throw new Error("Last Name is required.");
+  // if (!lastName)         throw new Error("Last Name is required.");
 
   // 1. Duplicate email check — only block if SAME email AND SAME admission number
   //    (siblings can share a parent email — that is allowed)
@@ -1261,7 +1262,7 @@ async function createStudentFull(row, schoolId) {
     // Step A: Student base record
     const student = await tx.student.create({
       data: {
-        name:     `${firstName} ${lastName}`.trim(),
+        name: [firstName, lastName].filter(Boolean).join(" "),
         email:    studentEmail,
         password: hashedStudentPw,
         schoolId,

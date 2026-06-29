@@ -806,7 +806,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
   // ── Validation ────────────────────────────────────────────────────────────
   const TAB_FIELD_MAP = {
-    personal: ["fn", "ln", "dob", "gender"],
+    personal: ["fn", "dob", "gender"],
     contact: ["email", "phone", "addr", "city", "state", "zip"],
     login: ["pw", "lemail"],
     academic: [
@@ -823,7 +823,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const validate = () => {
     const e = {};
     if (!f.fn.trim()) e.fn = "First Name is required";
-    if (!f.ln.trim()) e.ln = "Last Name is required";
+    // if (!f.ln.trim()) e.ln = "Last Name is required";
     if (f.email.trim() && !/\S+@\S+\.\S+/.test(f.email)) {
       e.email = "Email is invalid";
     }
@@ -856,7 +856,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth() },
         body: JSON.stringify({
-          name: `${f.fn} ${f.ln}`.trim(),
+          name: [f.fn, f.ln].filter(boolean).join(" "),
           email: f.lemail?.trim() || f.email?.trim() || normalizePhone(f.phone),
           password: f.pw,
         }),
@@ -951,7 +951,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth() },
         body: JSON.stringify({
-          name: f.pNm?.trim() || `Father of ${f.fn} ${f.ln}`.trim(),
+          name: f.pNm?.trim() || `Father of ${[f.fn, f.ln].filter(Boolean).join(" ")}`,
           email: f.pLoginEmail.trim(),
           password: f.pLoginPw,
           phone: normalizePhone(f.pPh?.trim()) || undefined,
@@ -971,7 +971,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth() },
         body: JSON.stringify({
-          name: f.mNm?.trim() || `Mother of ${f.fn} ${f.ln}`.trim(),
+          name: f.mNm?.trim() || `Mother of ${[f.fn, f.ln].filter(Boolean).join(" ")}`,
           email: f.mLoginEmail.trim(),
           password: f.mLoginPw,
           phone: normalizePhone(f.mPh?.trim()) || undefined,
@@ -1791,7 +1791,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                   error={err.fn}
                 />
                 <InputField
-                  label="Last Name *"
+                  label="Last Name"
                   value={f.ln}
                   onChange={set("ln")}
                   error={err.ln}

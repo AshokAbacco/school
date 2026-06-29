@@ -223,7 +223,7 @@ function parseRow(rawRow, headerMap) {
 function validateRow(s, idx) {
   const errors = [];
   if (!s.firstName) errors.push("First Name is required");
-  if (!s.lastName) errors.push("Last Name is required");
+  // if (!s.lastName) errors.push("Last Name is required");
   if (!s.email) errors.push("Email is required");
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email))
     errors.push("Invalid email format");
