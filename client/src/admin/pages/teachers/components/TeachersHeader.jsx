@@ -1,8 +1,8 @@
 // client/src/admin/pages/teachers/components/TeachersHeader.jsx
 import React from "react";
-import { UserPlus, Upload } from "lucide-react";
+import { UserPlus, Upload, Download } from "lucide-react";
 
-export default function TeachersHeader({ total, onAdd, onBulk }) {
+export default function TeachersHeader({ total, onAdd, onBulk, onDownload, downloading }) {
   return (
     <>
       <style>{`
@@ -32,12 +32,27 @@ export default function TeachersHeader({ total, onAdd, onBulk }) {
         }
         .th-bulk-btn:hover { background: #EDF3FA; border-color: #88BDF2; color: #243340; transform: translateY(-1px); }
         .th-bulk-btn:active { transform: translateY(0); }
+        .th-download-btn {
+          display: flex; align-items: center; gap: 8px;
+          padding: 10px 18px; border-radius: 12px;
+          background: #f0fdf4; color: #15803d;
+          font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+          border: 1.5px solid #bbf7d0; cursor: pointer; flex-shrink: 0;
+          transition: all 0.15s; letter-spacing: -0.01em;
+          opacity: 1;
+        }
+        .th-download-btn:hover:not(:disabled) { background: #dcfce7; border-color: #86efac; transform: translateY(-1px); }
+        .th-download-btn:active:not(:disabled) { transform: translateY(0); }
+        .th-download-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        @keyframes th-spin { to { transform: rotate(360deg); } }
+        .th-spin { animation: th-spin 1s linear infinite; display: inline-block; }
         @media (max-width: 767px) {
           .th-wrap { padding: 18px 16px 12px; }
           .th-title { font-size: 22px !important; }
           .th-subtitle { display: none !important; }
           .th-add-label { display: none; }
           .th-bulk-label { display: none; }
+          .th-dl-label { display: none; }
         }
       `}</style>
       <div className="th-wrap">
@@ -60,11 +75,31 @@ export default function TeachersHeader({ total, onAdd, onBulk }) {
 
         {/* Action buttons */}
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* Download Excel */}
+          <button
+            className="th-download-btn"
+            onClick={onDownload}
+            disabled={downloading || total === 0}
+            title="Download all teacher data as Excel"
+          >
+            {downloading ? (
+              <span className="th-spin">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                </svg>
+              </span>
+            ) : (
+              <Download size={14} strokeWidth={2.2} />
+            )}
+            <span className="th-dl-label">{downloading ? "Exporting…" : "Download Excel"}</span>
+          </button>
+
           {/* Bulk Import */}
           <button className="th-bulk-btn" onClick={onBulk}>
             <Upload size={14} strokeWidth={2.2} />
             <span className="th-bulk-label">Bulk Import</span>
           </button>
+
           {/* Add single */}
           <button className="th-add-btn" onClick={onAdd}>
             <UserPlus size={14} strokeWidth={2.2} />

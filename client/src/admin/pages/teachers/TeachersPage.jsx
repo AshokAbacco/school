@@ -6,8 +6,10 @@ import TeachersGrid from "./components/TeachersGrid";
 import TeachersTable from "./components/TeachersTable";
 import TeacherDetailDrawer from "./components/TeacherDetailDrawer";
 import AddTeacherModal from "./components/AddTeacherModal";
-import BulkImportTeachers from "./components/BulkImportTeachers"; // ← NEW
+import BulkImportTeachers from "./components/BulkImportTeachers";
 import { useTeachers } from "./hooks/useTeachers";
+import { fetchTeachers } from "./api/teachersApi";
+import { downloadTeachersExcel } from "../../../utils/downloadTeachersExcel";
 
 export default function TeachersPage() {
   const [filters, setFilters] = useState({
@@ -15,8 +17,9 @@ export default function TeachersPage() {
   });
   const [selectedId, setSelectedId]   = useState(null);
   const [showAdd, setShowAdd]         = useState(false);
-  const [showBulk, setShowBulk]       = useState(false); // ← NEW
+  const [showBulk, setShowBulk]       = useState(false);
   const [viewMode, setViewMode]       = useState("grid");
+  const [downloading, setDownloading] = useState(false);
 
   const { teachers, meta, loading, error, refetch } = useTeachers(filters);
 
@@ -29,6 +32,23 @@ export default function TeachersPage() {
     refetch();
     setTimeout(() => setSpinning(false), 700);
   }, [refetch]);
+
+  // ── Download all teachers as Excel ─────────────────────────────────────────
+  const handleDownload = useCallback(async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      // Fetch ALL teachers (no pagination limit) with current active filters
+      const data = await fetchTeachers({ ...filters, page: 1, limit: 9999 });
+      const allTeachers = data?.data ?? data?.teachers ?? [];
+      downloadTeachersExcel(allTeachers, { schoolName: "School" });
+    } catch (err) {
+      console.error("[TeachersPage] Excel download failed:", err);
+      alert("Failed to export teacher data. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  }, [filters, downloading]);
 
   return (
     <>
@@ -49,11 +69,12 @@ export default function TeachersPage() {
 
       <div style={{ minHeight: "100vh", background: "#f4f8fc", fontFamily: "'Inter', sans-serif" }}>
 
-        {/* Pass onBulk down to header */}
         <TeachersHeader
           total={meta?.total ?? 0}
           onAdd={() => setShowAdd(true)}
           onBulk={() => setShowBulk(true)}
+          onDownload={handleDownload}
+          downloading={downloading}
         />
         <TeachersFilters filters={filters} onChange={onChange} />
 
@@ -109,7 +130,6 @@ export default function TeachersPage() {
           <AddTeacherModal onClose={() => setShowAdd(false)} onSuccess={() => { setShowAdd(false); refetch(); }} />
         )}
 
-        {/* ── Bulk Import Modal ── */}
         {showBulk && (
           <BulkImportTeachers
             onClose={() => setShowBulk(false)}
