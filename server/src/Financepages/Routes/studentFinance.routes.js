@@ -1017,6 +1017,220 @@ router.get("/paymentHistory/:studentListId", authMiddleware, async (req, res) =>
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BULK FEE REMINDER ROUTES
+// Append these routes to studentFinance_routes.js  (before `export default router`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Shared helper: calculate per-student pending for a fee category ───────────
+function getPendingAmount(student, feeCategory) {
+  let bd = {};
+  try { bd = JSON.parse(student.feeBreakdown || "{}"); } catch {}
+
+  const getTotal = (key) => {
+    const e = bd[key];
+    return e ? Number(typeof e === "object" ? (e.total ?? e.amount ?? 0) : e) : 0;
+  };
+
+  if (feeCategory === "ALL") {
+    return Math.max(0, Number(student.fees || 0) - Number(student.paidAmount || 0));
+  }
+  if (feeCategory === "SCHOOL")    return Math.max(0, getTotal("collegeFee")   - Number(student.schoolFeePaid    || 0));
+  if (feeCategory === "TUITION")   return Math.max(0, getTotal("tuitionFee")   - Number(student.tuitionFeePaid   || 0));
+  if (feeCategory === "EXAM")      return Math.max(0, getTotal("examFee")      - Number(student.examFeePaid      || 0));
+  if (feeCategory === "TRANSPORT") return Math.max(0, getTotal("transportFee") - Number(student.transportFeePaid || 0));
+  if (feeCategory === "BOOKS")     return Math.max(0, getTotal("booksFee")     - Number(student.booksFeePaid     || 0));
+  if (feeCategory === "LAB")       return Math.max(0, getTotal("labFee")       - Number(student.labFeePaid       || 0));
+  if (feeCategory === "MISC")      return Math.max(0, getTotal("miscFee")      - Number(student.miscFeePaid      || 0));
+
+  // Custom fee — CUSTOM__<label>
+  if (feeCategory.startsWith("CUSTOM__")) {
+    const label   = feeCategory.replace("CUSTOM__", "");
+    const customs = Array.isArray(bd.customFees) ? bd.customFees : [];
+    const match   = customs.find(c => (c.label || c.name || "") === label);
+    return Math.max(0, Number(match?.amount || match?.total || 0));
+  }
+
+  return 0;
+}
+
+// ── Shared helper: fire reminders for a list of students ─────────────────────
+async function fireBulkReminders({ students, feeCategory, channel, schoolName }) {
+  let sent = 0, skipped = 0, failed = 0;
+
+  for (const student of students) {
+    const pendingAmount = getPendingAmount(student, feeCategory);
+    if (pendingAmount <= 0) { skipped++; continue; }
+
+    // Resolve phone: prefer parent phone, fallback to student.phone
+    let phones = [];
+    if (student.studentId) {
+      try {
+        const realStudent = await prisma.student.findFirst({
+          where:   { id: student.studentId },
+          include: { parentLinks: { include: { parent: true } } },
+        });
+        if (realStudent?.parentLinks?.length) {
+          phones = realStudent.parentLinks
+            .map(l => l.parent?.phone)
+            .filter(Boolean);
+        }
+      } catch {}
+    }
+    if (phones.length === 0 && student.phone) phones = [student.phone];
+    if (phones.length === 0) { skipped++; continue; }
+
+    for (const phone of phones) {
+      try {
+        if (channel === "whatsapp") {
+          await sendFeePendingWhatsApp({ phone, pendingAmount, studentName: student.name, schoolName });
+        } else if (channel === "voice") {
+          await sendFeeVoiceReminder({ phone, pendingAmount, studentName: student.name, schoolName });
+        }
+        sent++;
+      } catch (err) {
+        console.error(`[bulkReminder] Failed for ${student.name} (${phone}):`, err.message);
+        failed++;
+      }
+    }
+  }
+
+  return { sent, skipped, failed };
+}
+
+// ── POST /api/finance/sendBulkReminderNow ─────────────────────────────────────
+// Instantly send bulk reminders to all students with pending fees in the
+// selected category.
+// Body: { feeCategory: "ALL"|"SCHOOL"|...|"CUSTOM__<label>", channel: "whatsapp"|"voice" }
+router.post("/sendBulkReminderNow", authMiddleware, async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return res.status(400).json({ message: "SchoolId missing" });
+
+    const { feeCategory = "ALL", channel = "whatsapp" } = req.body;
+
+    const school = await prisma.school.findUnique({ where: { id: schoolId } });
+    const schoolName = school?.name || "School";
+
+    const students = await prisma.studentList.findMany({
+      where:   { schoolId, deletedAt: null },
+      orderBy: { name: "asc" },
+    });
+
+    const { sent, skipped, failed } = await fireBulkReminders({
+      students, feeCategory, channel, schoolName,
+    });
+
+    console.log(`[sendBulkReminderNow] school=${schoolId} cat=${feeCategory} ch=${channel} sent=${sent} skipped=${skipped} failed=${failed}`);
+    res.json({ success: true, sent, skipped, failed });
+  } catch (error) {
+    console.error("[sendBulkReminderNow] error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ── POST /api/finance/scheduleBulkReminder ────────────────────────────────────
+// Schedule a bulk reminder to fire at a future datetime.
+// Body: { feeCategory, channel, scheduledAt: ISO datetime string }
+router.post("/scheduleBulkReminder", authMiddleware, async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return res.status(400).json({ message: "SchoolId missing" });
+
+    const { feeCategory = "ALL", channel = "whatsapp", scheduledAt } = req.body;
+
+    if (!scheduledAt) return res.status(400).json({ message: "scheduledAt is required" });
+
+    const scheduledDate = new Date(scheduledAt);
+    if (isNaN(scheduledDate.getTime())) return res.status(400).json({ message: "Invalid scheduledAt date" });
+    if (scheduledDate <= new Date()) return res.status(400).json({ message: "Scheduled time must be in the future" });
+
+    // Preview: count students who will receive
+    const students = await prisma.studentList.findMany({
+      where: { schoolId, deletedAt: null },
+    });
+    const targetCount = students.filter(s => getPendingAmount(s, feeCategory) > 0).length;
+
+    const job = await prisma.scheduledReminder.create({
+      data: { schoolId, feeCategory, channel, scheduledAt: scheduledDate, status: "PENDING" },
+    });
+
+    console.log(`[scheduleBulkReminder] created job #${job.id} school=${schoolId} cat=${feeCategory} ch=${channel} at=${scheduledDate.toISOString()} target=${targetCount}`);
+    res.json({ success: true, job, targetCount });
+  } catch (error) {
+    console.error("[scheduleBulkReminder] error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ── GET /api/finance/scheduledReminders ──────────────────────────────────────
+// Returns scheduled reminder jobs for this school (most recent first).
+router.get("/scheduledReminders", authMiddleware, async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return res.status(400).json({ message: "SchoolId missing" });
+
+    const jobs = await prisma.scheduledReminder.findMany({
+      where:   { schoolId },
+      orderBy: { createdAt: "desc" },
+      take:    50,
+    });
+
+    res.json(jobs);
+  } catch (error) {
+    console.error("[scheduledReminders] error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ── DELETE /api/finance/scheduledReminder/:id ────────────────────────────────
+// Cancel a PENDING scheduled reminder.
+router.delete("/scheduledReminder/:id", authMiddleware, async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    const id       = parseInt(req.params.id);
+
+    const job = await prisma.scheduledReminder.findUnique({ where: { id } });
+    if (!job)                      return res.status(404).json({ message: "Job not found" });
+    if (job.schoolId !== schoolId) return res.status(403).json({ message: "Forbidden" });
+    if (job.status !== "PENDING")  return res.status(400).json({ message: "Can only cancel PENDING jobs" });
+
+    await prisma.scheduledReminder.update({
+      where: { id },
+      data:  { status: "CANCELLED" },
+    });
+
+    res.json({ success: true, message: "Reminder cancelled" });
+  } catch (error) {
+    console.error("[cancelScheduledReminder] error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ── GET /api/finance/bulkReminderPreview ─────────────────────────────────────
+// Returns count + total pending for a given feeCategory (for modal preview).
+// Query: ?feeCategory=SCHOOL
+router.get("/bulkReminderPreview", authMiddleware, async (req, res) => {
+  try {
+    const schoolId    = req.user?.schoolId;
+    const feeCategory = req.query.feeCategory || "ALL";
+
+    const students = await prisma.studentList.findMany({
+      where: { schoolId, deletedAt: null },
+    });
+
+    let count = 0, totalPending = 0;
+    for (const s of students) {
+      const pending = getPendingAmount(s, feeCategory);
+      if (pending > 0) { count++; totalPending += pending; }
+    }
+
+    res.json({ count, totalPending });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 
 export default router;
 // ── CLEANUP: merge duplicate same-day log rows into one ──────────────────────

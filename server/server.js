@@ -20,6 +20,7 @@ import whatsappRoutes from "./src/whatsapp/whatsapp.routes.js";
 import "./src/whatsapp/birthdayCron.js";
 import "./src/whatsapp/meetingReminderCron.js";
 import "./src/whatsapp/anniversaryCron.js";
+import { startReminderCron } from "./src/cron/reminderCron.js";
 
 import contactRoutes from "./src/contactUs/contact.route.js";
 import subscriptionRoutes from "./src/payment/Upgrade.routes.js";
@@ -92,6 +93,8 @@ app.use("/api/exam-timetable-whatsapp", examTimetableRoutes);
 app.use("/api/contact", contactRoutes);
 
 app.use("/api/voice", voiceRoutes);
+
+ startReminderCron();
 
 const server = createServer(app);
 

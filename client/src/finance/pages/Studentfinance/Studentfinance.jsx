@@ -4,7 +4,7 @@ import {
     Search, IndianRupee, CalendarDays,
     Pencil, Trash2, UserPlus, GraduationCap,
     AlertCircle, CheckCircle, Clock, CreditCard,
-    Users, X, Download, Receipt, FileText
+    Users, X, Download, Receipt, FileText, Send 
 } from "lucide-react";
 import Addstudent from "./Addstudent";
 import { PayModal } from "../../../finance/pages/Studentfinance/PayModal";
@@ -13,6 +13,7 @@ import { downloadStudentFinanceExcel } from "../../../utils/downloadStudentFinan
 import { FaWhatsapp, FaPhone } from "react-icons/fa";
 import { useSchoolLogo } from "../../../hooks/useSchoolLogo";
 import VoiceCallModal from "./components/VoiceCallModal";
+import BulkReminderModal from "./components/BulkReminderModal";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -394,6 +395,7 @@ export default function StudentFeesPage() {
     const [excelMode, setExcelMode] = useState("today"); // "today" | "month" | "custom"
     const [excelFrom, setExcelFrom] = useState("");
     const [excelTo, setExcelTo] = useState("");
+    const [showBulkReminder, setShowBulkReminder] = useState(false);
 
 
     const handleSendVoiceCall = async () => {
@@ -1254,6 +1256,19 @@ export default function StudentFeesPage() {
                         <button
                             className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0"
                             style={{
+                                background: "linear-gradient(135deg,#0f4c81,#1a6fa8)",
+                                border: "1.5px solid rgba(136,189,242,0.4)",
+                                color: "#fff",
+                                boxShadow: "0 3px 12px rgba(15,76,129,.28)",
+                                transition: "opacity 0.2s",
+                            }}
+                            onClick={() => setShowBulkReminder(true)}
+                        >
+                            <Send size={15} /> Schedule Reminder
+                        </button>
+                        <button
+                            className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0"
+                            style={{
                                 background: "rgba(39, 73, 107, 0.85)",
                                 border: "1.5px solid rgba(136,189,242,0.4)",
                                 color: "#BDDDFC",
@@ -1883,6 +1898,12 @@ export default function StudentFeesPage() {
                     schoolInfo={schoolInfo}
                     onClose={() => setVoiceStudent(null)}
                     apiUrl={API_URL}
+                />
+            )}
+            {showBulkReminder && (
+                <BulkReminderModal
+                    students={students}
+                    onClose={() => setShowBulkReminder(false)}
                 />
             )}
 

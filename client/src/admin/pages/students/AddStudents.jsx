@@ -126,7 +126,7 @@ const E0 = {
   // NEW Karnataka personal
   motherTongue: "",
   subcaste: "",
-  domicileState: "Karnataka",
+  domicileState: "",
   annualIncome: "",
   physicallyChallenged: false,
   disabilityType: "",
@@ -1847,7 +1847,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                     label="SATS Number"
                     value={f.satsNumber}
                     onChange={set("satsNumber")}
-                    placeholder="Karnataka Student ID"
+                    placeholder="Student ID"
                   />
                   <InputField
                     label="Nationality"
@@ -1883,7 +1883,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                     label="Domicile State"
                     value={f.domicileState}
                     onChange={set("domicileState")}
-                    placeholder="Karnataka"
+                    placeholder="Andhra Pradesh, Karnataka, etc."
                   />
                 </div>
               </div>

@@ -358,6 +358,7 @@ model School {
   idCardTemplates    IdCardTemplate[]
 
   biometricStudentAttendances BiometricStudentAttendance[]
+  ScheduledReminder           ScheduledReminder[]
 
   @@index([universityId])
   @@index([type])
@@ -4108,4 +4109,32 @@ model IdCardTemplate {
   @@index([universityId]) // ← ADD
   @@index([superAdminId]) // ← ADD
   @@map("id_card_templates")
+}
+
+model ScheduledReminder {
+  id       Int    @id @default(autoincrement())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  feeCategory String // "ALL" | "SCHOOL" | "TUITION" | "EXAM" | "TRANSPORT" | "BOOKS" | "LAB" | "MISC" | "CUSTOM__<label>"
+  channel     String // "whatsapp" | "voice"
+
+  // PENDING  = waiting to fire
+  // SENT     = fired successfully
+  // FAILED   = cron tried but errored
+  // CANCELLED = admin deleted it before it fired
+  status String @default("PENDING")
+
+  scheduledAt  DateTime // when to fire (null = immediate / already fired)
+  sentCount    Int      @default(0)
+  skippedCount Int      @default(0)
+  failedCount  Int      @default(0)
+  errorMessage String? // last error if status = FAILED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([status, scheduledAt]) // cron query index
+  @@map("scheduled_reminders")
 }
