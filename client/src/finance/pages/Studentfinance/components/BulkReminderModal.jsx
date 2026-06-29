@@ -1,4 +1,4 @@
-// BulkReminderModal.jsx
+// BulkReminderModal.jsx  — fully responsive (Tailwind CSS)
 // ─────────────────────────────────────────────────────────────────────────────
 // Drop this file alongside Studentfinance.jsx and import it:
 //   import BulkReminderModal from "./BulkReminderModal";
@@ -6,7 +6,10 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { FaWhatsapp, FaPhone } from "react-icons/fa";
-import { X, CalendarDays, Clock, Send, Zap, CheckCircle, AlertCircle, Loader } from "lucide-react";
+import {
+  X, CalendarDays, Clock, Send, Zap,
+  CheckCircle, AlertCircle, Loader, RefreshCw,
+} from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -25,7 +28,7 @@ function buildCategoryOptions(students) {
   };
 
   const foundStandard = new Set();
-  const foundCustom   = new Map(); // label → true
+  const foundCustom   = new Map();
 
   for (const s of students) {
     let bd = {};
@@ -57,7 +60,7 @@ function buildCategoryOptions(students) {
   return options;
 }
 
-// ── Pending calculator (mirrors backend) ─────────────────────────────────────
+// ── Pending calculator ────────────────────────────────────────────────────────
 function getPendingAmount(student, feeCategory) {
   let bd = {};
   try { bd = JSON.parse(student.feeBreakdown || "{}"); } catch {}
@@ -86,80 +89,70 @@ function getPendingAmount(student, feeCategory) {
   return 0;
 }
 
-// ── Scheduled jobs list sub-component ────────────────────────────────────────
+// ── Status badge helper ───────────────────────────────────────────────────────
+const STATUS_CLS = {
+  PENDING:    "text-amber-800 bg-amber-50 border border-amber-200",
+  SENT:       "text-green-800 bg-green-50  border border-green-200",
+  FAILED:     "text-red-700   bg-red-50    border border-red-200",
+  CANCELLED:  "text-slate-600 bg-slate-100 border border-slate-200",
+  PROCESSING: "text-blue-700  bg-blue-50   border border-blue-200",
+};
+
+const CAT_LABEL = {
+  ALL: "All Remaining", SCHOOL: "School Fee", TUITION: "Tuition Fee",
+  EXAM: "Exam Fee", TRANSPORT: "Transport Fee", BOOKS: "Books Fee",
+  LAB: "Lab Fee", MISC: "Misc Fee",
+};
+
+// ── Scheduled Jobs List ───────────────────────────────────────────────────────
 function ScheduledJobsList({ jobs, onCancel, loading }) {
   if (loading) return (
-    <div style={{ textAlign: "center", padding: "20px 0", color: "#4A6B80", fontSize: 13 }}>
-      <Loader size={16} style={{ animation: "spin 1s linear infinite", display: "inline-block", marginRight: 6 }} />
+    <div className="flex items-center justify-center gap-2 py-8 text-slate-500 text-sm">
+      <Loader size={16} className="animate-spin" />
       Loading jobs...
     </div>
   );
 
   if (!jobs.length) return (
-    <div style={{ textAlign: "center", padding: "16px 0", color: "#4A6B80", fontSize: 13 }}>
+    <div className="text-center py-8 text-slate-400 text-sm">
       No scheduled reminders yet.
     </div>
   );
 
-  const STATUS_STYLE = {
-    PENDING:    { color: "#92400e", background: "#fef3c7", border: "1px solid #fde68a" },
-    SENT:       { color: "#1a6e3e", background: "#edf7f1", border: "1px solid #b2dfc6" },
-    FAILED:     { color: "#a33030", background: "#fdf0f0", border: "1px solid #f5c2c2" },
-    CANCELLED:  { color: "#4A6B80", background: "#f0f4f8", border: "1px solid #cbd5e1" },
-    PROCESSING: { color: "#1e40af", background: "#eff6ff", border: "1px solid #bfdbfe" },
-  };
-
-  const CAT_LABEL = {
-    ALL: "All Remaining", SCHOOL: "School Fee", TUITION: "Tuition Fee",
-    EXAM: "Exam Fee", TRANSPORT: "Transport Fee", BOOKS: "Books Fee",
-    LAB: "Lab Fee", MISC: "Misc Fee",
-  };
-
   return (
-    <div style={{ maxHeight: 240, overflowY: "auto" }}>
+    <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
       {jobs.map(job => {
         const catLabel = job.feeCategory.startsWith("CUSTOM__")
           ? job.feeCategory.replace("CUSTOM__", "") + " (Custom)"
           : (CAT_LABEL[job.feeCategory] || job.feeCategory);
 
-        const st = STATUS_STYLE[job.status] || STATUS_STYLE.PENDING;
+        const statusCls = STATUS_CLS[job.status] || STATUS_CLS.PENDING;
 
         return (
-          <div key={job.id} style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "10px 14px", borderBottom: "1px solid #e0eef6",
-            gap: 10, flexWrap: "wrap",
-          }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#1C3044", fontFamily: "'DM Sans',sans-serif" }}>
-                  {catLabel}
-                </span>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, ...st }}>
+          <div key={job.id} className="flex items-start justify-between gap-3 px-4 py-3 flex-wrap">
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-bold text-[#1C3044] truncate">{catLabel}</span>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusCls}`}>
                   {job.status}
                 </span>
                 {job.channel === "whatsapp"
                   ? <FaWhatsapp size={13} color="#25D366" />
                   : <FaPhone    size={12} color="#2563eb" />}
               </div>
-              <div style={{ fontSize: 11, color: "#4A6B80", fontFamily: "'DM Sans',sans-serif" }}>
+              <div className="text-[11px] text-slate-500 leading-relaxed">
                 📅 {new Date(job.scheduledAt).toLocaleString("en-IN", {
                   day: "2-digit", month: "short", year: "numeric",
                   hour: "2-digit", minute: "2-digit",
                 })}
-                {job.status === "SENT" && ` • ✅ ${job.sentCount} sent, ${job.skippedCount} skipped`}
+                {job.status === "SENT"   && ` • ✅ ${job.sentCount} sent, ${job.skippedCount} skipped`}
                 {job.status === "FAILED" && job.errorMessage && ` • ⚠ ${job.errorMessage}`}
               </div>
             </div>
             {job.status === "PENDING" && (
               <button
                 onClick={() => onCancel(job.id)}
-                style={{
-                  fontSize: 11, fontWeight: 600, color: "#a33030",
-                  background: "#fdf0f0", border: "1px solid #f5c2c2",
-                  borderRadius: 7, padding: "4px 10px", cursor: "pointer",
-                  fontFamily: "'DM Sans',sans-serif", whiteSpace: "nowrap",
-                }}
+                className="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-red-100 transition-colors whitespace-nowrap mt-0.5"
               >
                 Cancel
               </button>
@@ -175,14 +168,14 @@ function ScheduledJobsList({ jobs, onCancel, loading }) {
 export default function BulkReminderModal({ students, onClose }) {
   const [feeCategory, setFeeCategory] = useState("ALL");
   const [channel,     setChannel]     = useState("whatsapp");
-  const [sendMode,    setSendMode]     = useState("now"); // "now" | "schedule"
-  const [schedDate,   setSchedDate]   = useState("");
-  const [schedTime,   setSchedTime]   = useState("09:00");
-  const [loading,     setLoading]     = useState(false);
-  const [result,      setResult]      = useState(null); // { sent, skipped, failed } | { scheduled: true }
-  const [jobs,        setJobs]        = useState([]);
-  const [jobsLoading, setJobsLoading] = useState(false);
-  const [activeTab,   setActiveTab]   = useState("send"); // "send" | "jobs"
+  const [sendMode,    setSendMode]    = useState("now");
+  const [schedDate,   setSchedDate]  = useState("");
+  const [schedTime,   setSchedTime]  = useState("09:00");
+  const [loading,     setLoading]    = useState(false);
+  const [result,      setResult]     = useState(null);
+  const [jobs,        setJobs]       = useState([]);
+  const [jobsLoading, setJobsLoading]= useState(false);
+  const [activeTab,   setActiveTab]  = useState("send");
 
   const token = useMemo(() => {
     try { return JSON.parse(localStorage.getItem("auth"))?.token; } catch { return ""; }
@@ -190,11 +183,9 @@ export default function BulkReminderModal({ students, onClose }) {
 
   const categoryOptions = useMemo(() => buildCategoryOptions(students), [students]);
 
-  // Live preview
   const previewCount   = useMemo(() => students.filter(s => getPendingAmount(s, feeCategory) > 0).length, [students, feeCategory]);
   const previewPending = useMemo(() => students.reduce((sum, s) => sum + getPendingAmount(s, feeCategory), 0), [students, feeCategory]);
 
-  // Load jobs when jobs tab is opened
   useEffect(() => {
     if (activeTab === "jobs") fetchJobs();
   }, [activeTab]);
@@ -256,244 +247,283 @@ export default function BulkReminderModal({ students, onClose }) {
     } catch {}
   };
 
-  const catLabel = categoryOptions.find(o => o.value === feeCategory)?.label || "All Remaining";
-
-  // ── min date/time for schedule picker ───────────────────────────────────────
-  const nowLocal  = new Date();
-  const minDate   = nowLocal.toLocaleDateString("en-CA");
-  const minTime   = schedDate === minDate
+  const nowLocal = new Date();
+  const minDate  = nowLocal.toLocaleDateString("en-CA");
+  const minTime  = schedDate === minDate
     ? `${String(nowLocal.getHours()).padStart(2,"0")}:${String(nowLocal.getMinutes()).padStart(2,"0")}`
     : "00:00";
 
-  // ── Styles ──────────────────────────────────────────────────────────────────
-  const S = {
-    overlay: {
-      position: "fixed", inset: 0, background: "rgba(0,0,0,.45)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 9999, padding: 16,
-    },
-    modal: {
-      background: "#fff", borderRadius: 18, width: "100%", maxWidth: 460,
-      overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,.28)",
-      animation: "invUp .25s ease", fontFamily: "'DM Sans',sans-serif",
-    },
-    header: {
-      background: "linear-gradient(135deg,#1C3044,#27435B)",
-      padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
-    },
-    label: { fontSize: 12, fontWeight: 700, color: "#4A6B80", marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: ".6px" },
-    select: {
-      width: "100%", padding: "9px 12px", borderRadius: 10,
-      border: "1.5px solid #d0e2ee", fontSize: 13, fontWeight: 600,
-      color: "#1C3044", background: "#fff", outline: "none", cursor: "pointer",
-      fontFamily: "'DM Sans',sans-serif",
-    },
-    modeBtn: (active) => ({
-      flex: 1, padding: "9px 0", borderRadius: 10, border: active ? "none" : "1.5px solid #d0e2ee",
-      fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "'DM Sans',sans-serif",
-      background: active ? "linear-gradient(135deg,#1C3044,#27435B)" : "#fff",
-      color: active ? "#fff" : "#4A6B80", display: "flex", alignItems: "center",
-      justifyContent: "center", gap: 6, transition: "all .15s",
-    }),
-    tab: (active) => ({
-      flex: 1, padding: "9px 0", borderBottom: active ? "2.5px solid #1C3044" : "2.5px solid transparent",
-      fontWeight: 700, fontSize: 13, cursor: "pointer", background: "none", border: "none",
-      borderBottom: active ? "2.5px solid #1C3044" : "2.5px solid transparent",
-      color: active ? "#1C3044" : "#4A6B80", fontFamily: "'DM Sans',sans-serif",
-    }),
-  };
+  // ── shared input class ───────────────────────────────────────────────────────
+  const inputCls = "w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] font-semibold text-[#1C3044] bg-white outline-none focus:border-[#27435B] focus:ring-2 focus:ring-[#1C3044]/10 transition cursor-pointer";
 
   return (
-    <div style={S.overlay} onClick={onClose}>
-      <div style={S.modal} onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/45 p-0 sm:p-4"
+      
+    >
+      {/*
+        Mobile  → slides up from bottom, full-width, rounded top corners
+        Tablet+ → centered dialog, max-w-md, fully rounded
+      */}
+      <div
+        className="
+          bg-white w-full
+          rounded-t-2xl sm:rounded-2xl
+          max-h-[92dvh] sm:max-h-[90vh]
+          sm:max-w-md
+          flex flex-col
+          shadow-2xl
+          animate-slideUp
+          overflow-hidden
+        "
+        onClick={e => e.stopPropagation()}
+      >
 
-        {/* Header */}
-        <div style={S.header}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(255,255,255,.14)", border: "1.5px solid rgba(255,255,255,.22)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Send size={18} color="#fff" />
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-4 sm:px-5 py-4 bg-gradient-to-br from-[#1C3044] to-[#27435B] shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center">
+              <Send size={17} color="#fff" />
             </div>
             <div>
-              <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>Bulk Fee Reminder</div>
-              <div style={{ color: "rgba(255,255,255,.6)", fontSize: 12 }}>WhatsApp &amp; Voice</div>
+              <p className="text-white font-bold text-[15px] leading-tight">Bulk Fee Reminder</p>
+              <p className="text-white/60 text-[12px]">WhatsApp &amp; Voice</p>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "rgba(255,255,255,.7)", cursor: "pointer", padding: 4 }}>
+          <button
+            onClick={onClose}
+            className="text-white/70 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition"
+          >
             <X size={20} />
           </button>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: "flex", borderBottom: "1px solid #e0eef6" }}>
-          <button style={S.tab(activeTab === "send")} onClick={() => setActiveTab("send")}>Send Reminder</button>
-          <button style={S.tab(activeTab === "jobs")} onClick={() => setActiveTab("jobs")}>Scheduled Jobs</button>
+        {/* ── Tabs ── */}
+        <div className="flex border-b border-slate-100 shrink-0">
+          {["send", "jobs"].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-3 text-[13px] font-bold transition-colors
+                ${activeTab === tab
+                  ? "text-[#1C3044] border-b-2 border-[#1C3044]"
+                  : "text-slate-400 border-b-2 border-transparent hover:text-slate-600"
+                }`}
+            >
+              {tab === "send" ? "Send Reminder" : "Scheduled Jobs"}
+            </button>
+          ))}
         </div>
 
-        {/* ── SEND TAB ── */}
-        {activeTab === "send" && (
-          <div style={{ padding: "20px 22px" }}>
+        {/* ── Scrollable body ── */}
+        <div className="flex-1 overflow-y-auto">
 
-            {/* Result banner */}
-            {result && (
-              <div style={{
-                padding: "12px 14px", borderRadius: 10, marginBottom: 16,
-                display: "flex", alignItems: "flex-start", gap: 10,
-                background: result.type === "error" ? "#fdf0f0" : "#edf7f1",
-                border: `1px solid ${result.type === "error" ? "#f5c2c2" : "#b2dfc6"}`,
-              }}>
-                {result.type === "error"
-                  ? <AlertCircle size={16} color="#a33030" style={{ marginTop: 1, flexShrink: 0 }} />
-                  : <CheckCircle size={16} color="#1a6e3e" style={{ marginTop: 1, flexShrink: 0 }} />}
-                <div style={{ fontSize: 13, color: result.type === "error" ? "#a33030" : "#1a6e3e", fontWeight: 600 }}>
-                  {result.type === "sent"      && `✅ Sent to ${result.sent} student(s). ${result.skipped} skipped, ${result.failed} failed.`}
-                  {result.type === "scheduled" && `✅ Scheduled! Will send to ~${result.targetCount} student(s).`}
-                  {result.type === "error"     && `❌ ${result.message}`}
+          {/* ══ SEND TAB ══ */}
+          {activeTab === "send" && (
+            <div className="px-4 sm:px-5 py-4 space-y-4">
+
+              {/* Result banner */}
+              {result && (
+                <div className={`flex items-start gap-3 p-3 rounded-xl border text-[13px] font-semibold
+                  ${result.type === "error"
+                    ? "bg-red-50 border-red-200 text-red-700"
+                    : "bg-green-50 border-green-200 text-green-800"
+                  }`}
+                >
+                  {result.type === "error"
+                    ? <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    : <CheckCircle size={16} className="mt-0.5 shrink-0" />}
+                  <span>
+                    {result.type === "sent"      && `✅ Sent to ${result.sent} student(s). ${result.skipped} skipped, ${result.failed} failed.`}
+                    {result.type === "scheduled" && `✅ Scheduled! Will send to ~${result.targetCount} student(s).`}
+                    {result.type === "error"     && `❌ ${result.message}`}
+                  </span>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Fee Category */}
-            <div style={{ marginBottom: 14 }}>
-              <label style={S.label}>Fee Category</label>
-              <select value={feeCategory} onChange={e => { setFeeCategory(e.target.value); setResult(null); }} style={S.select}>
-                {categoryOptions.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Channel */}
-            <div style={{ marginBottom: 14 }}>
-              <label style={S.label}>Channel</label>
-              <select value={channel} onChange={e => setChannel(e.target.value)} style={S.select}>
-                <option value="whatsapp">📲 WhatsApp</option>
-                {/* <option value="voice">📞 Voice Call</option> */}
-              </select>
-            </div>
-
-            {/* Send Mode */}
-            <div style={{ marginBottom: 14 }}>
-              <label style={S.label}>Send Mode</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button style={S.modeBtn(sendMode === "now")}      onClick={() => setSendMode("now")}>
-                  <Zap size={14} /> Send Now
-                </button>
-                <button style={S.modeBtn(sendMode === "schedule")} onClick={() => setSendMode("schedule")}>
-                  <CalendarDays size={14} /> Schedule
-                </button>
-              </div>
-            </div>
-
-            {/* Date + Time (only when scheduled) */}
-            {sendMode === "schedule" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-                <div>
-                  <label style={S.label}>Date</label>
-                  <input
-                    type="date" value={schedDate} min={minDate}
-                    onChange={e => setSchedDate(e.target.value)}
-                    style={{ ...S.select, padding: "8px 12px" }}
-                  />
-                </div>
-                <div>
-                  <label style={S.label}>Time</label>
-                  <input
-                    type="time" value={schedTime} min={schedDate === minDate ? minTime : undefined}
-                    onChange={e => setSchedTime(e.target.value)}
-                    style={{ ...S.select, padding: "8px 12px" }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Preview */}
-            <div style={{
-              background: previewCount > 0 ? "linear-gradient(135deg,#edf4f9,#e0eef6)" : "#f8fafb",
-              border: `1px solid ${previewCount > 0 ? "#c5dced" : "#e0e0e0"}`,
-              borderRadius: 10, padding: "12px 14px", marginBottom: 18,
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}>
+              {/* Fee Category */}
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#4A6B80", textTransform: "uppercase", letterSpacing: ".5px" }}>Preview</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "#1C3044", lineHeight: 1.2, marginTop: 2 }}>
-                  {previewCount}
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#4A6B80", marginLeft: 6 }}>students</span>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                  Fee Category
+                </label>
+                <select
+                  value={feeCategory}
+                  onChange={e => { setFeeCategory(e.target.value); setResult(null); }}
+                  className={inputCls}
+                >
+                  {categoryOptions.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Channel */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                  Channel
+                </label>
+                <select
+                  value={channel}
+                  onChange={e => setChannel(e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="whatsapp">📲 WhatsApp</option>
+                  {/* <option value="voice">📞 Voice Call</option> */}
+                </select>
+              </div>
+
+              {/* Send Mode */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                  Send Mode
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { mode: "now",      icon: <Zap size={14} />,          label: "Send Now"  },
+                    { mode: "schedule", icon: <CalendarDays size={14} />, label: "Schedule"  },
+                  ].map(({ mode, icon, label }) => (
+                    <button
+                      key={mode}
+                      onClick={() => setSendMode(mode)}
+                      className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-all
+                        ${sendMode === mode
+                          ? "bg-gradient-to-br from-[#1C3044] to-[#27435B] text-white border-transparent shadow"
+                          : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300"
+                        }`}
+                    >
+                      {icon}{label}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#4A6B80", textTransform: "uppercase", letterSpacing: ".5px" }}>Total Pending</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#1C3044", lineHeight: 1.2, marginTop: 2 }}>
-                  ₹{previewPending.toLocaleString("en-IN")}
+
+              {/* Date + Time (schedule mode only) */}
+              {sendMode === "schedule" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      value={schedDate}
+                      min={minDate}
+                      onChange={e => setSchedDate(e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                      Time
+                    </label>
+                    <input
+                      type="time"
+                      value={schedTime}
+                      min={schedDate === minDate ? minTime : undefined}
+                      onChange={e => setSchedTime(e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Preview card */}
+              <div className={`rounded-xl border p-3 sm:p-4 flex items-center justify-between gap-3
+                ${previewCount > 0
+                  ? "bg-gradient-to-br from-[#edf4f9] to-[#e0eef6] border-[#c5dced]"
+                  : "bg-slate-50 border-slate-200"
+                }`}
+              >
+                <div>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Preview</p>
+                  <p className="text-2xl font-extrabold text-[#1C3044] leading-tight mt-0.5">
+                    {previewCount}
+                    <span className="text-[13px] font-semibold text-slate-500 ml-1.5">students</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Total Pending</p>
+                  <p className="text-xl font-extrabold text-[#1C3044] leading-tight mt-0.5">
+                    ₹{previewPending.toLocaleString("en-IN")}
+                  </p>
                 </div>
               </div>
-            </div>
 
-            {/* Template preview */}
-            <div style={{ background: "#f0f9f4", border: "1px solid #b2dfc6", borderRadius: 10, padding: "12px 14px", marginBottom: 18, fontSize: 12, color: "#2E4F6B", lineHeight: 1.7 }}>
-              <div style={{ fontWeight: 700, fontSize: 11, color: "#4A6B80", marginBottom: 6, textTransform: "uppercase", letterSpacing: ".5px" }}>Message Preview</div>
-              Dear Parent,<br />
-              This is a reminder that the fee payment of <strong>₹[amount]</strong> for your child <strong>[name]</strong> is still pending.<br />
-              Please make the payment at the earliest to avoid any inconvenience.<br />
-              School: <strong>[school name]</strong><br />
-              Thank you
-            </div>
+              {/* Message preview */}
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3 sm:p-4 text-[12px] text-[#2E4F6B] leading-relaxed">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Message Preview</p>
+                Dear Parent,<br />
+                This is a reminder that the fee payment of <strong>₹[amount]</strong> for your child <strong>[name]</strong> is still pending.<br />
+                Please make the payment at the earliest to avoid any inconvenience.<br />
+                School: <strong>[school name]</strong><br />
+                Thank you
+              </div>
 
-            {/* Footer buttons */}
-            <div style={{ display: "flex", gap: 10 }}>
+            </div>
+          )}
+
+          {/* ══ JOBS TAB ══ */}
+          {activeTab === "jobs" && (
+            <div className="py-2">
+              <div className="flex justify-end px-4 pt-2 pb-1">
+                <button
+                  onClick={fetchJobs}
+                  className="flex items-center gap-1.5 text-[12px] font-semibold text-[#27435B] bg-[#edf4f9] border border-[#c5dced] rounded-lg px-3 py-1.5 hover:bg-[#deeaf3] transition"
+                >
+                  <RefreshCw size={12} /> Refresh
+                </button>
+              </div>
+              <ScheduledJobsList jobs={jobs} onCancel={handleCancel} loading={jobsLoading} />
+            </div>
+          )}
+
+        </div>
+
+        {/* ── Sticky Footer Buttons ── */}
+        <div className="px-4 sm:px-5 py-4 border-t border-slate-100 bg-white shrink-0">
+          {activeTab === "send" ? (
+            <div className="flex gap-2.5">
               <button
                 onClick={onClose}
-                style={{ flex: 1, padding: "11px", borderRadius: 11, border: "1.5px solid #d0d5dd", background: "#fff", fontSize: 13, fontWeight: 700, color: "#4A6B80", cursor: "pointer" }}
+                className="flex-1 py-3 rounded-xl border border-slate-200 bg-white text-[13px] font-bold text-slate-500 hover:bg-slate-50 transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSend}
                 disabled={loading || previewCount === 0}
-                style={{
-                  flex: 2, padding: "11px", borderRadius: 11, border: "none",
-                  background: previewCount === 0 ? "#c5d5e0" : "linear-gradient(135deg,#1C3044,#27435B)",
-                  fontSize: 13, fontWeight: 700, color: "#fff", cursor: previewCount === 0 ? "not-allowed" : "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: loading ? 0.8 : 1,
-                }}
+                className={`flex-[2] py-3 rounded-xl text-[13px] font-bold text-white flex items-center justify-center gap-2 transition
+                  ${previewCount === 0
+                    ? "bg-slate-300 cursor-not-allowed"
+                    : "bg-gradient-to-br from-[#1C3044] to-[#27435B] hover:opacity-90 cursor-pointer"
+                  } ${loading ? "opacity-75" : ""}`}
               >
                 {loading
-                  ? <><Loader size={14} style={{ animation: "spin 1s linear infinite" }} /> {sendMode === "now" ? "Sending..." : "Scheduling..."}</>
+                  ? <><Loader size={14} className="animate-spin" />{sendMode === "now" ? "Sending..." : "Scheduling..."}</>
                   : sendMode === "now"
-                    ? <><Send size={14} /> Send Now to {previewCount} Students</>
-                    : <><CalendarDays size={14} /> Schedule Reminder</>
+                    ? <><Send size={14} />Send Now to {previewCount} Students</>
+                    : <><CalendarDays size={14} />Schedule Reminder</>
                 }
               </button>
             </div>
-          </div>
-        )}
-
-        {/* ── JOBS TAB ── */}
-        {activeTab === "jobs" && (
-          <div>
-            <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 16px 0" }}>
-              <button
-                onClick={fetchJobs}
-                style={{ fontSize: 12, fontWeight: 600, color: "#27435B", background: "#edf4f9", border: "1px solid #c5dced", borderRadius: 7, padding: "5px 12px", cursor: "pointer" }}
-              >
-                Refresh
-              </button>
-            </div>
-            <ScheduledJobsList jobs={jobs} onCancel={handleCancel} loading={jobsLoading} />
-            <div style={{ padding: "14px 22px" }}>
-              <button
-                onClick={onClose}
-                style={{ width: "100%", padding: "11px", borderRadius: 11, border: "1.5px solid #d0d5dd", background: "#fff", fontSize: 13, fontWeight: 700, color: "#4A6B80", cursor: "pointer" }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
+          ) : (
+            <button
+              onClick={onClose}
+              className="w-full py-3 rounded-xl border border-slate-200 bg-white text-[13px] font-bold text-slate-500 hover:bg-slate-50 transition"
+            >
+              Close
+            </button>
+          )}
+        </div>
 
       </div>
+
       <style>{`
-        @keyframes invUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes spin   { to { transform: rotate(360deg); } }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(40px); }
+          to   { opacity: 1; transform: translateY(0);    }
+        }
+        .animate-slideUp { animation: slideUp .25s ease; }
       `}</style>
     </div>
   );
