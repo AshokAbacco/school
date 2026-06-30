@@ -690,6 +690,11 @@ model Student {
   @@map("students")
 }
 
+enum BoardingType {
+  HOSTEL
+  DAY_SCHOLAR
+}
+
 model StudentPersonalInfo {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
@@ -727,6 +732,30 @@ model StudentPersonalInfo {
   parentEmail      String?
   parentPhone      String?
   emergencyContact String?
+  parentOccupation String?
+
+  motherName            String?
+  motherEmail           String?
+  motherPhone           String?
+  motherOccupation      String?
+  motherAnniversaryDate DateTime?
+
+  // ── new guardian fields ──
+  guardianName       String?
+  guardianRelation   String?
+  guardianEmail      String?
+  guardianPhone      String?
+  guardianOccupation String?
+
+  bankAccountNumber String?
+  ifscCode          String?
+  bankName          String?
+  bankBranch        String?
+
+  fatherAadhaarNumber String? @db.VarChar(12)
+  motherAadhaarNumber String? @db.VarChar(12)
+
+  boardingType BoardingType?
 
   bloodGroup        BloodGroup?
   medicalConditions String?

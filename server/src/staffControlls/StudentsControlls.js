@@ -267,7 +267,12 @@ export const savePersonalInfo = async (req, res) => {
 
     const {
       firstName, lastName,  email, dateOfBirth, gender, phone, address, city, state, zipCode,
-      admissionDate, status, parentName, parentEmail, parentPhone, emergencyContact,
+      admissionDate, status, parentName, parentEmail, parentPhone, parentOccupation,
+      parentAnniversaryDate, fatherAadhaarNumber, emergencyContact,
+      motherName, motherEmail, motherPhone, motherOccupation, motherAnniversaryDate, motherAadhaarNumber,
+      guardianName, guardianRelation, guardianEmail, guardianPhone, guardianOccupation,
+      bankAccountNumber, ifscCode, bankName, bankBranch,
+      boardingType,
       bloodGroup, medicalConditions, allergies,
       aadhaarNumber, panNumber, satsNumber, nationality, religion, casteCategory,
       motherTongue, subcaste, domicileState, annualIncome, physicallyChallenged, disabilityType,
@@ -326,9 +331,41 @@ export const savePersonalInfo = async (req, res) => {
       firstName, lastName,
       phone: normalizePhone(phone),
       address, city, state, zipCode,
+
+      // ── Father — always saved, independent of any login ──
       parentName, parentEmail,
       parentPhone: normalizePhone(parentPhone),
+      parentOccupation: parentOccupation?.trim() || undefined,
+      parentAnniversaryDate: parentAnniversaryDate ? new Date(parentAnniversaryDate) : undefined,
+      fatherAadhaarNumber: fatherAadhaarNumber?.trim() || undefined,
       emergencyContact,
+
+      // ── Mother — always saved, independent of any login ──
+      motherName: motherName?.trim() || undefined,
+      motherEmail: motherEmail?.trim() || undefined,
+      motherPhone: normalizePhone(motherPhone),
+      motherOccupation: motherOccupation?.trim() || undefined,
+      motherAnniversaryDate: motherAnniversaryDate ? new Date(motherAnniversaryDate) : undefined,
+      motherAadhaarNumber: motherAadhaarNumber?.trim() || undefined,
+
+      // ── Guardian — always saved ──
+      guardianName: guardianName?.trim() || undefined,
+      guardianRelation: guardianRelation?.trim() || undefined,
+      guardianEmail: guardianEmail?.trim() || undefined,
+      guardianPhone: normalizePhone(guardianPhone),
+      guardianOccupation: guardianOccupation?.trim() || undefined,
+
+      // ── Bank details ──
+      bankAccountNumber: bankAccountNumber?.trim() || undefined,
+      ifscCode: ifscCode?.trim()?.toUpperCase() || undefined,
+      bankName: bankName?.trim() || undefined,
+      bankBranch: bankBranch?.trim() || undefined,
+
+      // ── Boarding type ──
+      boardingType: ["HOSTEL", "DAY_SCHOLAR"].includes((boardingType || "").toUpperCase())
+        ? boardingType.toUpperCase()
+        : undefined,
+
       bloodGroup: fixedBloodGroup,
       medicalConditions, allergies,
       aadhaarNumber: aadhaarNumber?.trim() || undefined,
@@ -1110,7 +1147,18 @@ async function createStudentFull(row, schoolId) {
     disabilityType, aadhaarNumber, panNumber, satsNumber,
     admissionNumber, classSectionName, academicYearName, rollNumber, externalId,
     admissionDate, status, previousSchoolName, previousSchoolBoard, udiseCode, lateralEntry,
-    parentName, parentPhone, parentEmail, parentPassword, parentOccupation, parentRelation,
+    // ── Father ──
+    parentName, parentPhone, parentEmail, parentOccupation, fatherAadhaarNumber,
+    // ── Mother ──
+    motherName, motherPhone, motherEmail, motherOccupation, motherAadhaarNumber,
+    // ── Guardian ──
+    guardianName, guardianRelation, guardianPhone, guardianEmail, guardianOccupation,
+    // ── Bank ──
+    bankAccountNumber, ifscCode, bankName, bankBranch,
+    // ── Boarding ──
+    boardingType,
+    // ── Login (only ONE parent — decided by loginFor) ──
+    loginFor, parentPassword,
     emergencyContact,
     bloodGroup, heightCm, weightKg, identifyingMarks, medicalConditions, allergies,
   } = row;
@@ -1129,6 +1177,18 @@ async function createStudentFull(row, schoolId) {
   if (!academicYearName) throw new Error("Academic Year is required.");
   if (!firstName)        throw new Error("First Name is required.");
   // if (!lastName)         throw new Error("Last Name is required.");
+
+  // ── Login-for validation: only ONE parent (Father or Mother) may get a login ──
+  const loginForUpper = (loginFor || "").toString().toUpperCase().trim();
+  if (loginForUpper && !["FATHER", "MOTHER"].includes(loginForUpper)) {
+    throw new Error(`"Login For" must be FATHER, MOTHER, or left blank. Got "${loginFor}".`);
+  }
+  if (loginForUpper === "FATHER" && !parentEmail) {
+    throw new Error(`"Login For" is set to FATHER but Father Email is missing.`);
+  }
+  if (loginForUpper === "MOTHER" && !motherEmail) {
+    throw new Error(`"Login For" is set to MOTHER but Mother Email is missing.`);
+  }
 
   // 1. Duplicate email check — only block if SAME email AND SAME admission number
   //    (siblings can share a parent email — that is allowed)
@@ -1298,10 +1358,43 @@ async function createStudentFull(row, schoolId) {
         heightCm:             heightCm ? parseFloat(heightCm) : null,
         weightKg:             weightKg ? parseFloat(weightKg) : null,
         identifyingMarks, medicalConditions, allergies,
+
+        // ── Father — always saved, independent of login ──
         parentName,
-        parentPhone:          parentPhone?.toString(),
+        parentPhone:           parentPhone?.toString(),
         parentEmail,
+        parentOccupation,
+        fatherAadhaarNumber: fatherAadhaarNumber
+          ? fatherAadhaarNumber.toString().replace(/\s/g,"").replace(/\.0$/,"").replace(/[^0-9]/g,"").slice(0,12)
+          : null,
         emergencyContact:     emergencyContact || parentPhone?.toString(),
+
+        // ── Mother — always saved, independent of login ──
+        motherName,
+        motherPhone:          motherPhone?.toString(),
+        motherEmail,
+        motherOccupation,
+        motherAadhaarNumber: motherAadhaarNumber
+          ? motherAadhaarNumber.toString().replace(/\s/g,"").replace(/\.0$/,"").replace(/[^0-9]/g,"").slice(0,12)
+          : null,
+
+        // ── Guardian — always saved ──
+        guardianName,
+        guardianRelation,
+        guardianPhone:        guardianPhone?.toString(),
+        guardianEmail,
+        guardianOccupation,
+
+        // ── Bank ──
+        bankAccountNumber:    bankAccountNumber?.toString(),
+        ifscCode:             ifscCode?.toString().toUpperCase(),
+        bankName,
+        bankBranch,
+
+        // ── Boarding type ──
+        boardingType: ["HOSTEL", "DAY_SCHOLAR"].includes((boardingType || "").toString().toUpperCase())
+          ? (boardingType || "").toString().toUpperCase()
+          : null,
       },
     });
 
@@ -1323,8 +1416,9 @@ async function createStudentFull(row, schoolId) {
       },
     });
 
-    // Step D: Parent account (optional)
-    if (parentName && parentEmail) {
+    // Step D: Parent LOGIN (optional — exactly ONE parent only, per "Login For" column)
+    // Info above is ALWAYS saved regardless of this step.
+    if (loginForUpper === "FATHER" && parentName && parentEmail) {
       const pEmail = parentEmail.toLowerCase().trim();
       let parent = await tx.parent.findFirst({ where: { email: pEmail, schoolId } });
 
@@ -1345,12 +1439,39 @@ async function createStudentFull(row, schoolId) {
         data: {
           studentId:        student.id,
           parentId:         parent.id,
-          relation:         toEnum(parentRelation) || "GUARDIAN",
+          relation:         "FATHER",
+          isPrimary:        true,
+          emergencyContact: true,
+        },
+      });
+    } else if (loginForUpper === "MOTHER" && motherName && motherEmail) {
+      const mEmail = motherEmail.toLowerCase().trim();
+      let parent = await tx.parent.findFirst({ where: { email: mEmail, schoolId } });
+
+      if (!parent) {
+        parent = await tx.parent.create({
+          data: {
+            name:       motherName,
+            email:      mEmail,
+            password:   hashedParentPw,
+            phone:      motherPhone?.toString(),
+            occupation: motherOccupation,
+            schoolId,
+          },
+        });
+      }
+
+      await tx.studentParent.create({
+        data: {
+          studentId:        student.id,
+          parentId:         parent.id,
+          relation:         "MOTHER",
           isPrimary:        true,
           emergencyContact: true,
         },
       });
     }
+    // loginForUpper blank ("") → no login created at all; father/mother info still saved above.
 
     return student;
 

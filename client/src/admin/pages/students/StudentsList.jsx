@@ -370,6 +370,32 @@ function CardGrid({ items, onSelect, emptyMsg = "No items found" }) {
                   {item.sublabel}
                 </p>
               )}
+              {typeof item.studentCount === "number" && (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    marginTop: 8,
+                    padding: "3px 9px",
+                    borderRadius: 20,
+                    background: `${C.deep}0F`,
+                    border: `1px solid ${C.borderLight}`,
+                  }}
+                >
+                  <Users size={11} color={C.slate} />
+                  <span
+                    style={{
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: C.deep,
+                    }}
+                  >
+                    {item.studentCount} student{item.studentCount !== 1 ? "s" : ""}
+                  </span>
+                </div>
+              )}
               {item.chips && (
                 <div
                   style={{
@@ -1370,6 +1396,10 @@ function StudentsList() {
       icon: GraduationCap,
       children: gradeMap[grade],
       isLeafGroup: true,
+      studentCount: gradeMap[grade].reduce(
+        (sum, cs) => sum + (cs._count?.studentEnrollments || 0),
+        0,
+      ),
     }));
 }
     if (schoolType === "PUC") {
@@ -1390,6 +1420,10 @@ function StudentsList() {
         icon: BookOpen,
         children: sections,
         isLeafGroup: true,
+        studentCount: sections.reduce(
+          (sum, cs) => sum + (cs._count?.studentEnrollments || 0),
+          0,
+        ),
       }));
     }
     if (showCourse) {
@@ -1412,6 +1446,10 @@ function StudentsList() {
         icon: Layers,
         children: sections,
         isLeafGroup: true,
+        studentCount: sections.reduce(
+          (sum, cs) => sum + (cs._count?.studentEnrollments || 0),
+          0,
+        ),
       }));
     }
     return classSections.map((cs) => ({
@@ -1421,6 +1459,7 @@ function StudentsList() {
       icon: GraduationCap,
       sectionObj: cs,
       isLeaf: true,
+      studentCount: cs._count?.studentEnrollments || 0,
     }));
   }, [classSections, schoolType, showCourse]);
 
@@ -1436,6 +1475,7 @@ function StudentsList() {
           icon: Users,
           sectionObj: cs,
           isLeaf: true,
+          studentCount: cs._count?.studentEnrollments || 0,
         }));
       if (schoolType === "PUC") {
         const hasCombinations = children.some((cs) => cs.combination);
@@ -1456,6 +1496,10 @@ function StudentsList() {
             icon: BookOpen,
             children: sections,
             isLeafGroup: true,
+            studentCount: sections.reduce(
+              (sum, cs) => sum + (cs._count?.studentEnrollments || 0),
+              0,
+            ),
           }));
         }
         return children.map((cs) => ({
@@ -1465,6 +1509,7 @@ function StudentsList() {
           icon: Users,
           sectionObj: cs,
           isLeaf: true,
+          studentCount: cs._count?.studentEnrollments || 0,
         }));
       }
       if (showCourse) {
@@ -1487,6 +1532,10 @@ function StudentsList() {
             icon: Layers,
             children: sections,
             isLeafGroup: true,
+            studentCount: sections.reduce(
+              (sum, cs) => sum + (cs._count?.studentEnrollments || 0),
+              0,
+            ),
           }));
         }
         const semMap = {};
@@ -1508,6 +1557,10 @@ function StudentsList() {
             icon: GraduationCap,
             children: semMap[sem],
             isLeafGroup: true,
+            studentCount: semMap[sem].reduce(
+              (sum, cs) => sum + (cs._count?.studentEnrollments || 0),
+              0,
+            ),
           }));
       }
       return children.map((cs) => ({
@@ -1517,6 +1570,7 @@ function StudentsList() {
         icon: GraduationCap,
         sectionObj: cs,
         isLeaf: true,
+        studentCount: cs._count?.studentEnrollments || 0,
       }));
     },
     [schoolType, showCourse],
@@ -1531,6 +1585,7 @@ function StudentsList() {
         icon: Users,
         sectionObj: cs,
         isLeaf: true,
+        studentCount: cs._count?.studentEnrollments || 0,
       })),
     [],
   );

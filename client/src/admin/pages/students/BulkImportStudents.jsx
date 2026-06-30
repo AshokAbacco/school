@@ -61,33 +61,46 @@ const COLUMN_MAP = {
   externalId: ["external id", "board roll no", "university reg no", "externalid"], // ✅ ADDED
   admissionDate: ["admission date", "admissiondate", "joining date"],
 
-  parentName: ["parent name", "father name", "mother name", "guardian name", "pname"],
-  parentPhone: ["parent phone", "father phone", "mother phone", "pphone", "mobile"],
-  parentEmail: ["parent email", "father email", "mother email", "pemail"],
-  parentPassword: ["parent password", "parent login password", "ppass"],
-  parentOccupation: ["parent occupation", "father occupation", "mother occupation"],
-  parentRelation: ["relation", "parent relation", "role"], // e.g., FATHER or MOTHER
-  emergencyContact: ["emergency contact", "emergencycontact", "emergency"],
-
   status: ["status", "student status"],
   previousSchoolName: ["previous school", "prev school", "previousschool"],
   previousSchoolBoard: ["previous board", "prev board", "board"],
   udiseCode: ["udise", "udise code", "udisecode"],
   lateralEntry: ["lateral entry", "lateralentry"],
 
-  // Parent – Father
-  fatherName: ["father name", "fathername", "father"],
-  fatherPhone: ["father phone", "fatherphone", "father mobile", "father contact"],
-  fatherEmail: ["father email", "fatheremail"],
-  fatherOccupation: ["father occupation", "fatheroccupation"],
+  // ── Parent – Father (also displayed as "Parent Name" in the template for backward compatibility) ──
+  parentName: ["parent name", "father name", "fathername", "father"],
+  parentPhone: ["parent phone", "father phone", "fatherphone", "father mobile"],
+  parentEmail: ["parent email", "father email", "fatheremail"],
+  parentOccupation: ["parent occupation", "father occupation", "fatheroccupation"],
+  fatherAadhaarNumber: ["father aadhaar", "father aadhar", "father aadhaar number"],
+  emergencyContact: ["emergency contact", "emergencycontact", "emergency"],
 
-  // Parent – Mother
+  // ── Parent – Mother ──
   motherName: ["mother name", "mothername", "mother"],
   motherPhone: ["mother phone", "motherphone", "mother mobile"],
   motherEmail: ["mother email", "motheremail"],
   motherOccupation: ["mother occupation", "motheroccupation"],
+  motherAadhaarNumber: ["mother aadhaar", "mother aadhar", "mother aadhaar number"],
 
+  // ── Guardian (optional, separate from Father/Mother) ──
+  guardianName: ["guardian name", "guardianname"],
+  guardianRelation: ["guardian relation", "guardianrelation"],
+  guardianPhone: ["guardian phone", "guardianphone"],
+  guardianEmail: ["guardian email", "guardianemail"],
+  guardianOccupation: ["guardian occupation", "guardianoccupation"],
 
+  // ── Login (only ONE parent — Father or Mother — may get portal login) ──
+  loginFor: ["login for", "parent login relation", "loginfor"], // value: FATHER or MOTHER, blank = no login
+  parentPassword: ["parent password", "parent login password", "ppass"],
+
+  // ── Bank Details ──
+  bankAccountNumber: ["bank account number", "account number", "bank account no", "accountnumber"],
+  ifscCode: ["ifsc", "ifsc code", "ifsccode"],
+  bankName: ["bank name", "bankname"],
+  bankBranch: ["bank branch", "branch", "bankbranch"],
+
+  // ── Boarding type ──
+  boardingType: ["boarding type", "hostel or day scholar", "boardingtype"], // value: HOSTEL or DAY_SCHOLAR
 
   // Health
   bloodGroup: ["blood group", "blood", "bloodgroup", "blood type"],
@@ -201,13 +214,40 @@ function parseRow(rawRow, headerMap) {
     lateralEntry: normalizeBool(get("lateralEntry")),
 
     // ── Unified Parent Account (Replaces separate Father/Mother fields) ──────
-    parentName: get("parentName"),           // ✅ CONSOLIDATED
-    parentPhone: get("parentPhone"),          // ✅ CONSOLIDATED
-    parentEmail: get("parentEmail"),          // ✅ CONSOLIDATED
-    parentPassword: get("parentPassword"),       // ✅ ADDED for custom login
-    parentOccupation: get("parentOccupation"),     // ✅ CONSOLIDATED
-    parentRelation: get("parentRelation"),       // ✅ ADDED (e.g., FATHER/MOTHER)
+    // ── Father — always saved regardless of login ──
+    parentName: get("parentName"),
+    parentPhone: get("parentPhone"),
+    parentEmail: get("parentEmail"),
+    parentOccupation: get("parentOccupation"),
+    fatherAadhaarNumber: get("fatherAadhaarNumber"),
     emergencyContact: get("emergencyContact"),
+
+    // ── Mother — always saved regardless of login ──
+    motherName: get("motherName"),
+    motherPhone: get("motherPhone"),
+    motherEmail: get("motherEmail"),
+    motherOccupation: get("motherOccupation"),
+    motherAadhaarNumber: get("motherAadhaarNumber"),
+
+    // ── Guardian — always saved, never gets a login ──
+    guardianName: get("guardianName"),
+    guardianRelation: get("guardianRelation"),
+    guardianPhone: get("guardianPhone"),
+    guardianEmail: get("guardianEmail"),
+    guardianOccupation: get("guardianOccupation"),
+
+    // ── Login — exactly ONE parent (FATHER or MOTHER), blank = no login ──
+    loginFor: get("loginFor").toUpperCase(),
+    parentPassword: get("parentPassword"),
+
+    // ── Bank Details ──
+    bankAccountNumber: get("bankAccountNumber"),
+    ifscCode: get("ifscCode").toUpperCase(),
+    bankName: get("bankName"),
+    bankBranch: get("bankBranch"),
+
+    // ── Boarding type ──
+    boardingType: get("boardingType").toUpperCase().replace(/\s+/g, "_"),
 
     // ── Health Measurements ──────────────────────────────────────────────────
     bloodGroup: normalizeBlood(get("bloodGroup")),
@@ -231,6 +271,12 @@ function validateRow(s, idx) {
   if (!s.admissionNumber) errors.push("Admission Number is required");
   if (!s.classSectionName) errors.push("Class Section is required");
   if (!s.academicYearName) errors.push("Academic Year is required");
+  if (s.loginFor && !["FATHER", "MOTHER"].includes(s.loginFor))
+    errors.push(`"Login For" must be FATHER, MOTHER, or left blank (got "${s.loginFor}")`);
+  if (s.loginFor === "FATHER" && !s.parentEmail)
+    errors.push(`"Login For" is FATHER but Father Email is missing`);
+  if (s.loginFor === "MOTHER" && !s.motherEmail)
+    errors.push(`"Login For" is MOTHER but Mother Email is missing`);
   return errors;
 }
 
@@ -242,8 +288,13 @@ function downloadTemplate() {
     "Domicile State", "Annual Income", "Physically Challenged", "Disability Type",
     "Admission No", "Class Section", "Academic Year", "Roll No", "External ID",
     "Admission Date", "Status", "Previous School", "Previous Board", "UDISE Code", "Lateral Entry",
-    "Parent Name", "Parent Phone", "Parent Email", "Parent Password", "Parent Occupation",
-    "Parent Relation", "Emergency Contact", "Blood Group", "Height CM", "Weight KG",
+    "Parent Name", "Father Phone", "Father Email", "Father Occupation", "Father Aadhaar",
+    "Mother Name", "Mother Phone", "Mother Email", "Mother Occupation", "Mother Aadhaar",
+    "Guardian Name", "Guardian Relation", "Guardian Phone", "Guardian Email", "Guardian Occupation",
+    "Login For", "Parent Password",
+    "Bank Account Number", "IFSC Code", "Bank Name", "Bank Branch",
+    "Boarding Type",
+    "Emergency Contact", "Blood Group", "Height CM", "Weight KG",
     "Identifying Marks", "Medical Conditions", "Allergies",
   ];
 
@@ -260,8 +311,13 @@ function downloadTemplate() {
     "01-06-2024", "ACTIVE", "St. Mary's School", "KSEEB",
     "29140100102",  // UDISE as String
     "No",
-    "Suresh Kumar", "9876543211", "suresh@gmail.com", "Parent@123", "Engineer",
-    "FATHER", "9876543211", "O+", "165", "55", "Mole on right hand",
+    "Suresh Kumar", "9876543211", "suresh@gmail.com", "Engineer", "123456789012",
+    "Lakshmi Kumar", "9876543212", "lakshmi@gmail.com", "Teacher", "123456789013",
+    "", "", "", "", "", // Guardian — leave blank if not applicable
+    "FATHER", "Parent@123",   // Login For + Parent Password (only used if Login For is set)
+    "1234567890123456", "SBIN0001234", "State Bank of India", "MG Road Branch",
+    "DAY_SCHOLAR",
+    "9876543211", "O+", "165", "55", "Mole on right hand",
     "None", "None",
   ];
 
