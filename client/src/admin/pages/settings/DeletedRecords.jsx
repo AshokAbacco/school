@@ -21,6 +21,13 @@ export default function DeletedRecords() {
     const [deletingId, setDeletingId] = useState(null);
     const [confirmDeleteRecord, setConfirmDeleteRecord] = useState(null);
 
+    // BULK SELECT / BULK DELETE
+    const [selectedKeys, setSelectedKeys] = useState([]);
+    const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+    const [bulkDeleting, setBulkDeleting] = useState(false);
+
+    const getRecordKey = (record) => `${record.model}-${record.id}`;
+
     /* =========================================================
        FETCH DELETED RECORDS
     ========================================================= */
@@ -220,6 +227,89 @@ export default function DeletedRecords() {
     };
 
     /* =========================================================
+       BULK DELETE SELECTED RECORDS
+    ========================================================= */
+
+    const bulkDeleteSelected = async () => {
+
+        try {
+
+            setBulkDeleting(true);
+
+            const token =
+                JSON.parse(localStorage.getItem("auth"))?.token;
+
+            const recordsToDelete = deletedRecords.filter((r) =>
+                selectedKeys.includes(getRecordKey(r))
+            );
+
+            await Promise.all(
+                recordsToDelete.map((record) =>
+                    axios.delete(
+                        `${API_URL}/api/backups/permanent-delete/${record.model}/${record.id}`,
+                        {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                            },
+                            data: {
+                                confirm: true,
+                            },
+                        }
+                    )
+                )
+            );
+
+            setConfirmBulkDelete(false);
+            setSelectedKeys([]);
+
+            await fetchDeletedRecords();
+
+        } catch (error) {
+
+            console.log(error);
+
+        } finally {
+
+            setBulkDeleting(false);
+
+        }
+    };
+
+    const toggleSelectRecord = (record) => {
+
+        const key = getRecordKey(record);
+
+        setSelectedKeys((prev) =>
+            prev.includes(key)
+                ? prev.filter((k) => k !== key)
+                : [...prev, key]
+        );
+    };
+
+    const toggleSelectAll = () => {
+
+        const allKeys = filteredRecords.map(getRecordKey);
+
+        const allSelected = allKeys.every((k) =>
+            selectedKeys.includes(k)
+        );
+
+        if (allSelected) {
+
+            setSelectedKeys((prev) =>
+                prev.filter((k) => !allKeys.includes(k))
+            );
+
+        } else {
+
+            setSelectedKeys((prev) => [
+                ...new Set([...prev, ...allKeys]),
+            ]);
+
+        }
+    };
+
+    /* =========================================================
        FILTER RECORDS
     ========================================================= */
 
@@ -383,22 +473,42 @@ export default function DeletedRecords() {
 
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-6">
 
-                <div className="relative max-w-md">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
 
-                    <Search
-                        size={18}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    />
+                    <div className="relative max-w-md w-full">
 
-                    <input
-                        type="text"
-                        placeholder="Search deleted records..."
-                        value={search}
-                        onChange={(e) =>
-                            setSearch(e.target.value)
-                        }
-                        className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                    />
+                        <Search
+                            size={18}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                        />
+
+                        <input
+                            type="text"
+                            placeholder="Search deleted records..."
+                            value={search}
+                            onChange={(e) =>
+                                setSearch(e.target.value)
+                            }
+                            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                        />
+
+                    </div>
+
+                    {selectedKeys.length > 0 && (
+
+                        <button
+                            onClick={() => setConfirmBulkDelete(true)}
+                            disabled={bulkDeleting}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 transition disabled:opacity-50"
+                        >
+
+                            <Trash2 size={16} />
+
+                            Delete Selected ({selectedKeys.length})
+
+                        </button>
+
+                    )}
 
                 </div>
 
@@ -431,6 +541,22 @@ export default function DeletedRecords() {
                             <thead className="bg-gray-50 border-b border-gray-100">
 
                                 <tr>
+
+                                    <th className="px-6 py-4 text-left">
+
+                                        <input
+                                            type="checkbox"
+                                            checked={
+                                                filteredRecords.length > 0 &&
+                                                filteredRecords.every((r) =>
+                                                    selectedKeys.includes(getRecordKey(r))
+                                                )
+                                            }
+                                            onChange={toggleSelectAll}
+                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                                        />
+
+                                    </th>
 
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">
                                         Record
@@ -468,6 +594,23 @@ export default function DeletedRecords() {
                                         key={record.id}
                                         className="border-b border-gray-100 hover:bg-gray-50 transition"
                                     >
+
+                                        {/* SELECT */}
+
+                                        <td className="px-6 py-5">
+
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedKeys.includes(
+                                                    getRecordKey(record)
+                                                )}
+                                                onChange={() =>
+                                                    toggleSelectRecord(record)
+                                                }
+                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                                            />
+
+                                        </td>
 
                                         {/* NAME */}
 
@@ -691,6 +834,94 @@ export default function DeletedRecords() {
                                 <Trash2 size={16} />
 
                                 {deletingId === confirmDeleteRecord.id
+                                    ? "Deleting..."
+                                    : "Yes, Delete Permanently"}
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            )}
+
+            {/* =====================================================
+               BULK PERMANENT DELETE CONFIRMATION MODAL
+            ===================================================== */}
+
+            {confirmBulkDelete && (
+
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+
+                    <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+
+                        <div className="flex items-start justify-between mb-4">
+
+                            <div className="flex items-center gap-3">
+
+                                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
+
+                                    <AlertTriangle
+                                        size={20}
+                                        className="text-red-600"
+                                    />
+
+                                </div>
+
+                                <h3 className="text-lg font-semibold text-gray-800">
+                                    Delete Selected Permanently?
+                                </h3>
+
+                            </div>
+
+                            <button
+                                onClick={() =>
+                                    setConfirmBulkDelete(false)
+                                }
+                                disabled={bulkDeleting}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+
+                                <X size={20} />
+
+                            </button>
+
+                        </div>
+
+                        <p className="text-sm text-gray-600 mb-6">
+                            You're about to permanently delete{" "}
+                            <span className="font-semibold text-gray-800">
+                                {selectedKeys.length} record
+                                {selectedKeys.length > 1 ? "s" : ""}
+                            </span>
+                            . This action cannot be undone and these
+                            records will no longer be recoverable, even
+                            from backups.
+                        </p>
+
+                        <div className="flex justify-end gap-3">
+
+                            <button
+                                onClick={() =>
+                                    setConfirmBulkDelete(false)
+                                }
+                                disabled={bulkDeleting}
+                                className="px-4 py-2 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-100 transition disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                onClick={bulkDeleteSelected}
+                                disabled={bulkDeleting}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 transition disabled:opacity-50"
+                            >
+
+                                <Trash2 size={16} />
+
+                                {bulkDeleting
                                     ? "Deleting..."
                                     : "Yes, Delete Permanently"}
 
