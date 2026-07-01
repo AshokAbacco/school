@@ -47,33 +47,28 @@ function toRow(s, idx) {
   const pi = s.personalInfo || {};
   const enroll = s.enrollments?.[0] || {};
   const sectionName = enroll.classSection?.name || s.classSection?.name || "";
-  const guardian = s.guardians?.[0] || {};
-  const father = s.guardians?.find((g) => g.relation === "FATHER") || {};
-  const mother = s.guardians?.find((g) => g.relation === "MOTHER") || {};
-  const health = s.healthInfo || {};
-  const prev = s.previousSchoolInfo || {};
   return [
     idx,
-    enroll.admissionNumber || s.admissionNumber || "",
+    enroll.admissionNumber || "",
     pi.firstName || "", pi.lastName || "",
     pi.gender || "",
     pi.dateOfBirth ? new Date(pi.dateOfBirth).toLocaleDateString("en-IN") : "",
-    s.email || pi.email || "", pi.phone || "",
+    s.email || "", pi.phone || "",
     sectionName, enroll.rollNumber || "",
     enroll.academicYear?.name || "",
-    enroll.status || pi.status || "",
+    enroll.status || "",
     pi.address || "", pi.city || "", pi.state || "", pi.zipCode || "",
-    health.bloodGroup || pi.bloodGroup || "",
+    pi.bloodGroup || "",
     pi.nationality || "", pi.religion || "", pi.casteCategory || "",
     pi.aadhaarNumber || "", pi.satsNumber || "", pi.panNumber || "",
-    guardian.name || "", guardian.phone || "", guardian.email || "", guardian.relation || "",
-    father.name || "", father.phone || "",
-    mother.name || "", mother.phone || "",
-    guardian.emergencyContact || pi.emergencyContact || "",
-    health.medicalConditions || "", health.allergies || "",
-    prev.schoolName || s.previousSchoolName || "",
-    prev.board || s.previousSchoolBoard || "",
-    s.udiseCode || "",
+    pi.parentName || "", pi.parentPhone || "", pi.parentEmail || "", pi.parentName ? "FATHER" : "",
+    pi.parentName || "", pi.parentPhone || "",
+    pi.motherName || "", pi.motherPhone || "",
+    pi.emergencyContact || "",
+    pi.medicalConditions || "", pi.allergies || "",
+    enroll.previousSchoolName || "",
+    enroll.previousSchoolBoard || "",
+    enroll.udiseCode || "",
   ];
 }
 

@@ -906,10 +906,23 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       udiseCode: f.udiseCode,
       lateralEntry: f.lateralEntry,
       // Parent
+// Parent
       parentName: f.pNm,
       parentPhone: normalizePhone(f.pPh),
       parentEmail: f.pEm,
+      parentOccupation: f.pOc,
       emergencyContact: f.emg,
+      // Mother
+      motherName: f.mNm,
+      motherPhone: normalizePhone(f.mPh),
+      motherEmail: f.mEm,
+      motherOccupation: f.mOc,
+      // Guardian
+      guardianName: f.gNm,
+      guardianRelation: f.gRl,
+      guardianPhone: normalizePhone(f.gPh),
+      guardianEmail: f.gEm,
+      guardianOccupation: f.gOc,
       // Identity
       aadhaarNumber: f.aadhaarNumber,
       panNumber: f.panNumber,
