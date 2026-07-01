@@ -50,7 +50,6 @@ const COLUMN_MAP = {
   disabilityType: ["disability type", "disabilitytype"],
 
   // Login
-  loginEmail: ["login email", "loginemail", "username"],
   password: ["password", "pass"],
 
   // Academic
@@ -197,7 +196,7 @@ function parseRow(rawRow, headerMap) {
     disabilityType: get("disabilityType"),
 
     // ── Student Login ────────────────────────────────────────────────────────
-    loginEmail: get("loginEmail") || get("email"),
+   
     password: get("password"),
 
     // ── Academic Enrollment ──────────────────────────────────────────────────
@@ -264,8 +263,7 @@ function validateRow(s, idx) {
   const errors = [];
   if (!s.firstName) errors.push("First Name is required");
   // if (!s.lastName) errors.push("Last Name is required");
-  if (!s.email) errors.push("Email is required");
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email))
+  if (s.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email))
     errors.push("Invalid email format");
   if (!s.password) errors.push("Password is required");
   if (!s.admissionNumber) errors.push("Admission Number is required");

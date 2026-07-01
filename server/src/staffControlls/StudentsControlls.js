@@ -1172,14 +1172,15 @@ async function createStudentFull(row, schoolId) {
     bloodGroup, heightCm, weightKg, identifyingMarks, medicalConditions, allergies,
   } = row;
 
-  const studentEmail = (row.loginEmail || email)?.toLowerCase().trim();
+const studentEmail = (row.loginEmail || email)?.toLowerCase().trim() || null;
+
 
   // ─────────────────────────────────────────────────────────────────────────────
   // PHASE 1 — ALL VALIDATIONS & LOOKUPS (no DB writes yet)
   // Any failure here throws immediately → transaction never opens → zero orphans
   // ─────────────────────────────────────────────────────────────────────────────
 
-  if (!studentEmail)     throw new Error("Student login email is required.");
+  // if (!studentEmail)     throw new Error("Student login email is required.");
   if (!password)         throw new Error("Password is required.");
   if (!admissionNumber)  throw new Error("Admission Number is required.");
   if (!classSectionName) throw new Error("Class Section is required.");
@@ -1202,28 +1203,29 @@ async function createStudentFull(row, schoolId) {
   // 1. Duplicate email check — only block if SAME email AND SAME admission number
   //    (siblings can share a parent email — that is allowed)
   //    The real unique identifier is admission number per academic year (checked in step 5)
-  const emailAndAdmExists = await prisma.student.findFirst({
+let emailAndAdmExists = null;
+
+if (studentEmail) {
+  emailAndAdmExists = await prisma.student.findFirst({
     where: {
-      email:     studentEmail,
+      email: studentEmail || null,
       schoolId,
       deletedAt: null,
       enrollments: {
         some: {
           admissionNumber: admissionNumber.toString().trim(),
-          academicYearId:  (await prisma.academicYear.findFirst({
-            where: { schoolId, name: { equals: academicYearName?.trim(), mode: "insensitive" } },
-            select: { id: true },
-          }))?.id || "none",
+          academicYearId: academicYear.id,
         },
       },
     },
   });
-  if (emailAndAdmExists) {
-    throw new Error(
-      `Student with email "${studentEmail}" and Admission No "${admissionNumber}" is already registered. ` +
-      `This is an exact duplicate row.`
-    );
-  }
+}
+
+if (emailAndAdmExists) {
+  throw new Error(
+    `Student with email "${studentEmail}" and Admission No "${admissionNumber}" is already registered.`
+  );
+}
 
   // 2. Resolve Class Section
   const classSection = await prisma.classSection.findFirst({
