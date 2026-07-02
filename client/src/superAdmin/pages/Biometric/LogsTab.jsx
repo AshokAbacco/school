@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { FileText, Search, Calendar, Filter, ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, Clock, Monitor, CreditCard, User, LogIn, LogOut, Info, Download } from "lucide-react";
-import { downloadTeacherBiometricExcel } from "../../../utils/downloadTeacherBiometricExcel";
+import { downloadTeacherBiometricWideExcel } from "../../../utils/downloadTeacherBiometricExcel.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const BASE    = `${API_URL}/api/biometric`;
@@ -150,7 +150,7 @@ const LogsTab = () => {
       const p = new URLSearchParams({ schoolId: filterSchool, from: fromDate, to: toDate });
       const j = await apiFetch(`${BASE}/teacher-attendance-report?${p}`);
       const schoolObj = schools.find((s) => s.id === filterSchool);
-      downloadTeacherBiometricExcel(j.data || [], {
+      downloadTeacherBiometricWideExcel(j.data || [], {
         schoolName: schoolObj?.name || "School",
         from: fromDate,
         to: toDate,
