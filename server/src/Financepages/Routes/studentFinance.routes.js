@@ -883,7 +883,7 @@ router.get("/paymentHistory/:studentListId", authMiddleware, async (req, res) =>
 
         const result = enriched.map((log, idx) => {
           const date    = new Date(log.paidAt);
-          const dateKey = date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+          const dateKey = date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
 
           // ALL categories shown — paid = 0 if not paid in this transaction
           const pairs = [
@@ -1006,7 +1006,7 @@ router.get("/paymentHistory/:studentListId", authMiddleware, async (req, res) =>
     }
 
     const payDate  = studentRecord.paymentDate ? new Date(studentRecord.paymentDate) : new Date(studentRecord.updatedAt || studentRecord.createdAt);
-    const dateLabel = payDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    const dateLabel = payDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
 
     const legacyResult = [{
       id:        "legacy_0",

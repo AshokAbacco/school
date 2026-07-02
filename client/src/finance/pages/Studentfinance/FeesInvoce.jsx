@@ -20,7 +20,7 @@ const fmt = (n) => Number(n || 0).toLocaleString("en-IN");
 function fmtDate(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr);
-  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
 }
 
 // ── Load logo → base64 for jsPDF ─────────────────────────────────────────────
@@ -197,7 +197,7 @@ export function InvoiceModal({ student, onClose, schoolName, schoolAddress, scho
   const [hiddenRows, setHiddenRows] = useState(new Set());
 
   const invoiceNo = `INV-${String(student.id || "").slice(-4).padStart(4, "0")}-${new Date().getFullYear()}`;
-  const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
 
   // ── Close dropdown on outside click ────────────────────────────────────────
   useEffect(() => {

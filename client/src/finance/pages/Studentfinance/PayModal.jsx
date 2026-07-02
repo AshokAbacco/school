@@ -331,7 +331,7 @@ export function PayModal({ student, onClose, onPaymentDone }) {
     const res = await fetch(`${API_URL}/api/finance/recordCategoryPayment`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify({ studentListId: student.id, categoryId, amount, paymentMode: mode, paymentDate: new Date(paymentDate + "T00:00:00").toISOString() }),
+      body: JSON.stringify({ studentListId: student.id, categoryId, amount, paymentMode: mode, paymentDate: new Date(paymentDate + "T00:00:00+05:30").toISOString() }),
     });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
@@ -340,7 +340,7 @@ export function PayModal({ student, onClose, onPaymentDone }) {
   const buildPayload = (addedAmt) => {
     const newTotalPaid = Math.min(totalFees, paidMap.paidAmount + addedAmt);
     const isFullyPaid  = newTotalPaid >= totalFees;
-    const patch = { paymentMode: fullMode, paymentDate: new Date(paymentDate + "T00:00:00").toISOString(), paidAmount: newTotalPaid, paymentStatus: isFullyPaid ? "PAID" : "PARTIAL" };
+    const patch = { paymentMode: fullMode, paymentDate: new Date(paymentDate + "T00:00:00+05:30").toISOString(), paidAmount: newTotalPaid, paymentStatus: isFullyPaid ? "PAID" : "PARTIAL" };
 
     if (activeCat.id === "FULL") {
       let remaining = newTotalPaid;
@@ -413,26 +413,60 @@ export function PayModal({ student, onClose, onPaymentDone }) {
     miscFee:      "miscFeePaid",
   };
 
+  // ── Distribute a payment across categories (waterfall) ────────────────────
+  // Used when the payment wasn't made against one specific category (e.g. the
+  // "Full Fee" quick-pay option, or a custom amount typed against Full Fee).
+  // Fills each category's remaining capacity in order, using paidMap as the
+  // "already paid before this transaction" baseline — matches the same
+  // waterfall buildPayload() already uses for the legacy paidAmount patch,
+  // so the two stay consistent.
+  const allocateAcrossCategories = (amountPaid) => {
+    const increments = {};
+    let remaining = amountPaid;
+    for (const def of FEE_DEFS) {
+      if (remaining <= 0) break;
+      const bdEntry = bd[def.key];
+      const feeAmt  = bdEntry
+        ? Number(typeof bdEntry === "object" ? (bdEntry.total ?? bdEntry.amount ?? 0) : bdEntry)
+        : Number(student[def.flatKey] || 0);
+      if (feeAmt <= 0) continue;
+
+      const alreadyPaid = Number(paidMap[def.paidField] || 0);
+      const capacity     = Math.max(0, feeAmt - alreadyPaid);
+      if (capacity <= 0) continue;
+
+      const chunk = Math.min(capacity, remaining);
+      increments[def.paidField] = (increments[def.paidField] || 0) + chunk;
+      remaining -= chunk;
+    }
+    return increments;
+  };
+
   // ── Called after every successful payment in this session ────────────────
   // Creates the log row on first call, updates it on subsequent calls.
   const updateSessionLog = async (amountPaid, mode) => {
     try {
-      // Build the field that was just paid
+      // Category-specific payment (e.g. "School Fee") → credit that one field.
+      // Full Fee / non-category payment → distribute across categories instead
+      // of silently dropping the attribution (previous bug: field was
+      // undefined for "FULL", so no category column was ever credited).
       const field = CAT_TO_FIELD[activeCat.id];
+      const increments = field
+        ? { [field]: amountPaid }
+        : allocateAcrossCategories(amountPaid);
 
       // Merge into session accumulator
-      const updated = {
-        ...sessionBreakdown,
-        amount:        sessionBreakdown.amount + amountPaid,
-        [field]:       field ? (sessionBreakdown[field] || 0) + amountPaid : sessionBreakdown[field] || 0,
-      };
+      const updated = { ...sessionBreakdown, amount: sessionBreakdown.amount + amountPaid };
+      for (const [f, amt] of Object.entries(increments)) {
+        updated[f] = (updated[f] || 0) + amt;
+      }
       setSessionBreakdown(updated);
 
       const body = {
         studentListId: student.id,
         amount:        updated.amount,
         paymentMode:   mode,
-        paymentDate:   new Date(paymentDate + "T00:00:00").toISOString(),
+        paymentDate:   new Date(paymentDate + "T00:00:00+05:30").toISOString(),
         ...updated,
         // Pass sessionLogId so backend can UPDATE instead of INSERT
         sessionLogId:  sessionLogId || null,
@@ -501,7 +535,7 @@ export function PayModal({ student, onClose, onPaymentDone }) {
 
   const handleConfirmEmi = async (emi) => {
     setLoading(true); setError("");
-    const paidLabel = new Date(paymentDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    const paidLabel = new Date(paymentDate + "T00:00:00+05:30").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
     try {
       await doPayment(emi.amount, modeInput);
       const updatedList = emiList.map(e => e.id === emi.id ? { ...e, status: "paid", date: paidLabel, mode: modeInput } : e);
@@ -670,7 +704,7 @@ export function PayModal({ student, onClose, onPaymentDone }) {
               <div>
                 <div className="pm-success-text">Payment Confirmed!</div>
                 <div className="pm-success-sub">
-                  {customAmt ? `₹${Number(customAmt).toLocaleString("en-IN")} paid` : `₹${catRemaining.toLocaleString("en-IN")} paid`} via {fullMode} · {activeCat.label} · {new Date(paymentDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                  {customAmt ? `₹${Number(customAmt).toLocaleString("en-IN")} paid` : `₹${catRemaining.toLocaleString("en-IN")} paid`} via {fullMode} · {activeCat.label} · {new Date(paymentDate + "T00:00:00+05:30").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}
                 </div>
               </div>
             </div>
