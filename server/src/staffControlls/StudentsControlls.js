@@ -1176,7 +1176,6 @@ async function createStudentFull(row, schoolId) {
   if (!classSectionName) throw new Error("Class Section is required.");
   if (!academicYearName) throw new Error("Academic Year is required.");
   if (!firstName)        throw new Error("First Name is required.");
-  // if (!lastName)         throw new Error("Last Name is required.");
 
   // ── Login-for validation: only ONE parent (Father or Mother) may get a login ──
   const loginForUpper = (loginFor || "").toString().toUpperCase().trim();
@@ -1190,51 +1189,7 @@ async function createStudentFull(row, schoolId) {
     throw new Error(`"Login For" is set to MOTHER but Mother Email is missing.`);
   }
 
-  // 1. Duplicate email check — only block if SAME email AND SAME admission number
-  //    (siblings can share a parent email — that is allowed)
-  //    The real unique identifier is admission number per academic year (checked in step 5)
-  const emailAndAdmExists = await prisma.student.findFirst({
-    where: {
-      email:     studentEmail,
-      schoolId,
-      deletedAt: null,
-      enrollments: {
-        some: {
-          admissionNumber: admissionNumber.toString().trim(),
-          academicYearId:  (await prisma.academicYear.findFirst({
-            where: { schoolId, name: { equals: academicYearName?.trim(), mode: "insensitive" } },
-            select: { id: true },
-          }))?.id || "none",
-        },
-      },
-    },
-  });
-  if (emailAndAdmExists) {
-    throw new Error(
-      `Student with email "${studentEmail}" and Admission No "${admissionNumber}" is already registered. ` +
-      `This is an exact duplicate row.`
-    );
-  }
-
-  // 2. Resolve Class Section
-  const classSection = await prisma.classSection.findFirst({
-    where: {
-      schoolId,
-      OR: [
-        { name: { equals: classSectionName?.trim(), mode: "insensitive" } },
-        {
-          AND: [
-            { grade:   { equals: classSectionName?.split(/[-\s]/)[0]?.trim(), mode: "insensitive" } },
-            { section: { equals: classSectionName?.split(/[-\s]/)[1]?.trim(), mode: "insensitive" } },
-          ],
-        },
-      ],
-    },
-  });
-  if (!classSection)
-    throw new Error(`Class "${classSectionName}" not found. Check the Class Section column in your Excel.`);
-
-  // 3. Resolve Academic Year (handles "2026-27", "2026 - 27", "2026 -27" etc.)
+  // 1. Resolve Academic Year first (needed for duplicate checks below)
   let academicYear = await prisma.academicYear.findFirst({
     where: { schoolId, name: { equals: academicYearName?.trim(), mode: "insensitive" } },
   });
@@ -1255,6 +1210,46 @@ async function createStudentFull(row, schoolId) {
       `Academic year "${academicYearName}" not found. Available: ${names || "none — create one first in Settings"}`
     );
   }
+
+  // 2. Duplicate check — block only if SAME email + SAME admission number + HAS enrollment
+  //    Ghost records (email exists but no enrollment) are recovered, not blocked.
+  const emailAndAdmExists = await prisma.student.findFirst({
+    where: {
+      email:     studentEmail,
+      schoolId,
+      deletedAt: null,
+      enrollments: {
+        some: {
+          admissionNumber: admissionNumber.toString().trim(),
+          academicYearId:  academicYear.id,
+        },
+      },
+    },
+  });
+  if (emailAndAdmExists) {
+    throw new Error(
+      `Student with email "${studentEmail}" and Admission No "${admissionNumber}" is already registered. ` +
+      `This is an exact duplicate row.`
+    );
+  }
+
+  // 3. Resolve Class Section
+  const classSection = await prisma.classSection.findFirst({
+    where: {
+      schoolId,
+      OR: [
+        { name: { equals: classSectionName?.trim(), mode: "insensitive" } },
+        {
+          AND: [
+            { grade:   { equals: classSectionName?.split(/[-\s]/)[0]?.trim(), mode: "insensitive" } },
+            { section: { equals: classSectionName?.split(/[-\s]/)[1]?.trim(), mode: "insensitive" } },
+          ],
+        },
+      ],
+    },
+  });
+  if (!classSection)
+    throw new Error(`Class "${classSectionName}" not found. Check the Class Section column in your Excel.`);
 
   // 4. Roll number conflict
   if (rollNumber?.toString().trim()) {
@@ -1319,86 +1314,113 @@ async function createStudentFull(row, schoolId) {
   return await prisma.$transaction(async (tx) => {
 
     // Step A: Student base record
-    const student = await tx.student.create({
-      data: {
-        name: [firstName, lastName].filter(Boolean).join(" "),
-        email:    studentEmail,
-        password: hashedStudentPw,
+    // Reuse ghost record (email exists but no enrollment) instead of creating a duplicate.
+    // This recovers orphan records from previous failed imports automatically.
+    let student = await tx.student.findFirst({
+      where: {
+        email:     studentEmail,
         schoolId,
+        deletedAt: null,
+        enrollments: { none: {} },
       },
     });
+
+    if (student) {
+      // Ghost record found — update name/password and reuse it
+      student = await tx.student.update({
+        where: { id: student.id },
+        data: {
+          name:     [firstName, lastName].filter(Boolean).join(" "),
+          password: hashedStudentPw,
+        },
+      });
+    } else {
+      // Fresh student — create new
+      student = await tx.student.create({
+        data: {
+          name:     [firstName, lastName].filter(Boolean).join(" "),
+          email:    studentEmail,
+          password: hashedStudentPw,
+          schoolId,
+        },
+      });
+    }
 
     // Step B: Personal & Health info
+    // Upsert so ghost records (which may already have personalInfo) are also recovered cleanly.
     const normalizedBlood = bloodGroupMap[bloodGroup?.toUpperCase().replace(/\s/g, "")] || undefined;
 
-    await tx.studentPersonalInfo.create({
-      data: {
-        studentId:            student.id,
-        firstName,
-        lastName,
-        dateOfBirth:          parseIndianDate(dateOfBirth),
-        gender:               toEnum(gender),
-        phone:                phone?.toString(),
-        address, city, state,
-        zipCode:              zipCode?.toString(),
-        nationality:          nationality || "Indian",
-        religion,
-        aadhaarNumber: row.aadhaarNumber
-          ? row.aadhaarNumber.toString().replace(/\s/g,"").replace(/\.0$/,"").replace(/[^0-9]/g,"").slice(0,12)
-          : null,
-        panNumber:            panNumber?.toString().toUpperCase(),
-        satsNumber:           satsNumber?.toString(),
-        casteCategory:        toEnum(casteCategory),
-        motherTongue, subcaste,
-        domicileState:        domicileState || "Karnataka",
-        annualIncome:         annualIncome ? parseFloat(annualIncome) : null,
-        physicallyChallenged: physicallyChallenged === "true" || physicallyChallenged === true,
-        disabilityType,
-        bloodGroup:           normalizedBlood,
-        heightCm:             heightCm ? parseFloat(heightCm) : null,
-        weightKg:             weightKg ? parseFloat(weightKg) : null,
-        identifyingMarks, medicalConditions, allergies,
+    const personalInfoData = {
+      firstName,
+      lastName,
+      dateOfBirth:          parseIndianDate(dateOfBirth),
+      gender:               toEnum(gender),
+      phone:                phone?.toString(),
+      address, city, state,
+      zipCode:              zipCode?.toString(),
+      nationality:          nationality || "Indian",
+      religion,
+      aadhaarNumber: row.aadhaarNumber
+        ? row.aadhaarNumber.toString().replace(/\s/g,"").replace(/\.0$/,"").replace(/[^0-9]/g,"").slice(0,12)
+        : null,
+      panNumber:            panNumber?.toString().toUpperCase(),
+      satsNumber:           satsNumber?.toString(),
+      casteCategory:        toEnum(casteCategory),
+      motherTongue, subcaste,
+      domicileState:        domicileState || "Karnataka",
+      annualIncome:         annualIncome ? parseFloat(annualIncome) : null,
+      physicallyChallenged: physicallyChallenged === "true" || physicallyChallenged === true,
+      disabilityType,
+      bloodGroup:           normalizedBlood,
+      heightCm:             heightCm ? parseFloat(heightCm) : null,
+      weightKg:             weightKg ? parseFloat(weightKg) : null,
+      identifyingMarks, medicalConditions, allergies,
 
-        // ── Father — always saved, independent of login ──
-        parentName,
-        parentPhone:           parentPhone?.toString(),
-        parentEmail,
-        parentOccupation,
-        fatherAadhaarNumber: fatherAadhaarNumber
-          ? fatherAadhaarNumber.toString().replace(/\s/g,"").replace(/\.0$/,"").replace(/[^0-9]/g,"").slice(0,12)
-          : null,
-        emergencyContact:     emergencyContact || parentPhone?.toString(),
+      // ── Father — always saved, independent of login ──
+      parentName,
+      parentPhone:           parentPhone?.toString(),
+      parentEmail,
+      parentOccupation,
+      fatherAadhaarNumber: fatherAadhaarNumber
+        ? fatherAadhaarNumber.toString().replace(/\s/g,"").replace(/\.0$/,"").replace(/[^0-9]/g,"").slice(0,12)
+        : null,
+      emergencyContact:     emergencyContact || parentPhone?.toString(),
 
-        // ── Mother — always saved, independent of login ──
-        motherName,
-        motherPhone:          motherPhone?.toString(),
-        motherEmail,
-        motherOccupation,
-        motherAadhaarNumber: motherAadhaarNumber
-          ? motherAadhaarNumber.toString().replace(/\s/g,"").replace(/\.0$/,"").replace(/[^0-9]/g,"").slice(0,12)
-          : null,
+      // ── Mother — always saved, independent of login ──
+      motherName,
+      motherPhone:          motherPhone?.toString(),
+      motherEmail,
+      motherOccupation,
+      motherAadhaarNumber: motherAadhaarNumber
+        ? motherAadhaarNumber.toString().replace(/\s/g,"").replace(/\.0$/,"").replace(/[^0-9]/g,"").slice(0,12)
+        : null,
 
-        // ── Guardian — always saved ──
-        guardianName,
-        guardianRelation,
-        guardianPhone:        guardianPhone?.toString(),
-        guardianEmail,
-        guardianOccupation,
+      // ── Guardian — always saved ──
+      guardianName,
+      guardianRelation,
+      guardianPhone:        guardianPhone?.toString(),
+      guardianEmail,
+      guardianOccupation,
 
-        // ── Bank ──
-        bankAccountNumber:    bankAccountNumber?.toString(),
-        ifscCode:             ifscCode?.toString().toUpperCase(),
-        bankName,
-        bankBranch,
+      // ── Bank ──
+      bankAccountNumber:    bankAccountNumber?.toString(),
+      ifscCode:             ifscCode?.toString().toUpperCase(),
+      bankName,
+      bankBranch,
 
-        // ── Boarding type ──
-        boardingType: ["HOSTEL", "DAY_SCHOLAR"].includes((boardingType || "").toString().toUpperCase())
-          ? (boardingType || "").toString().toUpperCase()
-          : null,
-      },
+      // ── Boarding type ──
+      boardingType: ["HOSTEL", "DAY_SCHOLAR"].includes((boardingType || "").toString().toUpperCase())
+        ? (boardingType || "").toString().toUpperCase()
+        : null,
+    };
+
+    await tx.studentPersonalInfo.upsert({
+      where:  { studentId: student.id },
+      create: { studentId: student.id, ...personalInfoData },
+      update: personalInfoData,
     });
 
-    // Step C: Enrollment (uses IDs already resolved in Phase 1 — no lookup inside tx)
+    // Step C: Enrollment
     await tx.studentEnrollment.create({
       data: {
         studentId:           student.id,
@@ -1477,6 +1499,8 @@ async function createStudentFull(row, schoolId) {
 
   }, { timeout: 30000 });
 }
+
+
 
 // ── bulkImportStudents ────────────────────────────────────────────────────────
 export const bulkImportStudents = async (req, res) => {
