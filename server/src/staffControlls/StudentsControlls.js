@@ -642,23 +642,14 @@ export const listStudents = async (req, res) => {
       include: {
         personalInfo: {
           select: {
-            firstName: true, lastName: true, profileImage: true,
-            dateOfBirth: true, gender: true, phone: true,
-            address: true, city: true, state: true, zipCode: true,
-            aadhaarNumber: true, panNumber: true, satsNumber: true,
-            nationality: true, religion: true, casteCategory: true,
-            motherTongue: true, subcaste: true, domicileState: true,
-            annualIncome: true, physicallyChallenged: true, disabilityType: true,
-            bloodGroup: true, medicalConditions: true, allergies: true,
-            heightCm: true, weightKg: true, identifyingMarks: true,
-            parentName: true, parentPhone: true, parentEmail: true,
-            parentOccupation: true, fatherAadhaarNumber: true, emergencyContact: true,
-            motherName: true, motherPhone: true, motherEmail: true,
-            motherOccupation: true, motherAadhaarNumber: true,
-            guardianName: true, guardianRelation: true, guardianPhone: true,
-            guardianEmail: true, guardianOccupation: true,
-            bankAccountNumber: true, ifscCode: true, bankName: true, bankBranch: true,
-            boardingType: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            phone: true,
+            casteCategory: true,
+            nationality: true,
+            motherTongue: true,
+            physicallyChallenged: true,
           },
         },
         enrollments: {
@@ -1172,15 +1163,14 @@ async function createStudentFull(row, schoolId) {
     bloodGroup, heightCm, weightKg, identifyingMarks, medicalConditions, allergies,
   } = row;
 
-const studentEmail = (row.loginEmail || email)?.toLowerCase().trim() || null;
-
+  const studentEmail = (row.loginEmail || email)?.toLowerCase().trim() ||
+    `student.${(admissionNumber || "").toString().toLowerCase().replace(/[^a-z0-9]/g,"")}.${schoolId.slice(0,6)}@noemail.local`;
 
   // ─────────────────────────────────────────────────────────────────────────────
   // PHASE 1 — ALL VALIDATIONS & LOOKUPS (no DB writes yet)
   // Any failure here throws immediately → transaction never opens → zero orphans
   // ─────────────────────────────────────────────────────────────────────────────
 
-  // if (!studentEmail)     throw new Error("Student login email is required.");
   if (!password)         throw new Error("Password is required.");
   if (!admissionNumber)  throw new Error("Admission Number is required.");
   if (!classSectionName) throw new Error("Class Section is required.");
@@ -1203,29 +1193,28 @@ const studentEmail = (row.loginEmail || email)?.toLowerCase().trim() || null;
   // 1. Duplicate email check — only block if SAME email AND SAME admission number
   //    (siblings can share a parent email — that is allowed)
   //    The real unique identifier is admission number per academic year (checked in step 5)
-let emailAndAdmExists = null;
-
-if (studentEmail) {
-  emailAndAdmExists = await prisma.student.findFirst({
+  const emailAndAdmExists = await prisma.student.findFirst({
     where: {
-      email: studentEmail || null,
+      email:     studentEmail,
       schoolId,
       deletedAt: null,
       enrollments: {
         some: {
           admissionNumber: admissionNumber.toString().trim(),
-          academicYearId: academicYear.id,
+          academicYearId:  (await prisma.academicYear.findFirst({
+            where: { schoolId, name: { equals: academicYearName?.trim(), mode: "insensitive" } },
+            select: { id: true },
+          }))?.id || "none",
         },
       },
     },
   });
-}
-
-if (emailAndAdmExists) {
-  throw new Error(
-    `Student with email "${studentEmail}" and Admission No "${admissionNumber}" is already registered.`
-  );
-}
+  if (emailAndAdmExists) {
+    throw new Error(
+      `Student with email "${studentEmail}" and Admission No "${admissionNumber}" is already registered. ` +
+      `This is an exact duplicate row.`
+    );
+  }
 
   // 2. Resolve Class Section
   const classSection = await prisma.classSection.findFirst({

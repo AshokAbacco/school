@@ -50,6 +50,7 @@ const COLUMN_MAP = {
   disabilityType: ["disability type", "disabilitytype"],
 
   // Login
+  loginEmail: ["login email", "loginemail", "username"],
   password: ["password", "pass"],
 
   // Academic
@@ -196,7 +197,7 @@ function parseRow(rawRow, headerMap) {
     disabilityType: get("disabilityType"),
 
     // ── Student Login ────────────────────────────────────────────────────────
-   
+    loginEmail: get("loginEmail") || get("email"),
     password: get("password"),
 
     // ── Academic Enrollment ──────────────────────────────────────────────────

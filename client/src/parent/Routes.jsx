@@ -1,3 +1,4 @@
+//client\src\parent\Routes.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import PageLayout from "./components/PageLayout";
