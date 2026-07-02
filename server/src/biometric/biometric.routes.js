@@ -16,6 +16,7 @@ import {
   getStats,
   getLogs,
   getAttendanceLogs,
+  getTeacherAttendanceReport,
    triggerBiometricAttendance, 
 } from "./biometric.controller.js";
 
@@ -51,5 +52,6 @@ router.patch("/mappings/:id/deactivate", deactivateMapping);
 // ── Punch logs ────────────────────────────────────────────────────────────────
 router.get("/logs",             getLogs);             // raw individual punches
 router.get("/attendance-logs",  getAttendanceLogs);   // grouped: firstPunch + lastPunch per person per day
+router.get("/teacher-attendance-report", getTeacherAttendanceReport); // grouped by teacher, for Excel download
 
 export default router;

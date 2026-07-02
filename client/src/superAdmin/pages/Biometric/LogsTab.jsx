@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { FileText, Search, Calendar, Filter, ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, Clock, Monitor, CreditCard, User, LogIn, LogOut, Info } from "lucide-react";
+import { FileText, Search, Calendar, Filter, ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, Clock, Monitor, CreditCard, User, LogIn, LogOut, Info, Download } from "lucide-react";
+import { downloadTeacherBiometricExcel } from "../../../utils/downloadTeacherBiometricExcel";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const BASE    = `${API_URL}/api/biometric`;
@@ -114,6 +115,8 @@ const LogsTab = () => {
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState("");
   const [expandedRow,  setExpandedRow]  = useState(null);
+  const [downloading,  setDownloading]  = useState(false);
+  const [downloadErr,  setDownloadErr]  = useState("");
 
   useEffect(() => {
     apiFetch(`${BASE}/schools`).then((j)=>setSchools(j.data||[])).catch(()=>{});
@@ -135,6 +138,30 @@ const LogsTab = () => {
 
   const handleFC=(setter)=>(e)=>{setter(e.target.value);setPage(1);};
   const totalPages=Math.max(1,Math.ceil(totalCount/PAGE_SIZE));
+
+  async function handleDownloadExcel() {
+    setDownloadErr("");
+    if (!filterSchool) {
+      setDownloadErr("Please select a school before downloading.");
+      return;
+    }
+    setDownloading(true);
+    try {
+      const p = new URLSearchParams({ schoolId: filterSchool, from: fromDate, to: toDate });
+      const j = await apiFetch(`${BASE}/teacher-attendance-report?${p}`);
+      const schoolObj = schools.find((s) => s.id === filterSchool);
+      downloadTeacherBiometricExcel(j.data || [], {
+        schoolName: schoolObj?.name || "School",
+        from: fromDate,
+        to: toDate,
+      });
+    } catch (e) {
+      setDownloadErr(e.message || "Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
 
   // Client-side search filter on loaded page
   const displayedLogs = searchQ
@@ -194,11 +221,25 @@ const LogsTab = () => {
           <div style={{ fontSize:13,color:"#6B7280" }}>
             {loading?"Loading…":<><span style={{ fontWeight:700,color:"#111827" }}>{totalCount.toLocaleString("en-IN")}</span> attendance records found</>}
           </div>
-          <div style={{ position:"relative",minWidth:200,flex:"0 0 auto" }}>
-            <Search size={14} color="#9CA3AF" style={{ position:"absolute",left:9,top:"50%",transform:"translateY(-50%)" }}/>
-            <input style={{ ...inp,paddingLeft:30,width:"100%",fontSize:12 }} placeholder="Search person, device, card…" value={searchQ} onChange={(e)=>setSearchQ(e.target.value)}/>
+          <div style={{ display:"flex",alignItems:"center",gap:10,flexWrap:"wrap" }}>
+            <div style={{ position:"relative",minWidth:200,flex:"0 0 auto" }}>
+              <Search size={14} color="#9CA3AF" style={{ position:"absolute",left:9,top:"50%",transform:"translateY(-50%)" }}/>
+              <input style={{ ...inp,paddingLeft:30,width:"100%",fontSize:12 }} placeholder="Search person, device, card…" value={searchQ} onChange={(e)=>setSearchQ(e.target.value)}/>
+            </div>
+            <button onClick={handleDownloadExcel} disabled={downloading}
+              title="Download teacher biometric report — one Excel sheet per teacher"
+              style={{ display:"inline-flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:8,border:"none",background:downloading?"#A5B4FC":"#4F46E5",color:"#fff",fontWeight:700,fontSize:13,cursor:downloading?"not-allowed":"pointer",whiteSpace:"nowrap" }}>
+              {downloading ? <Spinner size={14} color="#fff"/> : <Download size={14}/>}
+              {downloading ? "Preparing…" : "Download Excel"}
+            </button>
           </div>
         </div>
+        {downloadErr && (
+          <div style={{ marginTop:8,fontSize:12,color:"#9F1239",background:"#FFF1F2",border:"1px solid #FECDD3",borderRadius:8,padding:"7px 11px" }}>
+            {downloadErr}
+          </div>
+        )}
+
       </div>
 
       {/* Info banner */}
