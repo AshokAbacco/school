@@ -331,7 +331,7 @@ export const getMappings = async (req, res) => {
       return res.status(400).json({ success: false, message: "schoolId is required" });
     }
     const where = { schoolId };
-    if (personType && personType !== "ALL") where.personType = personType;
+    if (personType && personType !== "ALL") where.personType = personType.includes(",") ? { in: personType.split(",").map(s=>s.trim()).filter(Boolean) } : personType;
     if (isActive === "true")  where.isActive = true;
     if (isActive === "false") where.isActive = false;
 
@@ -604,7 +604,7 @@ export const getAttendanceLogs = async (req, res) => {
 
     const where = { school: { universityId }, punchDateTime: { gte: fromDate, lte: toDate } };
     if (schoolId)                              where.schoolId  = schoolId;
-    if (personType && personType !== "ALL")    where.personType = personType;
+    if (personType && personType !== "ALL")    where.personType = personType.includes(",") ? { in: personType.split(",").map(s=>s.trim()).filter(Boolean) } : personType;
     // Only mapped punches for attendance summary
     where.biometricUserMappingId = { not: null };
 
@@ -736,6 +736,190 @@ export const getAttendanceLogs = async (req, res) => {
   }
 };
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/biometric/attendance-report
+// Query: schoolId, from, to, personTypes  (comma-separated, e.g. "TEACHER,STAFF")
+//
+// GENERIC version of getTeacherAttendanceReport — supports downloading
+// MULTIPLE person types in one go (e.g. Teacher + Staff together), not just
+// Teacher. Bank info (bankName/bankAccountNo/ifscCode) is included for
+// TEACHER and STAFF (both have bank fields in schema); left null for
+// STUDENT/ADMIN/FINANCE since those have no bank fields.
+//
+// NO PAGINATION — this always returns the full result set for the given
+// date range and person types. The on-screen table (getAttendanceLogs) is
+// paginated for display only; this export endpoint is intentionally not.
+// ─────────────────────────────────────────────────────────────────────────────
+export const getBiometricAttendanceReport = async (req, res) => {
+  try {
+    const universityId = req.user?.universityId;
+    const { schoolId, from, to, personTypes } = req.query;
+
+    if (!universityId) {
+      return res.status(400).json({ success: false, message: "universityId missing in token" });
+    }
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: "schoolId is required" });
+    }
+
+    const ALL_TYPES = ["STUDENT", "TEACHER", "STAFF", "ADMIN", "FINANCE"];
+    const types = personTypes
+      ? personTypes.split(",").map((s) => s.trim().toUpperCase()).filter((t) => ALL_TYPES.includes(t))
+      : ALL_TYPES;
+
+    if (!types.length) {
+      return res.status(400).json({ success: false, message: "No valid personTypes provided" });
+    }
+
+    // Date range — default to current month IST if not provided
+    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const defaultFrom = new Date(nowIST.getFullYear(), nowIST.getMonth(), 1).toISOString().slice(0, 10);
+    const defaultTo   = nowIST.toISOString().slice(0, 10);
+    const fromStr = from || defaultFrom;
+    const toStr   = to   || defaultTo;
+
+    const fromDate = new Date(fromStr + "T00:00:00+05:30");
+    const toDate   = new Date(toStr   + "T23:59:59+05:30");
+
+    // ── 1. Raw punches in range for the requested person types ────────────────
+    // No skip/take here — full dataset for export, deliberately unpaginated.
+    const rawLogs = await prisma.biometricLog.findMany({
+      where: {
+        school: { universityId },
+        schoolId,
+        personType: { in: types },
+        biometricUserMappingId: { not: null },
+        punchDateTime: { gte: fromDate, lte: toDate },
+      },
+      orderBy: { punchDateTime: "asc" },
+      select: {
+        punchDateTime: true,
+        personType: true,
+        studentId: true, teacherId: true, staffId: true, userId: true,
+        student: { select: { name: true, studentCode: true } },
+        teacher: {
+          select: {
+            firstName: true, lastName: true, employeeCode: true,
+            bankName: true, bankAccountNo: true, ifscCode: true,
+          },
+        },
+        staff: {
+          select: {
+            firstName: true, lastName: true, role: true,
+            bankName: true, bankAccountNo: true, ifscCode: true,
+          },
+        },
+        user: { select: { name: true } },
+      },
+    });
+
+    // ── 2. Group by (personType|personId), then by IST date ───────────────────
+    const personMap = new Map();
+
+    for (const log of rawLogs) {
+      if (!log.punchDateTime) continue;
+
+      let personId = null, name = null, code = null;
+      let bankName = null, bankAccountNo = null, ifscCode = null;
+
+      if (log.personType === "STUDENT" && log.studentId) {
+        personId = log.studentId;
+        name     = log.student?.name || "Unknown";
+        code     = log.student?.studentCode || null;
+      } else if (log.personType === "TEACHER" && log.teacherId) {
+        personId      = log.teacherId;
+        name          = log.teacher ? `${log.teacher.firstName} ${log.teacher.lastName}`.trim() : "Unknown";
+        code          = log.teacher?.employeeCode || null;
+        bankName      = log.teacher?.bankName || null;
+        bankAccountNo = log.teacher?.bankAccountNo || null;
+        ifscCode      = log.teacher?.ifscCode || null;
+      } else if (log.personType === "STAFF" && log.staffId) {
+        personId      = log.staffId;
+        name          = log.staff ? `${log.staff.firstName} ${log.staff.lastName}`.trim() : "Unknown";
+        code          = log.staff?.role || null;
+        bankName      = log.staff?.bankName || null;
+        bankAccountNo = log.staff?.bankAccountNo || null;
+        ifscCode      = log.staff?.ifscCode || null;
+      } else if (log.userId) {
+        // ADMIN / FINANCE
+        personId = log.userId;
+        name     = log.user?.name || "Unknown";
+      }
+
+      if (!personId) continue;
+
+      const key = `${log.personType}|${personId}`;
+      if (!personMap.has(key)) {
+        personMap.set(key, {
+          personId, personType: log.personType, name, code,
+          bankName, bankAccountNo, ifscCode,
+          days: new Map(),
+        });
+      }
+
+      const p = personMap.get(key);
+      const istMs   = log.punchDateTime.getTime() + 5.5 * 60 * 60 * 1000;
+      const dateStr = new Date(istMs).toISOString().slice(0, 10);
+
+      if (!p.days.has(dateStr)) {
+        p.days.set(dateStr, { firstPunch: log.punchDateTime, lastPunch: log.punchDateTime, punchCount: 0 });
+      }
+      const d = p.days.get(dateStr);
+      d.punchCount++;
+      if (log.punchDateTime < d.firstPunch) d.firstPunch = log.punchDateTime;
+      if (log.punchDateTime > d.lastPunch)  d.lastPunch  = log.punchDateTime;
+    }
+
+    // ── 3. Shape final response ────────────────────────────────────────────────
+    const fmtTime = (dt) => dt
+      ? new Date(dt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true })
+      : null;
+
+    const persons = Array.from(personMap.values())
+      .map((p) => {
+        const days = Array.from(p.days.entries())
+          .map(([date, d]) => {
+            const sameTime = d.firstPunch.getTime() === d.lastPunch.getTime();
+            const hasExit  = d.punchCount >= 2 && !sameTime;
+            const workedMinutes = hasExit ? Math.floor((d.lastPunch - d.firstPunch) / 60000) : null;
+            return {
+              date,
+              punchIn:  fmtTime(d.firstPunch),
+              punchOut: hasExit ? fmtTime(d.lastPunch) : null,
+              workedFmt: workedMinutes != null ? `${Math.floor(workedMinutes / 60)}h ${workedMinutes % 60}m` : null,
+              punchCount: d.punchCount,
+            };
+          })
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        return {
+          personId:      p.personId,
+          personType:    p.personType,
+          name:          p.name,
+          code:          p.code,
+          bankName:      p.bankName,
+          bankAccountNo: p.bankAccountNo,
+          ifscCode:      p.ifscCode,
+          days,
+        };
+      })
+      .sort((a, b) => {
+        if (a.personType !== b.personType) return a.personType.localeCompare(b.personType);
+        return (a.name || "").localeCompare(b.name || "");
+      });
+
+    return res.status(200).json({
+      success: true,
+      data: persons,
+      meta: { from: fromStr, to: toStr, schoolId, personTypes: types, personCount: persons.length },
+    });
+
+  } catch (error) {
+    console.error("[getBiometricAttendanceReport]", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/biometric/teacher-attendance-report
 // Query: schoolId, from, to
 //
@@ -743,6 +927,8 @@ export const getAttendanceLogs = async (req, res) => {
 // "one workbook / one sheet per teacher" Excel download on the frontend.
 // Includes bank details (bankName / bankAccountNo / ifscCode) so the sheet
 // can show them if present, and skip them cleanly if not.
+// (Kept for backward compatibility — new downloads should use
+//  getBiometricAttendanceReport above, which supports multiple person types.)
 // ─────────────────────────────────────────────────────────────────────────────
 export const getTeacherAttendanceReport = async (req, res) => {
   try {
@@ -883,7 +1069,7 @@ export const getLogs = async (req, res) => {
 
     const where = { school: { universityId } };
     if (schoolId) where.schoolId = schoolId;
-    if (personType && personType !== "ALL") where.personType = personType;
+    if (personType && personType !== "ALL") where.personType = personType.includes(",") ? { in: personType.split(",").map(s=>s.trim()).filter(Boolean) } : personType;
 
     if (from || to) {
       where.punchDateTime = {};

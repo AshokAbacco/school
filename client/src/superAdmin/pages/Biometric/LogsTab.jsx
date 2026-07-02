@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
-import { FileText, Search, Calendar, Filter, ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, Clock, Monitor, CreditCard, User, LogIn, LogOut, Info, Download } from "lucide-react";
-import { downloadTeacherBiometricWideExcel } from "../../../utils/downloadTeacherBiometricExcel.js";
+import React, { useState, useEffect, useRef } from "react";
+import { FileText, Search, Calendar, Filter, ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, Clock, Monitor, CreditCard, User, LogIn, LogOut, Info, Download, ChevronDown } from "lucide-react";
+import { downloadBiometricWideExcel } from "../../../utils/downloadBiometricWideExcel";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const BASE    = `${API_URL}/api/biometric`;
@@ -36,6 +36,58 @@ function MappedPill({mapped}) {
   return <span style={{ display:"inline-flex",alignItems:"center",gap:4,background:mapped?"#F0FDF4":"#FFF7ED",color:mapped?"#166534":"#92400E",border:`1px solid ${mapped?"#86EFAC":"#FCD34D"}`,padding:"2px 9px",borderRadius:99,fontSize:11,fontWeight:700 }}>
     {mapped?<CheckCircle size={10}/>:<AlertTriangle size={10}/>}{mapped?"Mapped":"Unmapped"}
   </span>;
+}
+
+// ─── Multi-select dropdown for Person Type (replaces the old single <select>) ─
+function MultiSelectDropdown({ options, labels, selected, onChange, placeholder = "Select…" }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const allSelected = selected.length === 0 || selected.length === options.length;
+  const toggle = (opt) => {
+    if (selected.includes(opt)) onChange(selected.filter((s) => s !== opt));
+    else onChange([...selected, opt]);
+  };
+  const toggleAll = () => onChange(allSelected ? [] : [...options]);
+
+  const summary = allSelected
+    ? "All Types"
+    : selected.length === 1
+      ? (labels[selected[0]] || selected[0])
+      : `${selected.length} types selected`;
+
+  const inp = { width:"100%",padding:"8px 10px",border:"1.5px solid #E5E7EB",borderRadius:8,fontSize:13,color:"#111827",outline:"none",boxSizing:"border-box",background:"#FAFAFA" };
+
+  return (
+    <div ref={ref} style={{ position:"relative" }}>
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        style={{ ...inp,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",textAlign:"left" }}>
+        <span>{summary}</span>
+        <ChevronDown size={14} color="#6B7280" style={{ transform:open?"rotate(180deg)":"none",transition:"transform .15s",flexShrink:0 }}/>
+      </button>
+      {open && (
+        <div style={{ position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:20,background:"#fff",border:"1px solid #E5E7EB",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",padding:6,maxHeight:240,overflowY:"auto" }}>
+          <label style={{ display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:6,cursor:"pointer",fontSize:13,fontWeight:700,color:"#374151",borderBottom:"1px solid #F3F4F6",marginBottom:4 }}>
+            <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ cursor:"pointer" }}/>
+            All Types
+          </label>
+          {options.map((opt) => (
+            <label key={opt} style={{ display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:6,cursor:"pointer",fontSize:13,color:"#111827" }}
+              onMouseEnter={(e)=>e.currentTarget.style.background="#F9FAFB"} onMouseLeave={(e)=>e.currentTarget.style.background="transparent"}>
+              <input type="checkbox" checked={allSelected || selected.includes(opt)} onChange={() => toggle(opt)} style={{ cursor:"pointer" }}/>
+              {labels[opt] || opt}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Human-readable detail panel ─────────────────────────────────────────────
@@ -107,7 +159,7 @@ const LogsTab = () => {
   const today = new Date().toISOString().slice(0,10);
   const [fromDate,     setFromDate]     = useState(today);
   const [toDate,       setToDate]       = useState(today);
-  const [filterType,   setFilterType]   = useState("ALL");
+  const [filterTypes,  setFilterTypes]  = useState([]); // [] means "All Types"
   const [searchQ,      setSearchQ]      = useState("");
   const [logs,         setLogs]         = useState([]);
   const [totalCount,   setTotalCount]   = useState(0);
@@ -122,7 +174,7 @@ const LogsTab = () => {
     apiFetch(`${BASE}/schools`).then((j)=>setSchools(j.data||[])).catch(()=>{});
   },[]);
 
-  useEffect(() => { loadLogs(); },[filterSchool,fromDate,toDate,filterType,page]); // eslint-disable-line
+  useEffect(() => { loadLogs(); },[filterSchool,fromDate,toDate,filterTypes,page]); // eslint-disable-line
 
   function loadLogs() {
     setLoading(true); setError("");
@@ -130,7 +182,7 @@ const LogsTab = () => {
     if(filterSchool) p.set("schoolId",filterSchool);
     if(fromDate)     p.set("from",fromDate);
     if(toDate)       p.set("to",toDate);
-    if(filterType!=="ALL") p.set("personType",filterType);
+    if(filterTypes.length>0 && filterTypes.length<PERSON_TYPES.length) p.set("personType",filterTypes.join(","));
     console.log("Selected School:", filterSchool);
     console.log("Request URL:", `${BASE}/logs?${p.toString()}`);
     apiFetch(`${BASE}/attendance-logs?${p}`).then((j)=>{setLogs(j.data||[]);setTotalCount(j.meta?.total||0);}).catch((e)=>setError(e.message||"Failed")).finally(()=>setLoading(false));
@@ -139,6 +191,11 @@ const LogsTab = () => {
   const handleFC=(setter)=>(e)=>{setter(e.target.value);setPage(1);};
   const totalPages=Math.max(1,Math.ceil(totalCount/PAGE_SIZE));
 
+  // Downloads the FULL dataset for the selected school + date range + person
+  // type(s) — this hits /attendance-report, which has NO pagination at all
+  // (unlike the on-screen table above, which is paginated for display only).
+  // Selecting multiple types (e.g. Teacher + Staff) downloads all of them
+  // together in one workbook.
   async function handleDownloadExcel() {
     setDownloadErr("");
     if (!filterSchool) {
@@ -147,13 +204,20 @@ const LogsTab = () => {
     }
     setDownloading(true);
     try {
-      const p = new URLSearchParams({ schoolId: filterSchool, from: fromDate, to: toDate });
-      const j = await apiFetch(`${BASE}/teacher-attendance-report?${p}`);
+      const typesToSend = filterTypes.length > 0 ? filterTypes : PERSON_TYPES; // [] => all types
+      const p = new URLSearchParams({
+        schoolId: filterSchool,
+        from: fromDate,
+        to: toDate,
+        personTypes: typesToSend.join(","),
+      });
+      const j = await apiFetch(`${BASE}/attendance-report?${p}`);
       const schoolObj = schools.find((s) => s.id === filterSchool);
-      downloadTeacherBiometricWideExcel(j.data || [], {
+      downloadBiometricWideExcel(j.data || [], {
         schoolName: schoolObj?.name || "School",
         from: fromDate,
         to: toDate,
+        personTypes: typesToSend,
       });
     } catch (e) {
       setDownloadErr(e.message || "Download failed");
@@ -209,10 +273,12 @@ const LogsTab = () => {
           </div>
           <div>
             <label style={lbl}>Person Type</label>
-            <select style={sel} value={filterType} onChange={handleFC(setFilterType)}>
-              <option value="ALL">All Types</option>
-              {PERSON_TYPES.map((pt)=><option key={pt} value={pt}>{PT_LABEL[pt]}</option>)}
-            </select>
+            <MultiSelectDropdown
+              options={PERSON_TYPES}
+              labels={PT_LABEL}
+              selected={filterTypes}
+              onChange={(vals)=>{ setFilterTypes(vals); setPage(1); }}
+            />
           </div>
         </div>
 
@@ -227,7 +293,7 @@ const LogsTab = () => {
               <input style={{ ...inp,paddingLeft:30,width:"100%",fontSize:12 }} placeholder="Search person, device, card…" value={searchQ} onChange={(e)=>setSearchQ(e.target.value)}/>
             </div>
             <button onClick={handleDownloadExcel} disabled={downloading}
-              title="Download teacher biometric report — one Excel sheet per teacher"
+              title="Download full biometric report (all matching records, no pagination) for the selected person type(s)"
               style={{ display:"inline-flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:8,border:"none",background:downloading?"#A5B4FC":"#4F46E5",color:"#fff",fontWeight:700,fontSize:13,cursor:downloading?"not-allowed":"pointer",whiteSpace:"nowrap" }}>
               {downloading ? <Spinner size={14} color="#fff"/> : <Download size={14}/>}
               {downloading ? "Preparing…" : "Download Excel"}

@@ -17,6 +17,7 @@ import {
   getLogs,
   getAttendanceLogs,
   getTeacherAttendanceReport,
+  getBiometricAttendanceReport,
    triggerBiometricAttendance, 
 } from "./biometric.controller.js";
 
@@ -52,6 +53,7 @@ router.patch("/mappings/:id/deactivate", deactivateMapping);
 // ── Punch logs ────────────────────────────────────────────────────────────────
 router.get("/logs",             getLogs);             // raw individual punches
 router.get("/attendance-logs",  getAttendanceLogs);   // grouped: firstPunch + lastPunch per person per day
-router.get("/teacher-attendance-report", getTeacherAttendanceReport); // grouped by teacher, for Excel download
+router.get("/teacher-attendance-report", getTeacherAttendanceReport); // legacy — teacher-only
+router.get("/attendance-report", getBiometricAttendanceReport); // ?schoolId=&from=&to=&personTypes=TEACHER,STAFF — multi-type, unpaginated, for Excel download
 
 export default router;
