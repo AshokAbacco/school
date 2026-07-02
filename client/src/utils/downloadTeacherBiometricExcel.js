@@ -39,21 +39,39 @@ function monthLabel(from, to) {
   return `${fmt(f)} — ${fmt(t)}`;
 }
 
-// Build every date string (YYYY-MM-DD) between from..to inclusive
+// Build every date string (YYYY-MM-DD) between from..to inclusive.
+// IMPORTANT: this does pure calendar-date arithmetic with NO timezone
+// conversion. from/to are already plain "YYYY-MM-DD" strings — running them
+// through `new Date(str + "T00:00:00+05:30")` and back via .toISOString()
+// shifts the date backward by a day (IST midnight = previous day in UTC),
+// which caused single-day / edge-day selections to silently return no data.
 function buildDateRange(from, to) {
   const dates = [];
   if (!from || !to) return dates;
-  let cur = new Date(from + "T00:00:00+05:30");
-  const end = new Date(to + "T00:00:00+05:30");
+
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+
+  let cur = Date.UTC(fy, fm - 1, fd);
+  const end = Date.UTC(ty, tm - 1, td);
+
   while (cur <= end) {
-    dates.push(cur.toISOString().slice(0, 10));
-    cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
+    const d = new Date(cur);
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    dates.push(`${yyyy}-${mm}-${dd}`);
+    cur += 24 * 60 * 60 * 1000;
   }
   return dates;
 }
 
+// Formats "YYYY-MM-DD" -> "16 Jun" without going through a timezone-aware
+// Date object at all, so it can never drift by a day.
+const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function shortDateLabel(dateStr) {
-  return new Date(dateStr + "T12:00:00+05:30").toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+  const [, m, d] = dateStr.split("-").map(Number);
+  return `${String(d).padStart(2, "0")} ${MONTH_SHORT[m - 1]}`;
 }
 
 export function downloadTeacherBiometricWideExcel(teachers, options = {}) {
