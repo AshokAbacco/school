@@ -18,7 +18,7 @@ import AttendanceList from "./pages/attendances/AttendanceList";
 import ExamsList from "./pages/Exams/ExamsList";
 import MeetingsList from "./pages/meeting/MeetingsList";
 import CurriculumList from "./pages/curriculum/CurriculumList";
-import Gallery from "./pages/gallery/Gallery.jsx";
+import GalleryPage from "./pages/gallery/GalleryPage.jsx";
 import HolidayList from "./pages/holidays/HolidayList.jsx";
 import Settings from "./pages/settings/Settings";
 import StreamsPage from "./pages/classes/StreamsPage";
@@ -77,7 +77,7 @@ function AdminRoutes() {
         <Route path="activities" element={<ActivitiesList />} />
         <Route path="meetings" element={<MeetingsList />} />
         <Route path="curriculum" element={<CurriculumList />} />
-        <Route path="gallery" element={<Gallery />} />
+        <Route path="gallery" element={<GalleryPage />} />
         <Route path="holidays" element={<HolidayList />} />
         <Route path="awards" element={<AdminAwardsPage />} />
         <Route path="transport" element={<TransportPage />} />

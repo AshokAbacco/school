@@ -17,6 +17,7 @@ import {
   BookOpen,
   CalendarDays,
   ClipboardList,
+  Images,
 } from "lucide-react";
  
 
@@ -52,6 +53,8 @@ export default function Sidebar({ isOpen, onClose, user }) {
     { icon: BarChart3,     label: "Marks & Results", to: "/student/marks" },
     { icon: ClipboardList, label: "Exam Timetable",  to: "/student/exam-timetable" },
     { icon: BookOpen,      label: "Homework",        to: "/student/homework" },
+    { icon: Images,        label: "Gallery",        to: "/student/gallery" },
+    { icon: Video,         label: "Videos",         to: "/student/gallery-videos" },
 
     // ✅ Gold + Premium
     ...(userPlan !== "Silver"

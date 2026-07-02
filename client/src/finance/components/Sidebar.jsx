@@ -1,7 +1,7 @@
 // client/src/finance/components/Sidebar.jsx
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, GraduationCap, Wallet, X,MessageCircle,CalendarDays } from "lucide-react";
+import { LayoutDashboard, GraduationCap, Wallet, X,MessageCircle,CalendarDays,Images,Video } from "lucide-react";
 import { useSchoolLogo } from "../../hooks/useSchoolLogo";
 
  
@@ -34,6 +34,8 @@ export default function Sidebar({ isOpen, onClose, user }) {
   { icon: LayoutDashboard, label: "Dashboard", to: "/finance/dashboard" },
   { icon: GraduationCap, label: "Student", to: "/finance/studentfinance" },
   { icon: Wallet, label: "Staff", to: "/finance/teachersfinance" },
+      { icon: Images, label: "Gallery", to: "/finance/gallery" },
+    { icon: Video,  label: "Videos",  to: "/finance/gallery-videos" },
 
   // ✅ Gold + Premium
   ...(userPlan !== "Silver"

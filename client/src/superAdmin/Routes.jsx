@@ -26,6 +26,8 @@ import PayrollManagement from "./pages/PayrollManagement/PayrollManagement.jsx";
 import VehicleManagement from "./pages/VehicleTracking/VehicleManagement";
 import VoiceAnnouncements from "./pages/VoiceAnnouncements/VoiceAnnouncements.jsx";
 import IdCardManagement from "./pages/IdCards/IdCardManagement";
+ import GalleryViewer from "../shared/components/GalleryViewer";
+  import GalleryVideos from "../shared/components/GalleryVideos";
 
 
 function SuperAdminRoutes() {
@@ -50,6 +52,8 @@ function SuperAdminRoutes() {
         <Route path="settings" element={<div>Global Settings</div>} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="recovery" element={<SchoolRecovery />} />
+        <Route path="gallery"        element={<GalleryViewer />} />
+        <Route path="gallery-videos" element={<GalleryVideos />} />
         <Route path="finance-reports" element={<FinanceReports />} />
         <Route path="results-reports" element={<ResultReports />} />
         <Route path="biometric" element={<BiometricManagement />} />

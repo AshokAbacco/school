@@ -15,6 +15,8 @@ import HomeworkPage from "./pages/Homework/HomeworkPage.jsx";
 import StudentHolidayPage from "./pages/holidays/HolidayPage";
 import TakeAssignmentPage from "./pages/Homework/TakeAssignmentPage";
 import ExamTimetablePage from "./pages/Exams/ExamTimetable.jsx"; // ← NEW
+ import GalleryViewer from "../shared/components/GalleryViewer";
+  import GalleryVideos from "../shared/components/GalleryVideos";
 
 function StudentRoutes() {
   return (
@@ -32,7 +34,9 @@ function StudentRoutes() {
         <Route path="homework"        element={<HomeworkPage />} />
         <Route path="holidays"        element={<StudentHolidayPage />} />
         <Route path="assignment/:id"  element={<TakeAssignmentPage />} />
-        <Route path="exam-timetable"  element={<ExamTimetablePage />} />  {/* ← NEW */}
+        <Route path="exam-timetable"  element={<ExamTimetablePage />} />  
+         <Route path="gallery"        element={<GalleryViewer />} />
+        <Route path="gallery-videos" element={<GalleryVideos />} />{/* ← NEW */}
         <Route path="*"               element={<Navigate to="dashboard" replace />} />
       </Routes>
     </PageLayout>

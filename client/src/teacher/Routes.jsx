@@ -17,6 +17,8 @@ import TeacherChatPage from "./pages/chat/TeacherChatPage";
 import TeacherHolidayPage from "./pages/holidays/HolidayPage";
 import TeacherProfilePage from "./pages/profile/profile.jsx";
 import SubmissionsViewPage from "./pages/assignments/SubmissionsViewPage";
+  import GalleryViewer from "../shared/components/GalleryViewer";
+  import GalleryVideos from "../shared/components/GalleryVideos";
 function TeacherRoutes() {
   return (
     <PageLayout>
@@ -36,6 +38,8 @@ function TeacherRoutes() {
         <Route path="chat" element={<TeacherChatPage />} />
         <Route path="profile" element={<TeacherProfilePage />} />
         <Route path="assignments/:assignmentId/submissions" element={<SubmissionsViewPage />} />
+         <Route path="gallery"        element={<GalleryViewer />} />
+        <Route path="gallery-videos" element={<GalleryVideos />} />
         <Route path="*"              element={<Navigate to="dashboard" replace />} />
       </Routes>
     </PageLayout>

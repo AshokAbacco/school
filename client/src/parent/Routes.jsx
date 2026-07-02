@@ -17,6 +17,8 @@ import TutorialRecommendations from "./pages/TutorialRecommendations/TutorialRec
 import ParentScriptViewing from "./pages/ReEvaluation/ParentScriptViewing";
 import MyScriptViewRequests from "./pages/ReEvaluation/MyScriptViewRequests";
 import VehicleTracking from "./pages/VehicleTracking/VehicleTracking";
+  import GalleryViewer from "../shared/components/GalleryViewer";
+  import GalleryVideos from "../shared/components/GalleryVideos";
 
 
 // import CertificatesUploadPage from "../teacher/pages/Certificates/CertificatesUploadPage";
@@ -47,6 +49,8 @@ const ParentRoutes = () => {
         <Route path="parent-script-viewing" element={<ParentScriptViewing />} />
         <Route path="my-myScript-view-requests" element={<MyScriptViewRequests  />} />
         <Route path="bus-tracking" element={<VehicleTracking />} />
+        <Route path="gallery"        element={<GalleryViewer />} />
+        <Route path="gallery-videos" element={<GalleryVideos />} />
         <Route path="*" element={<Navigate to="dashboard" replace />} />
 
       </Route>

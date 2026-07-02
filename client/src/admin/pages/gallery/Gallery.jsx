@@ -11,7 +11,7 @@ import {
   Images, Plus, Upload, Trash2, FolderOpen,
   Image as ImageIcon, X, Check, Loader2,
   ChevronLeft, Eye, Calendar, FileImage,
-  AlertCircle, RefreshCw, BookOpen,
+  AlertCircle, RefreshCw, BookOpen,Video 
 } from "lucide-react";
 import { getToken }        from "../../../auth/storage";
 import GalleryImageViewer  from "./components/GalleryImageViewer";

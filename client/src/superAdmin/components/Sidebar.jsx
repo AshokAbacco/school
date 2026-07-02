@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Building2, UserCog, Users, ShieldCheck,
   CreditCard, BarChart3, X, GraduationCap, Wallet,
   MessageCircle, FileText, ClipboardCheck, Fingerprint,
-  IndianRupee, Car, Mic ,IdCard 
+  IndianRupee, Car, Mic ,IdCard , Images, Video 
 } from "lucide-react";
 
 const initials = (name = "SA") =>
@@ -28,6 +28,8 @@ export default function Sidebar({ isOpen, onClose, user }) {
     { icon: Car,             label: "Vehicle Tracking",    to: "/superadmin/vehicles" },
     { icon: Mic,             label: "Voice Announcements", to: "/superadmin/voice-announcements" }, 
     { icon: IdCard,          label: "ID Cards",            to: "/superadmin/id-cards" },
+    { icon: Images, label: "Gallery", to: "/superadmin/gallery" },
+    { icon: Video,  label: "Videos",  to: "/superadmin/gallery-videos" },
 
     // ✅ Gold + Premium only
     ...(userPlan === "Gold" || userPlan === "Premium"

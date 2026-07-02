@@ -320,6 +320,7 @@ model School {
   subjectSyllabus       SubjectSyllabus[]
   portionProgress       SectionPortionProgress[]
   galleryAlbums         GalleryAlbum[]
+  galleryVideos         GalleryVideo[]
   holidays              SchoolHoliday[]
   activities            Activity[]
   activityEvents        ActivityEvent[]
@@ -564,6 +565,7 @@ model User {
   markedTeacherAttendances TeacherAttendance[]  @relation("TeacherAttendanceMarkedBy")
   financeProfile           FinanceProfile?
   galleryAlbumsCreated     GalleryAlbum[]       @relation("UserGalleryAlbums")
+  galleryVideosAdded       GalleryVideo[]       @relation("UserGalleryVideos")
   SchoolHoliday            SchoolHoliday[]
   createdActivities        Activity[]
   createdEvents            ActivityEvent[]
@@ -4166,4 +4168,27 @@ model ScheduledReminder {
   @@index([schoolId])
   @@index([status, scheduledAt]) // cron query index
   @@map("scheduled_reminders")
+}
+
+model GalleryVideo {
+  id String @id @default(uuid())
+
+  title       String
+  description String?
+
+  // Only the extracted 11-char YouTube video ID is stored — never the raw
+  // pasted URL — so the embed player has a guaranteed-safe, validated value.
+  youtubeId String
+
+  schoolId  String
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  addedById String
+  addedBy   User   @relation("UserGalleryVideos", fields: [addedById], references: [id])
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([schoolId])
+  @@map("gallery_videos")
 }

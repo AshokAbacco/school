@@ -13,6 +13,8 @@ import Expense from "./pages/Expense/Expense";
 import FinanceChat from "./pages/chat/FinanceChat";
 import FinanceHolidayPage from "./pages/holidays/HolidayPage";
 import FinanceProfile from "./components/Profile";
+  import GalleryViewer from "../shared/components/GalleryViewer";
+  import GalleryVideos from "../shared/components/GalleryVideos";
  
 const FinanceRoutes = () => {
   return (
@@ -21,6 +23,8 @@ const FinanceRoutes = () => {
     <Route index                  element={<Navigate to="dashboard" replace />} />
     <Route path="dashboard"       element={<FinanceDashboard />} />
     <Route path="profile"         element={<FinanceProfile />} />
+     <Route path="gallery"        element={<GalleryViewer />} />
+  <Route path="gallery-videos" element={<GalleryVideos />} />
     <Route path="studentfinance"  element={<Studentfinance />} />
     <Route path="teachersfinance" element={<Teachersfinance />} />
     <Route path="group-a"         element={<GroupASalary />} />

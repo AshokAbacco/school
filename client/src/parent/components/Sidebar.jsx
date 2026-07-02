@@ -16,7 +16,9 @@ import {
   MessageCircle,
   BookOpen,
   FileSearch,
-  Bus 
+  Bus,
+  Images,
+  Video,
 } from "lucide-react";
 import { getAuth } from "../../auth/storage";
 
@@ -44,6 +46,8 @@ function Sidebar({ isOpen, onClose }) {
     { icon: ClipboardCheck, label: "Attendance", href: `${base}/attendance` },
     { icon: BarChart2, label: "Results", href: `${base}/marks` },
     { icon: Calendar, label: "Time Table", href: `${base}/timetable` },
+      { icon: Images, label: "Gallery", href: `${base}/gallery` },
+    { icon: Video,  label: "Videos",  href: `${base}/gallery-videos` },
 
     // ✅ Premium only
     ...(userPlan === "Premium"

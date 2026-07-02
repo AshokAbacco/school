@@ -11,6 +11,7 @@ import {
   Trophy,
   Zap,
   Video,
+  Images,
   CalendarDays,
   Medal,
   BookOpenCheck,
@@ -48,6 +49,8 @@ export default function Sidebar({ isOpen, onClose, user }) {
     { icon: CalendarDays,  label: "Time Table",     to: "/teacher/timetable" },
     { icon: User,          label: "Attendance",     to: "/teacher/attendance" },
     { icon: CalendarDays,  label: "Holidays",       to: "/teacher/holidays" },
+        { icon: Images, label: "Gallery", to: "/teacher/gallery" },
+    { icon: Video,  label: "Videos",  to: "/teacher/gallery-videos" },
 
     // ✅ Premium only
     ...(userPlan === "Premium"
