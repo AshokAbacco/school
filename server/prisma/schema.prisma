@@ -1779,16 +1779,16 @@ model StudentPaymentLog {
   paidAt      DateTime @default(now())
 
   // Per-category breakdown for this single transaction
-  schoolFeePaid    Decimal @default(0) @db.Decimal(10, 2)
-  tuitionFeePaid   Decimal @default(0) @db.Decimal(10, 2)
-  examFeePaid      Decimal @default(0) @db.Decimal(10, 2)
-  transportFeePaid Decimal @default(0) @db.Decimal(10, 2)
-  booksFeePaid     Decimal @default(0) @db.Decimal(10, 2)
-  labFeePaid       Decimal @default(0) @db.Decimal(10, 2)
-  miscFeePaid      Decimal @default(0) @db.Decimal(10, 2)
-
-  createdBy String?
-  createdAt DateTime @default(now())
+  schoolFeePaid      Decimal  @default(0) @db.Decimal(10, 2)
+  tuitionFeePaid     Decimal  @default(0) @db.Decimal(10, 2)
+  examFeePaid        Decimal  @default(0) @db.Decimal(10, 2)
+  transportFeePaid   Decimal  @default(0) @db.Decimal(10, 2)
+  booksFeePaid       Decimal  @default(0) @db.Decimal(10, 2)
+  labFeePaid         Decimal  @default(0) @db.Decimal(10, 2)
+  miscFeePaid        Decimal  @default(0) @db.Decimal(10, 2)
+  customFeeBreakdown Json?
+  createdBy          String?
+  createdAt          DateTime @default(now())
 
   @@index([studentListId])
   @@index([paidAt])

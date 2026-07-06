@@ -100,8 +100,7 @@ function buildCategoryRows(student) {
     bd.customFees.forEach((c, i) => {
       const total = Number(c.amount || c.total || 0);
       if (total > 0)
-        rows.push({ id: `custom_${i}`, name: c.label || `Custom Fee ${i + 1}`, total, paid: 0, pending: total });
-    });
+      rows.push({ id: `custom_${i}`, name: c.label, total, paid: 0, pending: total });    });
   }
 
   if (rows.length === 0) {

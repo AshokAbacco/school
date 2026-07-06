@@ -152,8 +152,20 @@ router.get("/getStudentFinance", authMiddleware, async (req, res) => {
     const migrated = await checkMigrated();
 
     const students = await prisma.studentList.findMany({
-      where:   { schoolId, deletedAt: null },
-      orderBy: { createdAt: "desc" },
+     where: {
+        schoolId,
+        deletedAt: null,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        paymentLogs: {
+          orderBy: {
+            paidAt: "asc",
+          },
+        },
+      },
       // Only include feeCategories if the migration has been run
       ...(migrated && {
         include: {
@@ -165,7 +177,33 @@ router.get("/getStudentFinance", authMiddleware, async (req, res) => {
       }),
     });
 
-    res.json(students);
+    const result = students.map((student) => {
+
+      const customPaidMap = {};
+
+      student.paymentLogs.forEach((log) => {
+
+        const custom = log.customFeeBreakdown || {};
+
+        Object.entries(custom).forEach(([name, amount]) => {
+
+          customPaidMap[name.toLowerCase()] =
+            (customPaidMap[name.toLowerCase()] || 0) +
+            Number(amount);
+
+        });
+
+      });
+
+      return {
+        ...student,
+        customPaidMap,
+      };
+
+    });
+
+    res.json(result);
+    
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: error.message });
@@ -248,26 +286,42 @@ router.post("/recordCategoryPayment", authMiddleware, async (req, res) => {
       }),
     ]);
 
-    // Recalculate aggregate paidAmount on StudentList
     const allCats = await prisma.studentFeeCategory.findMany({
       where: { studentListId: parseInt(studentListId) },
     });
-    const newTotalPaid = allCats.reduce((sum, c) => sum + Number(c.paidAmount), 0) + payAmt;
 
+    const newTotalPaid = allCats.reduce(
+      (sum, c) => sum + Number(c.paidAmount),
+      0
+    );
     const studentListRecord = await prisma.studentList.findUnique({ where: { id: parseInt(studentListId) } });
     const totalFees = Number(studentListRecord?.fees || 0);
 
     await prisma.studentList.update({
       where: { id: parseInt(studentListId) },
       data: {
-        paidAmount:    newTotalPaid,
-        paymentMode:   paymentMode || "Cash",
-        paymentDate:   payDate,
+        paidAmount: newTotalPaid,
+        paymentMode: paymentMode || "Cash",
+        paymentDate: payDate,
         paymentStatus: newTotalPaid >= totalFees ? "PAID" : "PARTIAL",
       },
     });
 
-    res.json({ success: true, newTotalPaid });
+    // Fetch the updated category after payment
+    const updatedCategory = await prisma.studentFeeCategory.findUnique({
+      where: {
+        id: sfc.id,
+      },
+      include: {
+        category: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      newTotalPaid,
+      updatedCategory,
+    });
   } catch (error) {
     console.error("recordCategoryPayment error:", error);
     res.status(500).json({ message: error.message });
@@ -726,81 +780,136 @@ router.post("/recordSimplePayment", authMiddleware, async (req, res) => {
       studentListId,
       amount,
       paymentMode,
-      paymentDate,             // custom date picked in the UI (yyyy-mm-dd or ISO)
-      sessionLogId,           // if set → UPDATE existing row (same session)
-      schoolFeePaid    = 0,
-      tuitionFeePaid   = 0,
-      examFeePaid      = 0,
+      paymentDate,
+      sessionLogId,
+
+      schoolFeePaid = 0,
+      tuitionFeePaid = 0,
+      examFeePaid = 0,
       transportFeePaid = 0,
-      booksFeePaid     = 0,
-      labFeePaid       = 0,
-      miscFeePaid      = 0,
+      booksFeePaid = 0,
+      labFeePaid = 0,
+      miscFeePaid = 0,
+
+      // NEW
+      customFeeBreakdown = {},
     } = req.body;
 
     if (!studentListId || !amount || Number(amount) <= 0) {
-      return res.status(400).json({ message: "studentListId and amount are required" });
+      return res.status(400).json({
+        message: "studentListId and amount are required",
+      });
     }
 
-    // Use the custom date picked in the UI if provided, else fall back to now.
     const payDate = paymentDate ? new Date(paymentDate) : new Date();
 
     const hasTable = await checkPaymentLogMigrated();
     if (!hasTable) {
-      console.warn("[recordSimplePayment] student_payment_log table missing — skipping log write");
-      return res.json({ success: true, logged: false, message: "Run migration to enable history." });
+      console.warn(
+        "[recordSimplePayment] student_payment_log table missing — skipping log write"
+      );
+
+      return res.json({
+        success: true,
+        logged: false,
+        message: "Run migration to enable history.",
+      });
     }
 
-    // ── If sessionLogId provided, UPDATE that row (same modal session) ──────
-    // This groups all category payments in one PayModal open into ONE receipt.
+    // ------------------------------------------------------------
+    // UPDATE EXISTING SESSION LOG
+    // ------------------------------------------------------------
     if (sessionLogId) {
       const existing = await prisma.studentPaymentLog.findUnique({
-        where: { id: parseInt(sessionLogId) },
+        where: {
+          id: parseInt(sessionLogId),
+        },
       });
 
-      if (existing && existing.studentListId === parseInt(studentListId)) {
+      if (
+        existing &&
+        existing.studentListId === parseInt(studentListId)
+      ) {
         const updated = await prisma.studentPaymentLog.update({
-          where: { id: parseInt(sessionLogId) },
+          where: {
+            id: parseInt(sessionLogId),
+          },
           data: {
-            amount:           Number(amount),           // frontend sends running total
-            paymentMode:      paymentMode || "Cash",
-            paidAt:           payDate,
-            schoolFeePaid:    Number(schoolFeePaid),
-            tuitionFeePaid:   Number(tuitionFeePaid),
-            examFeePaid:      Number(examFeePaid),
+            amount: Number(amount),
+            paymentMode: paymentMode || "Cash",
+            paidAt: payDate,
+
+            schoolFeePaid: Number(schoolFeePaid),
+            tuitionFeePaid: Number(tuitionFeePaid),
+            examFeePaid: Number(examFeePaid),
             transportFeePaid: Number(transportFeePaid),
-            booksFeePaid:     Number(booksFeePaid),
-            labFeePaid:       Number(labFeePaid),
-            miscFeePaid:      Number(miscFeePaid),
+            booksFeePaid: Number(booksFeePaid),
+            labFeePaid: Number(labFeePaid),
+            miscFeePaid: Number(miscFeePaid),
+
+            // NEW
+            customFeeBreakdown,
           },
         });
-        console.log("[recordSimplePayment] ✅ Updated existing log:", updated.id, "total now:", amount);
-        return res.json({ success: true, logged: true, logId: updated.id, action: "updated" });
+
+        console.log(
+          "[recordSimplePayment] ✅ Updated existing log:",
+          updated.id
+        );
+
+        return res.json({
+          success: true,
+          logged: true,
+          logId: updated.id,
+          action: "updated",
+        });
       }
     }
 
-    // ── No sessionLogId (or not found) → CREATE new row ─────────────────────
+    // ------------------------------------------------------------
+    // CREATE NEW LOG
+    // ------------------------------------------------------------
     const log = await prisma.studentPaymentLog.create({
       data: {
-        studentListId:    parseInt(studentListId),
-        amount:           Number(amount),
-        paymentMode:      paymentMode || "Cash",
-        paidAt:           payDate,
-        schoolFeePaid:    Number(schoolFeePaid),
-        tuitionFeePaid:   Number(tuitionFeePaid),
-        examFeePaid:      Number(examFeePaid),
+        studentListId: parseInt(studentListId),
+
+        amount: Number(amount),
+        paymentMode: paymentMode || "Cash",
+        paidAt: payDate,
+
+        schoolFeePaid: Number(schoolFeePaid),
+        tuitionFeePaid: Number(tuitionFeePaid),
+        examFeePaid: Number(examFeePaid),
         transportFeePaid: Number(transportFeePaid),
-        booksFeePaid:     Number(booksFeePaid),
-        labFeePaid:       Number(labFeePaid),
-        miscFeePaid:      Number(miscFeePaid),
-        createdBy:        req.user?.id ? String(req.user.id) : null,
+        booksFeePaid: Number(booksFeePaid),
+        labFeePaid: Number(labFeePaid),
+        miscFeePaid: Number(miscFeePaid),
+
+        // NEW
+        customFeeBreakdown,
+
+        createdBy: req.user?.id
+          ? String(req.user.id)
+          : null,
       },
     });
 
-    console.log("[recordSimplePayment] ✅ Created new log:", log.id, "amount:", amount, "student:", studentListId);
-    res.json({ success: true, logged: true, logId: log.id, action: "created" });
+    console.log(
+      "[recordSimplePayment] ✅ Created new log:",
+      log.id
+    );
+
+    return res.json({
+      success: true,
+      logged: true,
+      logId: log.id,
+      action: "created",
+    });
   } catch (error) {
     console.error("[recordSimplePayment] error:", error);
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 });
 
@@ -912,6 +1021,32 @@ router.get("/paymentHistory/:studentListId", authMiddleware, async (req, res) =>
             });
           }
 
+          // =====================================================
+          // ADD CUSTOM FEE CATEGORIES
+          // =====================================================
+          const customFees = log.customFeeBreakdown || {};
+          const allCustom =
+            Array.isArray(bd.customFees) ? bd.customFees : [];
+
+          for (const cf of allCustom) {
+            const label = cf.label;
+            const total = Number(cf.total ?? cf.amount ?? 0);
+
+            if (!label || total <= 0) continue;
+
+            const paid = Number(customFees[label] || 0);
+
+            items.push({
+              studentFeeCategoryId: null,
+              categoryName: label,
+              amount: paid,
+              cumulativePaid: paid,
+              totalAmount: total,
+              pending: Math.max(0, total - paid),
+              paymentMode: log.paymentMode,
+            });
+          }
+
           // Fallback: if feeBreakdown has no categories, show one total row
           if (items.length === 0) {
             items.push({
@@ -979,6 +1114,39 @@ router.get("/paymentHistory/:studentListId", authMiddleware, async (req, res) =>
       { catName: "Lab Fee",       paid: Number(studentRecord.labFeePaid       || 0), total: getTotal("labFee")       },
       { catName: "Miscellaneous", paid: Number(studentRecord.miscFeePaid      || 0), total: getTotal("miscFee")      },
     ];
+    // =====================================================
+      // LEGACY CUSTOM FEES
+      // =====================================================
+      const customFees =
+        studentRecord.customFeeBreakdown || {};
+
+      const customList =
+        Array.isArray(bd.customFees)
+          ? bd.customFees
+          : [];
+
+      for (const cf of customList) {
+
+        const label = cf.label;
+
+        const total =
+          Number(cf.total ?? cf.amount ?? 0);
+
+        if (!label || total <= 0) continue;
+
+        const paid =
+          Number(customFees[label] || 0);
+
+        legacyItems.push({
+          studentFeeCategoryId: null,
+          categoryName: label,
+          amount: paid,
+          cumulativePaid: paid,
+          totalAmount: total,
+          pending: Math.max(0, total - paid),
+          paymentMode: studentRecord.paymentMode || "Cash",
+        });
+      }
 
     for (const p of legacyPairs) {
       if (p.total <= 0) continue; // skip categories this student doesn't have

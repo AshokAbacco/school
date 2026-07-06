@@ -237,42 +237,88 @@ export function PayModal({ student, onClose, onPaymentDone }) {
   console.log("[PayModal] feeCategories from student:", student.feeCategories?.length ?? 0, "| dbCategoryMap:", Object.keys(dbCategoryMap));
 
   const feeCategories = [];
-  feeCategories.push({ id: "FULL", label: "Full Fee", total: totalFees, paidField: "paidAmount", dbSfcId: null });
+  feeCategories.push({
+    id: "FULL",
+    label: "Full Fee",
+    total: totalFees,
+    paidField: "paidAmount",
+    dbSfcId: null,
+  });
 
   for (const def of FEE_DEFS) {
     const bdEntry = bd[def.key];
-    const amount  = bdEntry
-      ? Number(typeof bdEntry === "object" ? (bdEntry.total ?? bdEntry.amount ?? 0) : bdEntry)
+    const amount = bdEntry
+      ? Number(
+          typeof bdEntry === "object"
+            ? (bdEntry.total ?? bdEntry.amount ?? 0)
+            : bdEntry
+        )
       : Number(student[def.flatKey] || 0);
 
     if (amount > 0) {
       const labelLower = def.label.toLowerCase();
+
       const dbSfc =
         dbCategoryMap[labelLower] ||
         Object.values(dbCategoryMap).find((sfc) => {
           const nm = sfc.category?.name?.toLowerCase() || "";
-          return nm === labelLower || nm.includes(labelLower.replace(" fee", "").trim());
+          return (
+            nm === labelLower ||
+            nm.includes(labelLower.replace(" fee", "").trim())
+          );
         });
 
       feeCategories.push({
-        id:           def.key,
-        label:        def.label,
-        total:        amount,
-        paidField:    def.paidField,
-        dbSfcId:      dbSfc?.id || null,
-        dbCategoryId: dbSfc?.categoryId || null,  // ✅ was sfc.categoryId (bug), now dbSfc?.categoryId
+        id: def.key,
+        label: def.label,
+        total: amount,
+        paidField: def.paidField,
+        dbSfcId: dbSfc?.id || null,
+        dbCategoryId: dbSfc?.categoryId || null,
       });
     }
   }
 
   const customFeesList = Array.isArray(bd.customFees) ? bd.customFees : [];
+
   customFeesList.forEach((cf, i) => {
     const amount = Number(cf.total ?? cf.amount ?? 0);
+
     if (amount > 0) {
-      feeCategories.push({
-        id: `custom_${i}`, label: cf.label || `Custom Fee ${i + 1}`,
-        total: amount, paidField: null, isCustom: true, customIdx: i, dbCategoryId: null,
-      });
+      const label = cf.label || `Custom Fee ${i + 1}`;
+      const labelLower = label.toLowerCase();
+
+      const dbSfc =
+        dbCategoryMap[labelLower] ||
+        Object.values(dbCategoryMap).find(
+          (sfc) => (sfc.category?.name?.toLowerCase() || "") === labelLower
+        );
+
+      const paid =
+        Number(
+          student.customPaidMap?.[labelLower] ||
+          0
+        );
+
+        console.log(
+          "[PayModal] Custom Fee:",
+          label,
+          "Paid:",
+          paid,
+          dbSfc
+        );
+
+        feeCategories.push({
+          id: `custom_${i}`,
+          label,
+          total: amount,
+          paidField: null,
+          paidAmount: paid,
+          isCustom: true,
+          customIdx: i,
+          dbSfcId: dbSfc?.id || null,
+          dbCategoryId: dbSfc?.categoryId || null,
+        });
     }
   });
 
@@ -285,10 +331,35 @@ export function PayModal({ student, onClose, onPaymentDone }) {
   };
   const [paidMap, setPaidMap] = useState(initPaidMap);
 
+  // Store custom fee paid amounts separately
+  const [customPaidMap, setCustomPaidMap] = useState({});
+
+  // Refresh custom paid amounts whenever student data changes
+  useEffect(() => {
+    const map = {};
+
+    feeCategories.forEach(cat => {
+      if (cat.isCustom) {
+        map[cat.id] = Number(cat.paidAmount || 0);
+      }
+    });
+
+    setCustomPaidMap(map);
+
+    console.log("[PayModal] Custom Paid Map:", map);
+  }, [student]);
+
   const [categoryId,  setCategoryId]  = useState("FULL");
   const activeCat    = feeCategories.find(c => c.id === categoryId) || feeCategories[0];
   const catTotal     = activeCat.total;
-  const catPaid      = activeCat.paidField ? (paidMap[activeCat.paidField] ?? 0) : 0;
+  const catPaid =
+    activeCat.isCustom
+      ? Number(customPaidMap[activeCat.id] || 0)
+      : (
+          activeCat.paidField
+            ? Number(paidMap[activeCat.paidField] || 0)
+            : 0
+        );
   const catRemaining = Math.max(0, catTotal - catPaid);
   const progressPct  = catTotal > 0 ? Math.min(100, Math.round((catPaid / catTotal) * 100)) : 0;
 
@@ -372,16 +443,23 @@ export function PayModal({ student, onClose, onPaymentDone }) {
     return res.json();
   };
 
-  const applyPatch = (addedAmt) => {
-    const payload = buildPayload(addedAmt);
-    setPaidMap(prev => {
-      const next = { ...prev };
-      for (const [k, v] of Object.entries(payload)) { if (k in next) next[k] = v; else next[k] = v; }
-      next.paidAmount = payload.paidAmount;
-      return next;
-    });
-    onPaymentDone(student.id, payload.paidAmount, payload.paymentStatus);
-  };
+const applyPatch = (addedAmt) => {
+  const payload = buildPayload(addedAmt);
+
+  setPaidMap(prev => ({
+    ...prev,
+    paidAmount: payload.paidAmount,
+    ...(activeCat.paidField && {
+      [activeCat.paidField]: payload[activeCat.paidField],
+    }),
+  }));
+
+  onPaymentDone(
+    student.id,
+    payload.paidAmount,
+    payload.paymentStatus
+  );
+};
 
   // ── SESSION LOG — accumulates ALL categories paid in one PayModal open ────
   // Problem: user pays School Fee, then Exam Fee in same modal open.
@@ -400,6 +478,7 @@ export function PayModal({ student, onClose, onPaymentDone }) {
     booksFeePaid:     0,
     labFeePaid:       0,
     miscFeePaid:      0,
+    customFeeBreakdown: {},
   });
 
   // ── Map activeCat.id → breakdown field ───────────────────────────────────
@@ -446,17 +525,25 @@ export function PayModal({ student, onClose, onPaymentDone }) {
   // Creates the log row on first call, updates it on subsequent calls.
   const updateSessionLog = async (amountPaid, mode) => {
     try {
-      // Category-specific payment (e.g. "School Fee") → credit that one field.
-      // Full Fee / non-category payment → distribute across categories instead
-      // of silently dropping the attribution (previous bug: field was
-      // undefined for "FULL", so no category column was ever credited).
+  
       const field = CAT_TO_FIELD[activeCat.id];
+
       const increments = field
         ? { [field]: amountPaid }
-        : allocateAcrossCategories(amountPaid);
+        : (activeCat.id === "FULL"
+            ? allocateAcrossCategories(amountPaid)
+            : {});
 
+      // NEW: Track custom fee payments
+      const customFeeBreakdown =
+        activeCat.isCustom
+          ? {
+              [activeCat.label]:
+                ((sessionBreakdown.customFeeBreakdown?.[activeCat.label] || 0) + amountPaid),
+            }
+          : (sessionBreakdown.customFeeBreakdown || {});
       // Merge into session accumulator
-      const updated = { ...sessionBreakdown, amount: sessionBreakdown.amount + amountPaid };
+      const updated = { ...sessionBreakdown, amount: sessionBreakdown.amount + amountPaid, customFeeBreakdown };
       for (const [f, amt] of Object.entries(increments)) {
         updated[f] = (updated[f] || 0) + amt;
       }
@@ -490,38 +577,88 @@ export function PayModal({ student, onClose, onPaymentDone }) {
       console.warn("[PayModal] session log update failed (non-fatal):", e.message);
     }
   };
+// ===============================
+// DO PAYMENT
+// ===============================
+const doPayment = async (amount, mode) => {
+  // Category-based payment
+  if (activeCat.dbCategoryId && activeCat.id !== "FULL") {
 
-  const doPayment = async (amount, mode) => {
-    console.log("[PayModal] doPayment →", { cat: activeCat.label, dbCategoryId: activeCat.dbCategoryId, amount, mode });
+    const result = await apiRecordCategoryPayment(
+      activeCat.dbCategoryId,
+      amount,
+      mode
+    );
 
-    if (activeCat.dbCategoryId && activeCat.id !== "FULL") {
-      console.log("[PayModal] → recordCategoryPayment (category system)");
-      const result = await apiRecordCategoryPayment(activeCat.dbCategoryId, amount, mode);
-      const newTotalPaid = result.newTotalPaid;
-      setPaidMap(prev => {
-        const next = { ...prev };
-        if (activeCat.paidField) next[activeCat.paidField] = Math.min(catTotal, catPaid + amount);
-        next.paidAmount = newTotalPaid;
-        return next;
-      });
-      onPaymentDone(student.id, newTotalPaid, newTotalPaid >= totalFees ? "PAID" : "PARTIAL");
-    } else {
-      console.log("[PayModal] → updateStudentFinance (legacy)");
-      const payload = { ...buildPayload(amount), paymentMode: mode };
-      await apiUpdate(payload);
-      applyPatch(amount);
+    const newTotalPaid = result.newTotalPaid;
+
+    if (activeCat.isCustom && result.updatedCategory) {
+      setCustomPaidMap(prev => ({
+        ...prev,
+        [activeCat.id]: Number(result.updatedCategory.paidAmount),
+      }));
     }
 
-    // Always update session log AFTER payment succeeds
-    await updateSessionLog(amount, mode);
-  };
+  setPaidMap(prev => {
+    const next = { ...prev };
 
-  const handleFullPay = async () => {
-    setLoading(true); setError("");
-    try { await doPayment(catRemaining, fullMode); setFullDone(true); }
-    catch (e) { setError(e.message || "Payment failed. Try again."); }
-    finally { setLoading(false); }
-  };
+    // Update overall paid amount
+    next.paidAmount = newTotalPaid;
+
+    // Update default category
+    if (activeCat.paidField) {
+      next[activeCat.paidField] = Math.min(catTotal, catPaid + amount);
+    }
+ 
+    return next;
+  });
+
+    await updateSessionLog(amount, mode);
+
+    onPaymentDone(
+      student.id,
+      newTotalPaid,
+      newTotalPaid >= totalFees ? "PAID" : "PARTIAL"
+
+    );
+
+    return;
+  }
+
+  // Legacy / Full Fee
+  const payload = buildPayload(amount);
+
+  await apiUpdate(payload);
+
+  applyPatch(amount);
+
+  await updateSessionLog(amount, mode);
+};
+
+// ===============================
+// FULL PAYMENT
+// ===============================
+const handleFullPay = async () => {
+  setLoading(true);
+  setError("");
+
+  try {
+    await doPayment(catRemaining, fullMode);
+    setFullDone(true);
+  } catch (e) {
+    setError(e.message || "Payment failed. Try again.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+  // const handleFullPay = async () => {
+    
+  //   setLoading(true); setError("");
+  //   try { await doPayment(catRemaining, fullMode); setFullDone(true); }
+  //   catch (e) { setError(e.message || "Payment failed. Try again."); }
+  //   finally { setLoading(false); }
+  // };
 
   const handleCustomPay = async () => {
     const amount = Number(customAmt);
