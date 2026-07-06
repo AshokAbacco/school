@@ -830,27 +830,33 @@ router.post("/recordSimplePayment", authMiddleware, async (req, res) => {
         existing &&
         existing.studentListId === parseInt(studentListId)
       ) {
-        const updated = await prisma.studentPaymentLog.update({
-          where: {
-            id: parseInt(sessionLogId),
-          },
-          data: {
-            amount: Number(amount),
-            paymentMode: paymentMode || "Cash",
-            paidAt: payDate,
+      // Merge previous custom fees with newly paid custom fees
+      const mergedCustomFees = {
+        ...(existing.customFeeBreakdown || {}),
+        ...(customFeeBreakdown || {}),
+      };
 
-            schoolFeePaid: Number(schoolFeePaid),
-            tuitionFeePaid: Number(tuitionFeePaid),
-            examFeePaid: Number(examFeePaid),
-            transportFeePaid: Number(transportFeePaid),
-            booksFeePaid: Number(booksFeePaid),
-            labFeePaid: Number(labFeePaid),
-            miscFeePaid: Number(miscFeePaid),
+      const updated = await prisma.studentPaymentLog.update({
+        where: {
+          id: parseInt(sessionLogId),
+        },
+        data: {
+          amount: Number(amount),
+          paymentMode: paymentMode || "Cash",
+          paidAt: payDate,
 
-            // NEW
-            customFeeBreakdown,
-          },
-        });
+          schoolFeePaid: Number(schoolFeePaid),
+          tuitionFeePaid: Number(tuitionFeePaid),
+          examFeePaid: Number(examFeePaid),
+          transportFeePaid: Number(transportFeePaid),
+          booksFeePaid: Number(booksFeePaid),
+          labFeePaid: Number(labFeePaid),
+          miscFeePaid: Number(miscFeePaid),
+
+          // Merge instead of replace
+          customFeeBreakdown: mergedCustomFees,
+        },
+      });
 
         console.log(
           "[recordSimplePayment] ✅ Updated existing log:",

@@ -323,10 +323,14 @@ export function PayModal({ student, onClose, onPaymentDone }) {
   });
 
   const initPaidMap = () => {
-    const m = { paidAmount: Number(student.paidAmount || 0) };
+    const m = {
+      paidAmount: Number(student.paidAmount || 0),
+    };
+
     for (const def of FEE_DEFS) {
       m[def.paidField] = Number(student[def.paidField] || 0);
     }
+
     return m;
   };
   const [paidMap, setPaidMap] = useState(initPaidMap);
