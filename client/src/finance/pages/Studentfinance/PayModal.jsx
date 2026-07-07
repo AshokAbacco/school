@@ -335,6 +335,21 @@ export function PayModal({ student, onClose, onPaymentDone }) {
   };
   const [paidMap, setPaidMap] = useState(initPaidMap);
 
+  // Refresh default-category paid amounts whenever student data changes.
+  // Without this, paidMap is only ever set from the very first mount's
+  // student prop — so if the parent refetches and hands PayModal a newer
+  // student object (e.g. right after a payment), schoolFeePaid/examFeePaid/etc.
+  // here keep showing whatever they were the first time this modal mounted,
+  // even though the DB (and the invoice, which re-reads on every open) is correct.
+  useEffect(() => {
+    const m = { paidAmount: Number(student.paidAmount || 0) };
+    for (const def of FEE_DEFS) {
+      m[def.paidField] = Number(student[def.paidField] || 0);
+    }
+    setPaidMap(m);
+    console.log("[PayModal] Paid Map refreshed from student prop:", m);
+  }, [student]);
+
   // Store custom fee paid amounts separately
   const [customPaidMap, setCustomPaidMap] = useState({});
 

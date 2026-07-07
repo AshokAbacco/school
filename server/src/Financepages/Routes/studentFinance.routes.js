@@ -147,12 +147,14 @@ async function syncFeeCategories(schoolId, studentListId, breakdown) {
 router.get("/getStudentFinance", authMiddleware, async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
-    if (!schoolId) return res.status(400).json({ message: "SchoolId missing in user" });
+    if (!schoolId) {
+      return res.status(400).json({ message: "SchoolId missing in user" });
+    }
 
     const migrated = await checkMigrated();
 
     const students = await prisma.studentList.findMany({
-     where: {
+      where: {
         schoolId,
         deletedAt: null,
       },
@@ -165,48 +167,78 @@ router.get("/getStudentFinance", authMiddleware, async (req, res) => {
             paidAt: "asc",
           },
         },
-      },
-      // Only include feeCategories if the migration has been run
-      ...(migrated && {
-        include: {
+
+        ...(migrated && {
           feeCategories: {
-            include:  { category: true },
-            orderBy:  { category: { order: "asc" } },
+            include: {
+              category: true,
+            },
+            orderBy: {
+              category: {
+                order: "asc",
+              },
+            },
           },
-        },
-      }),
+        }),
+      },
     });
 
     const result = students.map((student) => {
-
       const customPaidMap = {};
 
+      let paidAmount = 0;
+      let schoolFeePaid = 0;
+      let tuitionFeePaid = 0;
+      let examFeePaid = 0;
+      let transportFeePaid = 0;
+      let booksFeePaid = 0;
+      let labFeePaid = 0;
+      let miscFeePaid = 0;
+
       student.paymentLogs.forEach((log) => {
+        paidAmount += Number(log.amount || 0);
+
+        schoolFeePaid += Number(log.schoolFeePaid || 0);
+        tuitionFeePaid += Number(log.tuitionFeePaid || 0);
+        examFeePaid += Number(log.examFeePaid || 0);
+        transportFeePaid += Number(log.transportFeePaid || 0);
+        booksFeePaid += Number(log.booksFeePaid || 0);
+        labFeePaid += Number(log.labFeePaid || 0);
+        miscFeePaid += Number(log.miscFeePaid || 0);
 
         const custom = log.customFeeBreakdown || {};
 
         Object.entries(custom).forEach(([name, amount]) => {
+          const key = name.toLowerCase().trim();
 
-          customPaidMap[name.toLowerCase()] =
-            (customPaidMap[name.toLowerCase()] || 0) +
-            Number(amount);
-
+          customPaidMap[key] =
+            (customPaidMap[key] || 0) + Number(amount || 0);
         });
-
       });
 
       return {
         ...student,
+
+        paidAmount,
+
+        schoolFeePaid,
+        tuitionFeePaid,
+        examFeePaid,
+        transportFeePaid,
+        booksFeePaid,
+        labFeePaid,
+        miscFeePaid,
+
         customPaidMap,
       };
-
     });
 
     res.json(result);
-    
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: error.message });
+    console.error("getStudentFinance error:", error);
+    res.status(500).json({
+      message: error.message,
+    });
   }
 });
 
@@ -262,6 +294,7 @@ router.post("/recordCategoryPayment", authMiddleware, async (req, res) => {
 
     const sfc = await prisma.studentFeeCategory.findUnique({
       where: { studentListId_categoryId: { studentListId: parseInt(studentListId), categoryId } },
+      include: { category: true },
     });
 
     if (!sfc) return res.status(404).json({ message: "Fee category record not found for this student" });
@@ -297,6 +330,21 @@ router.post("/recordCategoryPayment", authMiddleware, async (req, res) => {
     const studentListRecord = await prisma.studentList.findUnique({ where: { id: parseInt(studentListId) } });
     const totalFees = Number(studentListRecord?.fees || 0);
 
+    // Keep the legacy per-category flat columns (schoolFeePaid, examFeePaid, etc.)
+    // in sync with the new studentFeeCategory table. PayModal.jsx, fee reminders,
+    // and other reports still read these flat columns directly, so without this
+    // update they go stale the moment a payment is made against a category here.
+    const NAME_TO_FLAT_FIELD = {
+      "school fee":    "schoolFeePaid",
+      "tuition fee":   "tuitionFeePaid",
+      "exam fee":      "examFeePaid",
+      "transport fee": "transportFeePaid",
+      "books fee":     "booksFeePaid",
+      "lab fee":       "labFeePaid",
+      "miscellaneous": "miscFeePaid",
+    };
+    const flatField = NAME_TO_FLAT_FIELD[sfc.category?.name?.toLowerCase()];
+
     await prisma.studentList.update({
       where: { id: parseInt(studentListId) },
       data: {
@@ -304,6 +352,8 @@ router.post("/recordCategoryPayment", authMiddleware, async (req, res) => {
         paymentMode: paymentMode || "Cash",
         paymentDate: payDate,
         paymentStatus: newTotalPaid >= totalFees ? "PAID" : "PARTIAL",
+        // Custom fee categories have no matching flat column — skip those safely.
+        ...(flatField && { [flatField]: { increment: payAmt } }),
       },
     });
 
