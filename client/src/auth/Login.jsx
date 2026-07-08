@@ -422,36 +422,56 @@ export default function Login({ onSwitchToRegister }) {
 
         /* Tabs */
         .tabs-wrap {
-          background: #f0f6ff;
-          border-radius: 14px;
-          padding: 5px;
+          background: #eef4fc;
+          border-radius: 16px;
+          padding: 6px;
           display: grid;
           grid-template-columns: repeat(5, 1fr);
-          gap: 4px;
+          gap: 5px;
           margin-bottom: 20px;
         }
         .tab-btn {
-          padding: 9px 4px;
-          border-radius: 10px;
+          height: 62px;
+          padding: 9px 2px 8px;
+          border-radius: 12px;
           border: none;
           cursor: pointer;
           font-family: 'DM Sans', sans-serif;
-          font-size: 11px;
+          font-size: 10.0px;
           font-weight: 600;
+          letter-spacing: -0.2px;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 4px;
-          transition: all 0.2s;
+          justify-content: center;
+          gap: 5px;
+          transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
           background: transparent;
           color: #6A89A7;
+          line-height: 1;
+          text-align: center;
         }
+        .tab-btn-icon {
+          width: 24px;
+          height: 24px;
+          border-radius: 7px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(106,137,167,0.12);
+          transition: background 0.2s;
+          flex-shrink: 0;
+        }
+        .tab-btn-label { max-width: 100%; white-space: nowrap; }
+        .tab-btn:hover:not(.active) { background: rgba(106,137,167,0.08); color: #384959; }
+        .tab-btn:hover:not(.active) .tab-btn-icon { background: rgba(106,137,167,0.18); }
         .tab-btn.active {
-          background: #384959;
+          background: linear-gradient(135deg, #384959, #2c3a47);
           color: #fff;
-          box-shadow: 0 2px 10px rgba(56,73,89,0.22);
+          box-shadow: 0 4px 14px rgba(56,73,89,0.28);
+          transform: translateY(-1px);
         }
-        .tab-btn:hover:not(.active) { background: rgba(56,73,89,0.06); }
+        .tab-btn.active .tab-btn-icon { background: rgba(255,255,255,0.16); }
 
         /* Staff sub-roles */
         .staff-roles {
@@ -657,7 +677,9 @@ export default function Login({ onSwitchToRegister }) {
           .mobile-brand { display: flex !important; flex-direction: column; }
           .right-panel { padding: 24px 16px; align-items: flex-start; }
           .form-card { padding: 28px 20px; border-radius: 18px; }
-          .tabs-wrap { grid-template-columns: repeat(3, 1fr); }
+          .tabs-wrap { grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 5px; }
+          .tab-btn { height: 56px; font-size: 9px; gap: 4px; letter-spacing: -0.25px; }
+          .tab-btn-icon { width: 21px; height: 21px; }
           .form-title { font-size: 22px; }
         }
 
@@ -667,6 +689,9 @@ export default function Login({ onSwitchToRegister }) {
           .role-btn { padding: 9px 4px; }
           .role-btn-desc { display: none; }
           .btn-primary { font-size: 14px; padding: 13px; }
+          .tabs-wrap { gap: 3px; padding: 4px; }
+          .tab-btn { height: 50px; font-size: 8.3px; padding: 6px 1px 5px; letter-spacing: -0.3px; }
+          .tab-btn-icon { width: 19px; height: 19px; }
         }
 
         .mobile-brand { display: none; }
@@ -743,8 +768,10 @@ export default function Login({ onSwitchToRegister }) {
                     className={`tab-btn ${type === tab.value ? "active" : ""}`}
                     onClick={() => { setType(tab.value); setError(""); setShowOtp(false); setOtp(""); }}
                   >
-                    <Icon size={14} />
-                    {tab.label}
+                    <span className="tab-btn-icon">
+                      <Icon size={13} />
+                    </span>
+                    <span className="tab-btn-label">{tab.label}</span>
                   </button>
                 );
               })}
