@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import {
   sendLoginOtp,
   verifyLoginOtp,
+  sendBusHeadLoginOtp,
+  verifyBusHeadLoginOtp,
 } from "./api";
 import { saveAuth } from "./storage";
 import {
@@ -21,6 +23,7 @@ import {
   UserCog,
   ArrowRight,
   Sparkles,
+  Bus,
 } from "lucide-react";
 
 const REDIRECT = {
@@ -30,6 +33,7 @@ const REDIRECT = {
   STUDENT: "/student/dashboard",
   PARENT: "/parent/dashboard",
   SUPER_ADMIN: "/superAdmin/dashboard",
+  BUS_HEAD: "/busHead/dashboard",
 };
 
 const STAFF_ROLES = [
@@ -43,6 +47,7 @@ const TOP_TABS = [
   { label: "Student",     value: "student",    icon: GraduationCap },
   { label: "Parent",      value: "parent",     icon: Building2    },
   { label: "Super Admin", value: "superAdmin", icon: ShieldCheck  },
+  { label: "Bus Head",    value: "busHead",    icon: Bus          },
 ];
 
 const FEATURES = [
@@ -97,6 +102,7 @@ export default function Login({ onSwitchToRegister }) {
       superAdmin: "SUPER_ADMIN",
       student:    "STUDENT",
       parent:     "PARENT",
+      busHead:    "BUS_HEAD",
     };
     return type === "staff" ? staffRoleMap[staffRole] : roleMap[type];
   };
@@ -115,6 +121,28 @@ export default function Login({ onSwitchToRegister }) {
       if (digits.length < 10) {
         return setError("Please enter a valid mobile number or email address");
       }
+    }
+
+    // ── Bus Head — same OTP flow as other roles, own endpoints ───────────
+    if (type === "busHead") {
+      try {
+        setLoading(true);
+        const result = await sendBusHeadLoginOtp({ phone, password });
+
+        if (result?.otpRequired) {
+          setShowOtp(true);
+          setOtpMessage("OTP sent to your registered mobile number");
+          setError("");
+          setResolvedPhone(result.phone || phone);
+          return;
+        }
+        setError("Login failed. Please try again.");
+      } catch (err) {
+        setError(err.message || "Login failed");
+      } finally {
+        setLoading(false);
+      }
+      return;
     }
 
     try {
@@ -159,6 +187,13 @@ export default function Login({ onSwitchToRegister }) {
     try {
       setLoading(true);
 
+      if (type === "busHead") {
+        const result = await verifyBusHeadLoginOtp({ phone: resolvedPhone || phone, otp });
+        saveAuth(result);
+        window.location.href = REDIRECT.BUS_HEAD;
+        return;
+      }
+
       const result = await verifyLoginOtp({ phone: resolvedPhone || phone, otp });
 
       saveAuth(result);
@@ -177,7 +212,7 @@ export default function Login({ onSwitchToRegister }) {
   const activeTab = TOP_TABS.find((t) => t.value === type);
 
   // Student hint text
-  const isPhoneOnlyType = type === "student" || type === "parent";
+  const isPhoneOnlyType = type === "student" || type === "parent" || type === "busHead";
 
   const phonePlaceholder = isPhoneOnlyType
     ? (type === "student" ? "Parent's mobile number" : "Enter mobile number")
@@ -391,7 +426,7 @@ export default function Login({ onSwitchToRegister }) {
           border-radius: 14px;
           padding: 5px;
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(5, 1fr);
           gap: 4px;
           margin-bottom: 20px;
         }
@@ -622,7 +657,7 @@ export default function Login({ onSwitchToRegister }) {
           .mobile-brand { display: flex !important; flex-direction: column; }
           .right-panel { padding: 24px 16px; align-items: flex-start; }
           .form-card { padding: 28px 20px; border-radius: 18px; }
-          .tabs-wrap { grid-template-columns: repeat(2, 1fr); }
+          .tabs-wrap { grid-template-columns: repeat(3, 1fr); }
           .form-title { font-size: 22px; }
         }
 

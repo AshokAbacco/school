@@ -22,6 +22,7 @@ export const saveAuth = (data) => {
   }
   if (role === "STUDENT") accountType = "student";
   if (role === "PARENT") accountType = "parent";
+  if (role === "BUS_HEAD") accountType = "busHead";
 
   const normalizedUser = {
     ...data.user,

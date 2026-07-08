@@ -10,6 +10,7 @@ import biometricRoutes from "./biometric/biometric.routes.js";
 import vehicleRoutes from "./vehicle/vehicle.routes.js";           // ← ADD
 import voiceRoutes from "./voiceAnnouncements/voice.routes.js";     // ← ADD
 import idCardRoutes    from "./idcard/idCardRoutes.js";
+import busHeadRoutes, { busHeadAuthRouter, busHeadPortalRouter } from "./busHead/busHead.routes.js";
 import noAuthRoutes    from "./no_auth_endpoints/noAuthRoutes.js";
 import { globalLimiter } from "./middlewares/rateLimiter.js";
 import errorHandler from "./middlewares/errorMiddleware.js";
@@ -49,6 +50,9 @@ app.use("/api/vehicles",  vehicleRoutes);   // ← ADD
 app.use("/api/voice",     voiceRoutes);     // ← ADD
 app.use("/api/id-cards", noAuthRoutes);   // no auth
 app.use("/api/id-cards", idCardRoutes);   // superadmin auth
+app.use("/api/bus-heads",       busHeadRoutes);
+app.use("/api/auth/bus-head",   busHeadAuthRouter);
+app.use("/api/bus-head",        busHeadPortalRouter);
 app.use(globalLimiter);
 app.use(errorHandler);
 app.use("/api/parent",    parent);

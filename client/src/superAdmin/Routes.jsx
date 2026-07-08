@@ -24,6 +24,7 @@ import ResultReports from "./pages/ResultReports/ResultReports";
 import BiometricManagement from "./pages/Biometric/BiometricManagement";
 import PayrollManagement from "./pages/PayrollManagement/PayrollManagement.jsx";
 import VehicleManagement from "./pages/VehicleTracking/VehicleManagement";
+import BusHeadManagement from "./pages/BusHead/BusHeadManagement";
 import VoiceAnnouncements from "./pages/VoiceAnnouncements/VoiceAnnouncements.jsx";
 import IdCardManagement from "./pages/IdCards/IdCardManagement";
  import GalleryViewer from "../shared/components/GalleryViewer";
@@ -59,6 +60,7 @@ function SuperAdminRoutes() {
         <Route path="biometric" element={<BiometricManagement />} />
         <Route path="payroll" element={<PayrollManagement />} />
         <Route path="vehicles" element={<VehicleManagement />} />
+        <Route path="bus-heads" element={<BusHeadManagement />} />
         <Route path="voice-announcements" element={<VoiceAnnouncements />} />
         <Route path="id-cards" element={<IdCardManagement />} />
         <Route path="*" element={<Navigate to="dashboard" replace />} />

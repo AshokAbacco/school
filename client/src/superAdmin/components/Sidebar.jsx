@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Building2, UserCog, Users, ShieldCheck,
   CreditCard, BarChart3, X, GraduationCap, Wallet,
   MessageCircle, FileText, ClipboardCheck, Fingerprint,
-  IndianRupee, Car, Mic ,IdCard , Images, Video 
+  IndianRupee, Car, Mic ,IdCard , Images, Video, UserCheck 
 } from "lucide-react";
 
 const initials = (name = "SA") =>
@@ -26,6 +26,7 @@ export default function Sidebar({ isOpen, onClose, user }) {
     { icon: Fingerprint,     label: "Biometric Management",to: "/superadmin/biometric" },
     { icon: IndianRupee,     label: "Payroll",             to: "/superadmin/payroll" },
     { icon: Car,             label: "Vehicle Tracking",    to: "/superadmin/vehicles" },
+    { icon: UserCheck,       label: "Bus Heads",           to: "/superadmin/bus-heads" },
     { icon: Mic,             label: "Voice Announcements", to: "/superadmin/voice-announcements" }, 
     { icon: IdCard,          label: "ID Cards",            to: "/superadmin/id-cards" },
     { icon: Images, label: "Gallery", to: "/superadmin/gallery" },
