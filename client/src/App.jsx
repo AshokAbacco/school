@@ -14,6 +14,7 @@ import SuperAdminRoutes from "./superAdmin/Routes";
 import TeacherRoutes from "./teacher/Routes";
 import ParentRoutes from "./parent/Routes";
 import FinanceRoutes from "./finance/Routes";
+import BusHeadRoutes from "./busHead/routes/BusHeadRoutes";
 import LandingPage from "./pages/LandingPage";
 
 
@@ -103,6 +104,9 @@ function App() {
         {(auth?.accountType === "superAdmin" || auth?.role === "SUPER_ADMIN") && (
           <Route path="/superAdmin/*" element={<SuperAdminRoutes />} />
         )}
+        {auth?.accountType === "busHead" && (
+          <Route path="/busHead/*" element={<BusHeadRoutes />} />
+        )}
 
         {/* FALLBACK */}
         <Route
@@ -117,7 +121,8 @@ function App() {
                         : auth.accountType === "student" ? "/student/dashboard"
                           : auth.accountType === "parent" ? "/parent/dashboard"
                             : (auth.accountType === "superAdmin" || auth.role === "SUPER_ADMIN") ? "/superAdmin/dashboard"
-                              : "/login"
+                              : auth.accountType === "busHead" ? "/busHead/dashboard"
+                                : "/login"
               }
               replace
             />

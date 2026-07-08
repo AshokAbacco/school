@@ -55,3 +55,12 @@ export const sendLoginOtp = (credentials) =>
 export const verifyLoginOtp = (data) =>
   post("/api/auth/verify-login-otp", data);
 // data shape: { phone, otp }
+
+// ── Bus Head (OTP-based login, same 2-step pattern as other roles) ────────
+export const sendBusHeadLoginOtp = (credentials) =>
+  post("/api/auth/bus-head/login", credentials);
+// credentials shape: { phone, password } → { otpRequired: true, phone }
+
+export const verifyBusHeadLoginOtp = (data) =>
+  post("/api/auth/bus-head/verify-otp", data);
+// data shape: { phone, otp } → { token, user }

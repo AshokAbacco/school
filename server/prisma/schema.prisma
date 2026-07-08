@@ -224,6 +224,7 @@ model University {
   schools      School[]
   Payment      Payment[]
   Subscription Subscription[]
+  busHeads     BusHead[]
 
   idCardOrders    IdCardOrder[]
   idCardTemplates IdCardTemplate[]
@@ -249,8 +250,9 @@ model SuperAdmin {
 
   schoolAccess SuperAdminSchoolAccess[]
 
-  Payment Payment[]
-  schools School[]
+  Payment  Payment[]
+  schools  School[]
+  busHeads BusHead[]
 
   voiceAnnouncements VoiceAnnouncement[]
   idCardOrders       IdCardOrder[]
@@ -334,6 +336,7 @@ model School {
   ClassFee              ClassFee[]
   TransportFeePlan      TransportFeePlan[]
   Subscription          Subscription[]
+  busHeads              BusHead[]
 
   StudentFinance         StudentFinance[]
   StudentList            StudentList[]
@@ -4191,4 +4194,46 @@ model GalleryVideo {
 
   @@index([schoolId])
   @@map("gallery_videos")
+}
+
+model BusHead {
+  id       String @id @default(uuid())
+  name     String
+  phone    String @unique
+  password String
+
+  accessType BusHeadAccessType @default(SINGLE_SCHOOL)
+
+  // set only when accessType = SINGLE_SCHOOL
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // always set — needed for ALL_SCHOOLS scope + tenant isolation
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  // which SuperAdmin created this BusHead
+  createdById String?
+  createdBy   SuperAdmin? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  // OTP verification (mobile number verification at creation time)
+  otpCode         String?
+  otpExpiresAt    DateTime?
+  isPhoneVerified Boolean   @default(false)
+
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([universityId])
+  @@index([schoolId])
+  @@index([createdById])
+  @@map("bus_heads")
+}
+
+enum BusHeadAccessType {
+  SINGLE_SCHOOL
+  ALL_SCHOOLS
 }
