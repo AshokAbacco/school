@@ -58,6 +58,13 @@ prisma.$use(async (params, next) => {
   // ============================================
   // ONLY TRACK WRITE OPERATIONS
   // ============================================
+  // NOTE: everything below this point (extra lookups + the cloud
+  // backup upload) is fired WITHOUT awaiting it here. If this write
+  // is happening inside an interactive prisma.$transaction(...), the
+  // transaction has already gotten its `result` and can commit/move on
+  // immediately — it no longer waits on backup/network latency.
+  // Any error inside the background task is caught and logged there,
+  // never bubbling up to the caller of the actual write.
 
   if (
     ["create", "update", "delete"].includes(
@@ -65,204 +72,217 @@ prisma.$use(async (params, next) => {
     )
   ) {
 
-    try {
+    // Snapshot the params/data we need now, synchronously, before we
+    // return — params/result/beforeData are safe to reuse below since
+    // nothing mutates them after this point.
+    const modelForBackup = params.model;
+    const actionForBackup = params.action;
+    const argsForBackup = params.args;
+    const resultForBackup = result;
+    const beforeDataForBackup = beforeData;
 
-      let fullData =
-        params.action === "delete"
-          ? beforeData
-          : result;
+    (async () => {
 
-      // ============================================
-      // HANDLE STUDENT COMPLETE DATA
-      // ============================================
+      try {
 
-      if (
-        [
-          "Student",
-          "StudentPersonalInfo",
-          "StudentEnrollment",
-          "StudentDocumentInfo",
-          "StudentParent",
-        ].includes(params.model)
-      ) {
+        let fullData =
+          actionForBackup === "delete"
+            ? beforeDataForBackup
+            : resultForBackup;
 
-        const studentId =
-          result?.id ||
-          result?.studentId ||
-          beforeData?.id ||
-          beforeData?.studentId;
+        // ============================================
+        // HANDLE STUDENT COMPLETE DATA
+        // ============================================
 
-        if (studentId) {
+        if (
+          [
+            "Student",
+            "StudentPersonalInfo",
+            "StudentEnrollment",
+            "StudentDocumentInfo",
+            "StudentParent",
+          ].includes(modelForBackup)
+        ) {
 
-          fullData =
-            await rawPrisma.student.findUnique({
-              where: {
-                id: studentId,
-              },
+          const studentId =
+            resultForBackup?.id ||
+            resultForBackup?.studentId ||
+            beforeDataForBackup?.id ||
+            beforeDataForBackup?.studentId;
 
-              include: {
-                personalInfo: true,
-                documents: true,
+          if (studentId) {
 
-                enrollments: {
-                  include: {
-                    classSection: true,
-                    academicYear: true,
-                  },
+            fullData =
+              await rawPrisma.student.findUnique({
+                where: {
+                  id: studentId,
                 },
 
-                parentLinks: {
-                  include: {
-                    parent: true,
+                include: {
+                  personalInfo: true,
+                  documents: true,
+
+                  enrollments: {
+                    include: {
+                      classSection: true,
+                      academicYear: true,
+                    },
+                  },
+
+                  parentLinks: {
+                    include: {
+                      parent: true,
+                    },
                   },
                 },
-              },
-            });
+              });
+
+          }
 
         }
 
-      }
+        // ============================================
+        // GENERIC MODELS
+        // ============================================
 
-      // ============================================
-      // GENERIC MODELS
-      // ============================================
+        else if (fullData?.id) {
 
-      else if (fullData?.id) {
+          const fetched =
+            await getFullData(
+              modelForBackup,
+              fullData.id
+            );
 
-        const fetched =
-          await getFullData(
-            params.model,
-            fullData.id
+          if (fetched) {
+            fullData = fetched;
+          }
+
+        }
+
+        // ============================================
+        // NORMALIZE MODEL NAME
+        // ============================================
+
+        let modelName = modelForBackup;
+
+        if (
+          [
+            "StudentPersonalInfo",
+            "StudentEnrollment",
+            "StudentDocumentInfo",
+            "StudentParent",
+          ].includes(modelForBackup)
+        ) {
+
+          modelName = "Student";
+
+        }
+
+        // ============================================
+        // RECORD ID
+        // ============================================
+
+        let refId =
+          resultForBackup?.id ||
+          resultForBackup?.studentId ||
+          beforeDataForBackup?.id ||
+          beforeDataForBackup?.studentId ||
+          argsForBackup?.where?.id ||
+          "unknown";
+
+        if (
+          [
+            "StudentPersonalInfo",
+            "StudentEnrollment",
+            "StudentDocumentInfo",
+            "StudentParent",
+          ].includes(modelForBackup)
+        ) {
+
+          refId =
+            resultForBackup?.studentId ||
+            beforeDataForBackup?.studentId;
+
+        }
+
+        // ============================================
+        // ENSURE SCHOOL ID
+        // ============================================
+
+        if (
+          fullData &&
+          !fullData.schoolId &&
+          resultForBackup?.schoolId
+        ) {
+
+          fullData.schoolId =
+            resultForBackup.schoolId;
+
+        }
+
+        // ============================================
+        // SOFT DELETE DETECTION
+        // ============================================
+
+        const isSoftDelete =
+          actionForBackup === "update" &&
+          (
+            argsForBackup?.data?.deletedAt ||
+            argsForBackup?.data?.isDeleted === true ||
+            argsForBackup?.data?.isArchived === true
           );
 
-        if (fetched) {
-          fullData = fetched;
+        // ============================================
+        // RESTORE DETECTION
+        // ============================================
+
+        const isRestore =
+          actionForBackup === "update" &&
+          (
+            argsForBackup?.data?.deletedAt === null ||
+            argsForBackup?.data?.isDeleted === false ||
+            argsForBackup?.data?.isArchived === false
+          );
+
+        // ============================================
+        // SAVE CLOUD BACKUP
+        // ============================================
+
+        if (fullData) {
+
+          await saveSchoolBackup({
+
+            schoolId:
+              fullData?.schoolId ||
+              resultForBackup?.schoolId,
+
+            module: modelName,
+
+            recordId: refId,
+
+            action:
+              isRestore
+                ? "restore"
+                : isSoftDelete
+                ? "softDelete"
+                : actionForBackup,
+
+            data: fullData,
+
+          });
+
         }
 
-      }
+      } catch (err) {
 
-      // ============================================
-      // NORMALIZE MODEL NAME
-      // ============================================
-
-      let modelName = params.model;
-
-      if (
-        [
-          "StudentPersonalInfo",
-          "StudentEnrollment",
-          "StudentDocumentInfo",
-          "StudentParent",
-        ].includes(params.model)
-      ) {
-
-        modelName = "Student";
-
-      }
-
-      // ============================================
-      // RECORD ID
-      // ============================================
-
-      let refId =
-        result?.id ||
-        result?.studentId ||
-        beforeData?.id ||
-        beforeData?.studentId ||
-        params.args?.where?.id ||
-        "unknown";
-
-      if (
-        [
-          "StudentPersonalInfo",
-          "StudentEnrollment",
-          "StudentDocumentInfo",
-          "StudentParent",
-        ].includes(params.model)
-      ) {
-
-        refId =
-          result?.studentId ||
-          beforeData?.studentId;
-
-      }
-
-      // ============================================
-      // ENSURE SCHOOL ID
-      // ============================================
-
-      if (
-        fullData &&
-        !fullData.schoolId &&
-        result?.schoolId
-      ) {
-
-        fullData.schoolId =
-          result.schoolId;
-
-      }
-
-      // ============================================
-      // SOFT DELETE DETECTION
-      // ============================================
-
-      const isSoftDelete =
-        params.action === "update" &&
-        (
-          params.args?.data?.deletedAt ||
-          params.args?.data?.isDeleted === true ||
-          params.args?.data?.isArchived === true
+        console.error(
+          "Backup middleware error:",
+          err.message
         );
 
-      // ============================================
-      // RESTORE DETECTION
-      // ============================================
-
-      const isRestore =
-        params.action === "update" &&
-        (
-          params.args?.data?.deletedAt === null ||
-          params.args?.data?.isDeleted === false ||
-          params.args?.data?.isArchived === false
-        );
-
-      // ============================================
-      // SAVE CLOUD BACKUP
-      // ============================================
-
-      if (fullData) {
-
-        await saveSchoolBackup({
-
-          schoolId:
-            fullData?.schoolId ||
-            result?.schoolId,
-
-          module: modelName,
-
-          recordId: refId,
-
-          action:
-            isRestore
-              ? "restore"
-              : isSoftDelete
-              ? "softDelete"
-              : params.action,
-
-          data: fullData,
-
-        });
-
       }
 
-    } catch (err) {
-
-      console.error(
-        "Backup middleware error:",
-        err.message
-      );
-
-    }
+    })();
 
   }
 

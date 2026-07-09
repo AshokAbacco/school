@@ -8,7 +8,7 @@ import TeacherDetailDrawer from "./components/TeacherDetailDrawer";
 import AddTeacherModal from "./components/AddTeacherModal";
 import BulkImportTeachers from "./components/BulkImportTeachers";
 import { useTeachers } from "./hooks/useTeachers";
-import { fetchTeachers } from "./api/teachersApi";
+import { fetchTeachers, deleteTeacherPermanently } from "./api/teachersApi";
 import { downloadTeachersExcel } from "../../../utils/downloadTeachersExcel";
 
 export default function TeachersPage() {
@@ -32,6 +32,18 @@ export default function TeachersPage() {
     refetch();
     setTimeout(() => setSpinning(false), 700);
   }, [refetch]);
+
+  // ── Delete a teacher from card kebab menu ──────────────────────────────────
+  const handleDelete = useCallback(async (id) => {
+    try {
+      await deleteTeacherPermanently(id);
+      if (selectedId === id) setSelectedId(null);
+      refetch();
+    } catch (err) {
+      console.error("[TeachersPage] Delete failed:", err);
+      alert(err.message || "Failed to delete teacher. Please try again.");
+    }
+  }, [refetch, selectedId]);
 
   // ── Download all teachers as Excel ─────────────────────────────────────────
   const handleDownload = useCallback(async () => {
@@ -116,7 +128,7 @@ export default function TeachersPage() {
 
         <div style={{ marginTop: 8 }}>
           {viewMode === "grid" ? (
-            <TeachersGrid teachers={teachers} loading={loading} error={error} meta={meta} onSelect={setSelectedId} onPageChange={onPageChange} />
+            <TeachersGrid teachers={teachers} loading={loading} error={error} meta={meta} onSelect={setSelectedId} onPageChange={onPageChange} onDelete={handleDelete} />
           ) : (
             <TeachersTable teachers={teachers} loading={loading} error={error} meta={meta} onSelect={setSelectedId} onPageChange={onPageChange} />
           )}

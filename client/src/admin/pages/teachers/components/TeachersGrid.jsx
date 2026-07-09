@@ -52,7 +52,7 @@ function useIsMobile(bp = 768) {
   return v;
 }
 
-const TeachersGrid = memo(function TeachersGrid({ teachers, loading, error, meta, onSelect, onPageChange }) {
+const TeachersGrid = memo(function TeachersGrid({ teachers, loading, error, meta, onSelect, onPageChange, onDelete }) {
   const isMobile = useIsMobile(768);
 
   if (error) return (
@@ -66,7 +66,7 @@ const TeachersGrid = memo(function TeachersGrid({ teachers, loading, error, meta
       <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fill, minmax(min(272px, 100%), 1fr))" }}>
         {loading
           ? Array.from({ length: 12 }).map((_, i) => <TeacherCardSkeleton key={i} />)
-          : teachers.map((t) => <TeacherCard key={t.id} teacher={t} onSelect={onSelect} />)
+          : teachers.map((t) => <TeacherCard key={t.id} teacher={t} onSelect={onSelect} onDelete={onDelete} />)
         }
       </div>
 

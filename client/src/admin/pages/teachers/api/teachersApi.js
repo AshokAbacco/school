@@ -84,6 +84,19 @@ export const deactivateTeacher = (id) =>
   });
 
 /* ───────────────────────────── */
+/* DELETE (PERMANENT)            */
+/* ───────────────────────────── */
+export const deleteTeacherPermanently = (id) =>
+  fetch(`${BASE}/${id}/permanent`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  }).then(async (r) => {
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Failed to delete teacher");
+    return j;
+  });
+
+/* ───────────────────────────── */
 /* ASSIGNMENTS                   */
 /* ───────────────────────────── */
 export const addAssignment = (teacherId, data) =>

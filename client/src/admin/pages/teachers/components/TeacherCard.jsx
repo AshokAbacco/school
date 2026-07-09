@@ -1,5 +1,6 @@
 // client/src/admin/pages/teachers/components/TeacherCard.jsx
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { MoreVertical, Trash2, Eye } from "lucide-react";
 
 const STATUS = {
   ACTIVE:     { dot: "#22c55e", label: "Active",     color: "#166534", bg: "#dcfce7" },
@@ -11,8 +12,26 @@ const STATUS = {
 const initials = (f, l) => `${f?.[0] ?? ""}${l?.[0] ?? ""}`.toUpperCase();
 const font = { fontFamily: "'Inter', sans-serif" };
 
-export default function TeacherCard({ teacher, onSelect }) {
+export default function TeacherCard({ teacher, onSelect, onDelete }) {
   const st = STATUS[teacher.status] ?? STATUS.ACTIVE;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
+
+  const handleDeleteClick = (e) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    if (!window.confirm(`Permanently delete ${teacher.firstName} ${teacher.lastName}? This cannot be undone.`)) return;
+    onDelete?.(teacher.id);
+  };
 
   return (
     <>
@@ -25,7 +44,7 @@ export default function TeacherCard({ teacher, onSelect }) {
           background: #fff;
           box-shadow: 0 1px 4px rgba(56,73,89,0.04), 0 4px 16px rgba(56,73,89,0.04);
           transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
-          position: relative; overflow: hidden;
+          position: relative; overflow: visible;
         }
         .tcard:hover {
           border-color: #BDDDFC;
@@ -33,13 +52,57 @@ export default function TeacherCard({ teacher, onSelect }) {
           transform: translateY(-2px);
         }
         .tcard:focus-visible { outline: 2px solid #88BDF2; outline-offset: 2px; }
+        .tcard-inner-clip {
+          position: absolute; inset: 0; border-radius: 16px; overflow: hidden; pointer-events: none;
+        }
+        .tcard-kebab {
+          width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+          background: none; border: 1.5px solid transparent;
+          cursor: pointer; color: #9BBACF; transition: all 0.12s;
+        }
+        .tcard-kebab:hover { background: #EDF3FA; border-color: #DDE9F5; color: #384959; }
+        .tcard-menu {
+          position: absolute; top: 40px; right: 14px; z-index: 20;
+          background: #fff; border: 1.5px solid #E4EEF8; border-radius: 12px;
+          box-shadow: 0 8px 28px rgba(56,73,89,0.16);
+          min-width: 160px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
+        }
+        .tcard-menu-item {
+          display: flex; align-items: center; gap: 8px;
+          padding: 8px 10px; border-radius: 8px; border: none; background: none;
+          font-size: 12.5px; font-weight: 600; cursor: pointer; text-align: left;
+          font-family: 'Inter', sans-serif; color: #384959; transition: background 0.12s;
+        }
+        .tcard-menu-item:hover { background: #EDF3FA; }
+        .tcard-menu-item.danger { color: #b91c1c; }
+        .tcard-menu-item.danger:hover { background: #fef2f2; }
       `}</style>
       <article className="tcard" onClick={() => onSelect(teacher.id)} onKeyDown={(e) => e.key === "Enter" && onSelect(teacher.id)} tabIndex={0}>
-        {/* Top accent */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2.5, background: "linear-gradient(90deg, #88BDF2 0%, #6A89A7 100%)", borderRadius: "16px 16px 0 0" }} />
+        {/* Top accent (clipped so it doesn't overhang the dropdown) */}
+        <div className="tcard-inner-clip">
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2.5, background: "linear-gradient(90deg, #88BDF2 0%, #6A89A7 100%)" }} />
+        </div>
+
+        {/* Kebab menu */}
+        <div ref={menuRef} style={{ position: "absolute", top: 10, right: 10 }} onClick={(e) => e.stopPropagation()}>
+          <button className="tcard-kebab" title="More options" onClick={() => setMenuOpen((v) => !v)}>
+            <MoreVertical size={15} />
+          </button>
+          {menuOpen && (
+            <div className="tcard-menu">
+              <button className="tcard-menu-item" onClick={() => { setMenuOpen(false); onSelect(teacher.id); }}>
+                <Eye size={13} /> View Details
+              </button>
+              <button className="tcard-menu-item danger" onClick={handleDeleteClick}>
+                <Trash2 size={13} /> Delete Teacher
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Avatar + info */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4, paddingRight: 22 }}>
           <div style={{
             width: 44, height: 44, borderRadius: 14, flexShrink: 0,
             background: "linear-gradient(135deg, #88BDF2, #6A89A7)",

@@ -486,6 +486,7 @@ export async function updateTeacher(req, res) {
   try {
     const { id } = req.params;
     const allowed = [
+      "employeeCode",
       "firstName",
       "lastName",
       "dateOfBirth",
@@ -532,6 +533,10 @@ export async function updateTeacher(req, res) {
     await cacheService.invalidateSchool(schoolId);
     res.json({ data: updated });
   } catch (err) {
+    if (err.code === "P2002")
+      return res
+        .status(409)
+        .json({ error: "Email or employee code already exists" });
     console.error("[updateTeacher]", err);
     res.status(500).json({ error: "Failed to update teacher" });
   }
@@ -554,6 +559,38 @@ export async function deleteTeacher(req, res) {
     res.status(500).json({ error: "Failed to deactivate teacher" });
   }
 }
+
+// ── DELETE /api/teachers/:id/permanent ──────────────────────────
+export async function deleteTeacherPermanently(req, res) {
+  try {
+    const { id } = req.params;
+    const schoolId = req.user?.schoolId;
+
+    const teacher = await prisma.teacherProfile.findFirst({
+      where: { id, schoolId },
+    });
+    if (!teacher) {
+      return res.status(404).json({ error: "Teacher not found" });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.teacherAssignment.deleteMany({ where: { teacherId: id } });
+      await tx.teacherDocument.deleteMany({ where: { teacherId: id } });
+      await tx.teacherTutorialProfile.deleteMany({ where: { teacherId: id } });
+      await tx.teacherProfile.delete({ where: { id } });
+      if (teacher.userId) {
+        await tx.user.delete({ where: { id: teacher.userId } });
+      }
+    }, { timeout: 20000, maxWait: 10000 });
+
+    await cacheService.invalidateSchool(schoolId);
+    res.json({ message: "Teacher permanently deleted" });
+  } catch (err) {
+    console.error("[deleteTeacherPermanently]", err);
+    res.status(500).json({ error: "Failed to permanently delete teacher" });
+  }
+}
+
 
 // ── POST /api/teachers/:id/assignments ────────────────────────
 export async function addAssignment(req, res) {

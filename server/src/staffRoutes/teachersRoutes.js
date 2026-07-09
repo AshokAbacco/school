@@ -11,6 +11,7 @@ import {
   createTeacher,
   updateTeacher,
   deleteTeacher,
+  deleteTeacherPermanently,
   addAssignment,
   removeAssignment,
   uploadProfileImage,
@@ -89,6 +90,13 @@ router.delete(
   "/:id",
   authMiddleware,
   deleteTeacher
+);
+
+// Permanently Delete Teacher
+router.delete(
+  "/:id/permanent",
+  authMiddleware,
+  deleteTeacherPermanently
 );
 
 /* =========================================================
