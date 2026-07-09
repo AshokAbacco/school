@@ -1250,6 +1250,163 @@ router.get("/paymentHistory/:studentListId", authMiddleware, async (req, res) =>
   }
 });
 
+// ── EDIT / UPDATE A PAYMENT LOG ENTRY ─────────────────────────────────────────
+// PUT /api/finance/updatePaymentLog/:logId
+// Lets a school edit a payment they already recorded — change the amount
+// paid per category, the payment mode, and/or the payment date for one
+// transaction (one row from the date-wise payment history / invoice
+// dropdown). All derived totals (StudentList flat paid columns, paidAmount,
+// paymentStatus, and StudentFeeCategory.paidAmount if migrated) are shifted
+// by the DELTA between the old and new values so history for every OTHER
+// transaction stays untouched and accurate.
+router.put("/updatePaymentLog/:logId", authMiddleware, async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    const logId = parseInt(req.params.logId);
+    if (!logId) return res.status(400).json({ message: "Invalid payment record id" });
+
+    const hasTable = await checkPaymentLogMigrated();
+    if (!hasTable) {
+      return res.status(400).json({ message: "Payment history is not available for this school yet." });
+    }
+
+    const existing = await prisma.studentPaymentLog.findUnique({ where: { id: logId } });
+    if (!existing) return res.status(404).json({ message: "Payment record not found" });
+
+    const studentRecord = await prisma.studentList.findUnique({ where: { id: existing.studentListId } });
+    if (!studentRecord || studentRecord.schoolId !== schoolId) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const {
+      paymentMode,
+      paymentDate,
+      schoolFeePaid = 0,
+      tuitionFeePaid = 0,
+      examFeePaid = 0,
+      transportFeePaid = 0,
+      booksFeePaid = 0,
+      labFeePaid = 0,
+      miscFeePaid = 0,
+      customFeeBreakdown = {},
+    } = req.body;
+
+    const FIELD_KEYS = [
+      "schoolFeePaid", "tuitionFeePaid", "examFeePaid",
+      "transportFeePaid", "booksFeePaid", "labFeePaid", "miscFeePaid",
+    ];
+    const newValues = { schoolFeePaid, tuitionFeePaid, examFeePaid, transportFeePaid, booksFeePaid, labFeePaid, miscFeePaid };
+
+    const customTotal = Object.values(customFeeBreakdown || {}).reduce((s, v) => s + Number(v || 0), 0);
+    const newAmount = FIELD_KEYS.reduce((s, k) => s + Number(newValues[k] || 0), 0) + customTotal;
+
+    if (newAmount <= 0) {
+      return res.status(400).json({ message: "Total payment amount must be greater than 0" });
+    }
+
+    const payDate = paymentDate ? new Date(paymentDate) : existing.paidAt;
+
+    // Deltas vs the log's previous stored values — used to shift every
+    // dependent total without disturbing other transactions.
+    const deltas = {};
+    for (const k of FIELD_KEYS) {
+      deltas[k] = Number(newValues[k] || 0) - Number(existing[k] || 0);
+    }
+    const amountDelta = newAmount - Number(existing.amount || 0);
+
+    const updatedLog = await prisma.studentPaymentLog.update({
+      where: { id: logId },
+      data: {
+        amount: newAmount,
+        paymentMode: paymentMode || existing.paymentMode,
+        paidAt: payDate,
+        schoolFeePaid: Number(schoolFeePaid),
+        tuitionFeePaid: Number(tuitionFeePaid),
+        examFeePaid: Number(examFeePaid),
+        transportFeePaid: Number(transportFeePaid),
+        booksFeePaid: Number(booksFeePaid),
+        labFeePaid: Number(labFeePaid),
+        miscFeePaid: Number(miscFeePaid),
+        customFeeBreakdown,
+      },
+    });
+
+    // Shift the legacy flat StudentList paid columns by the delta so they
+    // stay in sync with the edited log (same pattern as recordCategoryPayment).
+    const studentUpdateData = { paidAmount: { increment: amountDelta } };
+    for (const k of FIELD_KEYS) {
+      if (deltas[k] !== 0) studentUpdateData[k] = { increment: deltas[k] };
+    }
+
+    let patchedStudent = await prisma.studentList.update({
+      where: { id: existing.studentListId },
+      data: studentUpdateData,
+    });
+
+    const totalFees = Number(patchedStudent.fees || 0);
+    const newPaidAmount = Number(patchedStudent.paidAmount || 0);
+    patchedStudent = await prisma.studentList.update({
+      where: { id: existing.studentListId },
+      data: {
+        paymentStatus:
+          newPaidAmount >= totalFees && totalFees > 0
+            ? "PAID"
+            : newPaidAmount > 0
+              ? "PARTIAL"
+              : "PENDING",
+      },
+    });
+
+    // Keep StudentFeeCategory.paidAmount rows in sync too, if migrated.
+    if (await checkMigrated()) {
+      const FIELD_TO_CATEGORY_NAME = {
+        schoolFeePaid:    "School Fee",
+        tuitionFeePaid:   "Tuition Fee",
+        examFeePaid:      "Exam Fee",
+        transportFeePaid: "Transport Fee",
+        booksFeePaid:     "Books Fee",
+        labFeePaid:       "Lab Fee",
+        miscFeePaid:      "Miscellaneous",
+      };
+      for (const k of FIELD_KEYS) {
+        if (deltas[k] === 0) continue;
+        const catName = FIELD_TO_CATEGORY_NAME[k];
+        const cat = await prisma.feeCategory.findUnique({
+          where: { name_schoolId: { name: catName, schoolId } },
+        });
+        if (!cat) continue;
+        const sfc = await prisma.studentFeeCategory.findUnique({
+          where: { studentListId_categoryId: { studentListId: existing.studentListId, categoryId: cat.id } },
+        });
+        if (sfc) {
+          const nextPaid = Math.max(0, Number(sfc.paidAmount) + deltas[k]);
+          await prisma.studentFeeCategory.update({ where: { id: sfc.id }, data: { paidAmount: nextPaid } });
+        }
+      }
+    }
+
+    await saveSchoolBackup({
+      schoolId,
+      module: "studentPaymentLog",
+      recordId: String(logId),
+      data: updatedLog,
+      action: "update",
+    }).catch(() => {});
+
+    console.log(`[updatePaymentLog] ✅ log ${logId} updated — amountDelta=${amountDelta}`);
+
+    res.json({
+      success: true,
+      log: updatedLog,
+      newTotalPaid: newPaidAmount,
+      paymentStatus: patchedStudent.paymentStatus,
+    });
+  } catch (error) {
+    console.error("[updatePaymentLog] error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // BULK FEE REMINDER ROUTES
 // Append these routes to studentFinance_routes.js  (before `export default router`)

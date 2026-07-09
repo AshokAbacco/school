@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Addstudent from "./Addstudent";
 import { PayModal } from "../../../finance/pages/Studentfinance/PayModal";
+import { EditPaymentModal } from "./EditPaymentModal.jsx";
 import { InvoiceModal } from "./FeesInvoce.jsx";
 import { downloadStudentFinanceExcel } from "../../../utils/downloadStudentFinanceExcel.js";
 import { FaWhatsapp, FaPhone } from "react-icons/fa";
@@ -382,6 +383,7 @@ export default function StudentFeesPage() {
     const [courseFilter, setCourseFilter] = useState("All");
     const [invoiceStudent, setInvoiceStudent] = useState(null);
     const [payStudent, setPayStudent] = useState(null);
+    const [editPaymentStudent, setEditPaymentStudent] = useState(null);
     const [waStudent, setWaStudent] = useState(null);
     const [schoolInfo, setSchoolInfo] = useState({ name: "", address: "", city: "", phone: "" });
     const [receiptStudent, setReceiptStudent] = useState(null);
@@ -1812,6 +1814,23 @@ export default function StudentFeesPage() {
                                                                     <FileText size={13} />
                                                                 </button>
 
+                                                                <button
+                                                                    className="sf2-act"
+                                                                    title="Edit Payment Record"
+                                                                    onClick={() =>
+                                                                        setEditPaymentStudent(
+                                                                            student
+                                                                        )
+                                                                    }
+                                                                    style={{
+                                                                        background: "#fef6e7",
+                                                                        color: "#b45309",
+                                                                        border: "1px solid #fde68a"
+                                                                    }}
+                                                                >
+                                                                    <Pencil size={13} />
+                                                                </button>
+
                                                                 {isPremium && (
                                                                     <button
                                                                         className="sf2-act sf2-act-wa"
@@ -1881,6 +1900,7 @@ export default function StudentFeesPage() {
             <Addstudent open={openPopup} handleClose={() => setOpenPopup(false)} addStudentData={addStudentData} editData={editData} />
             {invoiceStudent && <InvoiceModal student={invoiceStudent} onClose={() => setInvoiceStudent(null)} schoolName={schoolInfo.name} schoolAddress={`${schoolInfo.address || ""}${schoolInfo.city ? ", " + schoolInfo.city : ""}`} schoolLogoUrl={schoolLogoUrl} />}
             {payStudent && <PayModal student={payStudent} onClose={() => setPayStudent(null)} onPaymentDone={handlePaymentDone} />}
+            {editPaymentStudent && <EditPaymentModal student={editPaymentStudent} onClose={() => setEditPaymentStudent(null)} onUpdated={handlePaymentDone} />}
             {waStudent && <WhatsAppConfirmModal student={waStudent} onClose={() => setWaStudent(null)} onConfirm={handleSendWhatsApp} />}
             {receiptStudent && (
                 <ReceiptConfirmModal
