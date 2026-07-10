@@ -275,6 +275,165 @@ router.get("/feeCategories", authMiddleware, async (req, res) => {
   }
 });
 
+// ── RECONCILE FEE CATEGORIES (one-time backfill) ──────────────────────────────
+// For students whose category paid-amounts already went out of sync BEFORE
+// recordFullPayment existed (i.e. legacy StudentList.paidAmount is higher
+// than the sum of studentFeeCategory.paidAmount — money was collected via
+// "Full Fee" but never allocated to categories). Distributes the gap across
+// categories the same way recordFullPayment does, so Invoice/WhatsApp
+// receipts start showing correct numbers without re-entering payments.
+// Safe to call repeatedly — it's a no-op once categories are already synced.
+router.post("/reconcileFeeCategories/:studentListId", authMiddleware, async (req, res) => {
+  try {
+    if (!(await checkMigrated())) {
+      return res.json({ success: true, synced: false, message: "Fee categories not migrated." });
+    }
+
+    const studentListId = parseInt(req.params.studentListId);
+
+    const studentRecord = await prisma.studentList.findUnique({ where: { id: studentListId } });
+    if (!studentRecord) return res.status(404).json({ message: "Student not found" });
+
+    const cats = await prisma.studentFeeCategory.findMany({
+      where:   { studentListId },
+      include: { category: true },
+      orderBy: { category: { order: "asc" } },
+    });
+    if (cats.length === 0) return res.json({ success: true, synced: false, message: "No fee categories for this student." });
+
+    const legacyPaid      = Number(studentRecord.paidAmount || 0);
+    const categorizedPaid = cats.reduce((s, c) => s + Number(c.paidAmount), 0);
+    const gap = legacyPaid - categorizedPaid;
+
+    if (gap <= 0) {
+      return res.json({ success: true, synced: true, message: "Already in sync.", gap: 0 });
+    }
+
+    let remaining = gap;
+    const allocations = [];
+    for (const sfc of cats) {
+      if (remaining <= 0) break;
+      const capacity = Number(sfc.totalAmount) - Number(sfc.paidAmount);
+      if (capacity <= 0) continue;
+      const chunk = Math.min(capacity, remaining);
+      allocations.push({ id: sfc.id, chunk });
+      remaining -= chunk;
+    }
+
+    if (allocations.length > 0) {
+      await prisma.$transaction(
+        allocations.flatMap((a) => [
+          prisma.studentFeeCategory.update({
+            where: { id: a.id },
+            data:  { paidAmount: { increment: a.chunk } },
+          }),
+          prisma.studentFeeCategoryPayment.create({
+            data: {
+              studentFeeCategoryId: a.id,
+              amount:      a.chunk,
+              paymentMode: "Reconciliation",
+              createdBy:   req.user?.id || null,
+            },
+          }),
+        ])
+      );
+    }
+
+    res.json({ success: true, synced: true, gapReconciled: gap - remaining, unallocatedRemainder: remaining, allocations });
+  } catch (error) {
+    console.error("[reconcileFeeCategories] error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ── RECORD FULL/WATERFALL PAYMENT ACROSS ALL FEE CATEGORIES ──────────────────
+// Used whenever a payment isn't tied to one specific category — e.g. the
+// "Pay Full Fee" quick-pay button, or a custom lump amount typed against
+// "Full Fee". Distributes the amount across ALL studentFeeCategory rows
+// (standard AND custom) in category order, filling each one's remaining
+// capacity first. This keeps studentFeeCategory.paidAmount — the single
+// source of truth the Invoice page and WhatsApp receipt PDF both read from
+// via buildCategoryRows() — always accurate, including for custom fees,
+// which previously only got updated when paid one category at a time via
+// /recordCategoryPayment.
+router.post("/recordFullPayment", authMiddleware, async (req, res) => {
+  try {
+    if (!(await checkMigrated())) {
+      // No fee_categories table yet — nothing to sync, caller should just
+      // rely on the legacy /updateStudentFinance patch.
+      return res.json({ success: true, synced: false, message: "Fee categories not migrated." });
+    }
+
+    const { studentListId, amount, paymentMode, paymentDate } = req.body;
+    if (!studentListId || !amount || Number(amount) <= 0) {
+      return res.status(400).json({ message: "studentListId and amount are required" });
+    }
+
+    const cats = await prisma.studentFeeCategory.findMany({
+      where:   { studentListId: parseInt(studentListId) },
+      include: { category: true },
+      orderBy: { category: { order: "asc" } },
+    });
+
+    if (cats.length === 0) {
+      return res.json({ success: true, synced: false, message: "No fee categories for this student." });
+    }
+
+    let remaining = Number(amount);
+    const allocations = [];
+    for (const sfc of cats) {
+      if (remaining <= 0) break;
+      const capacity = Number(sfc.totalAmount) - Number(sfc.paidAmount);
+      if (capacity <= 0) continue;
+      const chunk = Math.min(capacity, remaining);
+      allocations.push({ id: sfc.id, chunk });
+      remaining -= chunk;
+    }
+
+    const payDate = paymentDate ? new Date(paymentDate) : new Date();
+
+    if (allocations.length > 0) {
+      await prisma.$transaction(
+        allocations.flatMap((a) => [
+          prisma.studentFeeCategory.update({
+            where: { id: a.id },
+            data:  { paidAmount: { increment: a.chunk } },
+          }),
+          prisma.studentFeeCategoryPayment.create({
+            data: {
+              studentFeeCategoryId: a.id,
+              amount:      a.chunk,
+              paymentMode: paymentMode || "Cash",
+              createdBy:   req.user?.id || null,
+            },
+          }),
+        ])
+      );
+    }
+
+    // Leftover (if the amount exceeded total pending across all categories)
+    // is intentionally dropped — buildPayload() on the frontend already caps
+    // the amount at catRemaining/totalFees before calling this endpoint.
+
+    const allCats = await prisma.studentFeeCategory.findMany({
+      where: { studentListId: parseInt(studentListId) },
+    });
+    const newTotalPaid = allCats.reduce((s, c) => s + Number(c.paidAmount), 0);
+    const totalFees     = allCats.reduce((s, c) => s + Number(c.totalAmount), 0);
+
+    res.json({
+      success: true,
+      synced: true,
+      allocations,
+      newTotalPaid,
+      totalFees,
+    });
+  } catch (error) {
+    console.error("[recordFullPayment] error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // ── RECORD CATEGORY PAYMENT ───────────────────────────────────────────────────
 router.post("/recordCategoryPayment", authMiddleware, async (req, res) => {
   try {
@@ -692,6 +851,7 @@ router.post("/sendFeeReceipt/:id", authMiddleware, async (req, res) => {
     if (!pdfUrl) return res.status(400).json({ message: "pdfUrl is required" });
 
     let sent = 0;
+    const failures = [];
 
     // ── Try parent phone first (if studentId is linked) ───────────────────
     if (financeStudent.studentId) {
@@ -704,33 +864,56 @@ router.post("/sendFeeReceipt/:id", authMiddleware, async (req, res) => {
         for (const link of realStudent.parentLinks) {
           const parentPhone = link.parent?.phone;
           if (!parentPhone) continue;
-          await sendFeeReceiptWhatsApp({
+          const result = await sendFeeReceiptWhatsApp({
             phone:       parentPhone,
             studentName: financeStudent.name,
             schoolName:  school?.name || "School",
             pdfUrl,
           });
-          sent++;
+          if (result?.success) {
+            sent++;
+          } else {
+            failures.push({ phone: parentPhone, error: result?.error || "Unknown error" });
+          }
         }
       }
     }
 
     // ── Fallback: use StudentList.phone directly ──────────────────────────
-    if (sent === 0 && financeStudent.phone) {
-      await sendFeeReceiptWhatsApp({
+    if (sent === 0 && failures.length === 0 && financeStudent.phone) {
+      const result = await sendFeeReceiptWhatsApp({
         phone:       financeStudent.phone,
         studentName: financeStudent.name,
         schoolName:  school?.name || "School",
         pdfUrl,
       });
-      sent++;
+      if (result?.success) {
+        sent++;
+      } else {
+        failures.push({ phone: financeStudent.phone, error: result?.error || "Unknown error" });
+      }
     }
 
-    if (sent === 0) {
+    if (sent === 0 && failures.length === 0) {
       return res.status(400).json({ message: "No phone number found to send receipt" });
     }
 
-    res.json({ success: true, message: `Fee receipt sent to ${sent} contact(s)` });
+    if (sent === 0) {
+      // Every attempt failed on Meta's side — report the real reason instead
+      // of a false "success" message.
+      console.error("[sendFeeReceipt] All WhatsApp sends failed:", failures);
+      return res.status(502).json({
+        success: false,
+        message: `WhatsApp delivery failed: ${failures[0]?.error || "Unknown error"}`,
+        failures,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Fee receipt sent to ${sent} contact(s)`,
+      ...(failures.length > 0 && { partialFailures: failures }),
+    });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: error.message });

@@ -25,7 +25,16 @@ const cleanPhone = formatPhone(phone);
 
 if (!cleanPhone) {
   console.log("❌ Invalid phone");
-  return;
+  return { success: false, error: "Invalid phone number" };
+}
+
+// WhatsApp Cloud API needs a PUBLICLY reachable https:// URL for the
+// header document (it fetches the file itself). A missing scheme, an
+// http:// link, or a localhost/private URL will fail silently on Meta's
+// side unless we check it here.
+if (!/^https:\/\//i.test(pdfUrl || "")) {
+  console.log("❌ Invalid pdfUrl (must be a public https:// link):", pdfUrl);
+  return { success: false, error: "pdfUrl must be a public https:// URL" };
 }
 
 console.log("PDF URL =>", pdfUrl);
@@ -82,14 +91,26 @@ console.log("✅ Fee receipt sent to", cleanPhone);
 
 console.log("META RESPONSE =>", response.data);
 
+return { success: true, data: response.data };
 
 } catch (error) {
+
+const metaError = error.response?.data?.error;
 
 console.log(
   "❌ WhatsApp Error:",
   error.response?.data || error.message
 );
 
+// Common causes worth surfacing explicitly:
+// - "fee_receipt" template not approved / doesn't match this component shape
+// - phone number not on WhatsApp or not opted-in
+// - pdfUrl not publicly downloadable by Meta's servers within a few seconds
+return {
+  success: false,
+  error: metaError?.message || error.message,
+  code: metaError?.code,
+};
 
 }
 };

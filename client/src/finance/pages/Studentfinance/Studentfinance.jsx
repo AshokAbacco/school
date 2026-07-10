@@ -9,7 +9,7 @@ import {
 import Addstudent from "./Addstudent";
 import { PayModal } from "../../../finance/pages/Studentfinance/PayModal";
 import { EditPaymentModal } from "./EditPaymentModal.jsx";
-import { InvoiceModal } from "./FeesInvoce.jsx";
+import { InvoiceModal, buildCategoryRows, fmt } from "./FeesInvoce.jsx";
 import { downloadStudentFinanceExcel } from "../../../utils/downloadStudentFinanceExcel.js";
 import { FaWhatsapp, FaPhone } from "react-icons/fa";
 import { useSchoolLogo } from "../../../hooks/useSchoolLogo";
@@ -544,7 +544,9 @@ export default function StudentFeesPage() {
 
     const handleSendReceipt = async (student) => {
         try {
-            // Step 1: generate PDF as a Blob (same logic as handleDownload)
+            // Step 1: generate PDF as a Blob (SAME category logic as the Invoice page,
+            // via the shared buildCategoryRows() helper — Total / Paid / Pending per
+            // Fee Category, not just a flat "Amount" list).
             if (!window.jspdf) {
                 alert("PDF library not loaded yet. Please try again in a moment.");
                 return;
@@ -553,13 +555,53 @@ export default function StudentFeesPage() {
             const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
             const W = 210, m = 18;
-            const paidAmount = Number(student.paidAmount || 0);
-            const totalFees = Number(student.fees || 0);
-            const due = Math.max(0, totalFees - paidAmount);
             const invoiceNo = `INV-${String(student.id || "").slice(-4).padStart(4, "0")}-${new Date().getFullYear()}`;
             const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-            let breakdown = null;
-            try { breakdown = student.feeBreakdown ? JSON.parse(student.feeBreakdown) : null; } catch { }
+
+            // ── Fee-category rows: Total / Paid / Pending per category ────────
+            // Step A: self-heal any old mismatch first (records paid via the
+            // "Full Fee" button before the sync fix existed can have money
+            // collected but not reflected against a category — this brings
+            // them back in line automatically, no manual step needed).
+            try {
+                const auth0 = JSON.parse(localStorage.getItem("auth"));
+                const token0 = auth0?.token;
+                await fetch(`${API_URL}/api/finance/reconcileFeeCategories/${student.id}`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token0}` },
+                });
+            } catch (e) {
+                console.warn("Fee category reconciliation skipped (non-fatal):", e.message);
+            }
+
+            // Step B: ALWAYS pull fresh categories here (don't trust the cached
+            // `student` from the list state) — the list may not have refreshed
+            // since the last payment, which previously caused custom/just-paid
+            // categories to show stale (often ₹0) paid amounts in the WhatsApp
+            // PDF while the invoice page (which always fetches fresh) showed
+            // correct ones.
+            let categorySource = student;
+            try {
+                const auth = JSON.parse(localStorage.getItem("auth"));
+                const token = auth?.token;
+                const catRes = await fetch(`${API_URL}/api/finance/studentFeeCategories/${student.id}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (catRes.ok) {
+                    const cats = await catRes.json();
+                    if (Array.isArray(cats) && cats.length > 0) {
+                        categorySource = { ...student, feeCategories: cats };
+                    }
+                }
+            } catch (e) {
+                console.warn("Could not refresh fee categories, falling back to cached student data:", e.message);
+            }
+
+            const rows = buildCategoryRows(categorySource);
+            const grandTotal = rows.reduce((s, r) => s + r.total, 0);
+            const grandPaid = rows.reduce((s, r) => s + r.paid, 0);
+            const grandPending = rows.reduce((s, r) => s + r.pending, 0);
+            const due = grandPending;
 
             // Header
             const schoolName = schoolInfo.name;
@@ -614,39 +656,62 @@ export default function StudentFeesPage() {
 
             y += boxHeight + 12;
 
-            // Fee table
+            // Fee table — Fee Category | Total | Paid | Pending (same as invoice page)
             doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(28, 48, 68);
-            doc.text("FEE SUMMARY", m, y); y += 5;
-            doc.setFillColor(28, 48, 68); doc.rect(m, y, W - m * 2, 9, "F");
+            doc.text("FEE BREAKDOWN", m, y); y += 5;
+
+            const COLW = W - m * 2;
+            // Numeric columns are right-aligned to a fixed right edge per column, so
+            // wider values (Rs.65,000 vs Rs.0) grow leftward into their own column
+            // instead of overflowing rightward past the page margin / next column.
+            const COL = { name: m + 4, total: m + 118, paid: m + 152, pending: m + COLW - 4 };
+
+            doc.setFillColor(28, 48, 68); doc.rect(m, y, COLW, 9, "F");
             doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
-            doc.text("Description", m + 4, y + 6); doc.text("Amount (INR)", m + 145, y + 6); y += 9;
-            const rows = breakdown
-                ? Object.entries(breakdown).filter(([k, v]) => k !== "customFees" && Number(v) > 0)
-                    .map(([k, v]) => [k.replace(/Fee$/, "").replace(/([A-Z])/g, " $1").trim(), v])
-                : [["Total Fees", totalFees]];
-            rows.forEach(([label, amt], i) => {
-                doc.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 252 : 255, 255);
-                doc.rect(m, y, W - m * 2, 9, "F");
-                doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(30, 50, 70);
-                doc.text(label, m + 4, y + 6);
-                doc.setFont("helvetica", "bold"); doc.text(`Rs. ${Number(amt).toLocaleString("en-IN")}`, m + 145, y + 6); y += 9;
+            doc.text("Fee Category", COL.name, y + 6);
+            doc.text("Total",   COL.total,   y + 6, { align: "right" });
+            doc.text("Paid",    COL.paid,    y + 6, { align: "right" });
+            doc.text("Pending", COL.pending, y + 6, { align: "right" });
+            y += 9;
+
+            rows.forEach((row, i) => {   
+            doc.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 252 : 255, 255);
+            doc.rect(m, y, COLW, 9, "F");
+            doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(30, 50, 70);
+            doc.text(row.name, COL.name, y + 6);
+            doc.setFont("helvetica", "bold");
+            doc.text(`Rs.${fmt(row.total)}`,   COL.total,   y + 6, { align: "right" });
+            doc.setTextColor(26, 110, 62);
+            doc.text(`Rs.${fmt(row.paid)}`,    COL.paid,    y + 6, { align: "right" });
+            doc.setTextColor(row.pending > 0 ? 180 : 26, row.pending > 0 ? 48 : 110, row.pending > 0 ? 48 : 62);
+            doc.text(`Rs.${fmt(row.pending)}`, COL.pending, y + 6, { align: "right" });
+            doc.setTextColor(30, 50, 70);
+            y += 9;
             });
-            y += 12;
+
+            doc.setFillColor(28, 48, 68); doc.rect(m, y, COLW, 9, "F");
+            doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
+            doc.text("TOTAL", COL.name, y + 6);
+            doc.text(`Rs.${fmt(grandTotal)}`,   COL.total,   y + 6, { align: "right" });
+            doc.text(`Rs.${fmt(grandPaid)}`,    COL.paid,    y + 6, { align: "right" });
+            doc.text(`Rs.${fmt(grandPending)}`, COL.pending, y + 6, { align: "right" });
+            y += 14;
+
             const bx = W - m - 80;
             doc.setFillColor(240, 247, 252); doc.roundedRect(bx, y, 80, 34, 3, 3, "F");
             doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(80, 100, 120);
             doc.text("Total Fees:", bx + 4, y + 9);
             doc.setFont("helvetica", "bold"); doc.setTextColor(28, 48, 68);
-            doc.text(`Rs. ${totalFees.toLocaleString("en-IN")}`, bx + 78, y + 9, { align: "right" });
+            doc.text(`Rs. ${fmt(grandTotal)}`, bx + 78, y + 9, { align: "right" });
             doc.setFont("helvetica", "normal"); doc.setTextColor(80, 100, 120);
             doc.text("Amount Paid:", bx + 4, y + 18);
             doc.setFont("helvetica", "bold"); doc.setTextColor(28, 68, 48);
-            doc.text(`Rs. ${paidAmount.toLocaleString("en-IN")}`, bx + 78, y + 18, { align: "right" });
+            doc.text(`Rs. ${fmt(grandPaid)}`, bx + 78, y + 18, { align: "right" });
             doc.setDrawColor(28, 48, 68); doc.setLineWidth(0.5); doc.line(bx + 4, y + 22, bx + 76, y + 22);
             doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(28, 48, 68);
             doc.text("Balance Due:", bx + 4, y + 30);
             doc.setTextColor(due === 0 ? 28 : 180, due === 0 ? 90 : 30, due === 0 ? 50 : 30);
-            doc.text(`Rs. ${due.toLocaleString("en-IN")}`, bx + 78, y + 30, { align: "right" });
+            doc.text(`Rs. ${fmt(due)}`, bx + 78, y + 30, { align: "right" });
             y = 272;
             doc.setFillColor(28, 48, 68); doc.rect(0, y, W, 25, "F");
             doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(180, 205, 220);

@@ -15,7 +15,7 @@ import { ChevronDown, Download, Eye, EyeOff, Printer, Receipt, X } from "lucide-
 const API_URL = import.meta.env.VITE_API_URL;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-const fmt = (n) => Number(n || 0).toLocaleString("en-IN");
+export const fmt = (n) => Number(n || 0).toLocaleString("en-IN");
 
 function fmtDate(dateStr) {
   if (!dateStr) return "";
@@ -51,15 +51,27 @@ async function loadLogoForPDF(logoUrl) {
 }
 
 // ── Build category rows (for ALL-TIME / fallback view) ───────────────────────
-function buildCategoryRows(student) {
+// Exported so other pages (e.g. Studentfinance.jsx WhatsApp receipt) can build
+// the exact same Total/Paid/Pending breakdown shown on this invoice page.
+export function buildCategoryRows(student) {
+  const customPaidMap = student.customPaidMap || {};
+
   if (Array.isArray(student.feeCategories) && student.feeCategories.length > 0) {
-    return student.feeCategories.map((sfc) => ({
-      id: sfc.id,
-      name: sfc.category?.name || "Fee",
-      total: Number(sfc.totalAmount || 0),
-      paid: Number(sfc.paidAmount || 0),
-      pending: Math.max(0, Number(sfc.totalAmount || 0) - Number(sfc.paidAmount || 0)),
-    }));
+    return student.feeCategories.map((sfc) => {
+      const name = sfc.category?.name || "Fee";
+      const total = Number(sfc.totalAmount || 0);
+
+      // studentFeeCategory.paidAmount is only reliable for payments made
+      // through the per-category flow (/recordCategoryPayment). Payments
+      // made via "Full Fee" only get their true split recorded in
+      // paymentLog.customFeeBreakdown → customPaidMap. Prefer that for
+      // custom fees so the PDF/invoice matches what was actually collected.
+      const key = name.toLowerCase().trim();
+      const mapped = customPaidMap[key];
+      const paid = mapped !== undefined ? Number(mapped) : Number(sfc.paidAmount || 0);
+
+      return { id: sfc.id, name, total, paid, pending: Math.max(0, total - paid) };
+    });
   }
 
   let bd = {};
@@ -99,8 +111,11 @@ function buildCategoryRows(student) {
   if (Array.isArray(bd.customFees)) {
     bd.customFees.forEach((c, i) => {
       const total = Number(c.amount || c.total || 0);
-      if (total > 0)
-      rows.push({ id: `custom_${i}`, name: c.label, total, paid: 0, pending: total });    });
+      if (total <= 0) return;
+      const key = (c.label || "").toLowerCase().trim();
+      const paid = Number(customPaidMap[key] || 0);
+      rows.push({ id: `custom_${i}`, name: c.label, total, paid, pending: Math.max(0, total - paid) });
+    });
   }
 
   if (rows.length === 0) {
@@ -243,18 +258,28 @@ export function InvoiceModal({ student, onClose, schoolName, schoolAddress, scho
     const fetchCategories = async () => {
       setLoading(true);
       try {
-        if (Array.isArray(student.feeCategories) && student.feeCategories.length > 0) {
-          setAllCategoryRows(buildCategoryRows(student));
-          return;
-        }
         const auth = JSON.parse(localStorage.getItem("auth") || "{}");
         const token = auth?.token;
+
+        // Self-heal any legacy/categorized paid-amount mismatch first (money
+        // collected via "Full Fee" before categories existed for it).
+        try {
+          await fetch(`${API_URL}/api/finance/reconcileFeeCategories/${student.id}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } catch { /* non-fatal */ }
+
         const res = await fetch(`${API_URL}/api/finance/studentFeeCategories/${student.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
           const data = await res.json();
-          setAllCategoryRows(buildCategoryRows({ ...student, feeCategories: data }));
+          if (Array.isArray(data) && data.length > 0) {
+            setAllCategoryRows(buildCategoryRows({ ...student, feeCategories: data }));
+          } else {
+            setAllCategoryRows(buildCategoryRows(student));
+          }
         } else {
           setAllCategoryRows(buildCategoryRows(student));
         }
@@ -388,27 +413,31 @@ export function InvoiceModal({ student, onClose, schoolName, schoolAddress, scho
     doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(28, 48, 68);
     doc.text("FEE BREAKDOWN", m, y); y += 5;
 
-    const COL = { name: m + 4, total: m + 98, paid: m + 130, pending: m + 160 };
     const COLW = W - m * 2;
+    // Numeric columns are right-aligned to a fixed right edge per column, so
+    // wider values (Rs.65,000 vs Rs.0) grow leftward into their own column
+    // instead of overflowing rightward past the page margin / next column.
+    const COL = { name: m + 4, total: m + 118, paid: m + 152, pending: m + COLW - 4 };
+
     doc.setFillColor(28, 48, 68); doc.rect(m, y, COLW, 9, "F");
     doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
     doc.text("Fee Category", COL.name, y + 6);
-    doc.text("Total",   COL.total,   y + 6);
-    doc.text("Paid",    COL.paid,    y + 6);
-    doc.text("Pending", COL.pending, y + 6);
+    doc.text("Total",   COL.total,   y + 6, { align: "right" });
+    doc.text("Paid",    COL.paid,    y + 6, { align: "right" });
+    doc.text("Pending", COL.pending, y + 6, { align: "right" });
     y += 9;
 
-    visibleRows.forEach((row, i) => {
+    visibleRows.forEach((row, i) => {   // or rows.forEach(...) in Studentfinance.jsx
       doc.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 252 : 255, 255);
       doc.rect(m, y, COLW, 9, "F");
       doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(30, 50, 70);
       doc.text(row.name, COL.name, y + 6);
       doc.setFont("helvetica", "bold");
-      doc.text(`Rs.${fmt(row.total)}`,   COL.total,   y + 6);
+      doc.text(`Rs.${fmt(row.total)}`,   COL.total,   y + 6, { align: "right" });
       doc.setTextColor(26, 110, 62);
-      doc.text(`Rs.${fmt(row.paid)}`,    COL.paid,    y + 6);
+      doc.text(`Rs.${fmt(row.paid)}`,    COL.paid,    y + 6, { align: "right" });
       doc.setTextColor(row.pending > 0 ? 180 : 26, row.pending > 0 ? 48 : 110, row.pending > 0 ? 48 : 62);
-      doc.text(`Rs.${fmt(row.pending)}`, COL.pending, y + 6);
+      doc.text(`Rs.${fmt(row.pending)}`, COL.pending, y + 6, { align: "right" });
       doc.setTextColor(30, 50, 70);
       y += 9;
     });
@@ -416,9 +445,9 @@ export function InvoiceModal({ student, onClose, schoolName, schoolAddress, scho
     doc.setFillColor(28, 48, 68); doc.rect(m, y, COLW, 9, "F");
     doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
     doc.text("TOTAL", COL.name, y + 6);
-    doc.text(`Rs.${fmt(grandTotal)}`,   COL.total,   y + 6);
-    doc.text(`Rs.${fmt(grandPaid)}`,    COL.paid,    y + 6);
-    doc.text(`Rs.${fmt(grandPending)}`, COL.pending, y + 6);
+    doc.text(`Rs.${fmt(grandTotal)}`,   COL.total,   y + 6, { align: "right" });
+    doc.text(`Rs.${fmt(grandPaid)}`,    COL.paid,    y + 6, { align: "right" });
+    doc.text(`Rs.${fmt(grandPending)}`, COL.pending, y + 6, { align: "right" });
     y += 14;
 
     const bx = W - m - 80;
