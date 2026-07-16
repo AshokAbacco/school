@@ -1,44 +1,72 @@
 // client/src/auth/api.js
+
 const API = import.meta.env.VITE_API_URL;
 
+console.log("==================================");
+console.log("VITE_API_URL:", API);
+console.log("==================================");
+
 const post = async (url, body) => {
-  const response = await fetch(`${API}${url}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Request failed");
-  return data;
+  const fullUrl = `${API}${url}`;
+
+  console.log("POST URL:", fullUrl);
+  console.log("BODY:", body);
+
+  try {
+    const response = await fetch(fullUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    console.log("Status:", response.status);
+
+    const data = await response.json();
+
+    console.log("Response:", data);
+
+    if (!response.ok) {
+      throw new Error(data.message || "Request failed");
+    }
+
+    return data;
+  } catch (err) {
+    console.error("========== FETCH ERROR ==========");
+    console.error(err);
+    console.error("Message:", err.message);
+    console.error("URL:", fullUrl);
+    console.error("===============================");
+    throw err;
+  }
 };
 
 // ── Login ──────────────────────────────────────────────────────────────────
 
 const ROUTE_MAP = {
-  admin:    "staff",
-  teacher:  "staff",
+  admin: "staff",
+  teacher: "staff",
   financer: "finance",
-  student:  "student",
-  parent:   "parent",
+  student: "student",
+  parent: "parent",
 };
 
-// Role map: what DB role the selected tab must match
 const ROLE_MAP = {
-  admin:    "ADMIN",
-  teacher:  "TEACHER",
+  admin: "ADMIN",
+  teacher: "TEACHER",
   financer: "FINANCE",
 };
 
 export const loginRequest = async (type, credentials) => {
   const route = ROUTE_MAP[type] || type;
-  // Pass selectedRole so backend can enforce it
+
   const body = ROLE_MAP[type]
     ? { ...credentials, selectedRole: ROLE_MAP[type] }
     : credentials;
+
   return post(`/api/auth/${route}/login`, body);
 };
-
-// ── Super Admin ────────────────────────────────────────────────────────────
 
 export const loginSuperAdmin = (credentials) =>
   post("/api/auth/super-admin/login", credentials);
@@ -46,21 +74,14 @@ export const loginSuperAdmin = (credentials) =>
 export const registerSuperAdmin = (data) =>
   post("/api/auth/super-admin/register", data);
 
-// ── Login OTP (phone-based) ───────────────────────────────────────────────
-
 export const sendLoginOtp = (credentials) =>
   post("/api/auth/login-with-otp", credentials);
-// credentials shape: { phone, password, selectedRole }
 
 export const verifyLoginOtp = (data) =>
   post("/api/auth/verify-login-otp", data);
-// data shape: { phone, otp }
 
-// ── Bus Head (OTP-based login, same 2-step pattern as other roles) ────────
 export const sendBusHeadLoginOtp = (credentials) =>
   post("/api/auth/bus-head/login", credentials);
-// credentials shape: { phone, password } → { otpRequired: true, phone }
 
 export const verifyBusHeadLoginOtp = (data) =>
   post("/api/auth/bus-head/verify-otp", data);
-// data shape: { phone, otp } → { token, user }
