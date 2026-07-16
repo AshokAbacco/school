@@ -29,29 +29,44 @@ async function checkMigrated() {
 router.post("/addStudentFinance", authMiddleware, async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
-    if (!schoolId) return res.status(400).json({ message: "SchoolId missing in user" });
+    if (!schoolId)
+      return res.status(400).json({ message: "SchoolId missing in user" });
 
     const {
-      studentId, name, email, phone, course, fees,
-      collegeFee, tuitionFee, examFee,
-      transportFee, booksFee, labFee, miscFee,
-      customFees, feeDate, feeBreakdownDetails,
+      studentId,
+      name,
+      email,
+      phone,
+      course,
+      fees,
+      collegeFee,
+      tuitionFee,
+      examFee,
+      transportFee,
+      booksFee,
+      labFee,
+      miscFee,
+      customFees,
+      feeDate,
+      feeBreakdownDetails,
     } = req.body;
 
     const feeBreakdown = JSON.stringify({
-      collegeFee:          collegeFee   || 0,
-      tuitionFee:          tuitionFee   || 0,
-      examFee:             examFee      || 0,
-      transportFee:        transportFee || 0,
-      booksFee:            booksFee     || 0,
-      labFee:              labFee       || 0,
-      miscFee:             miscFee      || 0,
-      customFees:          customFees   || [],
+      collegeFee: collegeFee || 0,
+      tuitionFee: tuitionFee || 0,
+      examFee: examFee || 0,
+      transportFee: transportFee || 0,
+      booksFee: booksFee || 0,
+      labFee: labFee || 0,
+      miscFee: miscFee || 0,
+      customFees: customFees || [],
       feeBreakdownDetails: feeBreakdownDetails || {},
     });
 
     const existing = studentId
-      ? await prisma.studentList.findFirst({ where: { studentId, schoolId, deletedAt: null } })
+      ? await prisma.studentList.findFirst({
+          where: { studentId, schoolId, deletedAt: null },
+        })
       : null;
 
     let student;
@@ -59,21 +74,47 @@ router.post("/addStudentFinance", authMiddleware, async (req, res) => {
     if (existing) {
       student = await prisma.studentList.update({
         where: { id: existing.id },
-        data: { name, email, phone, course: course || null, fees: fees ? parseFloat(fees) : null, feeBreakdown, feeDate: feeDate ? new Date(feeDate) : new Date() },
+        data: {
+          name,
+          email,
+          phone,
+          course: course || null,
+          fees: fees ? parseFloat(fees) : null,
+          feeBreakdown,
+          feeDate: feeDate ? new Date(feeDate) : new Date(),
+        },
       });
 
       // Only sync categories if migration has been run
       if (await checkMigrated()) {
-        await syncFeeCategories(schoolId, student.id, { collegeFee, tuitionFee, examFee, transportFee, booksFee, labFee, miscFee, customFees });
+        await syncFeeCategories(schoolId, student.id, {
+          collegeFee,
+          tuitionFee,
+          examFee,
+          transportFee,
+          booksFee,
+          labFee,
+          miscFee,
+          customFees,
+        });
       }
 
-      await saveSchoolBackup({ schoolId, module: "studentList", recordId: String(student.id), data: student, action: "update" });
+      await saveSchoolBackup({
+        schoolId,
+        module: "studentList",
+        recordId: String(student.id),
+        data: student,
+        action: "update",
+      });
       return res.json({ ...student, _upserted: true });
     }
 
     student = await prisma.studentList.create({
       data: {
-        studentId, name, email, phone,
+        studentId,
+        name,
+        email,
+        phone,
         course: course || null,
         fees: fees ? parseFloat(fees) : null,
         feeBreakdown,
@@ -83,10 +124,25 @@ router.post("/addStudentFinance", authMiddleware, async (req, res) => {
     });
 
     if (await checkMigrated()) {
-      await syncFeeCategories(schoolId, student.id, { collegeFee, tuitionFee, examFee, transportFee, booksFee, labFee, miscFee, customFees });
+      await syncFeeCategories(schoolId, student.id, {
+        collegeFee,
+        tuitionFee,
+        examFee,
+        transportFee,
+        booksFee,
+        labFee,
+        miscFee,
+        customFees,
+      });
     }
 
-    await saveSchoolBackup({ schoolId, module: "studentList", recordId: String(student.id), data: student, action: "create" });
+    await saveSchoolBackup({
+      schoolId,
+      module: "studentList",
+      recordId: String(student.id),
+      data: student,
+      action: "create",
+    });
     res.json(student);
   } catch (error) {
     console.error("Save Error:", error);
@@ -98,46 +154,65 @@ router.post("/addStudentFinance", authMiddleware, async (req, res) => {
 // Only called after migration is confirmed
 async function syncFeeCategories(schoolId, studentListId, breakdown) {
   const {
-    collegeFee = 0, tuitionFee = 0, examFee = 0,
-    transportFee = 0, booksFee = 0, labFee = 0, miscFee = 0,
+    collegeFee = 0,
+    tuitionFee = 0,
+    examFee = 0,
+    transportFee = 0,
+    booksFee = 0,
+    labFee = 0,
+    miscFee = 0,
     customFees = [],
   } = breakdown;
 
   const STANDARD = [
-    { name: "School Fee",    amount: collegeFee,   order: 1 },
-    { name: "Tuition Fee",   amount: tuitionFee,   order: 2 },
-    { name: "Exam Fee",      amount: examFee,      order: 3 },
+    { name: "School Fee", amount: collegeFee, order: 1 },
+    { name: "Tuition Fee", amount: tuitionFee, order: 2 },
+    { name: "Exam Fee", amount: examFee, order: 3 },
     { name: "Transport Fee", amount: transportFee, order: 4 },
-    { name: "Books Fee",     amount: booksFee,     order: 5 },
-    { name: "Lab Fee",       amount: labFee,       order: 6 },
-    { name: "Miscellaneous", amount: miscFee,      order: 7 },
+    { name: "Books Fee", amount: booksFee, order: 5 },
+    { name: "Lab Fee", amount: labFee, order: 6 },
+    { name: "Miscellaneous", amount: miscFee, order: 7 },
   ];
 
   const customEntries = (Array.isArray(customFees) ? customFees : [])
-    .filter(c => Number(c.amount || c.total || 0) > 0)
-    .map((c, i) => ({ name: c.label || `Custom Fee ${i + 1}`, amount: Number(c.amount || c.total || 0), order: 10 + i }));
+    .filter((c) => Number(c.amount || c.total || 0) > 0)
+    .map((c, i) => ({
+      name: c.label || `Custom Fee ${i + 1}`,
+      amount: Number(c.amount || c.total || 0),
+      order: 10 + i,
+    }));
 
-  const allEntries = [...STANDARD, ...customEntries].filter(e => Number(e.amount) > 0);
+  const allEntries = [...STANDARD, ...customEntries].filter(
+    (e) => Number(e.amount) > 0,
+  );
 
   for (const entry of allEntries) {
     const cat = await prisma.feeCategory.upsert({
-      where:  { name_schoolId: { name: entry.name, schoolId } },
+      where: { name_schoolId: { name: entry.name, schoolId } },
       create: { name: entry.name, order: entry.order, schoolId },
       update: { order: entry.order, isActive: true },
     });
 
     const existing = await prisma.studentFeeCategory.findUnique({
-      where: { studentListId_categoryId: { studentListId, categoryId: cat.id } },
+      where: {
+        studentListId_categoryId: { studentListId, categoryId: cat.id },
+      },
     });
 
     if (existing) {
       await prisma.studentFeeCategory.update({
         where: { id: existing.id },
-        data:  { totalAmount: entry.amount },
+        data: { totalAmount: entry.amount },
       });
     } else {
       await prisma.studentFeeCategory.create({
-        data: { studentListId, categoryId: cat.id, totalAmount: entry.amount, paidAmount: 0, schoolId },
+        data: {
+          studentListId,
+          categoryId: cat.id,
+          totalAmount: entry.amount,
+          paidAmount: 0,
+          schoolId,
+        },
       });
     }
   }
@@ -211,8 +286,7 @@ router.get("/getStudentFinance", authMiddleware, async (req, res) => {
         Object.entries(custom).forEach(([name, amount]) => {
           const key = name.toLowerCase().trim();
 
-          customPaidMap[key] =
-            (customPaidMap[key] || 0) + Number(amount || 0);
+          customPaidMap[key] = (customPaidMap[key] || 0) + Number(amount || 0);
         });
       });
 
@@ -243,30 +317,34 @@ router.get("/getStudentFinance", authMiddleware, async (req, res) => {
 });
 
 // ── GET STUDENT FEE CATEGORIES (for a single student) ────────────────────────
-router.get("/studentFeeCategories/:studentListId", authMiddleware, async (req, res) => {
-  try {
-    if (!(await checkMigrated())) return res.json([]);
+router.get(
+  "/studentFeeCategories/:studentListId",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      if (!(await checkMigrated())) return res.json([]);
 
-    const studentListId = parseInt(req.params.studentListId);
-    const categories = await prisma.studentFeeCategory.findMany({
-      where:   { studentListId },
-      include: { category: true, payments: { orderBy: { paidAt: "desc" } } },
-      orderBy: { category: { order: "asc" } },
-    });
-    res.json(categories);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+      const studentListId = parseInt(req.params.studentListId);
+      const categories = await prisma.studentFeeCategory.findMany({
+        where: { studentListId },
+        include: { category: true, payments: { orderBy: { paidAt: "desc" } } },
+        orderBy: { category: { order: "asc" } },
+      });
+      res.json(categories);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  },
+);
 
 // ── GET FEE CATEGORIES MASTER LIST ───────────────────────────────────────────
 router.get("/feeCategories", authMiddleware, async (req, res) => {
   try {
     if (!(await checkMigrated())) return res.json([]);
 
-    const schoolId  = req.user?.schoolId;
+    const schoolId = req.user?.schoolId;
     const categories = await prisma.feeCategory.findMany({
-      where:   { schoolId, isActive: true },
+      where: { schoolId, isActive: true },
       orderBy: { order: "asc" },
     });
     res.json(categories);
@@ -283,68 +361,98 @@ router.get("/feeCategories", authMiddleware, async (req, res) => {
 // categories the same way recordFullPayment does, so Invoice/WhatsApp
 // receipts start showing correct numbers without re-entering payments.
 // Safe to call repeatedly — it's a no-op once categories are already synced.
-router.post("/reconcileFeeCategories/:studentListId", authMiddleware, async (req, res) => {
-  try {
-    if (!(await checkMigrated())) {
-      return res.json({ success: true, synced: false, message: "Fee categories not migrated." });
-    }
+router.post(
+  "/reconcileFeeCategories/:studentListId",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      if (!(await checkMigrated())) {
+        return res.json({
+          success: true,
+          synced: false,
+          message: "Fee categories not migrated.",
+        });
+      }
 
-    const studentListId = parseInt(req.params.studentListId);
+      const studentListId = parseInt(req.params.studentListId);
 
-    const studentRecord = await prisma.studentList.findUnique({ where: { id: studentListId } });
-    if (!studentRecord) return res.status(404).json({ message: "Student not found" });
+      const studentRecord = await prisma.studentList.findUnique({
+        where: { id: studentListId },
+      });
+      if (!studentRecord)
+        return res.status(404).json({ message: "Student not found" });
 
-    const cats = await prisma.studentFeeCategory.findMany({
-      where:   { studentListId },
-      include: { category: true },
-      orderBy: { category: { order: "asc" } },
-    });
-    if (cats.length === 0) return res.json({ success: true, synced: false, message: "No fee categories for this student." });
+      const cats = await prisma.studentFeeCategory.findMany({
+        where: { studentListId },
+        include: { category: true },
+        orderBy: { category: { order: "asc" } },
+      });
+      if (cats.length === 0)
+        return res.json({
+          success: true,
+          synced: false,
+          message: "No fee categories for this student.",
+        });
 
-    const legacyPaid      = Number(studentRecord.paidAmount || 0);
-    const categorizedPaid = cats.reduce((s, c) => s + Number(c.paidAmount), 0);
-    const gap = legacyPaid - categorizedPaid;
-
-    if (gap <= 0) {
-      return res.json({ success: true, synced: true, message: "Already in sync.", gap: 0 });
-    }
-
-    let remaining = gap;
-    const allocations = [];
-    for (const sfc of cats) {
-      if (remaining <= 0) break;
-      const capacity = Number(sfc.totalAmount) - Number(sfc.paidAmount);
-      if (capacity <= 0) continue;
-      const chunk = Math.min(capacity, remaining);
-      allocations.push({ id: sfc.id, chunk });
-      remaining -= chunk;
-    }
-
-    if (allocations.length > 0) {
-      await prisma.$transaction(
-        allocations.flatMap((a) => [
-          prisma.studentFeeCategory.update({
-            where: { id: a.id },
-            data:  { paidAmount: { increment: a.chunk } },
-          }),
-          prisma.studentFeeCategoryPayment.create({
-            data: {
-              studentFeeCategoryId: a.id,
-              amount:      a.chunk,
-              paymentMode: "Reconciliation",
-              createdBy:   req.user?.id || null,
-            },
-          }),
-        ])
+      const legacyPaid = Number(studentRecord.paidAmount || 0);
+      const categorizedPaid = cats.reduce(
+        (s, c) => s + Number(c.paidAmount),
+        0,
       );
-    }
+      const gap = legacyPaid - categorizedPaid;
 
-    res.json({ success: true, synced: true, gapReconciled: gap - remaining, unallocatedRemainder: remaining, allocations });
-  } catch (error) {
-    console.error("[reconcileFeeCategories] error:", error);
-    res.status(500).json({ message: error.message });
-  }
-});
+      if (gap <= 0) {
+        return res.json({
+          success: true,
+          synced: true,
+          message: "Already in sync.",
+          gap: 0,
+        });
+      }
+
+      let remaining = gap;
+      const allocations = [];
+      for (const sfc of cats) {
+        if (remaining <= 0) break;
+        const capacity = Number(sfc.totalAmount) - Number(sfc.paidAmount);
+        if (capacity <= 0) continue;
+        const chunk = Math.min(capacity, remaining);
+        allocations.push({ id: sfc.id, chunk });
+        remaining -= chunk;
+      }
+
+      if (allocations.length > 0) {
+        await prisma.$transaction(
+          allocations.flatMap((a) => [
+            prisma.studentFeeCategory.update({
+              where: { id: a.id },
+              data: { paidAmount: { increment: a.chunk } },
+            }),
+            prisma.studentFeeCategoryPayment.create({
+              data: {
+                studentFeeCategoryId: a.id,
+                amount: a.chunk,
+                paymentMode: "Reconciliation",
+                createdBy: req.user?.id || null,
+              },
+            }),
+          ]),
+        );
+      }
+
+      res.json({
+        success: true,
+        synced: true,
+        gapReconciled: gap - remaining,
+        unallocatedRemainder: remaining,
+        allocations,
+      });
+    } catch (error) {
+      console.error("[reconcileFeeCategories] error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  },
+);
 
 // ── RECORD FULL/WATERFALL PAYMENT ACROSS ALL FEE CATEGORIES ──────────────────
 // Used whenever a payment isn't tied to one specific category — e.g. the
@@ -361,22 +469,32 @@ router.post("/recordFullPayment", authMiddleware, async (req, res) => {
     if (!(await checkMigrated())) {
       // No fee_categories table yet — nothing to sync, caller should just
       // rely on the legacy /updateStudentFinance patch.
-      return res.json({ success: true, synced: false, message: "Fee categories not migrated." });
+      return res.json({
+        success: true,
+        synced: false,
+        message: "Fee categories not migrated.",
+      });
     }
 
     const { studentListId, amount, paymentMode, paymentDate } = req.body;
     if (!studentListId || !amount || Number(amount) <= 0) {
-      return res.status(400).json({ message: "studentListId and amount are required" });
+      return res
+        .status(400)
+        .json({ message: "studentListId and amount are required" });
     }
 
     const cats = await prisma.studentFeeCategory.findMany({
-      where:   { studentListId: parseInt(studentListId) },
+      where: { studentListId: parseInt(studentListId) },
       include: { category: true },
       orderBy: { category: { order: "asc" } },
     });
 
     if (cats.length === 0) {
-      return res.json({ success: true, synced: false, message: "No fee categories for this student." });
+      return res.json({
+        success: true,
+        synced: false,
+        message: "No fee categories for this student.",
+      });
     }
 
     let remaining = Number(amount);
@@ -397,17 +515,17 @@ router.post("/recordFullPayment", authMiddleware, async (req, res) => {
         allocations.flatMap((a) => [
           prisma.studentFeeCategory.update({
             where: { id: a.id },
-            data:  { paidAmount: { increment: a.chunk } },
+            data: { paidAmount: { increment: a.chunk } },
           }),
           prisma.studentFeeCategoryPayment.create({
             data: {
               studentFeeCategoryId: a.id,
-              amount:      a.chunk,
+              amount: a.chunk,
               paymentMode: paymentMode || "Cash",
-              createdBy:   req.user?.id || null,
+              createdBy: req.user?.id || null,
             },
           }),
-        ])
+        ]),
       );
     }
 
@@ -419,7 +537,7 @@ router.post("/recordFullPayment", authMiddleware, async (req, res) => {
       where: { studentListId: parseInt(studentListId) },
     });
     const newTotalPaid = allCats.reduce((s, c) => s + Number(c.paidAmount), 0);
-    const totalFees     = allCats.reduce((s, c) => s + Number(c.totalAmount), 0);
+    const totalFees = allCats.reduce((s, c) => s + Number(c.totalAmount), 0);
 
     res.json({
       success: true,
@@ -438,42 +556,61 @@ router.post("/recordFullPayment", authMiddleware, async (req, res) => {
 router.post("/recordCategoryPayment", authMiddleware, async (req, res) => {
   try {
     if (!(await checkMigrated())) {
-      return res.status(400).json({ message: "Fee category tables not yet migrated. Run: npx prisma migrate dev --name add_fee_categories" });
+      return res
+        .status(400)
+        .json({
+          message:
+            "Fee category tables not yet migrated. Run: npx prisma migrate dev --name add_fee_categories",
+        });
     }
 
     const schoolId = req.user?.schoolId;
-    const { studentListId, categoryId, amount, paymentMode, paymentDate } = req.body;
+    const { studentListId, categoryId, amount, paymentMode, paymentDate } =
+      req.body;
 
     if (!studentListId || !categoryId || !amount || amount <= 0) {
-      return res.status(400).json({ message: "studentListId, categoryId and amount are required" });
+      return res
+        .status(400)
+        .json({ message: "studentListId, categoryId and amount are required" });
     }
 
     // Use the custom date picked in the UI if provided, else fall back to now.
     const payDate = paymentDate ? new Date(paymentDate) : new Date();
 
     const sfc = await prisma.studentFeeCategory.findUnique({
-      where: { studentListId_categoryId: { studentListId: parseInt(studentListId), categoryId } },
+      where: {
+        studentListId_categoryId: {
+          studentListId: parseInt(studentListId),
+          categoryId,
+        },
+      },
       include: { category: true },
     });
 
-    if (!sfc) return res.status(404).json({ message: "Fee category record not found for this student" });
+    if (!sfc)
+      return res
+        .status(404)
+        .json({ message: "Fee category record not found for this student" });
 
     const pending = Number(sfc.totalAmount) - Number(sfc.paidAmount);
-    const payAmt  = Math.min(Number(amount), pending);
+    const payAmt = Math.min(Number(amount), pending);
 
-    if (payAmt <= 0) return res.status(400).json({ message: "Fee already fully paid for this category" });
+    if (payAmt <= 0)
+      return res
+        .status(400)
+        .json({ message: "Fee already fully paid for this category" });
 
     await prisma.$transaction([
       prisma.studentFeeCategory.update({
         where: { id: sfc.id },
-        data:  { paidAmount: { increment: payAmt } },
+        data: { paidAmount: { increment: payAmt } },
       }),
       prisma.studentFeeCategoryPayment.create({
         data: {
           studentFeeCategoryId: sfc.id,
-          amount:      payAmt,
+          amount: payAmt,
           paymentMode: paymentMode || "Cash",
-          createdBy:   req.user?.id || null,
+          createdBy: req.user?.id || null,
         },
       }),
     ]);
@@ -484,9 +621,11 @@ router.post("/recordCategoryPayment", authMiddleware, async (req, res) => {
 
     const newTotalPaid = allCats.reduce(
       (sum, c) => sum + Number(c.paidAmount),
-      0
+      0,
     );
-    const studentListRecord = await prisma.studentList.findUnique({ where: { id: parseInt(studentListId) } });
+    const studentListRecord = await prisma.studentList.findUnique({
+      where: { id: parseInt(studentListId) },
+    });
     const totalFees = Number(studentListRecord?.fees || 0);
 
     // Keep the legacy per-category flat columns (schoolFeePaid, examFeePaid, etc.)
@@ -494,13 +633,13 @@ router.post("/recordCategoryPayment", authMiddleware, async (req, res) => {
     // and other reports still read these flat columns directly, so without this
     // update they go stale the moment a payment is made against a category here.
     const NAME_TO_FLAT_FIELD = {
-      "school fee":    "schoolFeePaid",
-      "tuition fee":   "tuitionFeePaid",
-      "exam fee":      "examFeePaid",
+      "school fee": "schoolFeePaid",
+      "tuition fee": "tuitionFeePaid",
+      "exam fee": "examFeePaid",
       "transport fee": "transportFeePaid",
-      "books fee":     "booksFeePaid",
-      "lab fee":       "labFeePaid",
-      "miscellaneous": "miscFeePaid",
+      "books fee": "booksFeePaid",
+      "lab fee": "labFeePaid",
+      miscellaneous: "miscFeePaid",
     };
     const flatField = NAME_TO_FLAT_FIELD[sfc.category?.name?.toLowerCase()];
 
@@ -540,59 +679,111 @@ router.post("/recordCategoryPayment", authMiddleware, async (req, res) => {
 // ── UPDATE STUDENT FINANCE ────────────────────────────────────────────────────
 router.put("/updateStudentFinance/:id", authMiddleware, async (req, res) => {
   try {
-    const id       = parseInt(req.params.id);
+    const id = parseInt(req.params.id);
     const schoolId = req.user?.schoolId;
 
     const {
-      studentId, name, email, phone, course, fees,
-      collegeFee, tuitionFee, examFee,
-      transportFee, booksFee, labFee, miscFee, customFees,
-      paidAmount, schoolFeePaid, tuitionFeePaid, examFeePaid, transportFeePaid, booksFeePaid, labFeePaid, miscFeePaid,
-      paymentStatus, paymentMode, paymentDate,
-      feeDate, feeBreakdownDetails,
+      studentId,
+      name,
+      email,
+      phone,
+      course,
+      fees,
+      collegeFee,
+      tuitionFee,
+      examFee,
+      transportFee,
+      booksFee,
+      labFee,
+      miscFee,
+      customFees,
+      paidAmount,
+      schoolFeePaid,
+      tuitionFeePaid,
+      examFeePaid,
+      transportFeePaid,
+      booksFeePaid,
+      labFeePaid,
+      miscFeePaid,
+      paymentStatus,
+      paymentMode,
+      paymentDate,
+      feeDate,
+      feeBreakdownDetails,
     } = req.body;
 
     const updateData = {};
-    if (name   !== undefined) updateData.name   = name;
-    if (email  !== undefined) updateData.email  = email;
-    if (phone  !== undefined) updateData.phone  = phone;
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (phone !== undefined) updateData.phone = phone;
     if (course !== undefined) updateData.course = course;
-    if (fees   !== undefined) updateData.fees   = fees ? parseFloat(fees) : null;
+    if (fees !== undefined) updateData.fees = fees ? parseFloat(fees) : null;
     if (feeDate !== undefined) updateData.feeDate = new Date(feeDate);
 
-    if (collegeFee !== undefined || tuitionFee !== undefined || customFees !== undefined) {
+    if (
+      collegeFee !== undefined ||
+      tuitionFee !== undefined ||
+      customFees !== undefined
+    ) {
       updateData.feeBreakdown = JSON.stringify({
-        collegeFee:          collegeFee   || 0,
-        tuitionFee:          tuitionFee   || 0,
-        examFee:             examFee      || 0,
-        transportFee:        transportFee || 0,
-        booksFee:            booksFee     || 0,
-        labFee:              labFee       || 0,
-        miscFee:             miscFee      || 0,
-        customFees:          customFees   || [],
+        collegeFee: collegeFee || 0,
+        tuitionFee: tuitionFee || 0,
+        examFee: examFee || 0,
+        transportFee: transportFee || 0,
+        booksFee: booksFee || 0,
+        labFee: labFee || 0,
+        miscFee: miscFee || 0,
+        customFees: customFees || [],
         feeBreakdownDetails: feeBreakdownDetails || {},
       });
 
       if (await checkMigrated()) {
-        await syncFeeCategories(schoolId, id, { collegeFee, tuitionFee, examFee, transportFee, booksFee, labFee, miscFee, customFees });
+        await syncFeeCategories(schoolId, id, {
+          collegeFee,
+          tuitionFee,
+          examFee,
+          transportFee,
+          booksFee,
+          labFee,
+          miscFee,
+          customFees,
+        });
       }
     }
 
-    if (paidAmount     !== undefined) updateData.paidAmount     = parseFloat(paidAmount)     || 0;
-    if (schoolFeePaid  !== undefined) updateData.schoolFeePaid  = parseFloat(schoolFeePaid)  || 0;
-    if (tuitionFeePaid  !== undefined) updateData.tuitionFeePaid  = parseFloat(tuitionFeePaid)  || 0;
-    if (examFeePaid     !== undefined) updateData.examFeePaid     = parseFloat(examFeePaid)     || 0;
-    if (transportFeePaid !== undefined) updateData.transportFeePaid = parseFloat(transportFeePaid) || 0;
-    if (booksFeePaid    !== undefined) updateData.booksFeePaid    = parseFloat(booksFeePaid)    || 0;
-    if (labFeePaid      !== undefined) updateData.labFeePaid      = parseFloat(labFeePaid)      || 0;
-    if (miscFeePaid     !== undefined) updateData.miscFeePaid     = parseFloat(miscFeePaid)     || 0;
-    if (paymentStatus  !== undefined) updateData.paymentStatus  = paymentStatus;
-    if (paymentMode    !== undefined) updateData.paymentMode    = paymentMode;
-    if (paymentDate    !== undefined) updateData.paymentDate    = new Date(paymentDate);
+    if (paidAmount !== undefined)
+      updateData.paidAmount = parseFloat(paidAmount) || 0;
+    if (schoolFeePaid !== undefined)
+      updateData.schoolFeePaid = parseFloat(schoolFeePaid) || 0;
+    if (tuitionFeePaid !== undefined)
+      updateData.tuitionFeePaid = parseFloat(tuitionFeePaid) || 0;
+    if (examFeePaid !== undefined)
+      updateData.examFeePaid = parseFloat(examFeePaid) || 0;
+    if (transportFeePaid !== undefined)
+      updateData.transportFeePaid = parseFloat(transportFeePaid) || 0;
+    if (booksFeePaid !== undefined)
+      updateData.booksFeePaid = parseFloat(booksFeePaid) || 0;
+    if (labFeePaid !== undefined)
+      updateData.labFeePaid = parseFloat(labFeePaid) || 0;
+    if (miscFeePaid !== undefined)
+      updateData.miscFeePaid = parseFloat(miscFeePaid) || 0;
+    if (paymentStatus !== undefined) updateData.paymentStatus = paymentStatus;
+    if (paymentMode !== undefined) updateData.paymentMode = paymentMode;
+    if (paymentDate !== undefined)
+      updateData.paymentDate = new Date(paymentDate);
 
-    const updated = await prisma.studentList.update({ where: { id }, data: updateData });
+    const updated = await prisma.studentList.update({
+      where: { id },
+      data: updateData,
+    });
 
-    await saveSchoolBackup({ schoolId, module: "studentList", recordId: String(updated.id), data: updated, action: "update" });
+    await saveSchoolBackup({
+      schoolId,
+      module: "studentList",
+      recordId: String(updated.id),
+      data: updated,
+      action: "update",
+    });
     res.json(updated);
   } catch (error) {
     console.error("Update error:", error);
@@ -603,15 +794,21 @@ router.put("/updateStudentFinance/:id", authMiddleware, async (req, res) => {
 // ── DELETE STUDENT FINANCE (soft delete) ─────────────────────────────────────
 router.delete("/deleteStudentFinance/:id", authMiddleware, async (req, res) => {
   try {
-    const id       = parseInt(req.params.id);
+    const id = parseInt(req.params.id);
     const schoolId = req.user?.schoolId;
 
     const deleted = await prisma.studentList.update({
       where: { id },
-      data:  { deletedAt: new Date() },
+      data: { deletedAt: new Date() },
     });
 
-    await saveSchoolBackup({ schoolId, module: "studentList", recordId: String(deleted.id), data: deleted, action: "delete" });
+    await saveSchoolBackup({
+      schoolId,
+      module: "studentList",
+      recordId: String(deleted.id),
+      data: deleted,
+      action: "delete",
+    });
     res.json({ message: "Deleted Successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -648,7 +845,8 @@ router.delete("/deleteStudentFinance/:id", authMiddleware, async (req, res) => {
 router.get("/studentsByClass", async (req, res) => {
   try {
     const { classSectionId } = req.query;
-    if (!classSectionId) return res.status(400).json({ message: "classSectionId required" });
+    if (!classSectionId)
+      return res.status(400).json({ message: "classSectionId required" });
 
     const enrollments = await prisma.studentEnrollment.findMany({
       where: { classSectionId, status: "ACTIVE" },
@@ -672,11 +870,12 @@ router.get("/studentsByClass", async (req, res) => {
 router.get("/classSections", authMiddleware, async (req, res) => {
   try {
     const schoolId = req.query.schoolId || req.user?.schoolId;
-    if (!schoolId) return res.status(400).json({ message: "schoolId required" });
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId required" });
 
     const sections = await prisma.classSection.findMany({
-      where:   { schoolId, deletedAt: null },
-      select:  { id: true, name: true, grade: true, section: true },
+      where: { schoolId, deletedAt: null },
+      select: { id: true, name: true, grade: true, section: true },
       orderBy: [{ grade: "asc" }, { section: "asc" }],
     });
 
@@ -694,8 +893,18 @@ router.get("/mySchool", authMiddleware, async (req, res) => {
     if (!schoolId) return res.status(400).json({ message: "schoolId missing" });
 
     const school = await prisma.school.findUnique({
-      where:  { id: schoolId },
-      select: { id: true, name: true, address: true, city: true, phone: true, email: true, logoUrl: true },
+      where: { id: schoolId },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        phone: true,
+        email: true,
+        logoUrl: true,
+        invoicePrefix: true,
+        code: true,
+      },
     });
 
     if (!school) return res.status(404).json({ message: "School not found" });
@@ -715,16 +924,20 @@ router.get("/myFees", async (req, res) => {
     const migrated = await checkMigrated();
 
     const record = await prisma.studentList.findFirst({
-      where:   { email },
+      where: { email },
       orderBy: { createdAt: "desc" },
       ...(migrated && {
         include: {
-          feeCategories: { include: { category: true }, orderBy: { category: { order: "asc" } } },
+          feeCategories: {
+            include: { category: true },
+            orderBy: { category: { order: "asc" } },
+          },
         },
       }),
     });
 
-    if (!record) return res.status(404).json({ message: "No fee record found" });
+    if (!record)
+      return res.status(404).json({ message: "No fee record found" });
     res.json(record);
   } catch (error) {
     console.error("myFees error:", error);
@@ -736,7 +949,8 @@ router.get("/myFees", async (req, res) => {
 router.get("/classFee", async (req, res) => {
   try {
     const { classSectionId, academicYearId } = req.query;
-    if (!classSectionId) return res.status(400).json({ message: "classSectionId required" });
+    if (!classSectionId)
+      return res.status(400).json({ message: "classSectionId required" });
 
     const fee = await prisma.classFee.findFirst({
       where: { classSectionId, ...(academicYearId && { academicYearId }) },
@@ -756,17 +970,20 @@ router.get("/parentFees", authMiddleware, async (req, res) => {
     const migrated = await checkMigrated();
 
     const children = await prisma.studentParent.findMany({
-      where:  { parentId },
+      where: { parentId },
       select: { studentId: true },
     });
 
-    const studentIds = children.map(c => c.studentId);
+    const studentIds = children.map((c) => c.studentId);
 
     const fees = await prisma.studentList.findMany({
       where: { studentId: { in: studentIds }, deletedAt: null },
       ...(migrated && {
         include: {
-          feeCategories: { include: { category: true }, orderBy: { category: { order: "asc" } } },
+          feeCategories: {
+            include: { category: true },
+            orderBy: { category: { order: "asc" } },
+          },
         },
       }),
     });
@@ -782,22 +999,28 @@ router.get("/parentFees", authMiddleware, async (req, res) => {
 router.post("/sendFeeReminder/:id", authMiddleware, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const financeStudent = await prisma.studentList.findUnique({ where: { id } });
-    if (!financeStudent) return res.status(404).json({ message: "Student not found" });
+    const financeStudent = await prisma.studentList.findUnique({
+      where: { id },
+    });
+    if (!financeStudent)
+      return res.status(404).json({ message: "Student not found" });
 
-    const totalFees     = Number(financeStudent.fees      || 0);
-    const paidAmount    = Number(financeStudent.paidAmount || 0);
+    const totalFees = Number(financeStudent.fees || 0);
+    const paidAmount = Number(financeStudent.paidAmount || 0);
     const pendingAmount = totalFees - paidAmount;
-    if (pendingAmount <= 0) return res.status(400).json({ message: "No pending fees" });
+    if (pendingAmount <= 0)
+      return res.status(400).json({ message: "No pending fees" });
 
-    const school = await prisma.school.findUnique({ where: { id: req.user.schoolId } });
+    const school = await prisma.school.findUnique({
+      where: { id: req.user.schoolId },
+    });
 
     let sent = 0;
 
     // ── Try parent phone first (if studentId is linked) ──────────────────
     if (financeStudent.studentId) {
       const realStudent = await prisma.student.findFirst({
-        where:   { id: financeStudent.studentId },
+        where: { id: financeStudent.studentId },
         include: { parentLinks: { include: { parent: true } } },
       });
 
@@ -809,7 +1032,7 @@ router.post("/sendFeeReminder/:id", authMiddleware, async (req, res) => {
             phone: parentPhone,
             pendingAmount,
             studentName: financeStudent.name,
-            schoolName:  school?.name || "School",
+            schoolName: school?.name || "School",
           });
           sent++;
         }
@@ -819,19 +1042,24 @@ router.post("/sendFeeReminder/:id", authMiddleware, async (req, res) => {
     // ── Fallback: use StudentList.phone directly ──────────────────────────
     if (sent === 0 && financeStudent.phone) {
       await sendFeePendingWhatsApp({
-        phone:       financeStudent.phone,
+        phone: financeStudent.phone,
         pendingAmount,
         studentName: financeStudent.name,
-        schoolName:  school?.name || "School",
+        schoolName: school?.name || "School",
       });
       sent++;
     }
 
     if (sent === 0) {
-      return res.status(400).json({ message: "No phone number found to send reminder" });
+      return res
+        .status(400)
+        .json({ message: "No phone number found to send reminder" });
     }
 
-    res.json({ success: true, message: `Fee reminder sent to ${sent} contact(s)` });
+    res.json({
+      success: true,
+      message: `Fee reminder sent to ${sent} contact(s)`,
+    });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: error.message });
@@ -842,11 +1070,16 @@ router.post("/sendFeeReminder/:id", authMiddleware, async (req, res) => {
 router.post("/sendFeeReceipt/:id", authMiddleware, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const financeStudent = await prisma.studentList.findUnique({ where: { id } });
-    if (!financeStudent) return res.status(404).json({ message: "Student not found" });
+    const financeStudent = await prisma.studentList.findUnique({
+      where: { id },
+    });
+    if (!financeStudent)
+      return res.status(404).json({ message: "Student not found" });
 
-    const school  = await prisma.school.findUnique({ where: { id: req.user.schoolId } });
-    const pdfUrl  = req.body.pdfUrl;
+    const school = await prisma.school.findUnique({
+      where: { id: req.user.schoolId },
+    });
+    const pdfUrl = req.body.pdfUrl;
 
     if (!pdfUrl) return res.status(400).json({ message: "pdfUrl is required" });
 
@@ -856,7 +1089,7 @@ router.post("/sendFeeReceipt/:id", authMiddleware, async (req, res) => {
     // ── Try parent phone first (if studentId is linked) ───────────────────
     if (financeStudent.studentId) {
       const realStudent = await prisma.student.findFirst({
-        where:   { id: financeStudent.studentId },
+        where: { id: financeStudent.studentId },
         include: { parentLinks: { include: { parent: true } } },
       });
 
@@ -865,15 +1098,18 @@ router.post("/sendFeeReceipt/:id", authMiddleware, async (req, res) => {
           const parentPhone = link.parent?.phone;
           if (!parentPhone) continue;
           const result = await sendFeeReceiptWhatsApp({
-            phone:       parentPhone,
+            phone: parentPhone,
             studentName: financeStudent.name,
-            schoolName:  school?.name || "School",
+            schoolName: school?.name || "School",
             pdfUrl,
           });
           if (result?.success) {
             sent++;
           } else {
-            failures.push({ phone: parentPhone, error: result?.error || "Unknown error" });
+            failures.push({
+              phone: parentPhone,
+              error: result?.error || "Unknown error",
+            });
           }
         }
       }
@@ -882,20 +1118,25 @@ router.post("/sendFeeReceipt/:id", authMiddleware, async (req, res) => {
     // ── Fallback: use StudentList.phone directly ──────────────────────────
     if (sent === 0 && failures.length === 0 && financeStudent.phone) {
       const result = await sendFeeReceiptWhatsApp({
-        phone:       financeStudent.phone,
+        phone: financeStudent.phone,
         studentName: financeStudent.name,
-        schoolName:  school?.name || "School",
+        schoolName: school?.name || "School",
         pdfUrl,
       });
       if (result?.success) {
         sent++;
       } else {
-        failures.push({ phone: financeStudent.phone, error: result?.error || "Unknown error" });
+        failures.push({
+          phone: financeStudent.phone,
+          error: result?.error || "Unknown error",
+        });
       }
     }
 
     if (sent === 0 && failures.length === 0) {
-      return res.status(400).json({ message: "No phone number found to send receipt" });
+      return res
+        .status(400)
+        .json({ message: "No phone number found to send receipt" });
     }
 
     if (sent === 0) {
@@ -925,22 +1166,22 @@ import { uploadPdfToR2 } from "../../utils/uploadPdfToR2.js";
 
 router.post("/uploadFeeReceipt/:id", authMiddleware, async (req, res) => {
   try {
-    const id     = req.params.id;
+    const id = req.params.id;
     const chunks = [];
 
-    req.on("data",  chunk => chunks.push(chunk));
-    req.on("end",   async () => {
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", async () => {
       try {
         const pdfBuffer = Buffer.concat(chunks);
-        const fileName  = `receipts/${id}_${Date.now()}.pdf`;
-        const pdfUrl    = await uploadPdfToR2(pdfBuffer, fileName);
+        const fileName = `receipts/${id}_${Date.now()}.pdf`;
+        const pdfUrl = await uploadPdfToR2(pdfBuffer, fileName);
         res.json({ success: true, pdfUrl });
       } catch (err) {
         console.error("R2 upload error:", err);
         res.status(500).json({ message: err.message });
       }
     });
-    req.on("error", err => {
+    req.on("error", (err) => {
       console.error("Stream error:", err);
       res.status(500).json({ message: err.message });
     });
@@ -954,26 +1195,38 @@ router.post("/uploadFeeReceipt/:id", authMiddleware, async (req, res) => {
 router.post("/sendFeeVoiceReminder/:id", authMiddleware, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const financeStudent = await prisma.studentList.findUnique({ where: { id } });
-    if (!financeStudent) return res.status(404).json({ message: "Student not found" });
+    const financeStudent = await prisma.studentList.findUnique({
+      where: { id },
+    });
+    if (!financeStudent)
+      return res.status(404).json({ message: "Student not found" });
 
-    const totalFees     = Number(financeStudent.fees       || 0);
-    const paidAmount    = Number(financeStudent.paidAmount  || 0);
+    const totalFees = Number(financeStudent.fees || 0);
+    const paidAmount = Number(financeStudent.paidAmount || 0);
     const pendingAmount = totalFees - paidAmount;
-    if (pendingAmount <= 0) return res.status(400).json({ message: "No pending fees" });
+    if (pendingAmount <= 0)
+      return res.status(400).json({ message: "No pending fees" });
 
     const realStudent = await prisma.student.findFirst({
-      where:   { id: financeStudent.studentId },
+      where: { id: financeStudent.studentId },
       include: { parentLinks: { include: { parent: true } } },
     });
-    if (!realStudent) return res.status(404).json({ message: "Real student not found" });
+    if (!realStudent)
+      return res.status(404).json({ message: "Real student not found" });
 
-    const school = await prisma.school.findUnique({ where: { id: req.user.schoolId } });
+    const school = await prisma.school.findUnique({
+      where: { id: req.user.schoolId },
+    });
 
     for (const link of realStudent.parentLinks) {
       const parentPhone = link.parent?.phone;
       if (!parentPhone) continue;
-      await sendFeeVoiceReminder({ phone: parentPhone, pendingAmount, studentName: financeStudent.name, schoolName: school?.name || "School" });
+      await sendFeeVoiceReminder({
+        phone: parentPhone,
+        pendingAmount,
+        studentName: financeStudent.name,
+        schoolName: school?.name || "School",
+      });
     }
 
     res.json({ success: true, message: "Voice reminder sent successfully" });
@@ -982,8 +1235,6 @@ router.post("/sendFeeVoiceReminder/:id", authMiddleware, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
-
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SIMPLE PAYMENT LOG SYSTEM
@@ -1004,11 +1255,105 @@ async function checkPaymentLogMigrated() {
   return PAYMENT_LOG_MIGRATED;
 }
 
+// ── INVOICE NUMBER GENERATOR ──────────────────────────────────────────────────
+// Builds numbers like "ABC-INV-00001":
+//   ABC   = school's chosen invoicePrefix (max 6 letters, set by Finance),
+//           falling back to the school `code` if no prefix has been chosen.
+//   00001 = school-wide running sequence, zero-padded to 5 digits.
+//
+// The increment happens via a single atomic UPDATE (Prisma's `increment`
+// compiles to `SET invoice_seq = invoice_seq + 1 ... RETURNING`), so two
+// payments recorded for the same school at the same time can never receive
+// the same number — Postgres serializes the row-level update.
+async function generateInvoiceNumber(schoolId) {
+  if (!schoolId) return null;
+  try {
+    const school = await prisma.school.update({
+      where: { id: schoolId },
+      data: { invoiceSeq: { increment: 1 } },
+      select: { invoiceSeq: true, invoicePrefix: true, code: true },
+    });
+
+    const rawPrefix = (school.invoicePrefix || school.code || "SCH").toString();
+    const prefix =
+      rawPrefix
+        .replace(/[^A-Za-z0-9]/g, "")
+        .toUpperCase()
+        .slice(0, 6) || "SCH";
+    const seqStr = String(school.invoiceSeq).padStart(5, "0");
+
+    return `${prefix}-INV-${seqStr}`;
+  } catch (err) {
+    console.error("[generateInvoiceNumber] failed:", err.message);
+    return null;
+  }
+}
+
+// ── INVOICE SETTINGS (Finance chooses their school's invoice prefix) ─────────
+// GET  /api/finance/invoiceSettings  → { invoicePrefix, code }
+router.get("/invoiceSettings", authMiddleware, async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing" });
+
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { invoicePrefix: true, code: true },
+    });
+    if (!school) return res.status(404).json({ message: "School not found" });
+
+    res.json({
+      invoicePrefix: school.invoicePrefix || "",
+      // What will actually be used if invoicePrefix is left blank
+      effectivePrefix: (school.invoicePrefix || school.code || "SCH")
+        .toUpperCase()
+        .slice(0, 6),
+      code: school.code,
+    });
+  } catch (error) {
+    console.error("invoiceSettings GET error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// PUT  /api/finance/invoiceSettings   body: { invoicePrefix }
+router.put("/invoiceSettings", authMiddleware, async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing" });
+
+    let { invoicePrefix } = req.body;
+    if (typeof invoicePrefix !== "string" || !invoicePrefix.trim()) {
+      return res.status(400).json({ message: "invoicePrefix is required" });
+    }
+
+    invoicePrefix = invoicePrefix.trim().toUpperCase();
+
+    if (!/^[A-Z]{1,6}$/.test(invoicePrefix)) {
+      return res.status(400).json({
+        message: "invoicePrefix must be 1–6 letters (A–Z) only, e.g. ABC",
+      });
+    }
+
+    const updated = await prisma.school.update({
+      where: { id: schoolId },
+      data: { invoicePrefix },
+      select: { invoicePrefix: true, code: true },
+    });
+
+    res.json({ success: true, invoicePrefix: updated.invoicePrefix });
+  } catch (error) {
+    console.error("invoiceSettings PUT error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // ── RECORD SIMPLE PAYMENT ─────────────────────────────────────────────────────
 // Called by PayModal instead of (or in addition to) updateStudentFinance.
 // Writes one row to StudentPaymentLog per payment action.
 router.post("/recordSimplePayment", authMiddleware, async (req, res) => {
   try {
+    const schoolId = req.user?.schoolId;
     const {
       studentListId,
       amount,
@@ -1039,7 +1384,7 @@ router.post("/recordSimplePayment", authMiddleware, async (req, res) => {
     const hasTable = await checkPaymentLogMigrated();
     if (!hasTable) {
       console.warn(
-        "[recordSimplePayment] student_payment_log table missing — skipping log write"
+        "[recordSimplePayment] student_payment_log table missing — skipping log write",
       );
 
       return res.json({
@@ -1059,47 +1404,47 @@ router.post("/recordSimplePayment", authMiddleware, async (req, res) => {
         },
       });
 
-      if (
-        existing &&
-        existing.studentListId === parseInt(studentListId)
-      ) {
-      // Merge previous custom fees with newly paid custom fees
-      const mergedCustomFees = {
-        ...(existing.customFeeBreakdown || {}),
-        ...(customFeeBreakdown || {}),
-      };
+      if (existing && existing.studentListId === parseInt(studentListId)) {
+        // Merge previous custom fees with newly paid custom fees
+        const mergedCustomFees = {
+          ...(existing.customFeeBreakdown || {}),
+          ...(customFeeBreakdown || {}),
+        };
 
-      const updated = await prisma.studentPaymentLog.update({
-        where: {
-          id: parseInt(sessionLogId),
-        },
-        data: {
-          amount: Number(amount),
-          paymentMode: paymentMode || "Cash",
-          paidAt: payDate,
+        const updated = await prisma.studentPaymentLog.update({
+          where: {
+            id: parseInt(sessionLogId),
+          },
+          data: {
+            amount: Number(amount),
+            paymentMode: paymentMode || "Cash",
+            paidAt: payDate,
 
-          schoolFeePaid: Number(schoolFeePaid),
-          tuitionFeePaid: Number(tuitionFeePaid),
-          examFeePaid: Number(examFeePaid),
-          transportFeePaid: Number(transportFeePaid),
-          booksFeePaid: Number(booksFeePaid),
-          labFeePaid: Number(labFeePaid),
-          miscFeePaid: Number(miscFeePaid),
+            schoolFeePaid: Number(schoolFeePaid),
+            tuitionFeePaid: Number(tuitionFeePaid),
+            examFeePaid: Number(examFeePaid),
+            transportFeePaid: Number(transportFeePaid),
+            booksFeePaid: Number(booksFeePaid),
+            labFeePaid: Number(labFeePaid),
+            miscFeePaid: Number(miscFeePaid),
 
-          // Merge instead of replace
-          customFeeBreakdown: mergedCustomFees,
-        },
-      });
+            // Merge instead of replace
+            customFeeBreakdown: mergedCustomFees,
+          },
+        });
 
         console.log(
           "[recordSimplePayment] ✅ Updated existing log:",
-          updated.id
+          updated.id,
         );
 
         return res.json({
           success: true,
           logged: true,
           logId: updated.id,
+          // Invoice number is fixed at creation time — same number for every
+          // payment added to this session, even across multiple categories.
+          invoiceNumber: updated.invoiceNumber || null,
           action: "updated",
         });
       }
@@ -1108,6 +1453,8 @@ router.post("/recordSimplePayment", authMiddleware, async (req, res) => {
     // ------------------------------------------------------------
     // CREATE NEW LOG
     // ------------------------------------------------------------
+    const invoiceNumber = await generateInvoiceNumber(schoolId);
+
     const log = await prisma.studentPaymentLog.create({
       data: {
         studentListId: parseInt(studentListId),
@@ -1127,21 +1474,25 @@ router.post("/recordSimplePayment", authMiddleware, async (req, res) => {
         // NEW
         customFeeBreakdown,
 
-        createdBy: req.user?.id
-          ? String(req.user.id)
-          : null,
+        // School-prefixed sequential invoice number, e.g. "ABC-INV-00001"
+        invoiceNumber,
+
+        createdBy: req.user?.id ? String(req.user.id) : null,
       },
     });
 
     console.log(
       "[recordSimplePayment] ✅ Created new log:",
-      log.id
+      log.id,
+      "invoiceNumber:",
+      log.invoiceNumber,
     );
 
     return res.json({
       success: true,
       logged: true,
       logId: log.id,
+      invoiceNumber: log.invoiceNumber,
       action: "created",
     });
   } catch (error) {
@@ -1156,225 +1507,317 @@ router.post("/recordSimplePayment", authMiddleware, async (req, res) => {
 // GET /api/finance/paymentHistory/:studentListId
 // Returns per-transaction payment history, newest first.
 // Uses StudentPaymentLog if available, otherwise legacy fallback from StudentList.
-router.get("/paymentHistory/:studentListId", authMiddleware, async (req, res) => {
-  try {
-    const studentListId = parseInt(req.params.studentListId);
-    console.log("[paymentHistory] studentListId:", studentListId);
+router.get(
+  "/paymentHistory/:studentListId",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const studentListId = parseInt(req.params.studentListId);
+      console.log("[paymentHistory] studentListId:", studentListId);
 
-    const hasTable = await checkPaymentLogMigrated();
-    console.log("[paymentHistory] student_payment_log table exists:", hasTable);
+      const hasTable = await checkPaymentLogMigrated();
+      console.log(
+        "[paymentHistory] student_payment_log table exists:",
+        hasTable,
+      );
 
-    // ── Path A: StudentPaymentLog table exists ────────────────────────────────
-    if (hasTable) {
-      const logs = await prisma.studentPaymentLog.findMany({
-        where:   { studentListId },
-        orderBy: { paidAt: "desc" },
-      });
-
-      console.log("[paymentHistory] log rows found:", logs.length);
-
-      if (logs.length > 0) {
-        // Get category totals from StudentList for pending calculation
-        const studentRecord = await prisma.studentList.findUnique({
-          where: { id: studentListId },
-          ...(await checkMigrated() && {
-            include: {
-              feeCategories: { include: { category: true } },
-            },
-          }),
+      // ── Path A: StudentPaymentLog table exists ────────────────────────────────
+      if (hasTable) {
+        const logs = await prisma.studentPaymentLog.findMany({
+          where: { studentListId },
+          orderBy: { paidAt: "desc" },
         });
 
-        // Get feeBreakdown for total amounts per category
-        let bd = {};
-        try { bd = studentRecord?.feeBreakdown ? JSON.parse(studentRecord.feeBreakdown) : {}; } catch {}
+        console.log("[paymentHistory] log rows found:", logs.length);
 
-        const getTotal = (key) => {
-          const e = bd[key];
-          return e ? Number(typeof e === "object" ? (e.total ?? e.amount ?? 0) : e) : 0;
-        };
+        if (logs.length > 0) {
+          // Get category totals from StudentList for pending calculation
+          const studentRecord = await prisma.studentList.findUnique({
+            where: { id: studentListId },
+            ...((await checkMigrated()) && {
+              include: {
+                feeCategories: { include: { category: true } },
+              },
+            }),
+          });
 
-        // Build cumulative running totals going oldest→newest
-        const orderedLogs = [...logs].reverse(); // oldest first
-        const runningTotals = {
-          schoolFee:    0,
-          tuitionFee:   0,
-          examFee:      0,
-          transportFee: 0,
-          booksFee:     0,
-          labFee:       0,
-          miscFee:      0,
-        };
+          // Get feeBreakdown for total amounts per category
+          let bd = {};
+          try {
+            bd = studentRecord?.feeBreakdown
+              ? JSON.parse(studentRecord.feeBreakdown)
+              : {};
+          } catch {}
 
-        const enriched = orderedLogs.map((log) => {
-          runningTotals.schoolFee    += Number(log.schoolFeePaid    || 0);
-          runningTotals.tuitionFee   += Number(log.tuitionFeePaid   || 0);
-          runningTotals.examFee      += Number(log.examFeePaid      || 0);
-          runningTotals.transportFee += Number(log.transportFeePaid || 0);
-          runningTotals.booksFee     += Number(log.booksFeePaid     || 0);
-          runningTotals.labFee       += Number(log.labFeePaid       || 0);
-          runningTotals.miscFee      += Number(log.miscFeePaid      || 0);
-
-          return {
-            ...log,
-            cumulativeSchoolFee:    runningTotals.schoolFee,
-            cumulativeTuitionFee:   runningTotals.tuitionFee,
-            cumulativeExamFee:      runningTotals.examFee,
-            cumulativeTransportFee: runningTotals.transportFee,
-            cumulativeBooksFeee:    runningTotals.booksFee,
-            cumulativeLabFee:       runningTotals.labFee,
-            cumulativeMiscFee:      runningTotals.miscFee,
+          const getTotal = (key) => {
+            const e = bd[key];
+            return e
+              ? Number(typeof e === "object" ? (e.total ?? e.amount ?? 0) : e)
+              : 0;
           };
-        });
 
-        // Reverse back to newest-first for dropdown
-        enriched.reverse();
-
-        const result = enriched.map((log, idx) => {
-          const date    = new Date(log.paidAt);
-          const dateKey = date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
-
-          // ALL categories shown — paid = 0 if not paid in this transaction
-          const pairs = [
-            { catName: "School Fee",    paid: Number(log.schoolFeePaid    || 0), cumPaid: log.cumulativeSchoolFee,    totalKey: "collegeFee"   },
-            { catName: "Tuition Fee",   paid: Number(log.tuitionFeePaid   || 0), cumPaid: log.cumulativeTuitionFee,   totalKey: "tuitionFee"   },
-            { catName: "Exam Fee",      paid: Number(log.examFeePaid      || 0), cumPaid: log.cumulativeExamFee,      totalKey: "examFee"      },
-            { catName: "Transport Fee", paid: Number(log.transportFeePaid || 0), cumPaid: log.cumulativeTransportFee, totalKey: "transportFee" },
-            { catName: "Books Fee",     paid: Number(log.booksFeePaid     || 0), cumPaid: log.cumulativeBooksFeee,    totalKey: "booksFee"     },
-            { catName: "Lab Fee",       paid: Number(log.labFeePaid       || 0), cumPaid: log.cumulativeLabFee,       totalKey: "labFee"       },
-            { catName: "Miscellaneous", paid: Number(log.miscFeePaid      || 0), cumPaid: log.cumulativeMiscFee,      totalKey: "miscFee"      },
-          ];
-
-          const items = [];
-          for (const p of pairs) {
-            const total = getTotal(p.totalKey);
-            if (total <= 0) continue; // skip categories this student doesn't have
-            const pending = Math.max(0, total - p.cumPaid);
-            items.push({
-              studentFeeCategoryId: null,
-              categoryName:         p.catName,
-              amount:               p.paid,        // 0 if not paid this txn
-              cumulativePaid:       p.cumPaid,
-              totalAmount:          total,
-              pending,
-              paymentMode:          log.paymentMode,
-            });
-          }
-
-          // =====================================================
-          // ADD CUSTOM FEE CATEGORIES
-          // =====================================================
-          const customFees = log.customFeeBreakdown || {};
-          const allCustom =
-            Array.isArray(bd.customFees) ? bd.customFees : [];
-
-          for (const cf of allCustom) {
-            const label = cf.label;
-            const total = Number(cf.total ?? cf.amount ?? 0);
-
-            if (!label || total <= 0) continue;
-
-            const paid = Number(customFees[label] || 0);
-
-            items.push({
-              studentFeeCategoryId: null,
-              categoryName: label,
-              amount: paid,
-              cumulativePaid: paid,
-              totalAmount: total,
-              pending: Math.max(0, total - paid),
-              paymentMode: log.paymentMode,
-            });
-          }
-
-          // Fallback: if feeBreakdown has no categories, show one total row
-          if (items.length === 0) {
-            items.push({
-              studentFeeCategoryId: null,
-              categoryName:         "Total Fees",
-              amount:               Number(log.amount),
-              cumulativePaid:       Number(log.amount),
-              totalAmount:          Number(studentRecord?.fees || 0),
-              pending:              0,
-              paymentMode:          log.paymentMode,
-            });
-          }
-
-          return {
-            id:        `log_${log.id}`,
-            label:     dateKey,
-            date:      date.toISOString(),
-            receiptNo: log.id,
-            items,
+          // Build cumulative running totals going oldest→newest
+          const orderedLogs = [...logs].reverse(); // oldest first
+          const runningTotals = {
+            schoolFee: 0,
+            tuitionFee: 0,
+            examFee: 0,
+            transportFee: 0,
+            booksFee: 0,
+            labFee: 0,
+            miscFee: 0,
           };
-        });
 
-        // Deduplicate labels for same-day payments
-        const dateCounts = {};
-        result.forEach(r => { dateCounts[r.label] = (dateCounts[r.label] || 0) + 1; });
-        const dateOcc = {};
-        result.forEach(r => {
-          if (dateCounts[r.label] > 1) {
-            dateOcc[r.label] = (dateOcc[r.label] || 0) + 1;
-            r.label = `${r.label} • Receipt #${r.receiptNo}`;
-          }
-        });
+          const enriched = orderedLogs.map((log) => {
+            runningTotals.schoolFee += Number(log.schoolFeePaid || 0);
+            runningTotals.tuitionFee += Number(log.tuitionFeePaid || 0);
+            runningTotals.examFee += Number(log.examFeePaid || 0);
+            runningTotals.transportFee += Number(log.transportFeePaid || 0);
+            runningTotals.booksFee += Number(log.booksFeePaid || 0);
+            runningTotals.labFee += Number(log.labFeePaid || 0);
+            runningTotals.miscFee += Number(log.miscFeePaid || 0);
 
-        console.log("[paymentHistory] ✅ Returning", result.length, "transactions from StudentPaymentLog");
-        return res.json(result);
+            return {
+              ...log,
+              cumulativeSchoolFee: runningTotals.schoolFee,
+              cumulativeTuitionFee: runningTotals.tuitionFee,
+              cumulativeExamFee: runningTotals.examFee,
+              cumulativeTransportFee: runningTotals.transportFee,
+              cumulativeBooksFeee: runningTotals.booksFee,
+              cumulativeLabFee: runningTotals.labFee,
+              cumulativeMiscFee: runningTotals.miscFee,
+            };
+          });
+
+          // Reverse back to newest-first for dropdown
+          enriched.reverse();
+
+          const result = enriched.map((log, idx) => {
+            const date = new Date(log.paidAt);
+            const dateKey = date.toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              timeZone: "Asia/Kolkata",
+            });
+
+            // ALL categories shown — paid = 0 if not paid in this transaction
+            const pairs = [
+              {
+                catName: "School Fee",
+                paid: Number(log.schoolFeePaid || 0),
+                cumPaid: log.cumulativeSchoolFee,
+                totalKey: "collegeFee",
+              },
+              {
+                catName: "Tuition Fee",
+                paid: Number(log.tuitionFeePaid || 0),
+                cumPaid: log.cumulativeTuitionFee,
+                totalKey: "tuitionFee",
+              },
+              {
+                catName: "Exam Fee",
+                paid: Number(log.examFeePaid || 0),
+                cumPaid: log.cumulativeExamFee,
+                totalKey: "examFee",
+              },
+              {
+                catName: "Transport Fee",
+                paid: Number(log.transportFeePaid || 0),
+                cumPaid: log.cumulativeTransportFee,
+                totalKey: "transportFee",
+              },
+              {
+                catName: "Books Fee",
+                paid: Number(log.booksFeePaid || 0),
+                cumPaid: log.cumulativeBooksFeee,
+                totalKey: "booksFee",
+              },
+              {
+                catName: "Lab Fee",
+                paid: Number(log.labFeePaid || 0),
+                cumPaid: log.cumulativeLabFee,
+                totalKey: "labFee",
+              },
+              {
+                catName: "Miscellaneous",
+                paid: Number(log.miscFeePaid || 0),
+                cumPaid: log.cumulativeMiscFee,
+                totalKey: "miscFee",
+              },
+            ];
+
+            const items = [];
+            for (const p of pairs) {
+              const total = getTotal(p.totalKey);
+              if (total <= 0) continue; // skip categories this student doesn't have
+              const pending = Math.max(0, total - p.cumPaid);
+              items.push({
+                studentFeeCategoryId: null,
+                categoryName: p.catName,
+                amount: p.paid, // 0 if not paid this txn
+                cumulativePaid: p.cumPaid,
+                totalAmount: total,
+                pending,
+                paymentMode: log.paymentMode,
+              });
+            }
+
+            // =====================================================
+            // ADD CUSTOM FEE CATEGORIES
+            // =====================================================
+            const customFees = log.customFeeBreakdown || {};
+            const allCustom = Array.isArray(bd.customFees) ? bd.customFees : [];
+
+            for (const cf of allCustom) {
+              const label = cf.label;
+              const total = Number(cf.total ?? cf.amount ?? 0);
+
+              if (!label || total <= 0) continue;
+
+              const paid = Number(customFees[label] || 0);
+
+              items.push({
+                studentFeeCategoryId: null,
+                categoryName: label,
+                amount: paid,
+                cumulativePaid: paid,
+                totalAmount: total,
+                pending: Math.max(0, total - paid),
+                paymentMode: log.paymentMode,
+              });
+            }
+
+            // Fallback: if feeBreakdown has no categories, show one total row
+            if (items.length === 0) {
+              items.push({
+                studentFeeCategoryId: null,
+                categoryName: "Total Fees",
+                amount: Number(log.amount),
+                cumulativePaid: Number(log.amount),
+                totalAmount: Number(studentRecord?.fees || 0),
+                pending: 0,
+                paymentMode: log.paymentMode,
+              });
+            }
+
+            return {
+              id: `log_${log.id}`,
+              label: dateKey,
+              date: date.toISOString(),
+              receiptNo: log.id,
+              invoiceNumber: log.invoiceNumber || null,
+              items,
+            };
+          });
+
+          // Deduplicate labels for same-day payments
+          const dateCounts = {};
+          result.forEach((r) => {
+            dateCounts[r.label] = (dateCounts[r.label] || 0) + 1;
+          });
+          const dateOcc = {};
+          result.forEach((r) => {
+            if (dateCounts[r.label] > 1) {
+              dateOcc[r.label] = (dateOcc[r.label] || 0) + 1;
+              r.label = `${r.label} • Receipt #${r.receiptNo}`;
+            }
+          });
+
+          console.log(
+            "[paymentHistory] ✅ Returning",
+            result.length,
+            "transactions from StudentPaymentLog",
+          );
+          return res.json(result);
+        }
       }
-    }
 
-    // ── Path B: Legacy fallback — synthesise from StudentList fields ──────────
-    console.log("[paymentHistory] Using legacy fallback from StudentList");
-    const studentRecord = await prisma.studentList.findUnique({ where: { id: studentListId } });
-    const paidAmount    = Number(studentRecord?.paidAmount || 0);
-    console.log("[paymentHistory] StudentList.paidAmount:", paidAmount, "| paymentDate:", studentRecord?.paymentDate);
+      // ── Path B: Legacy fallback — synthesise from StudentList fields ──────────
+      console.log("[paymentHistory] Using legacy fallback from StudentList");
+      const studentRecord = await prisma.studentList.findUnique({
+        where: { id: studentListId },
+      });
+      const paidAmount = Number(studentRecord?.paidAmount || 0);
+      console.log(
+        "[paymentHistory] StudentList.paidAmount:",
+        paidAmount,
+        "| paymentDate:",
+        studentRecord?.paymentDate,
+      );
 
-    if (!studentRecord || paidAmount <= 0) {
-      console.log("[paymentHistory] No payment data at all — returning []");
-      return res.json([]);
-    }
+      if (!studentRecord || paidAmount <= 0) {
+        console.log("[paymentHistory] No payment data at all — returning []");
+        return res.json([]);
+      }
 
-    let bd = {};
-    try { bd = studentRecord.feeBreakdown ? JSON.parse(studentRecord.feeBreakdown) : {}; } catch {}
-    const getTotal = (key) => {
-      const e = bd[key];
-      return e ? Number(typeof e === "object" ? (e.total ?? e.amount ?? 0) : e) : 0;
-    };
+      let bd = {};
+      try {
+        bd = studentRecord.feeBreakdown
+          ? JSON.parse(studentRecord.feeBreakdown)
+          : {};
+      } catch {}
+      const getTotal = (key) => {
+        const e = bd[key];
+        return e
+          ? Number(typeof e === "object" ? (e.total ?? e.amount ?? 0) : e)
+          : 0;
+      };
 
-    // Build items from per-category paid fields on StudentList
-    const legacyItems = [];
-    const legacyPairs = [
-      { catName: "School Fee",    paid: Number(studentRecord.schoolFeePaid    || 0), total: getTotal("collegeFee")   },
-      { catName: "Tuition Fee",   paid: Number(studentRecord.tuitionFeePaid   || 0), total: getTotal("tuitionFee")   },
-      { catName: "Exam Fee",      paid: Number(studentRecord.examFeePaid      || 0), total: getTotal("examFee")      },
-      { catName: "Transport Fee", paid: Number(studentRecord.transportFeePaid || 0), total: getTotal("transportFee") },
-      { catName: "Books Fee",     paid: Number(studentRecord.booksFeePaid     || 0), total: getTotal("booksFee")     },
-      { catName: "Lab Fee",       paid: Number(studentRecord.labFeePaid       || 0), total: getTotal("labFee")       },
-      { catName: "Miscellaneous", paid: Number(studentRecord.miscFeePaid      || 0), total: getTotal("miscFee")      },
-    ];
-    // =====================================================
+      // Build items from per-category paid fields on StudentList
+      const legacyItems = [];
+      const legacyPairs = [
+        {
+          catName: "School Fee",
+          paid: Number(studentRecord.schoolFeePaid || 0),
+          total: getTotal("collegeFee"),
+        },
+        {
+          catName: "Tuition Fee",
+          paid: Number(studentRecord.tuitionFeePaid || 0),
+          total: getTotal("tuitionFee"),
+        },
+        {
+          catName: "Exam Fee",
+          paid: Number(studentRecord.examFeePaid || 0),
+          total: getTotal("examFee"),
+        },
+        {
+          catName: "Transport Fee",
+          paid: Number(studentRecord.transportFeePaid || 0),
+          total: getTotal("transportFee"),
+        },
+        {
+          catName: "Books Fee",
+          paid: Number(studentRecord.booksFeePaid || 0),
+          total: getTotal("booksFee"),
+        },
+        {
+          catName: "Lab Fee",
+          paid: Number(studentRecord.labFeePaid || 0),
+          total: getTotal("labFee"),
+        },
+        {
+          catName: "Miscellaneous",
+          paid: Number(studentRecord.miscFeePaid || 0),
+          total: getTotal("miscFee"),
+        },
+      ];
+      // =====================================================
       // LEGACY CUSTOM FEES
       // =====================================================
-      const customFees =
-        studentRecord.customFeeBreakdown || {};
+      const customFees = studentRecord.customFeeBreakdown || {};
 
-      const customList =
-        Array.isArray(bd.customFees)
-          ? bd.customFees
-          : [];
+      const customList = Array.isArray(bd.customFees) ? bd.customFees : [];
 
       for (const cf of customList) {
-
         const label = cf.label;
 
-        const total =
-          Number(cf.total ?? cf.amount ?? 0);
+        const total = Number(cf.total ?? cf.amount ?? 0);
 
         if (!label || total <= 0) continue;
 
-        const paid =
-          Number(customFees[label] || 0);
+        const paid = Number(customFees[label] || 0);
 
         legacyItems.push({
           studentFeeCategoryId: null,
@@ -1387,51 +1830,64 @@ router.get("/paymentHistory/:studentListId", authMiddleware, async (req, res) =>
         });
       }
 
-    for (const p of legacyPairs) {
-      if (p.total <= 0) continue; // skip categories this student doesn't have
-      legacyItems.push({
-        studentFeeCategoryId: null,
-        categoryName:         p.catName,
-        amount:               p.paid,                          // 0 if never paid
-        cumulativePaid:       p.paid,
-        totalAmount:          p.total,
-        pending:              Math.max(0, p.total - p.paid),
-        paymentMode:          studentRecord.paymentMode || "Cash",
+      for (const p of legacyPairs) {
+        if (p.total <= 0) continue; // skip categories this student doesn't have
+        legacyItems.push({
+          studentFeeCategoryId: null,
+          categoryName: p.catName,
+          amount: p.paid, // 0 if never paid
+          cumulativePaid: p.paid,
+          totalAmount: p.total,
+          pending: Math.max(0, p.total - p.paid),
+          paymentMode: studentRecord.paymentMode || "Cash",
+        });
+      }
+
+      if (legacyItems.length === 0) {
+        legacyItems.push({
+          studentFeeCategoryId: null,
+          categoryName: "Total Fees",
+          amount: paidAmount,
+          cumulativePaid: paidAmount,
+          totalAmount: Number(studentRecord.fees || 0),
+          pending: Math.max(0, Number(studentRecord.fees || 0) - paidAmount),
+          paymentMode: studentRecord.paymentMode || "Cash",
+        });
+      }
+
+      const payDate = studentRecord.paymentDate
+        ? new Date(studentRecord.paymentDate)
+        : new Date(studentRecord.updatedAt || studentRecord.createdAt);
+      const dateLabel = payDate.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: "Asia/Kolkata",
       });
+
+      const legacyResult = [
+        {
+          id: "legacy_0",
+          label: dateLabel,
+          date: payDate.toISOString(),
+          receiptNo: null,
+          invoiceNumber: null, // predates invoice numbering — frontend falls back to a generic number
+          isLegacy: true,
+          items: legacyItems,
+        },
+      ];
+
+      console.log(
+        "[paymentHistory] ✅ Returning legacy result:",
+        JSON.stringify(legacyResult),
+      );
+      return res.json(legacyResult);
+    } catch (error) {
+      console.error("[paymentHistory] ❌ error:", error);
+      res.status(500).json({ message: error.message });
     }
-
-    if (legacyItems.length === 0) {
-      legacyItems.push({
-        studentFeeCategoryId: null,
-        categoryName:         "Total Fees",
-        amount:               paidAmount,
-        cumulativePaid:       paidAmount,
-        totalAmount:          Number(studentRecord.fees || 0),
-        pending:              Math.max(0, Number(studentRecord.fees || 0) - paidAmount),
-        paymentMode:          studentRecord.paymentMode || "Cash",
-      });
-    }
-
-    const payDate  = studentRecord.paymentDate ? new Date(studentRecord.paymentDate) : new Date(studentRecord.updatedAt || studentRecord.createdAt);
-    const dateLabel = payDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
-
-    const legacyResult = [{
-      id:        "legacy_0",
-      label:     dateLabel,
-      date:      payDate.toISOString(),
-      receiptNo: null,
-      isLegacy:  true,
-      items:     legacyItems,
-    }];
-
-    console.log("[paymentHistory] ✅ Returning legacy result:", JSON.stringify(legacyResult));
-    return res.json(legacyResult);
-
-  } catch (error) {
-    console.error("[paymentHistory] ❌ error:", error);
-    res.status(500).json({ message: error.message });
-  }
-});
+  },
+);
 
 // ── EDIT / UPDATE A PAYMENT LOG ENTRY ─────────────────────────────────────────
 // PUT /api/finance/updatePaymentLog/:logId
@@ -1446,17 +1902,27 @@ router.put("/updatePaymentLog/:logId", authMiddleware, async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
     const logId = parseInt(req.params.logId);
-    if (!logId) return res.status(400).json({ message: "Invalid payment record id" });
+    if (!logId)
+      return res.status(400).json({ message: "Invalid payment record id" });
 
     const hasTable = await checkPaymentLogMigrated();
     if (!hasTable) {
-      return res.status(400).json({ message: "Payment history is not available for this school yet." });
+      return res
+        .status(400)
+        .json({
+          message: "Payment history is not available for this school yet.",
+        });
     }
 
-    const existing = await prisma.studentPaymentLog.findUnique({ where: { id: logId } });
-    if (!existing) return res.status(404).json({ message: "Payment record not found" });
+    const existing = await prisma.studentPaymentLog.findUnique({
+      where: { id: logId },
+    });
+    if (!existing)
+      return res.status(404).json({ message: "Payment record not found" });
 
-    const studentRecord = await prisma.studentList.findUnique({ where: { id: existing.studentListId } });
+    const studentRecord = await prisma.studentList.findUnique({
+      where: { id: existing.studentListId },
+    });
     if (!studentRecord || studentRecord.schoolId !== schoolId) {
       return res.status(403).json({ message: "Forbidden" });
     }
@@ -1475,16 +1941,36 @@ router.put("/updatePaymentLog/:logId", authMiddleware, async (req, res) => {
     } = req.body;
 
     const FIELD_KEYS = [
-      "schoolFeePaid", "tuitionFeePaid", "examFeePaid",
-      "transportFeePaid", "booksFeePaid", "labFeePaid", "miscFeePaid",
+      "schoolFeePaid",
+      "tuitionFeePaid",
+      "examFeePaid",
+      "transportFeePaid",
+      "booksFeePaid",
+      "labFeePaid",
+      "miscFeePaid",
     ];
-    const newValues = { schoolFeePaid, tuitionFeePaid, examFeePaid, transportFeePaid, booksFeePaid, labFeePaid, miscFeePaid };
+    const newValues = {
+      schoolFeePaid,
+      tuitionFeePaid,
+      examFeePaid,
+      transportFeePaid,
+      booksFeePaid,
+      labFeePaid,
+      miscFeePaid,
+    };
 
-    const customTotal = Object.values(customFeeBreakdown || {}).reduce((s, v) => s + Number(v || 0), 0);
-    const newAmount = FIELD_KEYS.reduce((s, k) => s + Number(newValues[k] || 0), 0) + customTotal;
+    const customTotal = Object.values(customFeeBreakdown || {}).reduce(
+      (s, v) => s + Number(v || 0),
+      0,
+    );
+    const newAmount =
+      FIELD_KEYS.reduce((s, k) => s + Number(newValues[k] || 0), 0) +
+      customTotal;
 
     if (newAmount <= 0) {
-      return res.status(400).json({ message: "Total payment amount must be greater than 0" });
+      return res
+        .status(400)
+        .json({ message: "Total payment amount must be greater than 0" });
     }
 
     const payDate = paymentDate ? new Date(paymentDate) : existing.paidAt;
@@ -1543,13 +2029,13 @@ router.put("/updatePaymentLog/:logId", authMiddleware, async (req, res) => {
     // Keep StudentFeeCategory.paidAmount rows in sync too, if migrated.
     if (await checkMigrated()) {
       const FIELD_TO_CATEGORY_NAME = {
-        schoolFeePaid:    "School Fee",
-        tuitionFeePaid:   "Tuition Fee",
-        examFeePaid:      "Exam Fee",
+        schoolFeePaid: "School Fee",
+        tuitionFeePaid: "Tuition Fee",
+        examFeePaid: "Exam Fee",
         transportFeePaid: "Transport Fee",
-        booksFeePaid:     "Books Fee",
-        labFeePaid:       "Lab Fee",
-        miscFeePaid:      "Miscellaneous",
+        booksFeePaid: "Books Fee",
+        labFeePaid: "Lab Fee",
+        miscFeePaid: "Miscellaneous",
       };
       for (const k of FIELD_KEYS) {
         if (deltas[k] === 0) continue;
@@ -1559,11 +2045,19 @@ router.put("/updatePaymentLog/:logId", authMiddleware, async (req, res) => {
         });
         if (!cat) continue;
         const sfc = await prisma.studentFeeCategory.findUnique({
-          where: { studentListId_categoryId: { studentListId: existing.studentListId, categoryId: cat.id } },
+          where: {
+            studentListId_categoryId: {
+              studentListId: existing.studentListId,
+              categoryId: cat.id,
+            },
+          },
         });
         if (sfc) {
           const nextPaid = Math.max(0, Number(sfc.paidAmount) + deltas[k]);
-          await prisma.studentFeeCategory.update({ where: { id: sfc.id }, data: { paidAmount: nextPaid } });
+          await prisma.studentFeeCategory.update({
+            where: { id: sfc.id },
+            data: { paidAmount: nextPaid },
+          });
         }
       }
     }
@@ -1576,7 +2070,9 @@ router.put("/updatePaymentLog/:logId", authMiddleware, async (req, res) => {
       action: "update",
     }).catch(() => {});
 
-    console.log(`[updatePaymentLog] ✅ log ${logId} updated — amountDelta=${amountDelta}`);
+    console.log(
+      `[updatePaymentLog] ✅ log ${logId} updated — amountDelta=${amountDelta}`,
+    );
 
     res.json({
       success: true,
@@ -1598,29 +2094,55 @@ router.put("/updatePaymentLog/:logId", authMiddleware, async (req, res) => {
 // ── Shared helper: calculate per-student pending for a fee category ───────────
 function getPendingAmount(student, feeCategory) {
   let bd = {};
-  try { bd = JSON.parse(student.feeBreakdown || "{}"); } catch {}
+  try {
+    bd = JSON.parse(student.feeBreakdown || "{}");
+  } catch {}
 
   const getTotal = (key) => {
     const e = bd[key];
-    return e ? Number(typeof e === "object" ? (e.total ?? e.amount ?? 0) : e) : 0;
+    return e
+      ? Number(typeof e === "object" ? (e.total ?? e.amount ?? 0) : e)
+      : 0;
   };
 
   if (feeCategory === "ALL") {
-    return Math.max(0, Number(student.fees || 0) - Number(student.paidAmount || 0));
+    return Math.max(
+      0,
+      Number(student.fees || 0) - Number(student.paidAmount || 0),
+    );
   }
-  if (feeCategory === "SCHOOL")    return Math.max(0, getTotal("collegeFee")   - Number(student.schoolFeePaid    || 0));
-  if (feeCategory === "TUITION")   return Math.max(0, getTotal("tuitionFee")   - Number(student.tuitionFeePaid   || 0));
-  if (feeCategory === "EXAM")      return Math.max(0, getTotal("examFee")      - Number(student.examFeePaid      || 0));
-  if (feeCategory === "TRANSPORT") return Math.max(0, getTotal("transportFee") - Number(student.transportFeePaid || 0));
-  if (feeCategory === "BOOKS")     return Math.max(0, getTotal("booksFee")     - Number(student.booksFeePaid     || 0));
-  if (feeCategory === "LAB")       return Math.max(0, getTotal("labFee")       - Number(student.labFeePaid       || 0));
-  if (feeCategory === "MISC")      return Math.max(0, getTotal("miscFee")      - Number(student.miscFeePaid      || 0));
+  if (feeCategory === "SCHOOL")
+    return Math.max(
+      0,
+      getTotal("collegeFee") - Number(student.schoolFeePaid || 0),
+    );
+  if (feeCategory === "TUITION")
+    return Math.max(
+      0,
+      getTotal("tuitionFee") - Number(student.tuitionFeePaid || 0),
+    );
+  if (feeCategory === "EXAM")
+    return Math.max(0, getTotal("examFee") - Number(student.examFeePaid || 0));
+  if (feeCategory === "TRANSPORT")
+    return Math.max(
+      0,
+      getTotal("transportFee") - Number(student.transportFeePaid || 0),
+    );
+  if (feeCategory === "BOOKS")
+    return Math.max(
+      0,
+      getTotal("booksFee") - Number(student.booksFeePaid || 0),
+    );
+  if (feeCategory === "LAB")
+    return Math.max(0, getTotal("labFee") - Number(student.labFeePaid || 0));
+  if (feeCategory === "MISC")
+    return Math.max(0, getTotal("miscFee") - Number(student.miscFeePaid || 0));
 
   // Custom fee — CUSTOM__<label>
   if (feeCategory.startsWith("CUSTOM__")) {
-    const label   = feeCategory.replace("CUSTOM__", "");
+    const label = feeCategory.replace("CUSTOM__", "");
     const customs = Array.isArray(bd.customFees) ? bd.customFees : [];
-    const match   = customs.find(c => (c.label || c.name || "") === label);
+    const match = customs.find((c) => (c.label || c.name || "") === label);
     return Math.max(0, Number(match?.amount || match?.total || 0));
   }
 
@@ -1628,41 +2150,67 @@ function getPendingAmount(student, feeCategory) {
 }
 
 // ── Shared helper: fire reminders for a list of students ─────────────────────
-async function fireBulkReminders({ students, feeCategory, channel, schoolName }) {
-  let sent = 0, skipped = 0, failed = 0;
+async function fireBulkReminders({
+  students,
+  feeCategory,
+  channel,
+  schoolName,
+}) {
+  let sent = 0,
+    skipped = 0,
+    failed = 0;
 
   for (const student of students) {
     const pendingAmount = getPendingAmount(student, feeCategory);
-    if (pendingAmount <= 0) { skipped++; continue; }
+    if (pendingAmount <= 0) {
+      skipped++;
+      continue;
+    }
 
     // Resolve phone: prefer parent phone, fallback to student.phone
     let phones = [];
     if (student.studentId) {
       try {
         const realStudent = await prisma.student.findFirst({
-          where:   { id: student.studentId },
+          where: { id: student.studentId },
           include: { parentLinks: { include: { parent: true } } },
         });
         if (realStudent?.parentLinks?.length) {
           phones = realStudent.parentLinks
-            .map(l => l.parent?.phone)
+            .map((l) => l.parent?.phone)
             .filter(Boolean);
         }
       } catch {}
     }
     if (phones.length === 0 && student.phone) phones = [student.phone];
-    if (phones.length === 0) { skipped++; continue; }
+    if (phones.length === 0) {
+      skipped++;
+      continue;
+    }
 
     for (const phone of phones) {
       try {
         if (channel === "whatsapp") {
-          await sendFeePendingWhatsApp({ phone, pendingAmount, studentName: student.name, schoolName });
+          await sendFeePendingWhatsApp({
+            phone,
+            pendingAmount,
+            studentName: student.name,
+            schoolName,
+          });
         } else if (channel === "voice") {
-          await sendFeeVoiceReminder({ phone, pendingAmount, studentName: student.name, schoolName });
+          await sendFeeVoiceReminder({
+            phone,
+            pendingAmount,
+            studentName: student.name,
+            schoolName,
+          });
         }
         sent++;
       } catch (err) {
-        console.error(`[bulkReminder] Failed for ${student.name} (${phone}):`, err.message);
+        console.error(
+          `[bulkReminder] Failed for ${student.name} (${phone}):`,
+          err.message,
+        );
         failed++;
       }
     }
@@ -1686,15 +2234,20 @@ router.post("/sendBulkReminderNow", authMiddleware, async (req, res) => {
     const schoolName = school?.name || "School";
 
     const students = await prisma.studentList.findMany({
-      where:   { schoolId, deletedAt: null },
+      where: { schoolId, deletedAt: null },
       orderBy: { name: "asc" },
     });
 
     const { sent, skipped, failed } = await fireBulkReminders({
-      students, feeCategory, channel, schoolName,
+      students,
+      feeCategory,
+      channel,
+      schoolName,
     });
 
-    console.log(`[sendBulkReminderNow] school=${schoolId} cat=${feeCategory} ch=${channel} sent=${sent} skipped=${skipped} failed=${failed}`);
+    console.log(
+      `[sendBulkReminderNow] school=${schoolId} cat=${feeCategory} ch=${channel} sent=${sent} skipped=${skipped} failed=${failed}`,
+    );
     res.json({ success: true, sent, skipped, failed });
   } catch (error) {
     console.error("[sendBulkReminderNow] error:", error);
@@ -1712,23 +2265,38 @@ router.post("/scheduleBulkReminder", authMiddleware, async (req, res) => {
 
     const { feeCategory = "ALL", channel = "whatsapp", scheduledAt } = req.body;
 
-    if (!scheduledAt) return res.status(400).json({ message: "scheduledAt is required" });
+    if (!scheduledAt)
+      return res.status(400).json({ message: "scheduledAt is required" });
 
     const scheduledDate = new Date(scheduledAt);
-    if (isNaN(scheduledDate.getTime())) return res.status(400).json({ message: "Invalid scheduledAt date" });
-    if (scheduledDate <= new Date()) return res.status(400).json({ message: "Scheduled time must be in the future" });
+    if (isNaN(scheduledDate.getTime()))
+      return res.status(400).json({ message: "Invalid scheduledAt date" });
+    if (scheduledDate <= new Date())
+      return res
+        .status(400)
+        .json({ message: "Scheduled time must be in the future" });
 
     // Preview: count students who will receive
     const students = await prisma.studentList.findMany({
       where: { schoolId, deletedAt: null },
     });
-    const targetCount = students.filter(s => getPendingAmount(s, feeCategory) > 0).length;
+    const targetCount = students.filter(
+      (s) => getPendingAmount(s, feeCategory) > 0,
+    ).length;
 
     const job = await prisma.scheduledReminder.create({
-      data: { schoolId, feeCategory, channel, scheduledAt: scheduledDate, status: "PENDING" },
+      data: {
+        schoolId,
+        feeCategory,
+        channel,
+        scheduledAt: scheduledDate,
+        status: "PENDING",
+      },
     });
 
-    console.log(`[scheduleBulkReminder] created job #${job.id} school=${schoolId} cat=${feeCategory} ch=${channel} at=${scheduledDate.toISOString()} target=${targetCount}`);
+    console.log(
+      `[scheduleBulkReminder] created job #${job.id} school=${schoolId} cat=${feeCategory} ch=${channel} at=${scheduledDate.toISOString()} target=${targetCount}`,
+    );
     res.json({ success: true, job, targetCount });
   } catch (error) {
     console.error("[scheduleBulkReminder] error:", error);
@@ -1744,9 +2312,9 @@ router.get("/scheduledReminders", authMiddleware, async (req, res) => {
     if (!schoolId) return res.status(400).json({ message: "SchoolId missing" });
 
     const jobs = await prisma.scheduledReminder.findMany({
-      where:   { schoolId },
+      where: { schoolId },
       orderBy: { createdAt: "desc" },
-      take:    50,
+      take: 50,
     });
 
     res.json(jobs);
@@ -1761,16 +2329,18 @@ router.get("/scheduledReminders", authMiddleware, async (req, res) => {
 router.delete("/scheduledReminder/:id", authMiddleware, async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
-    const id       = parseInt(req.params.id);
+    const id = parseInt(req.params.id);
 
     const job = await prisma.scheduledReminder.findUnique({ where: { id } });
-    if (!job)                      return res.status(404).json({ message: "Job not found" });
-    if (job.schoolId !== schoolId) return res.status(403).json({ message: "Forbidden" });
-    if (job.status !== "PENDING")  return res.status(400).json({ message: "Can only cancel PENDING jobs" });
+    if (!job) return res.status(404).json({ message: "Job not found" });
+    if (job.schoolId !== schoolId)
+      return res.status(403).json({ message: "Forbidden" });
+    if (job.status !== "PENDING")
+      return res.status(400).json({ message: "Can only cancel PENDING jobs" });
 
     await prisma.scheduledReminder.update({
       where: { id },
-      data:  { status: "CANCELLED" },
+      data: { status: "CANCELLED" },
     });
 
     res.json({ success: true, message: "Reminder cancelled" });
@@ -1785,17 +2355,21 @@ router.delete("/scheduledReminder/:id", authMiddleware, async (req, res) => {
 // Query: ?feeCategory=SCHOOL
 router.get("/bulkReminderPreview", authMiddleware, async (req, res) => {
   try {
-    const schoolId    = req.user?.schoolId;
+    const schoolId = req.user?.schoolId;
     const feeCategory = req.query.feeCategory || "ALL";
 
     const students = await prisma.studentList.findMany({
       where: { schoolId, deletedAt: null },
     });
 
-    let count = 0, totalPending = 0;
+    let count = 0,
+      totalPending = 0;
     for (const s of students) {
       const pending = getPendingAmount(s, feeCategory);
-      if (pending > 0) { count++; totalPending += pending; }
+      if (pending > 0) {
+        count++;
+        totalPending += pending;
+      }
     }
 
     res.json({ count, totalPending });
@@ -1804,74 +2378,96 @@ router.get("/bulkReminderPreview", authMiddleware, async (req, res) => {
   }
 });
 
-
 export default router;
 // ── CLEANUP: merge duplicate same-day log rows into one ──────────────────────
 // POST /api/finance/mergePaymentLogs/:studentListId
 // Call this once per student to fix the duplicate receipts created before
 // the session-grouping fix was applied.
-router.post("/mergePaymentLogs/:studentListId", authMiddleware, async (req, res) => {
-  try {
-    const studentListId = parseInt(req.params.studentListId);
-    const hasTable = await checkPaymentLogMigrated();
-    if (!hasTable) return res.json({ merged: 0 });
+router.post(
+  "/mergePaymentLogs/:studentListId",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const studentListId = parseInt(req.params.studentListId);
+      const hasTable = await checkPaymentLogMigrated();
+      if (!hasTable) return res.json({ merged: 0 });
 
-    const logs = await prisma.studentPaymentLog.findMany({
-      where:   { studentListId },
-      orderBy: { paidAt: "asc" },
-    });
+      const logs = await prisma.studentPaymentLog.findMany({
+        where: { studentListId },
+        orderBy: { paidAt: "asc" },
+      });
 
-    if (logs.length <= 1) return res.json({ merged: 0, message: "Nothing to merge" });
+      if (logs.length <= 1)
+        return res.json({ merged: 0, message: "Nothing to merge" });
 
-    // Group logs that fall within 10 minutes of each other into one bucket
-    const TEN_MIN = 10 * 60 * 1000;
-    const buckets = [];
-    for (const log of logs) {
-      const last = buckets[buckets.length - 1];
-      if (!last || (new Date(log.paidAt) - new Date(last[0].paidAt)) > TEN_MIN) {
-        buckets.push([log]);
-      } else {
-        last.push(log);
+      // Group logs that fall within 10 minutes of each other into one bucket
+      const TEN_MIN = 10 * 60 * 1000;
+      const buckets = [];
+      for (const log of logs) {
+        const last = buckets[buckets.length - 1];
+        if (
+          !last ||
+          new Date(log.paidAt) - new Date(last[0].paidAt) > TEN_MIN
+        ) {
+          buckets.push([log]);
+        } else {
+          last.push(log);
+        }
       }
-    }
 
-    let merged = 0;
-    for (const bucket of buckets) {
-      if (bucket.length <= 1) continue;
+      let merged = 0;
+      for (const bucket of buckets) {
+        if (bucket.length <= 1) continue;
 
-      // Keep the first log, update it with summed values, delete the rest
-      const keeper = bucket[0];
-      const merged_data = {
-        amount:           bucket.reduce((s, l) => s + Number(l.amount),           0),
-        schoolFeePaid:    bucket.reduce((s, l) => s + Number(l.schoolFeePaid),    0),
-        tuitionFeePaid:   bucket.reduce((s, l) => s + Number(l.tuitionFeePaid),   0),
-        examFeePaid:      bucket.reduce((s, l) => s + Number(l.examFeePaid),      0),
-        transportFeePaid: bucket.reduce((s, l) => s + Number(l.transportFeePaid), 0),
-        booksFeePaid:     bucket.reduce((s, l) => s + Number(l.booksFeePaid),     0),
-        labFeePaid:       bucket.reduce((s, l) => s + Number(l.labFeePaid),       0),
-        miscFeePaid:      bucket.reduce((s, l) => s + Number(l.miscFeePaid),      0),
-      };
+        // Keep the first log, update it with summed values, delete the rest
+        const keeper = bucket[0];
+        const merged_data = {
+          amount: bucket.reduce((s, l) => s + Number(l.amount), 0),
+          schoolFeePaid: bucket.reduce(
+            (s, l) => s + Number(l.schoolFeePaid),
+            0,
+          ),
+          tuitionFeePaid: bucket.reduce(
+            (s, l) => s + Number(l.tuitionFeePaid),
+            0,
+          ),
+          examFeePaid: bucket.reduce((s, l) => s + Number(l.examFeePaid), 0),
+          transportFeePaid: bucket.reduce(
+            (s, l) => s + Number(l.transportFeePaid),
+            0,
+          ),
+          booksFeePaid: bucket.reduce((s, l) => s + Number(l.booksFeePaid), 0),
+          labFeePaid: bucket.reduce((s, l) => s + Number(l.labFeePaid), 0),
+          miscFeePaid: bucket.reduce((s, l) => s + Number(l.miscFeePaid), 0),
+        };
 
-      await prisma.studentPaymentLog.update({
-        where: { id: keeper.id },
-        data:  merged_data,
+        await prisma.studentPaymentLog.update({
+          where: { id: keeper.id },
+          data: merged_data,
+        });
+
+        const idsToDelete = bucket.slice(1).map((l) => l.id);
+        await prisma.studentPaymentLog.deleteMany({
+          where: { id: { in: idsToDelete } },
+        });
+
+        merged += idsToDelete.length;
+        console.log(
+          `[mergePaymentLogs] student ${studentListId}: merged ${bucket.length} logs → 1`,
+        );
+      }
+
+      res.json({
+        success: true,
+        merged,
+        message: `Merged ${merged} duplicate log(s)`,
       });
-
-      const idsToDelete = bucket.slice(1).map(l => l.id);
-      await prisma.studentPaymentLog.deleteMany({
-        where: { id: { in: idsToDelete } },
-      });
-
-      merged += idsToDelete.length;
-      console.log(`[mergePaymentLogs] student ${studentListId}: merged ${bucket.length} logs → 1`);
+    } catch (error) {
+      console.error("[mergePaymentLogs] error:", error);
+      res.status(500).json({ message: error.message });
     }
-
-    res.json({ success: true, merged, message: `Merged ${merged} duplicate log(s)` });
-  } catch (error) {
-    console.error("[mergePaymentLogs] error:", error);
-    res.status(500).json({ message: error.message });
-  }
-});
+  },
+);
 
 // ── PAYMENT LOGS BY DATE RANGE ────────────────────────────────────────────────
 // GET /api/finance/paymentLogsByDateRange?from=2026-06-26&to=2026-06-26
@@ -1884,11 +2480,13 @@ router.get("/paymentLogsByDateRange", authMiddleware, async (req, res) => {
     const { from, to } = req.query;
 
     if (!from || !to) {
-      return res.status(400).json({ message: "from and to dates are required (YYYY-MM-DD)" });
+      return res
+        .status(400)
+        .json({ message: "from and to dates are required (YYYY-MM-DD)" });
     }
 
     const fromDate = new Date(from + "T00:00:00.000Z");
-    const toDate   = new Date(to   + "T23:59:59.999Z");
+    const toDate = new Date(to + "T23:59:59.999Z");
 
     const hasTable = await checkPaymentLogMigrated();
 
@@ -1901,32 +2499,40 @@ router.get("/paymentLogsByDateRange", authMiddleware, async (req, res) => {
         },
         include: {
           studentList: {
-            select: { id: true, name: true, email: true, course: true, fees: true },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              course: true,
+              fees: true,
+            },
           },
         },
         orderBy: { paidAt: "asc" },
       });
 
-      const result = logs.map(log => ({
-        logId:           log.id,
-        studentListId:   log.studentListId,
-        studentName:     log.studentList?.name     || "",
-        email:           log.studentList?.email    || "",
-        course:          log.studentList?.course   || "",
-        totalFees:       Number(log.studentList?.fees || 0),
-        amount:          Number(log.amount           || 0),
-        schoolFeePaid:   Number(log.schoolFeePaid    || 0),
-        tuitionFeePaid:  Number(log.tuitionFeePaid   || 0),
-        examFeePaid:     Number(log.examFeePaid      || 0),
-        transportFeePaid:Number(log.transportFeePaid || 0),
-        booksFeePaid:    Number(log.booksFeePaid     || 0),
-        labFeePaid:      Number(log.labFeePaid       || 0),
-        miscFeePaid:     Number(log.miscFeePaid      || 0),
-        paymentMode:     log.paymentMode || "Cash",
-        paidAt:          log.paidAt,
+      const result = logs.map((log) => ({
+        logId: log.id,
+        studentListId: log.studentListId,
+        studentName: log.studentList?.name || "",
+        email: log.studentList?.email || "",
+        course: log.studentList?.course || "",
+        totalFees: Number(log.studentList?.fees || 0),
+        amount: Number(log.amount || 0),
+        schoolFeePaid: Number(log.schoolFeePaid || 0),
+        tuitionFeePaid: Number(log.tuitionFeePaid || 0),
+        examFeePaid: Number(log.examFeePaid || 0),
+        transportFeePaid: Number(log.transportFeePaid || 0),
+        booksFeePaid: Number(log.booksFeePaid || 0),
+        labFeePaid: Number(log.labFeePaid || 0),
+        miscFeePaid: Number(log.miscFeePaid || 0),
+        paymentMode: log.paymentMode || "Cash",
+        paidAt: log.paidAt,
       }));
 
-      console.log(`[paymentLogsByDateRange] ${from} → ${to}: ${result.length} logs`);
+      console.log(
+        `[paymentLogsByDateRange] ${from} → ${to}: ${result.length} logs`,
+      );
       return res.json(result);
     }
 
@@ -1942,27 +2548,28 @@ router.get("/paymentLogsByDateRange", authMiddleware, async (req, res) => {
       orderBy: { paymentDate: "asc" },
     });
 
-    const legacyResult = students.map(s => ({
-      studentListId:   s.id,
-      studentName:     s.name,
-      email:           s.email,
-      course:          s.course || "",
-      totalFees:       Number(s.fees || 0),
-      amount:          Number(s.paidAmount || 0),
-      schoolFeePaid:   Number(s.schoolFeePaid    || 0),
-      tuitionFeePaid:  Number(s.tuitionFeePaid   || 0),
-      examFeePaid:     Number(s.examFeePaid      || 0),
-      transportFeePaid:Number(s.transportFeePaid || 0),
-      booksFeePaid:    Number(s.booksFeePaid     || 0),
-      labFeePaid:      Number(s.labFeePaid       || 0),
-      miscFeePaid:     Number(s.miscFeePaid      || 0),
-      paymentMode:     s.paymentMode || "Cash",
-      paidAt:          s.paymentDate,
+    const legacyResult = students.map((s) => ({
+      studentListId: s.id,
+      studentName: s.name,
+      email: s.email,
+      course: s.course || "",
+      totalFees: Number(s.fees || 0),
+      amount: Number(s.paidAmount || 0),
+      schoolFeePaid: Number(s.schoolFeePaid || 0),
+      tuitionFeePaid: Number(s.tuitionFeePaid || 0),
+      examFeePaid: Number(s.examFeePaid || 0),
+      transportFeePaid: Number(s.transportFeePaid || 0),
+      booksFeePaid: Number(s.booksFeePaid || 0),
+      labFeePaid: Number(s.labFeePaid || 0),
+      miscFeePaid: Number(s.miscFeePaid || 0),
+      paymentMode: s.paymentMode || "Cash",
+      paidAt: s.paymentDate,
     }));
 
-    console.log(`[paymentLogsByDateRange] legacy fallback: ${legacyResult.length} records`);
+    console.log(
+      `[paymentLogsByDateRange] legacy fallback: ${legacyResult.length} records`,
+    );
     res.json(legacyResult);
-
   } catch (error) {
     console.error("[paymentLogsByDateRange] error:", error);
     res.status(500).json({ message: error.message });

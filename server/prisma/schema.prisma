@@ -290,6 +290,16 @@ model School {
   isDeactivated Boolean    @default(false)
   deactivatedAt DateTime?
 
+  // ── Invoice numbering ──────────────────────────────────────────────────
+  // invoicePrefix: up to 6 letters chosen by the school's Finance user,
+  //   used to build invoice numbers like "ABC-INV-00001". Falls back to
+  //   the school `code` when not set.
+  // invoiceSeq: running counter, incremented atomically every time a new
+  //   invoice number is generated (see generateInvoiceNumber in
+  //   studentFinance_routes.js). Never decremented/reused.
+  invoicePrefix String? @db.VarChar(6)
+  invoiceSeq    Int     @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1792,6 +1802,13 @@ model StudentPaymentLog {
   customFeeBreakdown Json?
   createdBy          String?
   createdAt          DateTime @default(now())
+
+  // School-prefixed sequential invoice number, e.g. "ABC-INV-00001".
+  // Generated once when the log row is first created (see
+  // generateInvoiceNumber in studentFinance_routes.js) and never changed
+  // afterwards, even if the same session log is later updated with more
+  // payments.
+  invoiceNumber String? @unique
 
   @@index([studentListId])
   @@index([paidAt])
