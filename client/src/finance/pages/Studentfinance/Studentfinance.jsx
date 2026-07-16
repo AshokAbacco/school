@@ -1,10 +1,23 @@
 //client\src\finance\pages\Studentfinance\Studentfinance.jsx
 import React, { useState, useEffect } from "react";
 import {
-    Search, IndianRupee, CalendarDays,
-    Pencil, Trash2, UserPlus, GraduationCap,
-    AlertCircle, CheckCircle, Clock, CreditCard,
-    Users, X, Download, Receipt, FileText, Send 
+  Search,
+  IndianRupee,
+  CalendarDays,
+  Pencil,
+  Trash2,
+  UserPlus,
+  GraduationCap,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  CreditCard,
+  Users,
+  X,
+  Download,
+  Receipt,
+  FileText,
+  Send,
 } from "lucide-react";
 import Addstudent from "./Addstudent";
 import { PayModal } from "../../../finance/pages/Studentfinance/PayModal";
@@ -19,12 +32,12 @@ import BulkReminderModal from "./components/BulkReminderModal";
 const API_URL = import.meta.env.VITE_API_URL;
 
 const getPlan = () => {
-    try {
-        const auth = JSON.parse(localStorage.getItem("auth"));
-        return auth?.user?.planName || auth?.planName || "Silver";
-    } catch {
-        return "Silver";
-    }
+  try {
+    const auth = JSON.parse(localStorage.getItem("auth"));
+    return auth?.user?.planName || auth?.planName || "Silver";
+  } catch {
+    return "Silver";
+  }
 };
 
 // InvoiceModal is now in InvoiceModal.jsx (imported above)
@@ -35,222 +48,317 @@ const getPlan = () => {
 // WHATSAPP CONFIRM MODAL
 // ─────────────────────────────────────────────────────────────────────────────
 function WhatsAppConfirmModal({ student, onClose, onConfirm }) {
-    return (
-        <div className="inv-overlay" onClick={onClose}>
+  return (
+    <div className="inv-overlay" onClick={onClose}>
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 340,
+          overflow: "hidden",
+          boxShadow: "0 16px 40px rgba(0,0,0,.22)",
+          animation: "invUp .25s ease",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          style={{
+            background: "linear-gradient(135deg,#1C3044,#27435B)",
+            padding: "16px 20px",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              background: "rgba(255,255,255,.14)",
+              border: "1.5px solid rgba(255,255,255,.22)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <FaWhatsapp size={18} color="#fff" />
+          </div>
+          <div>
             <div
-                style={{
-                    background: "#fff", borderRadius: 16, width: "100%", maxWidth: 340,
-                    overflow: "hidden", boxShadow: "0 16px 40px rgba(0,0,0,.22)",
-                    animation: "invUp .25s ease"
-                }}
-                onClick={e => e.stopPropagation()}
+              style={{
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 15,
+                fontFamily: "'DM Sans',sans-serif",
+              }}
             >
-                {/* Header */}
-                <div style={{ background: "linear-gradient(135deg,#1C3044,#27435B)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(255,255,255,.14)", border: "1.5px solid rgba(255,255,255,.22)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <FaWhatsapp size={18} color="#fff" />
-                    </div>
-                    <div>
-                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, fontFamily: "'DM Sans',sans-serif" }}>Send WhatsApp</div>
-                        <div style={{ color: "rgba(255,255,255,.6)", fontSize: 12, fontFamily: "'DM Sans',sans-serif" }}>Fee reminder to parent</div>
-                    </div>
-                </div>
-
-                {/* Body */}
-                <div style={{ padding: "24px 22px 8px", textAlign: "center" }}>
-                    <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#e7f7ee", border: "2px solid #b2dfc6", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-                        <FaWhatsapp size={22} color="#25D366" />
-                    </div>
-                    <p style={{ fontSize: 14, color: "#1C3044", margin: "0 0 8px", fontWeight: 700, fontFamily: "'DM Sans',sans-serif" }}>
-                        Send fee reminder?
-                    </p>
-                    <p style={{ fontSize: 13, color: "#4A6B80", margin: 0, lineHeight: 1.6, fontFamily: "'DM Sans',sans-serif" }}>
-                        A WhatsApp message will be sent to <strong style={{ color: "#27435B" }}>{student.name}</strong>'s parent about the pending fee.
-                    </p>
-                </div>
-
-                {/* Footer */}
-                <div style={{ padding: "20px 22px 22px", display: "flex", gap: 10 }}>
-                    <button
-                        onClick={onClose}
-                        style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1.5px solid #d0d5dd", background: "#fff", fontSize: 13, fontWeight: 600, color: "#4A6B80", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "#25D366", fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, fontFamily: "'DM Sans',sans-serif" }}
-                    >
-                        <FaWhatsapp size={14} /> Send
-                    </button>
-                </div>
+              Send WhatsApp
             </div>
+            <div
+              style={{
+                color: "rgba(255,255,255,.6)",
+                fontSize: 12,
+                fontFamily: "'DM Sans',sans-serif",
+              }}
+            >
+              Fee reminder to parent
+            </div>
+          </div>
         </div>
-    );
+
+        {/* Body */}
+        <div style={{ padding: "24px 22px 8px", textAlign: "center" }}>
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: "#e7f7ee",
+              border: "2px solid #b2dfc6",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 14px",
+            }}
+          >
+            <FaWhatsapp size={22} color="#25D366" />
+          </div>
+          <p
+            style={{
+              fontSize: 14,
+              color: "#1C3044",
+              margin: "0 0 8px",
+              fontWeight: 700,
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            Send fee reminder?
+          </p>
+          <p
+            style={{
+              fontSize: 13,
+              color: "#4A6B80",
+              margin: 0,
+              lineHeight: 1.6,
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            A WhatsApp message will be sent to{" "}
+            <strong style={{ color: "#27435B" }}>{student.name}</strong>'s
+            parent about the pending fee.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "20px 22px 22px", display: "flex", gap: 10 }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "10px",
+              borderRadius: 10,
+              border: "1.5px solid #d0d5dd",
+              background: "#fff",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#4A6B80",
+              cursor: "pointer",
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              flex: 1,
+              padding: "10px",
+              borderRadius: 10,
+              border: "none",
+              background: "#25D366",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#fff",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 7,
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            <FaWhatsapp size={14} /> Send
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ReceiptConfirmModal({ student, onClose, onConfirm }) {
-    return (
-        <div className="inv-overlay" onClick={onClose}>
+  return (
+    <div className="inv-overlay" onClick={onClose}>
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 16,
+          width: "100%",
+          maxWidth: 340,
+          overflow: "hidden",
+          boxShadow: "0 16px 40px rgba(0,0,0,.22)",
+          animation: "invUp .25s ease",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          style={{
+            background: "linear-gradient(135deg,#1C3044,#27435B)",
+            padding: "16px 20px",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              background: "rgba(255,255,255,.14)",
+              border: "1.5px solid rgba(255,255,255,.22)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Receipt size={18} color="#fff" />
+          </div>
+
+          <div>
             <div
-                style={{
-                    background: "#fff",
-                    borderRadius: 16,
-                    width: "100%",
-                    maxWidth: 340,
-                    overflow: "hidden",
-                    boxShadow: "0 16px 40px rgba(0,0,0,.22)",
-                    animation: "invUp .25s ease"
-                }}
-                onClick={(e) => e.stopPropagation()}
+              style={{
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 15,
+                fontFamily: "'DM Sans',sans-serif",
+              }}
             >
-                {/* Header */}
-                <div
-                    style={{
-                        background: "linear-gradient(135deg,#1C3044,#27435B)",
-                        padding: "16px 20px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10
-                    }}
-                >
-                    <div
-                        style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 10,
-                            background: "rgba(255,255,255,.14)",
-                            border: "1.5px solid rgba(255,255,255,.22)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center"
-                        }}
-                    >
-                        <Receipt size={18} color="#fff" />
-                    </div>
-
-                    <div>
-                        <div
-                            style={{
-                                color: "#fff",
-                                fontWeight: 700,
-                                fontSize: 15,
-                                fontFamily: "'DM Sans',sans-serif"
-                            }}
-                        >
-                            Send Fee Receipt
-                        </div>
-
-                        <div
-                            style={{
-                                color: "rgba(255,255,255,.6)",
-                                fontSize: 12,
-                                fontFamily: "'DM Sans',sans-serif"
-                            }}
-                        >
-                            WhatsApp PDF Receipt
-                        </div>
-                    </div>
-                </div>
-
-                {/* Body */}
-                <div style={{ padding: "24px 22px 8px", textAlign: "center" }}>
-                    <div
-                        style={{
-                            width: 52,
-                            height: 52,
-                            borderRadius: "50%",
-                            background: "#edf4ff",
-                            border: "2px solid #c7d7fe",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            margin: "0 auto 14px"
-                        }}
-                    >
-                        <Receipt size={22} color="#27435B" />
-                    </div>
-
-                    <p
-                        style={{
-                            fontSize: 14,
-                            color: "#1C3044",
-                            margin: "0 0 8px",
-                            fontWeight: 700,
-                            fontFamily: "'DM Sans',sans-serif"
-                        }}
-                    >
-                        Send fee receipt PDF?
-                    </p>
-
-                    <p
-                        style={{
-                            fontSize: 13,
-                            color: "#4A6B80",
-                            margin: 0,
-                            lineHeight: 1.6,
-                            fontFamily: "'DM Sans',sans-serif"
-                        }}
-                    >
-                        Receipt PDF will be sent to{" "}
-                        <strong style={{ color: "#27435B" }}>
-                            {student.name}
-                        </strong>'s parent on WhatsApp.
-                    </p>
-                </div>
-
-                {/* Footer */}
-                <div
-                    style={{
-                        padding: "20px 22px 22px",
-                        display: "flex",
-                        gap: 10
-                    }}
-                >
-                    <button
-                        onClick={onClose}
-                        style={{
-                            flex: 1,
-                            padding: "10px",
-                            borderRadius: 10,
-                            border: "1.5px solid #d0d5dd",
-                            background: "#fff",
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: "#4A6B80",
-                            cursor: "pointer",
-                            fontFamily: "'DM Sans',sans-serif"
-                        }}
-                    >
-                        Cancel
-                    </button>
-
-                    <button
-                        onClick={onConfirm}
-                        style={{
-                            flex: 1,
-                            padding: "10px",
-                            borderRadius: 10,
-                            border: "none",
-                            background: "#27435B",
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: "#fff",
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 7,
-                            fontFamily: "'DM Sans',sans-serif"
-                        }}
-                    >
-                        <Receipt size={14} />
-                        Send PDF
-                    </button>
-                </div>
+              Send Fee Receipt
             </div>
+
+            <div
+              style={{
+                color: "rgba(255,255,255,.6)",
+                fontSize: 12,
+                fontFamily: "'DM Sans',sans-serif",
+              }}
+            >
+              WhatsApp PDF Receipt
+            </div>
+          </div>
         </div>
-    );
+
+        {/* Body */}
+        <div style={{ padding: "24px 22px 8px", textAlign: "center" }}>
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: "#edf4ff",
+              border: "2px solid #c7d7fe",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 14px",
+            }}
+          >
+            <Receipt size={22} color="#27435B" />
+          </div>
+
+          <p
+            style={{
+              fontSize: 14,
+              color: "#1C3044",
+              margin: "0 0 8px",
+              fontWeight: 700,
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            Send fee receipt PDF?
+          </p>
+
+          <p
+            style={{
+              fontSize: 13,
+              color: "#4A6B80",
+              margin: 0,
+              lineHeight: 1.6,
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            Receipt PDF will be sent to{" "}
+            <strong style={{ color: "#27435B" }}>{student.name}</strong>'s
+            parent on WhatsApp.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: "20px 22px 22px",
+            display: "flex",
+            gap: 10,
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "10px",
+              borderRadius: 10,
+              border: "1.5px solid #d0d5dd",
+              background: "#fff",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#4A6B80",
+              cursor: "pointer",
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            Cancel
+          </button>
+
+          <button
+            onClick={onConfirm}
+            style={{
+              flex: 1,
+              padding: "10px",
+              borderRadius: 10,
+              border: "none",
+              background: "#27435B",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#fff",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 7,
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+          >
+            <Receipt size={14} />
+            Send PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // function VoiceCallConfirmModal({
@@ -374,725 +482,1047 @@ function ReceiptConfirmModal({ student, onClose, onConfirm }) {
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 export default function StudentFeesPage() {
+  const isPremium = getPlan() === "Premium";
+  const [students, setStudents] = useState([]);
+  const [openPopup, setOpenPopup] = useState(false);
+  const [editData, setEditData] = useState(null);
+  const [search, setSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState("All");
+  const [invoiceStudent, setInvoiceStudent] = useState(null);
+  const [payStudent, setPayStudent] = useState(null);
+  const [editPaymentStudent, setEditPaymentStudent] = useState(null);
+  const [waStudent, setWaStudent] = useState(null);
+  const [schoolInfo, setSchoolInfo] = useState({
+    name: "",
+    address: "",
+    city: "",
+    phone: "",
+    invoicePrefix: "",
+    code: "",
+  });
+  const [showInvoiceSettings, setShowInvoiceSettings] = useState(false);
+  const [invoicePrefixInput, setInvoicePrefixInput] = useState("");
+  const [invoicePrefixSaving, setInvoicePrefixSaving] = useState(false);
+  const [invoicePrefixError, setInvoicePrefixError] = useState("");
+  const [receiptStudent, setReceiptStudent] = useState(null);
+  const [feeCategory, setFeeCategory] = useState("ALL");
+  const [paymentFilter, setPaymentFilter] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [voiceStudent, setVoiceStudent] = useState(null);
+  const schoolLogoUrl = useSchoolLogo();
+  const [showExcelModal, setShowExcelModal] = useState(false);
+  const [excelMode, setExcelMode] = useState("today"); // "today" | "month" | "custom"
+  const [excelFrom, setExcelFrom] = useState("");
+  const [excelTo, setExcelTo] = useState("");
+  const [showBulkReminder, setShowBulkReminder] = useState(false);
 
-    const isPremium = getPlan() === "Premium";
-    const [students, setStudents] = useState([]);
-    const [openPopup, setOpenPopup] = useState(false);
-    const [editData, setEditData] = useState(null);
-    const [search, setSearch] = useState("");
-    const [courseFilter, setCourseFilter] = useState("All");
-    const [invoiceStudent, setInvoiceStudent] = useState(null);
-    const [payStudent, setPayStudent] = useState(null);
-    const [editPaymentStudent, setEditPaymentStudent] = useState(null);
-    const [waStudent, setWaStudent] = useState(null);
-    const [schoolInfo, setSchoolInfo] = useState({ name: "", address: "", city: "", phone: "" });
-    const [receiptStudent, setReceiptStudent] = useState(null);
-    const [feeCategory, setFeeCategory] = useState("ALL");
-    const [paymentFilter, setPaymentFilter] = useState("ALL");
-    const [dateFrom, setDateFrom] = useState("");
-    const [dateTo, setDateTo] = useState("");
-    const [voiceStudent, setVoiceStudent] = useState(null);
-    const schoolLogoUrl = useSchoolLogo();
-    const [showExcelModal, setShowExcelModal] = useState(false);
-    const [excelMode, setExcelMode] = useState("today"); // "today" | "month" | "custom"
-    const [excelFrom, setExcelFrom] = useState("");
-    const [excelTo, setExcelTo] = useState("");
-    const [showBulkReminder, setShowBulkReminder] = useState(false);
+  const handleSendVoiceCall = async () => {
+    if (!voiceStudent) return;
 
+    try {
+      const auth = JSON.parse(localStorage.getItem("auth"));
+      const token = auth?.token;
 
-    const handleSendVoiceCall = async () => {
-        if (!voiceStudent) return;
+      const response = await fetch(`${API_URL}/api/voice/send-fee-voice`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          phone: voiceStudent.phone,
+          studentName: voiceStudent.name,
+          pendingAmount:
+            Number(voiceStudent.fees || 0) -
+            Number(voiceStudent.paidAmount || 0),
+          schoolName: schoolInfo.name,
+        }),
+      });
 
-        try {
-            const auth = JSON.parse(localStorage.getItem("auth"));
-            const token = auth?.token;
+      const data = await response.json();
 
-            const response = await fetch(
-                `${API_URL}/api/voice/send-fee-voice`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({
-                        phone: voiceStudent.phone,
-                        studentName: voiceStudent.name,
-                        pendingAmount:
-                            Number(voiceStudent.fees || 0) -
-                            Number(voiceStudent.paidAmount || 0),
-                        schoolName: schoolInfo.name,
-                    }),
-                }
-            );
+      if (data.success) {
+        alert("✅ Voice call sent successfully");
+      } else {
+        alert(data.message || "Voice call failed");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Failed to send voice call");
+    }
 
-            const data = await response.json();
+    setVoiceStudent(null);
+  };
 
-            if (data.success) {
-                alert("✅ Voice call sent successfully");
-            } else {
-                alert(data.message || "Voice call failed");
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Failed to send voice call");
-        }
+  useEffect(() => {
+    if (!window.jspdf) {
+      const s = document.createElement("script");
+      s.src =
+        "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      s.async = true;
+      document.head.appendChild(s);
+    }
+  }, []);
 
-        setVoiceStudent(null);
-    };
-
-    useEffect(() => {
-        if (!window.jspdf) {
-            const s = document.createElement("script");
-            s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-            s.async = true;
-            document.head.appendChild(s);
-        }
-    }, []);
-
-    // Fetch school info from backend (auth token contains schoolId, backend returns name/address)
-    useEffect(() => {
-        const fetchSchool = async () => {
-            try {
-                const auth = JSON.parse(localStorage.getItem("auth"));
-                const token = auth?.token;
-                const res = await fetch(`${API_URL}/api/finance/mySchool`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    setSchoolInfo({
-                        name: data.name || "",
-                        address: data.address || "",
-                        city: data.city || "",
-                        phone: data.phone || "",
-                    });
-                }
-            } catch (err) {
-                console.error("School fetch error:", err);
-            }
-        };
-        fetchSchool();
-    }, []);
-
-    const fetchStudents = async () => {
-        try {
-            const auth = JSON.parse(localStorage.getItem("auth"));
-            const token = auth?.token;
-            const res = await fetch(`${API_URL}/api/finance/getStudentFinance`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const data = await res.json();
-            setStudents(Array.isArray(data) ? data : []);
-        } catch (err) {
-            console.error("Fetch error:", err);
-        }
-    };
-    useEffect(() => { fetchStudents(); }, []);
-
-    const totalFeesAll = students.reduce((a, s) => a + Number(s.fees || 0), 0);
-    const totalPaidAll = students.reduce((a, s) => a + Number(s.paidAmount || 0), 0);
-    const totalDueAll = Math.max(0, totalFeesAll - totalPaidAll);
-    const paidCount = students.filter(s => s.paymentStatus === "PAID").length;
-    const collectionPct = totalFeesAll > 0 ? Math.round((totalPaidAll / totalFeesAll) * 100) : 0;
-
-    const addStudentData = (newStudent) => {
-        setStudents(prev => {
-            const exists = prev.some(s => s.id === newStudent.id);
-            if (exists) return prev.map(s => s.id === newStudent.id ? newStudent : s);
-            return [newStudent, ...prev];
-        });
-    };
-
-    const handleDelete = async (id) => {
-        if (!window.confirm("Delete this student record?")) return;
+  // Fetch school info from backend (auth token contains schoolId, backend returns name/address)
+  useEffect(() => {
+    const fetchSchool = async () => {
+      try {
         const auth = JSON.parse(localStorage.getItem("auth"));
         const token = auth?.token;
-        await fetch(`${API_URL}/api/finance/deleteStudentFinance/${id}`, {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` }
+        const res = await fetch(`${API_URL}/api/finance/mySchool`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
-        fetchStudents();
+        if (res.ok) {
+          const data = await res.json();
+          setSchoolInfo({
+            name: data.name || "",
+            address: data.address || "",
+            city: data.city || "",
+            phone: data.phone || "",
+            invoicePrefix: data.invoicePrefix || "",
+            code: data.code || "",
+          });
+          setInvoicePrefixInput(
+            (data.invoicePrefix || data.code || "").toUpperCase(),
+          );
+        }
+      } catch (err) {
+        console.error("School fetch error:", err);
+      }
     };
+    fetchSchool();
+  }, []);
 
-    const handleEdit = (student) => { setEditData(student); setOpenPopup(true); };
+  // ── Save the school's invoice-number prefix (max 6 letters, e.g. "ABC") ──
+  const saveInvoicePrefix = async () => {
+    const cleaned = (invoicePrefixInput || "").trim().toUpperCase();
+    if (!/^[A-Z]{1,6}$/.test(cleaned)) {
+      setInvoicePrefixError("Enter 1–6 letters only (e.g. ABC)");
+      return;
+    }
+    setInvoicePrefixSaving(true);
+    setInvoicePrefixError("");
+    try {
+      const auth = JSON.parse(localStorage.getItem("auth"));
+      const token = auth?.token;
+      const res = await fetch(`${API_URL}/api/finance/invoiceSettings`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ invoicePrefix: cleaned }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.message || "Failed to save prefix");
+      }
+      setSchoolInfo((prev) => ({ ...prev, invoicePrefix: cleaned }));
+      setShowInvoiceSettings(false);
+    } catch (err) {
+      setInvoicePrefixError(err.message || "Failed to save prefix");
+    } finally {
+      setInvoicePrefixSaving(false);
+    }
+  };
 
-    const handlePaymentDone = (id, newPaidAmount, newStatus) => {
-        setStudents(prev => prev.map(s =>
-            s.id === id ? { ...s, paidAmount: newPaidAmount, paymentStatus: newStatus } : s
-        ));
-        fetchStudents();
+  const fetchStudents = async () => {
+    try {
+      const auth = JSON.parse(localStorage.getItem("auth"));
+      const token = auth?.token;
+      const res = await fetch(`${API_URL}/api/finance/getStudentFinance`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setStudents(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
+  };
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  const totalFeesAll = students.reduce((a, s) => a + Number(s.fees || 0), 0);
+  const totalPaidAll = students.reduce(
+    (a, s) => a + Number(s.paidAmount || 0),
+    0,
+  );
+  const totalDueAll = Math.max(0, totalFeesAll - totalPaidAll);
+  const paidCount = students.filter((s) => s.paymentStatus === "PAID").length;
+  const collectionPct =
+    totalFeesAll > 0 ? Math.round((totalPaidAll / totalFeesAll) * 100) : 0;
+
+  const addStudentData = (newStudent) => {
+    setStudents((prev) => {
+      const exists = prev.some((s) => s.id === newStudent.id);
+      if (exists)
+        return prev.map((s) => (s.id === newStudent.id ? newStudent : s));
+      return [newStudent, ...prev];
+    });
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this student record?")) return;
+    const auth = JSON.parse(localStorage.getItem("auth"));
+    const token = auth?.token;
+    await fetch(`${API_URL}/api/finance/deleteStudentFinance/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    fetchStudents();
+  };
+
+  const handleEdit = (student) => {
+    setEditData(student);
+    setOpenPopup(true);
+  };
+
+  const handlePaymentDone = (id, newPaidAmount, newStatus) => {
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? { ...s, paidAmount: newPaidAmount, paymentStatus: newStatus }
+          : s,
+      ),
+    );
+    fetchStudents();
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!waStudent) return;
+    try {
+      const auth = JSON.parse(localStorage.getItem("auth"));
+      const token = auth?.token;
+      const res = await fetch(
+        `${API_URL}/api/finance/sendFeeReminder/${waStudent.id}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      const data = await res.json();
+      alert(data.message);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to send WhatsApp message.");
+    }
+    setWaStudent(null);
+  };
+
+  const handleSendReceipt = async (student) => {
+    try {
+      // Step 1: generate PDF as a Blob (SAME category logic as the Invoice page,
+      // via the shared buildCategoryRows() helper — Total / Paid / Pending per
+      // Fee Category, not just a flat "Amount" list).
+      if (!window.jspdf) {
+        alert("PDF library not loaded yet. Please try again in a moment.");
+        return;
+      }
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const W = 210,
+        m = 18;
+      const invoiceNo = `INV-${String(student.id || "")
+        .slice(-4)
+        .padStart(4, "0")}-${new Date().getFullYear()}`;
+      const today = new Date().toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+
+      // ── Fee-category rows: Total / Paid / Pending per category ────────
+      // Step A: self-heal any old mismatch first (records paid via the
+      // "Full Fee" button before the sync fix existed can have money
+      // collected but not reflected against a category — this brings
+      // them back in line automatically, no manual step needed).
+      try {
+        const auth0 = JSON.parse(localStorage.getItem("auth"));
+        const token0 = auth0?.token;
+        await fetch(
+          `${API_URL}/api/finance/reconcileFeeCategories/${student.id}`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token0}` },
+          },
+        );
+      } catch (e) {
+        console.warn(
+          "Fee category reconciliation skipped (non-fatal):",
+          e.message,
+        );
+      }
+
+      // Step B: ALWAYS pull fresh categories here (don't trust the cached
+      // `student` from the list state) — the list may not have refreshed
+      // since the last payment, which previously caused custom/just-paid
+      // categories to show stale (often ₹0) paid amounts in the WhatsApp
+      // PDF while the invoice page (which always fetches fresh) showed
+      // correct ones.
+      let categorySource = student;
+      try {
+        const auth = JSON.parse(localStorage.getItem("auth"));
+        const token = auth?.token;
+        const catRes = await fetch(
+          `${API_URL}/api/finance/studentFeeCategories/${student.id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+        if (catRes.ok) {
+          const cats = await catRes.json();
+          if (Array.isArray(cats) && cats.length > 0) {
+            categorySource = { ...student, feeCategories: cats };
+          }
+        }
+      } catch (e) {
+        console.warn(
+          "Could not refresh fee categories, falling back to cached student data:",
+          e.message,
+        );
+      }
+
+      const rows = buildCategoryRows(categorySource);
+      const grandTotal = rows.reduce((s, r) => s + r.total, 0);
+      const grandPaid = rows.reduce((s, r) => s + r.paid, 0);
+      const grandPending = rows.reduce((s, r) => s + r.pending, 0);
+      const due = grandPending;
+
+      // Header
+      const schoolName = schoolInfo.name;
+      const schoolAddress = `${schoolInfo.address || ""}${schoolInfo.city ? ", " + schoolInfo.city : ""}`;
+      const headerH = schoolAddress ? 50 : 44;
+      doc.setFillColor(28, 48, 68);
+      doc.rect(0, 0, W, headerH, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(255, 255, 255);
+      doc.text(schoolName || "Fee Invoice", m, 16);
+      doc.setFontSize(9.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(180, 205, 220);
+      doc.text("Fee Invoice & Payment Receipt", m, 25);
+      if (schoolAddress) {
+        doc.setFontSize(8.5);
+        doc.setTextColor(140, 175, 200);
+        doc.text(schoolAddress, m, 33);
+      }
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(W - m - 52, 8, 52, 22, 3, 3, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(28, 48, 68);
+      doc.text("INVOICE", W - m - 26, 16, { align: "center" });
+      doc.setFontSize(10);
+      doc.text(invoiceNo, W - m - 26, 24, { align: "center" });
+      doc.setFillColor(39, 67, 91);
+      doc.rect(0, headerH, W, 10, "F");
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(180, 205, 220);
+      doc.text(`Date: ${today}`, m, headerH + 7);
+      doc.text(
+        `Status: ${due === 0 ? "PAID" : "PARTIALLY PAID"}`,
+        W - m,
+        headerH + 7,
+        { align: "right" },
+      );
+
+      // Student details
+      let y = headerH + 18;
+      const hasAddress = !!student.address;
+      const boxHeight = hasAddress ? 60 : 48;
+      doc.setFillColor(240, 247, 252);
+      doc.roundedRect(m, y - 6, W - m * 2, boxHeight, 3, 3, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(28, 48, 68);
+      doc.text("STUDENT DETAILS", m + 4, y);
+
+      // Row 1: Name | Email
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 50, 70);
+      doc.text("Name:", m + 4, y + 10);
+      doc.setFont("helvetica", "normal");
+      doc.text(student.name || "N/A", m + 22, y + 10);
+      doc.setFont("helvetica", "bold");
+      doc.text("Email:", W / 2 + 4, y + 10);
+      doc.setFont("helvetica", "normal");
+      doc.text(student.email || "N/A", W / 2 + 22, y + 10);
+
+      // Row 2: Course | Phone
+      doc.setFont("helvetica", "bold");
+      doc.text("Course:", m + 4, y + 20);
+      doc.setFont("helvetica", "normal");
+      doc.text(student.course || "N/A", m + 22, y + 20);
+      doc.setFont("helvetica", "bold");
+      doc.text("Phone:", W / 2 + 4, y + 20);
+      doc.setFont("helvetica", "normal");
+      doc.text(student.phone || "N/A", W / 2 + 22, y + 20);
+
+      // Row 3: Address (full width, only if present)
+      if (hasAddress) {
+        doc.setFont("helvetica", "bold");
+        doc.text("Address:", m + 4, y + 30);
+        doc.setFont("helvetica", "normal");
+        const addrLines = doc.splitTextToSize(student.address, W - m * 2 - 34);
+        doc.text(addrLines, m + 22, y + 30);
+      }
+
+      y += boxHeight + 12;
+
+      // Fee table — Fee Category | Total | Paid | Pending (same as invoice page)
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(28, 48, 68);
+      doc.text("FEE BREAKDOWN", m, y);
+      y += 5;
+
+      const COLW = W - m * 2;
+      // Numeric columns are right-aligned to a fixed right edge per column, so
+      // wider values (Rs.65,000 vs Rs.0) grow leftward into their own column
+      // instead of overflowing rightward past the page margin / next column.
+      const COL = {
+        name: m + 4,
+        total: m + 118,
+        paid: m + 152,
+        pending: m + COLW - 4,
+      };
+
+      doc.setFillColor(28, 48, 68);
+      doc.rect(m, y, COLW, 9, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+      doc.text("Fee Category", COL.name, y + 6);
+      doc.text("Total", COL.total, y + 6, { align: "right" });
+      doc.text("Paid", COL.paid, y + 6, { align: "right" });
+      doc.text("Pending", COL.pending, y + 6, { align: "right" });
+      y += 9;
+
+      rows.forEach((row, i) => {
+        doc.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 252 : 255, 255);
+        doc.rect(m, y, COLW, 9, "F");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(30, 50, 70);
+        doc.text(row.name, COL.name, y + 6);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Rs.${fmt(row.total)}`, COL.total, y + 6, { align: "right" });
+        doc.setTextColor(26, 110, 62);
+        doc.text(`Rs.${fmt(row.paid)}`, COL.paid, y + 6, { align: "right" });
+        doc.setTextColor(
+          row.pending > 0 ? 180 : 26,
+          row.pending > 0 ? 48 : 110,
+          row.pending > 0 ? 48 : 62,
+        );
+        doc.text(`Rs.${fmt(row.pending)}`, COL.pending, y + 6, {
+          align: "right",
+        });
+        doc.setTextColor(30, 50, 70);
+        y += 9;
+      });
+
+      doc.setFillColor(28, 48, 68);
+      doc.rect(m, y, COLW, 9, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+      doc.text("TOTAL", COL.name, y + 6);
+      doc.text(`Rs.${fmt(grandTotal)}`, COL.total, y + 6, { align: "right" });
+      doc.text(`Rs.${fmt(grandPaid)}`, COL.paid, y + 6, { align: "right" });
+      doc.text(`Rs.${fmt(grandPending)}`, COL.pending, y + 6, {
+        align: "right",
+      });
+      y += 14;
+
+      const bx = W - m - 80;
+      doc.setFillColor(240, 247, 252);
+      doc.roundedRect(bx, y, 80, 34, 3, 3, "F");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(80, 100, 120);
+      doc.text("Total Fees:", bx + 4, y + 9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(28, 48, 68);
+      doc.text(`Rs. ${fmt(grandTotal)}`, bx + 78, y + 9, { align: "right" });
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(80, 100, 120);
+      doc.text("Amount Paid:", bx + 4, y + 18);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(28, 68, 48);
+      doc.text(`Rs. ${fmt(grandPaid)}`, bx + 78, y + 18, { align: "right" });
+      doc.setDrawColor(28, 48, 68);
+      doc.setLineWidth(0.5);
+      doc.line(bx + 4, y + 22, bx + 76, y + 22);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(28, 48, 68);
+      doc.text("Balance Due:", bx + 4, y + 30);
+      doc.setTextColor(
+        due === 0 ? 28 : 180,
+        due === 0 ? 90 : 30,
+        due === 0 ? 50 : 30,
+      );
+      doc.text(`Rs. ${fmt(due)}`, bx + 78, y + 30, { align: "right" });
+      y = 272;
+      doc.setFillColor(28, 48, 68);
+      doc.rect(0, y, W, 25, "F");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(180, 205, 220);
+      doc.text(
+        `${schoolName || "School"} · System-generated invoice. No signature required.`,
+        W / 2,
+        y + 9,
+        { align: "center" },
+      );
+
+      // Step 2: Get PDF as ArrayBuffer and upload to R2
+      const pdfArrayBuffer = doc.output("arraybuffer");
+
+      const auth = JSON.parse(localStorage.getItem("auth"));
+      const token = auth?.token;
+
+      const uploadRes = await fetch(
+        `${API_URL}/api/finance/uploadFeeReceipt/${student.id}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/pdf",
+            Authorization: `Bearer ${token}`,
+          },
+          body: pdfArrayBuffer,
+        },
+      );
+
+      const uploadData = await uploadRes.json();
+      if (!uploadData.success || !uploadData.pdfUrl) {
+        alert(
+          "Failed to upload receipt PDF: " +
+            (uploadData.message || "unknown error"),
+        );
+        return;
+      }
+
+      const pdfUrl = uploadData.pdfUrl;
+      console.log("Uploaded PDF URL:", pdfUrl);
+
+      // Step 3: Send WhatsApp with the real URL
+      const res = await fetch(
+        `${API_URL}/api/finance/sendFeeReceipt/${student.id}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ pdfUrl }),
+        },
+      );
+
+      const data = await res.json();
+      if (data.success) {
+        alert("✅ WhatsApp receipt sent successfully!");
+      } else {
+        alert(data.message || "Failed to send");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to send receipt: " + err.message);
+    }
+  };
+
+  const courses = [
+    "All",
+    ...Array.from(
+      new Set(students.map((s) => s.course).filter(Boolean)),
+    ).sort(),
+  ];
+
+  const filtered = students.filter((s) => {
+    const matchSearch =
+      s.name?.toLowerCase().includes(search.toLowerCase()) ||
+      s.email?.toLowerCase().includes(search.toLowerCase());
+
+    const matchCourse = courseFilter === "All" || s.course === courseFilter;
+
+    let isPaid = false;
+
+    const breakdown = JSON.parse(s.feeBreakdown || "{}");
+
+    const schoolFee = Number(breakdown.collegeFee || 0);
+    const tuitionFee = Number(breakdown.tuitionFee || 0);
+
+    const schoolPaid = Number(s.schoolFeePaid || 0);
+    const tuitionPaid = Number(s.tuitionFeePaid || 0);
+
+    if (feeCategory === "SCHOOL") {
+      isPaid = schoolFee > 0 && schoolPaid >= schoolFee;
+    } else if (feeCategory === "TUITION") {
+      isPaid = tuitionFee > 0 && tuitionPaid >= tuitionFee;
+    } else if (feeCategory.startsWith("CUSTOM__")) {
+      // Custom categories don't have separate paid tracking, fall back to overall status
+      isPaid = Number(s.paidAmount || 0) >= Number(s.fees || 0);
+    } else {
+      isPaid = Number(s.paidAmount || 0) >= Number(s.fees || 0);
+    }
+
+    let matchStatus = true;
+
+    if (paymentFilter === "PAID") {
+      matchStatus = isPaid;
+    }
+
+    if (paymentFilter === "UNPAID") {
+      matchStatus = !isPaid;
+    }
+
+    let matchDate = true;
+    if (dateFrom || dateTo) {
+      const recordDate = s.feeDate
+        ? new Date(s.feeDate).toLocaleDateString("en-CA")
+        : null;
+      if (dateFrom && dateTo) {
+        matchDate = recordDate >= dateFrom && recordDate <= dateTo;
+      } else if (dateFrom) {
+        matchDate = recordDate >= dateFrom;
+      } else {
+        matchDate = recordDate <= dateTo;
+      }
+    }
+
+    return matchSearch && matchCourse && matchStatus && matchDate;
+  });
+
+  // Date-range filtered: records within dateFrom–dateTo (for range download)
+  const dateRangeFilteredStudents =
+    dateFrom || dateTo
+      ? students.filter((s) => {
+          const recordDate = s.feeDate
+            ? new Date(s.feeDate).toLocaleDateString("en-CA")
+            : null;
+          if (dateFrom && dateTo)
+            return recordDate >= dateFrom && recordDate <= dateTo;
+          if (dateFrom) return recordDate >= dateFrom;
+          return recordDate <= dateTo;
+        })
+      : [];
+
+  // "All Data" downloads currently filtered students (respects class/fee/status dropdowns + date range)
+  const handleExcelDownload = () => {
+    downloadStudentFinanceExcel(filtered, feeCategory, schoolInfo);
+  };
+
+  // "Date-wise" downloads students within the selected date range
+  const handleDatewiseExcelDownload = () => {
+    if ((!dateFrom && !dateTo) || dateRangeFilteredStudents.length === 0)
+      return;
+    downloadStudentFinanceExcel(
+      dateRangeFilteredStudents,
+      feeCategory,
+      schoolInfo,
+    );
+  };
+
+  // Excel modal download handler — fetches actual payment log data for the date range
+  const handleExcelModalDownload = async () => {
+    const today = new Date();
+    let from, to;
+
+    if (excelMode === "today") {
+      from = today.toLocaleDateString("en-CA");
+      to = today.toLocaleDateString("en-CA");
+    } else if (excelMode === "month") {
+      from = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        1,
+      ).toLocaleDateString("en-CA");
+      to = new Date(
+        today.getFullYear(),
+        today.getMonth() + 1,
+        0,
+      ).toLocaleDateString("en-CA");
+    } else {
+      from = excelFrom;
+      to = excelTo;
+      if (!from || !to) {
+        alert("Please select both From and To dates.");
+        return;
+      }
+    }
+
+    try {
+      const auth = JSON.parse(localStorage.getItem("auth") || "{}");
+      const token = auth?.token;
+
+      // Fetch payment logs for the date range from backend
+      const res = await fetch(
+        `${API_URL}/api/finance/paymentLogsByDateRange?from=${from}&to=${to}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      if (!res.ok) throw new Error("Failed to fetch payment data");
+      const logs = await res.json(); // [{studentListId, studentName, email, course, amount, schoolFeePaid, ...paidAt}]
+
+      if (logs.length === 0) {
+        alert(`No payments found between ${from} and ${to}.`);
+        return;
+      }
+
+      // Build Excel-compatible rows with ONLY the amount paid in that date range
+      // downloadDatewiseExcel loads ExcelJS then calls async buildAndDownload internally
+      downloadDatewiseExcel(logs, from, to, schoolInfo);
+      setShowExcelModal(false);
+    } catch (err) {
+      console.error("Excel download error:", err);
+      alert("Failed to download: " + err.message);
+    }
+  };
+
+  // Build and download date-wise Excel using ExcelJS (same engine as All Data)
+  const downloadDatewiseExcel = (logs, from, to, school) => {
+    const loadExcelJS = (cb) => {
+      if (window.ExcelJS) {
+        cb();
+        return;
+      }
+      const s = document.createElement("script");
+      s.src =
+        "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js";
+      s.onload = cb;
+      document.head.appendChild(s);
     };
+    loadExcelJS(() => buildAndDownload(logs, from, to, school));
+  };
 
-    const handleSendWhatsApp = async () => {
-        if (!waStudent) return;
-        try {
-            const auth = JSON.parse(localStorage.getItem("auth"));
-            const token = auth?.token;
-            const res = await fetch(`${API_URL}/api/finance/sendFeeReminder/${waStudent.id}`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const data = await res.json();
-            alert(data.message);
-        } catch (err) {
-            console.error(err);
-            alert("Failed to send WhatsApp message.");
-        }
-        setWaStudent(null);
-    };
+  const buildAndDownload = async (logs, from, to, school) => {
+    const ExcelJS = window.ExcelJS;
 
-    const handleSendReceipt = async (student) => {
-        try {
-            // Step 1: generate PDF as a Blob (SAME category logic as the Invoice page,
-            // via the shared buildCategoryRows() helper — Total / Paid / Pending per
-            // Fee Category, not just a flat "Amount" list).
-            if (!window.jspdf) {
-                alert("PDF library not loaded yet. Please try again in a moment.");
-                return;
-            }
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const fmtDate = (d) =>
+      d
+        ? new Date(d).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : "";
+    const rangeLabel =
+      from === to
+        ? fmtDate(from + "T00:00:00")
+        : `${fmtDate(from + "T00:00:00")} to ${fmtDate(to + "T00:00:00")}`;
 
-            const W = 210, m = 18;
-            const invoiceNo = `INV-${String(student.id || "").slice(-4).padStart(4, "0")}-${new Date().getFullYear()}`;
-            const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    // ── Colour palette (matches All Data excel) ──────────────────────────
+    const DARK = "FF1C3044";
+    const MID = "FF27435B";
+    const LIGHT_HDR = "FF3A5E78";
+    const WHITE = "FFFFFFFF";
+    const GREEN_TXT = "FF1A6E3E";
+    const STRIPE_ODD = "FFFFFFFF";
+    const STRIPE_EVEN = "FFF7FAFC";
+    const TOTAL_BG = "FFE1EDF5";
+    const ADDR_BG = "FFEEF4F8";
+    const DARK_TXT = "FF1C3044";
+    const GRAY_TXT = "FF4A5568";
 
-            // ── Fee-category rows: Total / Paid / Pending per category ────────
-            // Step A: self-heal any old mismatch first (records paid via the
-            // "Full Fee" button before the sync fix existed can have money
-            // collected but not reflected against a category — this brings
-            // them back in line automatically, no manual step needed).
-            try {
-                const auth0 = JSON.parse(localStorage.getItem("auth"));
-                const token0 = auth0?.token;
-                await fetch(`${API_URL}/api/finance/reconcileFeeCategories/${student.id}`, {
-                    method: "POST",
-                    headers: { Authorization: `Bearer ${token0}` },
-                });
-            } catch (e) {
-                console.warn("Fee category reconciliation skipped (non-fatal):", e.message);
-            }
+    // ── Totals ───────────────────────────────────────────────────────────
+    const totalPaid = logs.reduce((s, l) => s + Number(l.amount || 0), 0);
+    const totalSchool = logs.reduce(
+      (s, l) => s + Number(l.schoolFeePaid || 0),
+      0,
+    );
+    const totalTuition = logs.reduce(
+      (s, l) => s + Number(l.tuitionFeePaid || 0),
+      0,
+    );
+    const totalExam = logs.reduce((s, l) => s + Number(l.examFeePaid || 0), 0);
+    const totalTransport = logs.reduce(
+      (s, l) => s + Number(l.transportFeePaid || 0),
+      0,
+    );
+    const totalBooks = logs.reduce(
+      (s, l) => s + Number(l.booksFeePaid || 0),
+      0,
+    );
+    const totalLab = logs.reduce((s, l) => s + Number(l.labFeePaid || 0), 0);
+    const totalMisc = logs.reduce((s, l) => s + Number(l.miscFeePaid || 0), 0);
 
-            // Step B: ALWAYS pull fresh categories here (don't trust the cached
-            // `student` from the list state) — the list may not have refreshed
-            // since the last payment, which previously caused custom/just-paid
-            // categories to show stale (often ₹0) paid amounts in the WhatsApp
-            // PDF while the invoice page (which always fetches fresh) showed
-            // correct ones.
-            let categorySource = student;
-            try {
-                const auth = JSON.parse(localStorage.getItem("auth"));
-                const token = auth?.token;
-                const catRes = await fetch(`${API_URL}/api/finance/studentFeeCategories/${student.id}`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                if (catRes.ok) {
-                    const cats = await catRes.json();
-                    if (Array.isArray(cats) && cats.length > 0) {
-                        categorySource = { ...student, feeCategories: cats };
-                    }
-                }
-            } catch (e) {
-                console.warn("Could not refresh fee categories, falling back to cached student data:", e.message);
-            }
+    const wb = new ExcelJS.Workbook();
+    wb.creator = school.name || "School";
+    wb.created = new Date();
 
-            const rows = buildCategoryRows(categorySource);
-            const grandTotal = rows.reduce((s, r) => s + r.total, 0);
-            const grandPaid = rows.reduce((s, r) => s + r.paid, 0);
-            const grandPending = rows.reduce((s, r) => s + r.pending, 0);
-            const due = grandPending;
-
-            // Header
-            const schoolName = schoolInfo.name;
-            const schoolAddress = `${schoolInfo.address || ""}${schoolInfo.city ? ", " + schoolInfo.city : ""}`;
-            const headerH = schoolAddress ? 50 : 44;
-            doc.setFillColor(28, 48, 68); doc.rect(0, 0, W, headerH, "F");
-            doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(255, 255, 255);
-            doc.text(schoolName || "Fee Invoice", m, 16);
-            doc.setFontSize(9.5); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 205, 220);
-            doc.text("Fee Invoice & Payment Receipt", m, 25);
-            if (schoolAddress) {
-                doc.setFontSize(8.5); doc.setTextColor(140, 175, 200);
-                doc.text(schoolAddress, m, 33);
-            }
-            doc.setFillColor(255, 255, 255); doc.roundedRect(W - m - 52, 8, 52, 22, 3, 3, "F");
-            doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(28, 48, 68);
-            doc.text("INVOICE", W - m - 26, 16, { align: "center" });
-            doc.setFontSize(10); doc.text(invoiceNo, W - m - 26, 24, { align: "center" });
-            doc.setFillColor(39, 67, 91); doc.rect(0, headerH, W, 10, "F");
-            doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 205, 220);
-            doc.text(`Date: ${today}`, m, headerH + 7);
-            doc.text(`Status: ${due === 0 ? "PAID" : "PARTIALLY PAID"}`, W - m, headerH + 7, { align: "right" });
-
-            // Student details
-            let y = headerH + 18;
-            const hasAddress = !!student.address;
-            const boxHeight = hasAddress ? 60 : 48;
-            doc.setFillColor(240, 247, 252); doc.roundedRect(m, y - 6, W - m * 2, boxHeight, 3, 3, "F");
-            doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(28, 48, 68);
-            doc.text("STUDENT DETAILS", m + 4, y);
-
-            // Row 1: Name | Email
-            doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 50, 70);
-            doc.text("Name:", m + 4, y + 10);
-            doc.setFont("helvetica", "normal"); doc.text(student.name || "N/A", m + 22, y + 10);
-            doc.setFont("helvetica", "bold"); doc.text("Email:", W / 2 + 4, y + 10);
-            doc.setFont("helvetica", "normal"); doc.text(student.email || "N/A", W / 2 + 22, y + 10);
-
-            // Row 2: Course | Phone
-            doc.setFont("helvetica", "bold"); doc.text("Course:", m + 4, y + 20);
-            doc.setFont("helvetica", "normal"); doc.text(student.course || "N/A", m + 22, y + 20);
-            doc.setFont("helvetica", "bold"); doc.text("Phone:", W / 2 + 4, y + 20);
-            doc.setFont("helvetica", "normal"); doc.text(student.phone || "N/A", W / 2 + 22, y + 20);
-
-            // Row 3: Address (full width, only if present)
-            if (hasAddress) {
-                doc.setFont("helvetica", "bold"); doc.text("Address:", m + 4, y + 30);
-                doc.setFont("helvetica", "normal");
-                const addrLines = doc.splitTextToSize(student.address, W - m * 2 - 34);
-                doc.text(addrLines, m + 22, y + 30);
-            }
-
-            y += boxHeight + 12;
-
-            // Fee table — Fee Category | Total | Paid | Pending (same as invoice page)
-            doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(28, 48, 68);
-            doc.text("FEE BREAKDOWN", m, y); y += 5;
-
-            const COLW = W - m * 2;
-            // Numeric columns are right-aligned to a fixed right edge per column, so
-            // wider values (Rs.65,000 vs Rs.0) grow leftward into their own column
-            // instead of overflowing rightward past the page margin / next column.
-            const COL = { name: m + 4, total: m + 118, paid: m + 152, pending: m + COLW - 4 };
-
-            doc.setFillColor(28, 48, 68); doc.rect(m, y, COLW, 9, "F");
-            doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
-            doc.text("Fee Category", COL.name, y + 6);
-            doc.text("Total",   COL.total,   y + 6, { align: "right" });
-            doc.text("Paid",    COL.paid,    y + 6, { align: "right" });
-            doc.text("Pending", COL.pending, y + 6, { align: "right" });
-            y += 9;
-
-            rows.forEach((row, i) => {   
-            doc.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 252 : 255, 255);
-            doc.rect(m, y, COLW, 9, "F");
-            doc.setFont("helvetica", "normal"); doc.setFontSize(9.5); doc.setTextColor(30, 50, 70);
-            doc.text(row.name, COL.name, y + 6);
-            doc.setFont("helvetica", "bold");
-            doc.text(`Rs.${fmt(row.total)}`,   COL.total,   y + 6, { align: "right" });
-            doc.setTextColor(26, 110, 62);
-            doc.text(`Rs.${fmt(row.paid)}`,    COL.paid,    y + 6, { align: "right" });
-            doc.setTextColor(row.pending > 0 ? 180 : 26, row.pending > 0 ? 48 : 110, row.pending > 0 ? 48 : 62);
-            doc.text(`Rs.${fmt(row.pending)}`, COL.pending, y + 6, { align: "right" });
-            doc.setTextColor(30, 50, 70);
-            y += 9;
-            });
-
-            doc.setFillColor(28, 48, 68); doc.rect(m, y, COLW, 9, "F");
-            doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
-            doc.text("TOTAL", COL.name, y + 6);
-            doc.text(`Rs.${fmt(grandTotal)}`,   COL.total,   y + 6, { align: "right" });
-            doc.text(`Rs.${fmt(grandPaid)}`,    COL.paid,    y + 6, { align: "right" });
-            doc.text(`Rs.${fmt(grandPending)}`, COL.pending, y + 6, { align: "right" });
-            y += 14;
-
-            const bx = W - m - 80;
-            doc.setFillColor(240, 247, 252); doc.roundedRect(bx, y, 80, 34, 3, 3, "F");
-            doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(80, 100, 120);
-            doc.text("Total Fees:", bx + 4, y + 9);
-            doc.setFont("helvetica", "bold"); doc.setTextColor(28, 48, 68);
-            doc.text(`Rs. ${fmt(grandTotal)}`, bx + 78, y + 9, { align: "right" });
-            doc.setFont("helvetica", "normal"); doc.setTextColor(80, 100, 120);
-            doc.text("Amount Paid:", bx + 4, y + 18);
-            doc.setFont("helvetica", "bold"); doc.setTextColor(28, 68, 48);
-            doc.text(`Rs. ${fmt(grandPaid)}`, bx + 78, y + 18, { align: "right" });
-            doc.setDrawColor(28, 48, 68); doc.setLineWidth(0.5); doc.line(bx + 4, y + 22, bx + 76, y + 22);
-            doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(28, 48, 68);
-            doc.text("Balance Due:", bx + 4, y + 30);
-            doc.setTextColor(due === 0 ? 28 : 180, due === 0 ? 90 : 30, due === 0 ? 50 : 30);
-            doc.text(`Rs. ${fmt(due)}`, bx + 78, y + 30, { align: "right" });
-            y = 272;
-            doc.setFillColor(28, 48, 68); doc.rect(0, y, W, 25, "F");
-            doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(180, 205, 220);
-            doc.text(`${schoolName || "School"} · System-generated invoice. No signature required.`, W / 2, y + 9, { align: "center" });
-
-            // Step 2: Get PDF as ArrayBuffer and upload to R2
-            const pdfArrayBuffer = doc.output("arraybuffer");
-
-            const auth = JSON.parse(localStorage.getItem("auth"));
-            const token = auth?.token;
-
-            const uploadRes = await fetch(`${API_URL}/api/finance/uploadFeeReceipt/${student.id}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/pdf",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: pdfArrayBuffer,
-            });
-
-            const uploadData = await uploadRes.json();
-            if (!uploadData.success || !uploadData.pdfUrl) {
-                alert("Failed to upload receipt PDF: " + (uploadData.message || "unknown error"));
-                return;
-            }
-
-            const pdfUrl = uploadData.pdfUrl;
-            console.log("Uploaded PDF URL:", pdfUrl);
-
-            // Step 3: Send WhatsApp with the real URL
-            const res = await fetch(`${API_URL}/api/finance/sendFeeReceipt/${student.id}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ pdfUrl }),
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                alert("✅ WhatsApp receipt sent successfully!");
-            } else {
-                alert(data.message || "Failed to send");
-            }
-
-        } catch (err) {
-            console.error(err);
-            alert("Failed to send receipt: " + err.message);
-        }
-    };
-
-
-    const courses = ["All", ...Array.from(new Set(students.map(s => s.course).filter(Boolean))).sort()];
-
-    const filtered = students.filter((s) => {
-        const matchSearch =
-            s.name?.toLowerCase().includes(search.toLowerCase()) ||
-            s.email?.toLowerCase().includes(search.toLowerCase());
-
-        const matchCourse =
-            courseFilter === "All" || s.course === courseFilter;
-
-        let isPaid = false;
-
-        const breakdown = JSON.parse(s.feeBreakdown || "{}");
-
-        const schoolFee = Number(breakdown.collegeFee || 0);
-        const tuitionFee = Number(breakdown.tuitionFee || 0);
-
-        const schoolPaid = Number(s.schoolFeePaid || 0);
-        const tuitionPaid = Number(s.tuitionFeePaid || 0);
-
-        if (feeCategory === "SCHOOL") {
-            isPaid = schoolFee > 0 && schoolPaid >= schoolFee;
-        } else if (feeCategory === "TUITION") {
-            isPaid = tuitionFee > 0 && tuitionPaid >= tuitionFee;
-        } else if (feeCategory.startsWith("CUSTOM__")) {
-            // Custom categories don't have separate paid tracking, fall back to overall status
-            isPaid = Number(s.paidAmount || 0) >= Number(s.fees || 0);
-        } else {
-            isPaid =
-                Number(s.paidAmount || 0) >= Number(s.fees || 0);
-        }
-
-        let matchStatus = true;
-
-        if (paymentFilter === "PAID") {
-            matchStatus = isPaid;
-        }
-
-        if (paymentFilter === "UNPAID") {
-            matchStatus = !isPaid;
-        }
-
-        let matchDate = true;
-        if (dateFrom || dateTo) {
-            const recordDate = s.feeDate ? new Date(s.feeDate).toLocaleDateString("en-CA") : null;
-            if (dateFrom && dateTo) {
-                matchDate = recordDate >= dateFrom && recordDate <= dateTo;
-            } else if (dateFrom) {
-                matchDate = recordDate >= dateFrom;
-            } else {
-                matchDate = recordDate <= dateTo;
-            }
-        }
-
-        return matchSearch && matchCourse && matchStatus && matchDate;
+    const ws = wb.addWorksheet("Payment Report", {
+      views: [{ state: "frozen", ySplit: 5 }],
     });
 
-    // Date-range filtered: records within dateFrom–dateTo (for range download)
-    const dateRangeFilteredStudents = (dateFrom || dateTo)
-        ? students.filter(s => {
-            const recordDate = s.feeDate ? new Date(s.feeDate).toLocaleDateString("en-CA") : null;
-            if (dateFrom && dateTo) return recordDate >= dateFrom && recordDate <= dateTo;
-            if (dateFrom) return recordDate >= dateFrom;
-            return recordDate <= dateTo;
-        })
-        : [];
+    // ── Column definitions ───────────────────────────────────────────────
+    ws.columns = [
+      { key: "no", width: 6 },
+      { key: "name", width: 24 },
+      { key: "email", width: 30 },
+      { key: "course", width: 16 },
+      { key: "school", width: 17 },
+      { key: "tuition", width: 17 },
+      { key: "exam", width: 15 },
+      { key: "transport", width: 18 },
+      { key: "books", width: 15 },
+      { key: "lab", width: 14 },
+      { key: "misc", width: 14 },
+      { key: "total", width: 18 },
+      { key: "mode", width: 15 },
+      { key: "date", width: 16 },
+    ];
 
-    // "All Data" downloads currently filtered students (respects class/fee/status dropdowns + date range)
-    const handleExcelDownload = () => {
-        downloadStudentFinanceExcel(
-            filtered,
-            feeCategory,
-            schoolInfo
-        );
-    };
+    const NCOLS = 14;
 
-    // "Date-wise" downloads students within the selected date range
-    const handleDatewiseExcelDownload = () => {
-        if ((!dateFrom && !dateTo) || dateRangeFilteredStudents.length === 0) return;
-        downloadStudentFinanceExcel(
-            dateRangeFilteredStudents,
-            feeCategory,
-            schoolInfo
-        );
-    };
-
-    // Excel modal download handler — fetches actual payment log data for the date range
-    const handleExcelModalDownload = async () => {
-        const today = new Date();
-        let from, to;
-
-        if (excelMode === "today") {
-            from = today.toLocaleDateString("en-CA");
-            to   = today.toLocaleDateString("en-CA");
-        } else if (excelMode === "month") {
-            from = new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString("en-CA");
-            to   = new Date(today.getFullYear(), today.getMonth() + 1, 0).toLocaleDateString("en-CA");
-        } else {
-            from = excelFrom;
-            to   = excelTo;
-            if (!from || !to) { alert("Please select both From and To dates."); return; }
-        }
-
-        try {
-            const auth = JSON.parse(localStorage.getItem("auth") || "{}");
-            const token = auth?.token;
-
-            // Fetch payment logs for the date range from backend
-            const res = await fetch(
-                `${API_URL}/api/finance/paymentLogsByDateRange?from=${from}&to=${to}`,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            if (!res.ok) throw new Error("Failed to fetch payment data");
-            const logs = await res.json(); // [{studentListId, studentName, email, course, amount, schoolFeePaid, ...paidAt}]
-
-            if (logs.length === 0) {
-                alert(`No payments found between ${from} and ${to}.`);
-                return;
-            }
-
-            // Build Excel-compatible rows with ONLY the amount paid in that date range
-            // downloadDatewiseExcel loads ExcelJS then calls async buildAndDownload internally
-            downloadDatewiseExcel(logs, from, to, schoolInfo);
-            setShowExcelModal(false);
-        } catch (err) {
-            console.error("Excel download error:", err);
-            alert("Failed to download: " + err.message);
-        }
-    };
-
-    // Build and download date-wise Excel using ExcelJS (same engine as All Data)
-    const downloadDatewiseExcel = (logs, from, to, school) => {
-        const loadExcelJS = (cb) => {
-            if (window.ExcelJS) { cb(); return; }
-            const s = document.createElement("script");
-            s.src = "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js";
-            s.onload = cb;
-            document.head.appendChild(s);
+    // ── Helper: apply fill + font + alignment + border to a cell ─────────
+    const style = (cell, opts = {}) => {
+      if (opts.bg)
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: opts.bg },
         };
-        loadExcelJS(() => buildAndDownload(logs, from, to, school));
+      cell.font = {
+        name: "Calibri",
+        size: opts.sz ?? 10,
+        bold: opts.bold ?? false,
+        color: { argb: opts.color ?? "FF000000" },
+      };
+      cell.alignment = {
+        horizontal: opts.align ?? "left",
+        vertical: "middle",
+        wrapText: opts.wrap ?? false,
+      };
+      if (opts.border) {
+        const bs = { style: "thin", color: { argb: "FFD0E2EE" } };
+        cell.border = { top: bs, bottom: bs, left: bs, right: bs };
+      }
+      if (opts.numFmt) cell.numFmt = opts.numFmt;
     };
 
-    const buildAndDownload = async (logs, from, to, school) => {
-        const ExcelJS = window.ExcelJS;
+    const INR = '"₹"#,##0.00';
 
-        const fmtDate = d => d ? new Date(d).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "";
-        const rangeLabel = from === to
-            ? fmtDate(from + "T00:00:00")
-            : `${fmtDate(from + "T00:00:00")} to ${fmtDate(to + "T00:00:00")}`;
-
-        // ── Colour palette (matches All Data excel) ──────────────────────────
-        const DARK      = "FF1C3044";
-        const MID       = "FF27435B";
-        const LIGHT_HDR = "FF3A5E78";
-        const WHITE     = "FFFFFFFF";
-        const GREEN_TXT = "FF1A6E3E";
-        const STRIPE_ODD  = "FFFFFFFF";
-        const STRIPE_EVEN = "FFF7FAFC";
-        const TOTAL_BG  = "FFE1EDF5";
-        const ADDR_BG   = "FFEEF4F8";
-        const DARK_TXT  = "FF1C3044";
-        const GRAY_TXT  = "FF4A5568";
-
-        // ── Totals ───────────────────────────────────────────────────────────
-        const totalPaid      = logs.reduce((s,l) => s + Number(l.amount           || 0), 0);
-        const totalSchool    = logs.reduce((s,l) => s + Number(l.schoolFeePaid    || 0), 0);
-        const totalTuition   = logs.reduce((s,l) => s + Number(l.tuitionFeePaid   || 0), 0);
-        const totalExam      = logs.reduce((s,l) => s + Number(l.examFeePaid      || 0), 0);
-        const totalTransport = logs.reduce((s,l) => s + Number(l.transportFeePaid || 0), 0);
-        const totalBooks     = logs.reduce((s,l) => s + Number(l.booksFeePaid     || 0), 0);
-        const totalLab       = logs.reduce((s,l) => s + Number(l.labFeePaid       || 0), 0);
-        const totalMisc      = logs.reduce((s,l) => s + Number(l.miscFeePaid      || 0), 0);
-
-        const wb = new ExcelJS.Workbook();
-        wb.creator = school.name || "School";
-        wb.created = new Date();
-
-        const ws = wb.addWorksheet("Payment Report", {
-            views: [{ state: "frozen", ySplit: 5 }],
-        });
-
-        // ── Column definitions ───────────────────────────────────────────────
-        ws.columns = [
-            { key:"no",        width: 6  },
-            { key:"name",      width: 24 },
-            { key:"email",     width: 30 },
-            { key:"course",    width: 16 },
-            { key:"school",    width: 17 },
-            { key:"tuition",   width: 17 },
-            { key:"exam",      width: 15 },
-            { key:"transport", width: 18 },
-            { key:"books",     width: 15 },
-            { key:"lab",       width: 14 },
-            { key:"misc",      width: 14 },
-            { key:"total",     width: 18 },
-            { key:"mode",      width: 15 },
-            { key:"date",      width: 16 },
-        ];
-
-        const NCOLS = 14;
-
-        // ── Helper: apply fill + font + alignment + border to a cell ─────────
-        const style = (cell, opts = {}) => {
-            if (opts.bg)   cell.fill   = { type:"pattern", pattern:"solid", fgColor:{ argb: opts.bg } };
-            cell.font      = { name:"Calibri", size: opts.sz ?? 10, bold: opts.bold ?? false, color:{ argb: opts.color ?? "FF000000" } };
-            cell.alignment = { horizontal: opts.align ?? "left", vertical:"middle", wrapText: opts.wrap ?? false };
-            if (opts.border) {
-                const bs = { style:"thin", color:{ argb:"FFD0E2EE" } };
-                cell.border = { top:bs, bottom:bs, left:bs, right:bs };
-            }
-            if (opts.numFmt) cell.numFmt = opts.numFmt;
-        };
-
-        const INR = '"₹"#,##0.00';
-
-        const thinBorder = (c) => {
-            const bs = { style:"thin", color:{ argb:"FFD0E2EE" } };
-            c.border = { top:bs, bottom:bs, left:bs, right:bs };
-        };
-
-        // ── Row 1: School name ───────────────────────────────────────────────
-        const r1 = ws.addRow([school.name || "School", ...Array(NCOLS-1).fill("")]);
-        r1.height = 34;
-        ws.mergeCells(1, 1, 1, NCOLS);
-        style(r1.getCell(1), { bg:DARK, color:WHITE, sz:16, bold:true, align:"center" });
-
-        // ── Row 2: Report title ──────────────────────────────────────────────
-        const r2 = ws.addRow([`Date-wise Payment Report  |  Period: ${rangeLabel}`, ...Array(NCOLS-1).fill("")]);
-        r2.height = 22;
-        ws.mergeCells(2, 1, 2, NCOLS);
-        style(r2.getCell(1), { bg:MID, color:WHITE, sz:10, bold:true, align:"center" });
-
-        // ── Row 3: Address / Phone ───────────────────────────────────────────
-        const addrStr  = `Address: ${school.address || ""}${school.city ? ", " + school.city : ""}`;
-        const phoneStr = `Phone: ${school.phone || ""}`;
-        const r3 = ws.addRow([addrStr, ...Array(NCOLS-1).fill("")]);
-        r3.height = 18;
-        ws.mergeCells(3, 1, 3, 6);
-        style(r3.getCell(1), { bg:ADDR_BG, color:GRAY_TXT, sz:9 });
-        ws.mergeCells(3, 7, 3, NCOLS);
-        r3.getCell(7).value = phoneStr;
-        style(r3.getCell(7), { bg:ADDR_BG, color:GRAY_TXT, sz:9 });
-
-        // ── Row 4: blank spacer ──────────────────────────────────────────────
-        const r4 = ws.addRow(Array(NCOLS).fill(""));
-        r4.height = 6;
-        for (let c = 1; c <= NCOLS; c++) r4.getCell(c).fill = { type:"pattern", pattern:"solid", fgColor:{ argb:"FFF8FAFC" } };
-
-        // ── Row 5: Column headers ────────────────────────────────────────────
-        const headerLabels = [
-            ["#","center"],["Student Name","left"],["Email","left"],["Class / Course","center"],
-            ["School Fee Paid","right"],["Tuition Fee Paid","right"],["Exam Fee Paid","right"],
-            ["Transport Fee Paid","right"],["Books Fee Paid","right"],["Lab Fee Paid","right"],
-            ["Misc Fee Paid","right"],["Total Paid","right"],["Payment Mode","center"],["Payment Date","center"],
-        ];
-        const r5 = ws.addRow(headerLabels.map(([h]) => h));
-        r5.height = 24;
-        headerLabels.forEach(([, align], ci) => {
-            style(r5.getCell(ci+1), { bg:DARK, color:WHITE, bold:true, align, border:true, sz:10 });
-        });
-
-        // ── Data rows ────────────────────────────────────────────────────────
-        logs.forEach((log, i) => {
-            const bg   = i % 2 === 0 ? STRIPE_ODD : STRIPE_EVEN;
-            const paid = Number(log.amount || 0);
-            const row  = ws.addRow([
-                i + 1,
-                log.studentName || "",
-                log.email       || "",
-                log.course      || "",
-                Number(log.schoolFeePaid    || 0),
-                Number(log.tuitionFeePaid   || 0),
-                Number(log.examFeePaid      || 0),
-                Number(log.transportFeePaid || 0),
-                Number(log.booksFeePaid     || 0),
-                Number(log.labFeePaid       || 0),
-                Number(log.miscFeePaid      || 0),
-                paid,
-                log.paymentMode || "Cash",
-                fmtDate(log.paidAt),
-            ]);
-            row.height = 20;
-
-            style(row.getCell(1),  { bg, align:"center", border:true });
-            style(row.getCell(2),  { bg, bold:true, align:"left", color:DARK_TXT, border:true });
-            style(row.getCell(3),  { bg, align:"left", border:true });
-            style(row.getCell(4),  { bg, align:"center", border:true });
-            [5,6,7,8,9,10,11].forEach(ci => {
-                style(row.getCell(ci), { bg, align:"right", color:GREEN_TXT, numFmt:INR, border:true });
-            });
-            style(row.getCell(12), { bg, align:"right", bold:true, color:GREEN_TXT, numFmt:INR, border:true });
-            style(row.getCell(13), { bg, align:"center", border:true });
-            style(row.getCell(14), { bg, align:"center", border:true });
-        });
-
-        // ── Totals row ───────────────────────────────────────────────────────
-        const tr = ws.addRow([
-            "TOTALS", `${logs.length} payment(s)`, "", "",
-            totalSchool, totalTuition, totalExam, totalTransport,
-            totalBooks, totalLab, totalMisc, totalPaid, "", "",
-        ]);
-        tr.height = 24;
-        style(tr.getCell(1),  { bg:TOTAL_BG, bold:true, color:DARK_TXT, align:"left",   border:true });
-        style(tr.getCell(2),  { bg:TOTAL_BG, bold:true, color:DARK_TXT, align:"left",   border:true });
-        style(tr.getCell(3),  { bg:TOTAL_BG, border:true });
-        style(tr.getCell(4),  { bg:TOTAL_BG, border:true });
-        [5,6,7,8,9,10,11].forEach(ci => {
-            style(tr.getCell(ci), { bg:TOTAL_BG, bold:true, color:GREEN_TXT, align:"right", numFmt:INR, border:true });
-        });
-        style(tr.getCell(12), { bg:TOTAL_BG, bold:true, color:GREEN_TXT, align:"right", numFmt:INR, border:true });
-        style(tr.getCell(13), { bg:TOTAL_BG, border:true });
-        style(tr.getCell(14), { bg:TOTAL_BG, border:true });
-
-        // ── Download ─────────────────────────────────────────────────────────
-        const buffer   = await wb.xlsx.writeBuffer();
-        const blob     = new Blob([buffer], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        const url      = URL.createObjectURL(blob);
-        const a        = document.createElement("a");
-        a.href         = url;
-        a.download     = `Payment_Report_${from}_to_${to}.xlsx`;
-        a.click();
-        URL.revokeObjectURL(url);
+    const thinBorder = (c) => {
+      const bs = { style: "thin", color: { argb: "FFD0E2EE" } };
+      c.border = { top: bs, bottom: bs, left: bs, right: bs };
     };
 
-    return (
-        <>
-            <style>{`
+    // ── Row 1: School name ───────────────────────────────────────────────
+    const r1 = ws.addRow([
+      school.name || "School",
+      ...Array(NCOLS - 1).fill(""),
+    ]);
+    r1.height = 34;
+    ws.mergeCells(1, 1, 1, NCOLS);
+    style(r1.getCell(1), {
+      bg: DARK,
+      color: WHITE,
+      sz: 16,
+      bold: true,
+      align: "center",
+    });
+
+    // ── Row 2: Report title ──────────────────────────────────────────────
+    const r2 = ws.addRow([
+      `Date-wise Payment Report  |  Period: ${rangeLabel}`,
+      ...Array(NCOLS - 1).fill(""),
+    ]);
+    r2.height = 22;
+    ws.mergeCells(2, 1, 2, NCOLS);
+    style(r2.getCell(1), {
+      bg: MID,
+      color: WHITE,
+      sz: 10,
+      bold: true,
+      align: "center",
+    });
+
+    // ── Row 3: Address / Phone ───────────────────────────────────────────
+    const addrStr = `Address: ${school.address || ""}${school.city ? ", " + school.city : ""}`;
+    const phoneStr = `Phone: ${school.phone || ""}`;
+    const r3 = ws.addRow([addrStr, ...Array(NCOLS - 1).fill("")]);
+    r3.height = 18;
+    ws.mergeCells(3, 1, 3, 6);
+    style(r3.getCell(1), { bg: ADDR_BG, color: GRAY_TXT, sz: 9 });
+    ws.mergeCells(3, 7, 3, NCOLS);
+    r3.getCell(7).value = phoneStr;
+    style(r3.getCell(7), { bg: ADDR_BG, color: GRAY_TXT, sz: 9 });
+
+    // ── Row 4: blank spacer ──────────────────────────────────────────────
+    const r4 = ws.addRow(Array(NCOLS).fill(""));
+    r4.height = 6;
+    for (let c = 1; c <= NCOLS; c++)
+      r4.getCell(c).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFF8FAFC" },
+      };
+
+    // ── Row 5: Column headers ────────────────────────────────────────────
+    const headerLabels = [
+      ["#", "center"],
+      ["Student Name", "left"],
+      ["Email", "left"],
+      ["Class / Course", "center"],
+      ["School Fee Paid", "right"],
+      ["Tuition Fee Paid", "right"],
+      ["Exam Fee Paid", "right"],
+      ["Transport Fee Paid", "right"],
+      ["Books Fee Paid", "right"],
+      ["Lab Fee Paid", "right"],
+      ["Misc Fee Paid", "right"],
+      ["Total Paid", "right"],
+      ["Payment Mode", "center"],
+      ["Payment Date", "center"],
+    ];
+    const r5 = ws.addRow(headerLabels.map(([h]) => h));
+    r5.height = 24;
+    headerLabels.forEach(([, align], ci) => {
+      style(r5.getCell(ci + 1), {
+        bg: DARK,
+        color: WHITE,
+        bold: true,
+        align,
+        border: true,
+        sz: 10,
+      });
+    });
+
+    // ── Data rows ────────────────────────────────────────────────────────
+    logs.forEach((log, i) => {
+      const bg = i % 2 === 0 ? STRIPE_ODD : STRIPE_EVEN;
+      const paid = Number(log.amount || 0);
+      const row = ws.addRow([
+        i + 1,
+        log.studentName || "",
+        log.email || "",
+        log.course || "",
+        Number(log.schoolFeePaid || 0),
+        Number(log.tuitionFeePaid || 0),
+        Number(log.examFeePaid || 0),
+        Number(log.transportFeePaid || 0),
+        Number(log.booksFeePaid || 0),
+        Number(log.labFeePaid || 0),
+        Number(log.miscFeePaid || 0),
+        paid,
+        log.paymentMode || "Cash",
+        fmtDate(log.paidAt),
+      ]);
+      row.height = 20;
+
+      style(row.getCell(1), { bg, align: "center", border: true });
+      style(row.getCell(2), {
+        bg,
+        bold: true,
+        align: "left",
+        color: DARK_TXT,
+        border: true,
+      });
+      style(row.getCell(3), { bg, align: "left", border: true });
+      style(row.getCell(4), { bg, align: "center", border: true });
+      [5, 6, 7, 8, 9, 10, 11].forEach((ci) => {
+        style(row.getCell(ci), {
+          bg,
+          align: "right",
+          color: GREEN_TXT,
+          numFmt: INR,
+          border: true,
+        });
+      });
+      style(row.getCell(12), {
+        bg,
+        align: "right",
+        bold: true,
+        color: GREEN_TXT,
+        numFmt: INR,
+        border: true,
+      });
+      style(row.getCell(13), { bg, align: "center", border: true });
+      style(row.getCell(14), { bg, align: "center", border: true });
+    });
+
+    // ── Totals row ───────────────────────────────────────────────────────
+    const tr = ws.addRow([
+      "TOTALS",
+      `${logs.length} payment(s)`,
+      "",
+      "",
+      totalSchool,
+      totalTuition,
+      totalExam,
+      totalTransport,
+      totalBooks,
+      totalLab,
+      totalMisc,
+      totalPaid,
+      "",
+      "",
+    ]);
+    tr.height = 24;
+    style(tr.getCell(1), {
+      bg: TOTAL_BG,
+      bold: true,
+      color: DARK_TXT,
+      align: "left",
+      border: true,
+    });
+    style(tr.getCell(2), {
+      bg: TOTAL_BG,
+      bold: true,
+      color: DARK_TXT,
+      align: "left",
+      border: true,
+    });
+    style(tr.getCell(3), { bg: TOTAL_BG, border: true });
+    style(tr.getCell(4), { bg: TOTAL_BG, border: true });
+    [5, 6, 7, 8, 9, 10, 11].forEach((ci) => {
+      style(tr.getCell(ci), {
+        bg: TOTAL_BG,
+        bold: true,
+        color: GREEN_TXT,
+        align: "right",
+        numFmt: INR,
+        border: true,
+      });
+    });
+    style(tr.getCell(12), {
+      bg: TOTAL_BG,
+      bold: true,
+      color: GREEN_TXT,
+      align: "right",
+      numFmt: INR,
+      border: true,
+    });
+    style(tr.getCell(13), { bg: TOTAL_BG, border: true });
+    style(tr.getCell(14), { bg: TOTAL_BG, border: true });
+
+    // ── Download ─────────────────────────────────────────────────────────
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Payment_Report_${from}_to_${to}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <>
+      <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap');
 
                 * { box-sizing: border-box; }
@@ -1177,930 +1607,1370 @@ export default function StudentFeesPage() {
                 }
             `}</style>
 
-            {/* ════════════════════════════════════
+      {/* ════════════════════════════════════
                 PAGE WRAPPER
             ════════════════════════════════════ */}
+      <div
+        className="sf2-font min-h-screen"
+        style={{
+          background:
+            "linear-gradient(150deg,#C5D9E8 0%,#B2CCDC 45%,#A0BBCC 100%)",
+        }}
+      >
+        {/* ── TOP BAR ── */}
+        <div
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-6 lg:px-8 py-4"
+          style={{
+            background: "linear-gradient(135deg,#1C3044,#27435B)",
+            boxShadow: "0 4px 24px rgba(39,67,91,.38)",
+          }}
+        >
+          {/* Brand */}
+          <div className="flex items-center gap-3">
             <div
-                className="sf2-font min-h-screen"
-                style={{ background: "linear-gradient(150deg,#C5D9E8 0%,#B2CCDC 45%,#A0BBCC 100%)" }}
+              className="flex items-center justify-center rounded-xl flex-shrink-0"
+              style={{
+                width: 44,
+                height: 44,
+                background: "rgba(255,255,255,.14)",
+                border: "1.5px solid rgba(255,255,255,.22)",
+              }}
             >
+              <GraduationCap size={22} color="#fff" />
+            </div>
+            <div>
+              <p
+                className="m-0 font-bold text-white"
+                style={{ fontSize: 18, fontFamily: "'Playfair Display',serif" }}
+              >
+                Student Fees Dashboard
+              </p>
+              <p
+                className="m-0 text-xs"
+                style={{ color: "rgba(255,255,255,.6)" }}
+              >
+                Fee Management &amp; Payment Records
+              </p>
+            </div>
+          </div>
 
-                {/* ── TOP BAR ── */}
-                <div
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-6 lg:px-8 py-4"
-                    style={{ background: "linear-gradient(135deg,#1C3044,#27435B)", boxShadow: "0 4px 24px rgba(39,67,91,.38)" }}
+          {/* Right controls */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className="text-xs px-3 py-1.5 rounded-lg"
+              style={{
+                color: "rgba(255,255,255,.7)",
+                background: "rgba(255,255,255,.1)",
+                border: "1px solid rgba(255,255,255,.18)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {new Date().toLocaleDateString("en-IN", {
+                weekday: "short",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </span>
+
+           
+
+            <button
+              className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0"
+              title="Choose the letters used at the start of every invoice number"
+              style={{
+                background: "rgb(94, 116, 139)",
+                border: "1.5px solid rgba(255, 255, 255, 0.4)",
+                color: "#ffffff",
+                transition: "border-color 0.2s, background 0.2s",
+              }}
+              onClick={() => {
+                setInvoicePrefixInput(
+                  (
+                    schoolInfo.invoicePrefix ||
+                    schoolInfo.code ||
+                    ""
+                  ).toUpperCase(),
+                );
+                setInvoicePrefixError("");
+                setShowInvoiceSettings(true);
+              }}
+            >
+              <Receipt size={15} />
+              Invoice Prefix
+              {schoolInfo.invoicePrefix ? `: ${schoolInfo.invoicePrefix}` : ""}
+            </button>
+
+            {/* Download All Data — respects current dropdown filters + date range */}
+            <button
+              onClick={handleExcelDownload}
+              disabled={filtered.length === 0}
+              className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl border-none cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
+              title={
+                filtered.length === 0
+                  ? "No records match current filters"
+                  : `Download ${filtered.length} filtered record(s)`
+              }
+              style={{
+                background:
+                  filtered.length === 0
+                    ? "rgba(255,255,255,.15)"
+                    : "linear-gradient(135deg,#1a6e3e,#14532d)",
+                boxShadow:
+                  filtered.length === 0
+                    ? "none"
+                    : "0 3px 12px rgba(20,83,45,.28)",
+                opacity: filtered.length === 0 ? 0.55 : 1,
+                cursor: filtered.length === 0 ? "not-allowed" : "pointer",
+              }}
+            >
+              <Download size={15} />
+              All Data
+            </button>
+
+            {/* Download Date Range Data — opens modal */}
+            <button
+              onClick={() => {
+                setExcelMode("today");
+                setExcelFrom("");
+                setExcelTo("");
+                setShowExcelModal(true);
+              }}
+              className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl border-none flex-shrink-0"
+              style={{
+                background: "linear-gradient(135deg,#7c3aed,#5b21b6)",
+                boxShadow: "0 3px 12px rgba(91,33,182,.28)",
+                cursor: "pointer",
+                transition: "all .2s",
+              }}
+            >
+              <Download size={15} />
+              Date-wise
+            </button>
+            <button
+              className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0"
+              style={{
+                background: "linear-gradient(135deg,#0f4c81,#1a6fa8)",
+                border: "1.5px solid rgba(136,189,242,0.4)",
+                color: "#fff",
+                boxShadow: "0 3px 12px rgba(15,76,129,.28)",
+                transition: "opacity 0.2s",
+              }}
+              onClick={() => setShowBulkReminder(true)}
+            >
+              <Send size={15} /> Schedule Reminder
+            </button>
+            <button
+              className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0"
+              style={{
+                background: "rgba(39, 73, 107, 0.85)",
+                border: "1.5px solid rgba(136,189,242,0.4)",
+                color: "#BDDDFC",
+                backdropFilter: "blur(6px)",
+                transition: "border-color 0.2s, background 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "rgba(136,189,242,0.75)";
+                e.currentTarget.style.background = "rgba(39,67,91,0.9)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "rgba(136,189,242,0.4)";
+                e.currentTarget.style.background = "rgba(28,48,68,0.85)";
+              }}
+              onClick={() => {
+                setEditData(null);
+                setOpenPopup(true);
+              }}
+            >
+              <UserPlus size={15} /> Add Student
+            </button>
+          </div>
+        </div>
+
+        {/* ── DATE RANGE FILTER ACTIVE BANNER ── */}
+        {(dateFrom || dateTo) && (
+          <div
+            className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2.5"
+            style={{
+              background: "linear-gradient(135deg,#7c3aed22,#5b21b611)",
+              borderBottom: "1.5px solid #7c3aed33",
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <CalendarDays size={14} color="#7c3aed" />
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#5b21b6" }}>
+                {dateFrom && dateTo
+                  ? "Date range:"
+                  : dateFrom
+                    ? "From:"
+                    : "Until:"}{" "}
+                <strong style={{ color: "#4c1d95" }}>
+                  {dateFrom
+                    ? new Date(dateFrom + "T00:00:00").toLocaleDateString(
+                        "en-IN",
+                        { day: "2-digit", month: "short", year: "numeric" },
+                      )
+                    : ""}
+                  {dateFrom && dateTo ? " → " : ""}
+                  {dateTo
+                    ? new Date(dateTo + "T00:00:00").toLocaleDateString(
+                        "en-IN",
+                        { day: "2-digit", month: "short", year: "numeric" },
+                      )
+                    : ""}
+                </strong>{" "}
+                —{" "}
+                <span
+                  style={{
+                    color:
+                      dateRangeFilteredStudents.length > 0
+                        ? "#1a6e3e"
+                        : "#a33030",
+                  }}
                 >
-                    {/* Brand */}
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="flex items-center justify-center rounded-xl flex-shrink-0"
-                            style={{ width: 44, height: 44, background: "rgba(255,255,255,.14)", border: "1.5px solid rgba(255,255,255,.22)" }}
-                        >
-                            <GraduationCap size={22} color="#fff" />
-                        </div>
-                        <div>
-                            <p className="m-0 font-bold text-white" style={{ fontSize: 18, fontFamily: "'Playfair Display',serif" }}>
-                                Student Fees Dashboard
-                            </p>
-                            <p className="m-0 text-xs" style={{ color: "rgba(255,255,255,.6)" }}>
-                                Fee Management &amp; Payment Records
-                            </p>
-                        </div>
-                    </div>
+                  {dateRangeFilteredStudents.length > 0
+                    ? `${dateRangeFilteredStudents.length} record${dateRangeFilteredStudents.length > 1 ? "s" : ""} found`
+                    : "No records found"}
+                </span>
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#7c3aed",
+                background: "rgba(124,58,237,.1)",
+                border: "1px solid rgba(124,58,237,.3)",
+                borderRadius: 7,
+                padding: "3px 10px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+            >
+              <X size={11} /> Clear Filter
+            </button>
+          </div>
+        )}
 
-                    {/* Right controls */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                            className="text-xs px-3 py-1.5 rounded-lg"
-                            style={{ color: "rgba(255,255,255,.7)", background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.18)", whiteSpace: "nowrap" }}
-                        >
-                            {new Date().toLocaleDateString("en-IN", { weekday: "short", year: "numeric", month: "long", day: "numeric" })}
-                        </span>
-
-                        {/* Date Range Pickers */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                            {/* From date */}
-                            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                                <CalendarDays size={13} style={{ position: "absolute", left: 8, color: "rgba(255,255,255,.65)", pointerEvents: "none" }} />
-                                <input
-                                    type="date"
-                                    value={dateFrom}
-                                    onChange={e => setDateFrom(e.target.value)}
-                                    style={{
-                                        paddingLeft: 26, paddingRight: 8, paddingTop: 7, paddingBottom: 7,
-                                        borderRadius: 9, border: "1.5px solid rgba(255,255,255,.28)",
-                                        background: "rgba(255,255,255,.13)", color: "#fff",
-                                        fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans',sans-serif",
-                                        outline: "none", cursor: "pointer", colorScheme: "dark", minWidth: 136,
-                                    }}
-                                    title="From date"
-                                />
-                                {dateFrom && (
-                                    <button onClick={() => setDateFrom("")} title="Clear from date"
-                                        style={{ position: "absolute", right: 5, background: "none", border: "none", color: "rgba(255,255,255,.6)", cursor: "pointer", padding: 0, display: "flex" }}>
-                                        <X size={11} />
-                                    </button>
-                                )}
-                            </div>
-
-                            <span style={{ color: "rgba(255,255,255,.5)", fontSize: 12, fontWeight: 600 }}>→</span>
-
-                            {/* To date */}
-                            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                                <CalendarDays size={13} style={{ position: "absolute", left: 8, color: "rgba(255,255,255,.65)", pointerEvents: "none" }} />
-                                <input
-                                    type="date"
-                                    value={dateTo}
-                                    min={dateFrom || undefined}
-                                    onChange={e => setDateTo(e.target.value)}
-                                    style={{
-                                        paddingLeft: 26, paddingRight: 8, paddingTop: 7, paddingBottom: 7,
-                                        borderRadius: 9, border: "1.5px solid rgba(255,255,255,.28)",
-                                        background: "rgba(255,255,255,.13)", color: "#fff",
-                                        fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans',sans-serif",
-                                        outline: "none", cursor: "pointer", colorScheme: "dark", minWidth: 136,
-                                    }}
-                                    title="To date"
-                                />
-                                {dateTo && (
-                                    <button onClick={() => setDateTo("")} title="Clear to date"
-                                        style={{ position: "absolute", right: 5, background: "none", border: "none", color: "rgba(255,255,255,.6)", cursor: "pointer", padding: 0, display: "flex" }}>
-                                        <X size={11} />
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Clear both */}
-                            {(dateFrom || dateTo) && (
-                                <button
-                                    onClick={() => { setDateFrom(""); setDateTo(""); }}
-                                    title="Clear date range"
-                                    style={{
-                                        background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.22)",
-                                        color: "rgba(255,255,255,.7)", borderRadius: 8, padding: "5px 10px",
-                                        fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
-                                        fontFamily: "'DM Sans',sans-serif",
-                                    }}
-                                >
-                                    Clear
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Download All Data — respects current dropdown filters + date range */}
-                        <button
-                            onClick={handleExcelDownload}
-                            disabled={filtered.length === 0}
-                            className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl border-none cursor-pointer transition-opacity hover:opacity-90 flex-shrink-0"
-                            title={filtered.length === 0 ? "No records match current filters" : `Download ${filtered.length} filtered record(s)`}
-                            style={{
-                                background: filtered.length === 0
-                                    ? "rgba(255,255,255,.15)"
-                                    : "linear-gradient(135deg,#1a6e3e,#14532d)",
-                                boxShadow: filtered.length === 0 ? "none" : "0 3px 12px rgba(20,83,45,.28)",
-                                opacity: filtered.length === 0 ? 0.55 : 1,
-                                cursor: filtered.length === 0 ? "not-allowed" : "pointer",
-                            }}
-                        >
-                            <Download size={15} />
-                            All Data
-                        </button>
-
-                        {/* Download Date Range Data — opens modal */}
-                        <button
-                            onClick={() => { setExcelMode("today"); setExcelFrom(""); setExcelTo(""); setShowExcelModal(true); }}
-                            className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl border-none flex-shrink-0"
-                            style={{
-                                background: "linear-gradient(135deg,#7c3aed,#5b21b6)",
-                                boxShadow: "0 3px 12px rgba(91,33,182,.28)",
-                                cursor: "pointer",
-                                transition: "all .2s",
-                            }}
-                        >
-                            <Download size={15} />
-                            Date-wise
-                        </button>
-                        <button
-                            className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0"
-                            style={{
-                                background: "linear-gradient(135deg,#0f4c81,#1a6fa8)",
-                                border: "1.5px solid rgba(136,189,242,0.4)",
-                                color: "#fff",
-                                boxShadow: "0 3px 12px rgba(15,76,129,.28)",
-                                transition: "opacity 0.2s",
-                            }}
-                            onClick={() => setShowBulkReminder(true)}
-                        >
-                            <Send size={15} /> Schedule Reminder
-                        </button>
-                        <button
-                            className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0"
-                            style={{
-                                background: "rgba(39, 73, 107, 0.85)",
-                                border: "1.5px solid rgba(136,189,242,0.4)",
-                                color: "#BDDDFC",
-                                backdropFilter: "blur(6px)",
-                                transition: "border-color 0.2s, background 0.2s",
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(136,189,242,0.75)"; e.currentTarget.style.background = "rgba(39,67,91,0.9)"; }}
-                            onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(136,189,242,0.4)"; e.currentTarget.style.background = "rgba(28,48,68,0.85)"; }}
-                            onClick={() => { setEditData(null); setOpenPopup(true); }}
-                        >
-                            <UserPlus size={15} /> Add Student
-                        </button>
-                    </div>
+        {/* ── MAIN CONTENT ── */}
+        <div className="px-3 sm:px-5 lg:px-8 py-5 sm:py-6">
+          {/* ── KPI CARDS ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+            {[
+              {
+                lbl: "Total Fees",
+                val: `₹${totalFeesAll.toLocaleString("en-IN")}`,
+                Icon: IndianRupee,
+              },
+              {
+                lbl: "Amount Paid",
+                val: `₹${totalPaidAll.toLocaleString("en-IN")}`,
+                Icon: CheckCircle,
+              },
+              {
+                lbl: "Amount Due",
+                val: `₹${totalDueAll.toLocaleString("en-IN")}`,
+                Icon: AlertCircle,
+              },
+              {
+                lbl: "Paid Students",
+                val: `${paidCount} / ${students.length}`,
+                Icon: CalendarDays,
+              },
+            ].map((k, i) => (
+              <div
+                key={i}
+                className="relative overflow-hidden rounded-2xl p-4 sm:p-5 transition-transform hover:-translate-y-0.5"
+                style={{
+                  background: "rgba(255,255,255,.93)",
+                  boxShadow: "0 2px 16px rgba(39,67,91,.1)",
+                  borderTop: "4px solid #27435B",
+                }}
+              >
+                <div
+                  className="text-xs font-bold uppercase mb-1.5"
+                  style={{ color: "#4A6B80", letterSpacing: ".9px" }}
+                >
+                  {k.lbl}
                 </div>
-
-                {/* ── DATE RANGE FILTER ACTIVE BANNER ── */}
-                {(dateFrom || dateTo) && (
-                    <div
-                        className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2.5"
-                        style={{ background: "linear-gradient(135deg,#7c3aed22,#5b21b611)", borderBottom: "1.5px solid #7c3aed33" }}
-                    >
-                        <div className="flex items-center gap-2">
-                            <CalendarDays size={14} color="#7c3aed" />
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "#5b21b6" }}>
-                                {dateFrom && dateTo ? "Date range:" : dateFrom ? "From:" : "Until:"}{" "}
-                                <strong style={{ color: "#4c1d95" }}>
-                                    {dateFrom ? new Date(dateFrom + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}
-                                    {dateFrom && dateTo ? " → " : ""}
-                                    {dateTo ? new Date(dateTo + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}
-                                </strong>
-                                {" "}—{" "}
-                                <span style={{ color: dateRangeFilteredStudents.length > 0 ? "#1a6e3e" : "#a33030" }}>
-                                    {dateRangeFilteredStudents.length > 0
-                                        ? `${dateRangeFilteredStudents.length} record${dateRangeFilteredStudents.length > 1 ? "s" : ""} found`
-                                        : "No records found"}
-                                </span>
-                            </span>
-                        </div>
-                        <button
-                            onClick={() => { setDateFrom(""); setDateTo(""); }}
-                            style={{ fontSize: 12, fontWeight: 600, color: "#7c3aed", background: "rgba(124,58,237,.1)", border: "1px solid rgba(124,58,237,.3)", borderRadius: 7, padding: "3px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
-                        >
-                            <X size={11} /> Clear Filter
-                        </button>
-                    </div>
-                )}
-
-                {/* ── MAIN CONTENT ── */}
-                <div className="px-3 sm:px-5 lg:px-8 py-5 sm:py-6">
-
-                    {/* ── KPI CARDS ── */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-                        {[
-                            { lbl: "Total Fees", val: `₹${totalFeesAll.toLocaleString("en-IN")}`, Icon: IndianRupee },
-                            { lbl: "Amount Paid", val: `₹${totalPaidAll.toLocaleString("en-IN")}`, Icon: CheckCircle },
-                            { lbl: "Amount Due", val: `₹${totalDueAll.toLocaleString("en-IN")}`, Icon: AlertCircle },
-                            { lbl: "Paid Students", val: `${paidCount} / ${students.length}`, Icon: CalendarDays },
-                        ].map((k, i) => (
-                            <div
-                                key={i}
-                                className="relative overflow-hidden rounded-2xl p-4 sm:p-5 transition-transform hover:-translate-y-0.5"
-                                style={{ background: "rgba(255,255,255,.93)", boxShadow: "0 2px 16px rgba(39,67,91,.1)", borderTop: "4px solid #27435B" }}
-                            >
-                                <div className="text-xs font-bold uppercase mb-1.5" style={{ color: "#4A6B80", letterSpacing: ".9px" }}>
-                                    {k.lbl}
-                                </div>
-                                <div className="font-bold text-xl sm:text-2xl" style={{ color: "#1C3044" }}>
-                                    {k.val}
-                                </div>
-                                <div
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl flex items-center justify-center"
-                                    style={{ background: "rgba(39,67,91,.12)", color: "#27435B" }}
-                                >
-                                    <k.Icon size={17} />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* ── COLLECTION PROGRESS STRIP ── */}
-                    <div
-                        className="rounded-2xl p-4 sm:p-5 mb-4 sm:mb-6 flex flex-col md:flex-row md:items-center gap-4"
-                        style={{ background: "linear-gradient(135deg,#27435B,#1C3044)" }}
-                    >
-                        {/* Left label */}
-                        <div className="flex-shrink-0 text-center md:text-left">
-                            <div className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,.65)", letterSpacing: ".8px" }}>
-                                Collection Progress
-                            </div>
-                            <div className="text-white text-xl font-bold mt-1">{collectionPct}% Collected</div>
-                        </div>
-
-                        {/* Progress bar */}
-                        <div className="flex-1 w-full">
-                            <div className="sf2-progress-track">
-                                <div className="sf2-progress-fill" style={{ width: `${collectionPct}%` }} />
-                            </div>
-                            <div className="flex justify-between mt-1.5">
-                                <span className="text-xs" style={{ color: "rgba(255,255,255,.6)" }}>₹0</span>
-                                <span className="text-xs" style={{ color: "rgba(255,255,255,.6)" }}>
-                                    ₹{totalFeesAll.toLocaleString("en-IN")}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Right label */}
-                        <div className="flex-shrink-0 text-center md:text-right">
-                            <div className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,.65)", letterSpacing: ".8px" }}>
-                                Remaining
-                            </div>
-                            <div className="text-xl font-bold mt-1" style={{ color: "#A8C8DC" }}>
-                                ₹{totalDueAll.toLocaleString("en-IN")}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* ── STUDENT TABLE PANEL ── */}
-                    <div
-                        className="rounded-2xl overflow-hidden mb-5"
-                        style={{ background: "rgba(255,255,255,.93)", boxShadow: "0 2px 14px rgba(39,67,91,.09)" }}
-                    >
-                        {/* Panel Header */}
-                        <div
-                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 sm:px-5 sm:py-3.5"
-                            style={{ background: "linear-gradient(135deg,#27435B,#1C3044)" }}
-                        >
-                            {/* Left: title + count */}
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                                <Users size={15} color="#fff" />
-                                <p className="text-white font-bold m-0" style={{ fontSize: 14.5 }}>Student List</p>
-                                <span
-                                    className="text-white text-xs font-semibold px-3 py-0.5 rounded-full"
-                                    style={{ background: "rgba(255,255,255,.2)" }}
-                                >
-                                    {filtered.length} students
-                                </span>
-                            </div>
-
-                            {/* Right: filter + search */}
-                            <div className="flex items-center gap-2 w-full sm:w-auto">
-                                <select
-                                    value={courseFilter}
-                                    onChange={e => setCourseFilter(e.target.value)}
-                                    style={{
-                                        fontSize: 12, fontWeight: 600, color: "#1C3044",
-                                        background: "#fff", border: "1.5px solid rgba(255,255,255,.35)",
-                                        borderRadius: 8, padding: "7px 28px 7px 10px",
-                                        fontFamily: "'DM Sans',sans-serif", outline: "none",
-                                        cursor: "pointer", appearance: "none",
-                                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%2327435B' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-                                        backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center",
-                                        minWidth: 110, flexShrink: 0,
-                                    }}
-                                >
-                                    {courses.map(c => (
-                                        <option key={c} value={c}>{c === "All" ? "All Classes" : c}</option>
-                                    ))}
-                                </select>
-                                <select
-                                    value={feeCategory}
-                                    onChange={(e) => setFeeCategory(e.target.value)}
-                                    style={{
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        color: "#1C3044",
-                                        background: "#fff",
-                                        border: "1.5px solid rgba(255,255,255,.35)",
-                                        borderRadius: 8,
-                                        padding: "7px 28px 7px 10px",
-                                        fontFamily: "'DM Sans',sans-serif",
-                                        outline: "none",
-                                        cursor: "pointer",
-                                        appearance: "none",
-                                        minWidth: 130
-                                    }}
-                                >
-                                    <option value="ALL">All Fees</option>
-                                    {[
-                                        { value: "SCHOOL",    label: "School Fee" },
-                                        { value: "TUITION",   label: "Tuition Fee" },
-                                        { value: "EXAM",      label: "Exam Fee" },
-                                        { value: "TRANSPORT", label: "Transport Fee" },
-                                        { value: "BOOKS",     label: "Books Fee" },
-                                        { value: "LAB",       label: "Lab Fee" },
-                                        { value: "MISC",      label: "Misc Fee" },
-                                    ].filter(opt => {
-                                        // Only show standard categories that at least one student has
-                                        const keyMap = {
-                                            SCHOOL: "collegeFee", TUITION: "tuitionFee", EXAM: "examFee",
-                                            TRANSPORT: "transportFee", BOOKS: "booksFee", LAB: "labFee", MISC: "miscFee",
-                                        };
-                                        return students.some(s => {
-                                            const bd = JSON.parse(s.feeBreakdown || "{}");
-                                            return Number(bd[keyMap[opt.value]] || 0) > 0;
-                                        });
-                                    }).map(opt => (
-                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                    ))}
-                                    {/* ── Dynamic Custom Categories ── */}
-                                    {(() => {
-                                        const seen = new Set();
-                                        const customOpts = [];
-                                        students.forEach(s => {
-                                            const bd = JSON.parse(s.feeBreakdown || "{}");
-                                            const customs = Array.isArray(bd.customFees) ? bd.customFees : [];
-                                            customs.forEach(c => {
-                                                const label = c.label || c.name || "";
-                                                const amount = Number(c.amount || c.total || 0);
-                                                if (label && amount > 0 && !seen.has(label)) {
-                                                    seen.add(label);
-                                                    customOpts.push({ value: `CUSTOM__${label}`, label });
-                                                }
-                                            });
-                                        });
-                                        return customOpts.map(opt => (
-                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                        ));
-                                    })()}
-                                </select>
-                                <select
-                                    value={paymentFilter}
-                                    onChange={(e) => setPaymentFilter(e.target.value)}
-                                    style={{
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        color: "#1C3044",
-                                        background: "#fff",
-                                        border: "1.5px solid rgba(255,255,255,.35)",
-                                        borderRadius: 8,
-                                        padding: "7px 28px 7px 10px",
-                                        minWidth: 130
-                                    }}
-                                >
-                                    <option value="ALL">All Status</option>
-                                    <option value="PAID">Paid</option>
-                                    <option value="UNPAID">Unpaid</option>
-                                </select>
-                                <div className="sf2-search-wrap flex-1" style={{ minWidth: 0 }}>
-                                    <Search size={13} className="sf2-search-ico" />
-                                    <input
-                                        className="sf2-search-inp"
-                                        placeholder="Search name or email…"
-                                        value={search}
-                                        onChange={e => setSearch(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Scrollable table */}
-                        <div className="overflow-x-auto w-full">
-                            <div style={{ padding: "4px 16px 20px" }}>
-                                <table className="sf2-tbl" style={{ minWidth: 700 }}>
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                            <th>Class</th>
-
-                                            <th>
-                                                {feeCategory === "SCHOOL"
-                                                    ? "School Fee"
-                                                    : feeCategory === "TUITION"
-                                                        ? "Tuition Fee"
-                                                        : feeCategory.startsWith("CUSTOM__")
-                                                            ? feeCategory.replace("CUSTOM__", "") + " Fee"
-                                                            : "Total Fees"}
-                                            </th>
-
-                                            <th>
-                                                {feeCategory === "SCHOOL"
-                                                    ? "Paid School Fee"
-                                                    : feeCategory === "TUITION"
-                                                        ? "Paid Tuition Fee"
-                                                        : feeCategory.startsWith("CUSTOM__")
-                                                            ? "Paid"
-                                                            : "Paid"}
-                                            </th>
-
-                                            <th>
-                                                {feeCategory === "SCHOOL"
-                                                    ? "School Due"
-                                                    : feeCategory === "TUITION"
-                                                        ? "Tuition Due"
-                                                        : feeCategory.startsWith("CUSTOM__")
-                                                            ? feeCategory.replace("CUSTOM__", "") + " Due"
-                                                            : "Remaining"}
-                                            </th>
-
-                                            <th>Status</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filtered.length === 0 ? (
-                                            <tr>
-                                                <td
-                                                    colSpan={9}
-                                                    style={{
-                                                        textAlign: "center",
-                                                        padding: "40px 0",
-                                                        color: "#4A6B80",
-                                                        fontSize: 14
-                                                    }}
-                                                >
-                                                    {(dateFrom || dateTo) ? (
-                                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                                                            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#f0f7fc", border: "1.5px solid #c8dff0", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
-                                                                <CalendarDays size={20} color="#4A6B80" />
-                                                            </div>
-                                                            <span style={{ fontWeight: 700, color: "#1C3044", fontSize: 15 }}>
-                                                                No fee records found for the selected date range
-                                                            </span>
-                                                            <span style={{ fontSize: 13, color: "#6B8FA8" }}>
-                                                                Try adjusting the From / To dates or clearing the filter.
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        "No students found"
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            filtered.map((student, idx) => {
-                                                const totalFee = Number(student.fees || 0);
-                                                const paidAmt = Number(student.paidAmount || 0);
-                                                const remaining = Math.max(0, totalFee - paidAmt);
-
-                                                const breakdown = JSON.parse(
-                                                    student.feeBreakdown || "{}"
-                                                );
-
-                                                const schoolFee = Number(
-                                                    breakdown.collegeFee || 0
-                                                );
-
-                                                const tuitionFee = Number(
-                                                    breakdown.tuitionFee || 0
-                                                );
-
-                                                const schoolPaid = Number(
-                                                    student.schoolFeePaid || 0
-                                                );
-
-                                                const tuitionPaid = Number(
-                                                    student.tuitionFeePaid || 0
-                                                );
-
-                                                const schoolRemaining = Math.max(
-                                                    0,
-                                                    schoolFee - schoolPaid
-                                                );
-
-                                                const tuitionRemaining = Math.max(
-                                                    0,
-                                                    tuitionFee - tuitionPaid
-                                                );
-
-                                                // Resolve custom category fee amount
-                                                const customFeeAmt = (() => {
-                                                    if (!feeCategory.startsWith("CUSTOM__")) return 0;
-                                                    const customLabel = feeCategory.replace("CUSTOM__", "");
-                                                    const customs = Array.isArray(breakdown.customFees) ? breakdown.customFees : [];
-                                                    const match = customs.find(c => (c.label || c.name || "") === customLabel);
-                                                    return Number(match?.amount || match?.total || 0);
-                                                })();
-
-                                                const displayFee =
-                                                    feeCategory === "SCHOOL"
-                                                        ? schoolFee
-                                                        : feeCategory === "TUITION"
-                                                            ? tuitionFee
-                                                            : feeCategory.startsWith("CUSTOM__")
-                                                                ? customFeeAmt
-                                                                : totalFee;
-
-                                                const displayPaid =
-                                                    feeCategory === "SCHOOL"
-                                                        ? schoolPaid
-                                                        : feeCategory === "TUITION"
-                                                            ? tuitionPaid
-                                                            : feeCategory.startsWith("CUSTOM__")
-                                                                ? 0  // custom fees have no separate paid tracking
-                                                                : paidAmt;
-
-                                                const displayRemaining =
-                                                    feeCategory === "SCHOOL"
-                                                        ? schoolRemaining
-                                                        : feeCategory === "TUITION"
-                                                            ? tuitionRemaining
-                                                            : feeCategory.startsWith("CUSTOM__")
-                                                                ? customFeeAmt
-                                                                : remaining;
-
-                                                const isPaid =
-                                                    feeCategory === "SCHOOL"
-                                                        ? schoolFee > 0 && schoolPaid >= schoolFee
-                                                        : feeCategory === "TUITION"
-                                                            ? tuitionFee > 0 && tuitionPaid >= tuitionFee
-                                                            : feeCategory.startsWith("CUSTOM__")
-                                                                ? false
-                                                                : totalFee > 0 && paidAmt >= totalFee;
-                                                return (
-                                                    <tr key={student.id}>
-                                                        <td
-                                                            style={{
-                                                                color: "#8fa3b1",
-                                                                fontSize: 12
-                                                            }}
-                                                        >
-                                                            {idx + 1}
-                                                        </td>
-
-                                                        <td
-                                                            style={{
-                                                                fontWeight: 600
-                                                            }}
-                                                        >
-                                                            {student.name}
-                                                        </td>
-
-                                                        <td
-                                                            style={{
-                                                                color: "#4A6B80",
-                                                                fontSize: 13
-                                                            }}
-                                                        >
-                                                            {student.email}
-                                                        </td>
-
-                                                        <td>
-                                                            <span className="sf2-badge sf2-badge-blue">
-                                                                {student.course || "—"}
-                                                            </span>
-                                                        </td>
-
-                                                        <td
-                                                            style={{
-                                                                fontWeight: 700,
-                                                                color: "#27435B"
-                                                            }}
-                                                        >
-                                                            ₹{displayFee.toLocaleString("en-IN")}
-                                                        </td>
-
-                                                        <td
-                                                            style={{
-                                                                fontWeight: 600,
-                                                                color: "#1a6e3e"
-                                                            }}
-                                                        >
-                                                            {displayPaid > 0 ? (
-                                                                `₹${displayPaid.toLocaleString(
-                                                                    "en-IN"
-                                                                )}`
-                                                            ) : (
-                                                                <span
-                                                                    style={{
-                                                                        color: "#A0B8C8"
-                                                                    }}
-                                                                >
-                                                                    —
-                                                                </span>
-                                                            )}
-                                                        </td>
-
-                                                        <td>
-                                                            <span
-                                                                style={{
-                                                                    fontWeight: 700,
-                                                                    color:
-                                                                        displayRemaining > 0
-                                                                            ? "#a33030"
-                                                                            : "#1a6e3e"
-                                                                }}
-                                                            >
-                                                                ₹
-                                                                {displayRemaining.toLocaleString(
-                                                                    "en-IN"
-                                                                )}
-                                                            </span>
-                                                        </td>
-
-                                                        <td>
-                                                            {isPaid ? (
-                                                                <span className="sf2-badge sf2-badge-green">
-                                                                    <CheckCircle size={12} />
-                                                                    Paid
-                                                                </span>
-                                                            ) : (
-                                                                <button
-                                                                    className="sf2-pay-btn"
-                                                                    onClick={() =>
-                                                                        setPayStudent(student)
-                                                                    }
-                                                                >
-                                                                    Pay
-                                                                </button>
-                                                            )}
-                                                        </td>
-
-                                                        <td>
-                                                            <div
-                                                                style={{
-                                                                    display: "flex",
-                                                                    gap: 6
-                                                                }}
-                                                            >
-                                                                <button
-                                                                    className="sf2-act sf2-act-edit"
-                                                                    title="Edit"
-                                                                    onClick={() =>
-                                                                        handleEdit(student)
-                                                                    }
-                                                                >
-                                                                    <Pencil size={13} />
-                                                                </button>
-
-                                                                <button
-                                                                    className="sf2-act sf2-act-del"
-                                                                    title="Delete"
-                                                                    onClick={() =>
-                                                                        handleDelete(
-                                                                            student.id
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Trash2 size={13} />
-                                                                </button>
-
-                                                                <button
-                                                                    className="sf2-act sf2-act-inv"
-                                                                    title="Invoice"
-                                                                    onClick={() =>
-                                                                        setInvoiceStudent(
-                                                                            student
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <FileText size={13} />
-                                                                </button>
-
-                                                                <button
-                                                                    className="sf2-act"
-                                                                    title="Edit Payment Record"
-                                                                    onClick={() =>
-                                                                        setEditPaymentStudent(
-                                                                            student
-                                                                        )
-                                                                    }
-                                                                    style={{
-                                                                        background: "#fef6e7",
-                                                                        color: "#b45309",
-                                                                        border: "1px solid #fde68a"
-                                                                    }}
-                                                                >
-                                                                    <Pencil size={13} />
-                                                                </button>
-
-                                                                {isPremium && (
-                                                                    <button
-                                                                        className="sf2-act sf2-act-wa"
-                                                                        title="Send Fees Reminder"
-                                                                        onClick={() =>
-                                                                            setWaStudent(
-                                                                                student
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <FaWhatsapp size={13} />
-                                                                    </button>
-                                                                )}
-
-                                                                {isPremium && (
-                                                                    <button
-                                                                        className="sf2-act sf2-act-inv"
-                                                                        title="Send Receipt PDF"
-                                                                        onClick={() =>
-                                                                            setReceiptStudent(
-                                                                                student
-                                                                            )
-                                                                        }
-                                                                        style={{
-                                                                            background:
-                                                                                "#eef2ff",
-                                                                            color:
-                                                                                "#4f46e5",
-                                                                            border:
-                                                                                "1px solid #c7d2fe"
-                                                                        }}
-                                                                    >
-                                                                        <FaWhatsapp size={13} />
-                                                                    </button>
-                                                                )}
-
-                                                                {isPremium && (
-                                                                    <button
-                                                                        className="sf2-act"
-                                                                        title="Send Voice Call"
-                                                                        onClick={() => setVoiceStudent(student)}
-                                                                        style={{
-                                                                            background: "#eff6ff",
-                                                                            color: "#2563eb",
-                                                                            border: "1px solid #bfdbfe"
-                                                                        }}
-                                                                    >
-                                                                        <FaPhone size={12} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
+                <div
+                  className="font-bold text-xl sm:text-2xl"
+                  style={{ color: "#1C3044" }}
+                >
+                  {k.val}
                 </div>
+                <div
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ background: "rgba(39,67,91,.12)", color: "#27435B" }}
+                >
+                  <k.Icon size={17} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── COLLECTION PROGRESS STRIP ── */}
+          <div
+            className="rounded-2xl p-4 sm:p-5 mb-4 sm:mb-6 flex flex-col md:flex-row md:items-center gap-4"
+            style={{ background: "linear-gradient(135deg,#27435B,#1C3044)" }}
+          >
+            {/* Left label */}
+            <div className="flex-shrink-0 text-center md:text-left">
+              <div
+                className="text-xs font-bold uppercase"
+                style={{
+                  color: "rgba(255,255,255,.65)",
+                  letterSpacing: ".8px",
+                }}
+              >
+                Collection Progress
+              </div>
+              <div className="text-white text-xl font-bold mt-1">
+                {collectionPct}% Collected
+              </div>
             </div>
 
-            {/* ── MODALS ── */}
-            <Addstudent open={openPopup} handleClose={() => setOpenPopup(false)} addStudentData={addStudentData} editData={editData} />
-            {invoiceStudent && <InvoiceModal student={invoiceStudent} onClose={() => setInvoiceStudent(null)} schoolName={schoolInfo.name} schoolAddress={`${schoolInfo.address || ""}${schoolInfo.city ? ", " + schoolInfo.city : ""}`} schoolLogoUrl={schoolLogoUrl} />}
-            {payStudent && <PayModal student={payStudent} onClose={() => setPayStudent(null)} onPaymentDone={handlePaymentDone} />}
-            {editPaymentStudent && <EditPaymentModal student={editPaymentStudent} onClose={() => setEditPaymentStudent(null)} onUpdated={handlePaymentDone} />}
-            {waStudent && <WhatsAppConfirmModal student={waStudent} onClose={() => setWaStudent(null)} onConfirm={handleSendWhatsApp} />}
-            {receiptStudent && (
-                <ReceiptConfirmModal
-                    student={receiptStudent}
-                    onClose={() => setReceiptStudent(null)}
-                    onConfirm={() => {
-                        handleSendReceipt(receiptStudent);
-                        setReceiptStudent(null);
-                    }}
-                />
-            )}
-            {voiceStudent && (
-                <VoiceCallModal
-                    student={voiceStudent}
-                    schoolInfo={schoolInfo}
-                    onClose={() => setVoiceStudent(null)}
-                    apiUrl={API_URL}
-                />
-            )}
-            {showBulkReminder && (
-                <BulkReminderModal
-                    students={students}
-                    onClose={() => setShowBulkReminder(false)}
-                />
-            )}
-
-            {/* ── EXCEL DOWNLOAD MODAL ── */}
-            {showExcelModal && (
+            {/* Progress bar */}
+            <div className="flex-1 w-full">
+              <div className="sf2-progress-track">
                 <div
-                    style={{ position:"fixed",inset:0,background:"rgba(15,25,38,.65)",backdropFilter:"blur(6px)",zIndex:1300,display:"flex",alignItems:"center",justifyContent:"center",padding:16 }}
-                    onClick={() => setShowExcelModal(false)}
+                  className="sf2-progress-fill"
+                  style={{ width: `${collectionPct}%` }}
+                />
+              </div>
+              <div className="flex justify-between mt-1.5">
+                <span
+                  className="text-xs"
+                  style={{ color: "rgba(255,255,255,.6)" }}
                 >
-                    <div
-                        style={{ background:"#fff",borderRadius:18,width:"100%",maxWidth:340,overflow:"hidden",boxShadow:"0 24px 60px rgba(28,48,64,.32)",fontFamily:"'DM Sans',sans-serif" }}
-                        onClick={e => e.stopPropagation()}
-                    >
-                        {/* Header */}
-                        <div style={{ background:"linear-gradient(135deg,#1C3044,#27435B)",padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between" }}>
-                            <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                                <div style={{ width:36,height:36,borderRadius:10,background:"rgba(255,255,255,.14)",border:"1.5px solid rgba(255,255,255,.22)",display:"flex",alignItems:"center",justifyContent:"center" }}>
-                                    <Download size={16} color="#fff" />
-                                </div>
-                                <div>
-                                    <div style={{ color:"#fff",fontWeight:700,fontSize:15 }}>Download Excel</div>
-                                    <div style={{ color:"rgba(255,255,255,.55)",fontSize:11 }}>Select a period to export</div>
-                                </div>
-                            </div>
-                            <button onClick={() => setShowExcelModal(false)} style={{ width:28,height:28,borderRadius:7,background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.75)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}>
-                                <X size={14} />
-                            </button>
-                        </div>
+                  ₹0
+                </span>
+                <span
+                  className="text-xs"
+                  style={{ color: "rgba(255,255,255,.6)" }}
+                >
+                  ₹{totalFeesAll.toLocaleString("en-IN")}
+                </span>
+              </div>
+            </div>
 
-                        {/* Mode selector */}
-                        <div style={{ padding:"20px 20px 0" }}>
-                            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16 }}>
-                                {[
-                                    { key:"today", label:"Today", icon:"📅" },
-                                    { key:"month", label:"This Month", icon:"🗓️" },
-                                    { key:"custom", label:"Custom", icon:"✏️" },
-                                ].map(opt => (
-                                    <button
-                                        key={opt.key}
-                                        onClick={() => setExcelMode(opt.key)}
-                                        style={{
-                                            padding:"12px 8px",borderRadius:11,border:"2px solid",
-                                            borderColor: excelMode === opt.key ? "#1C3044" : "#d0e2ee",
-                                            background: excelMode === opt.key ? "#1C3044" : "#f8fafc",
-                                            color: excelMode === opt.key ? "#fff" : "#27435B",
-                                            fontWeight:700,fontSize:12,cursor:"pointer",
-                                            display:"flex",flexDirection:"column",alignItems:"center",gap:4,
-                                            transition:"all .15s",
-                                        }}
-                                    >
-                                        <span style={{ fontSize:20 }}>{opt.icon}</span>
-                                        {opt.label}
-                                    </button>
-                                ))}
-                            </div>
+            {/* Right label */}
+            <div className="flex-shrink-0 text-center md:text-right">
+              <div
+                className="text-xs font-bold uppercase"
+                style={{
+                  color: "rgba(255,255,255,.65)",
+                  letterSpacing: ".8px",
+                }}
+              >
+                Remaining
+              </div>
+              <div
+                className="text-xl font-bold mt-1"
+                style={{ color: "#A8C8DC" }}
+              >
+                ₹{totalDueAll.toLocaleString("en-IN")}
+              </div>
+            </div>
+          </div>
 
-                            {/* Info text for today / month */}
-                            {excelMode === "today" && (
-                                <div style={{ background:"#f0f7fc",borderRadius:9,padding:"10px 14px",fontSize:13,color:"#27435B",fontWeight:500,marginBottom:16,border:"1px solid #d0e2ee" }}>
-                                    📅 Downloads all payments made <strong>today</strong> ({new Date().toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})})
-                                </div>
-                            )}
-                            {excelMode === "month" && (
-                                <div style={{ background:"#f0f7fc",borderRadius:9,padding:"10px 14px",fontSize:13,color:"#27435B",fontWeight:500,marginBottom:16,border:"1px solid #d0e2ee" }}>
-                                    🗓️ Downloads all payments for <strong>{new Date().toLocaleDateString("en-IN",{month:"long",year:"numeric"})}</strong>
-                                </div>
-                            )}
+          {/* ── STUDENT TABLE PANEL ── */}
+          <div
+            className="rounded-2xl overflow-hidden mb-5"
+            style={{
+              background: "rgba(255,255,255,.93)",
+              boxShadow: "0 2px 14px rgba(39,67,91,.09)",
+            }}
+          >
+            {/* Panel Header */}
+            <div
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 sm:px-5 sm:py-3.5"
+              style={{ background: "linear-gradient(135deg,#27435B,#1C3044)" }}
+            >
+              {/* Left: title + count */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Users size={15} color="#fff" />
+                <p
+                  className="text-white font-bold m-0"
+                  style={{ fontSize: 14.5 }}
+                >
+                  Student List
+                </p>
+                <span
+                  className="text-white text-xs font-semibold px-3 py-0.5 rounded-full"
+                  style={{ background: "rgba(255,255,255,.2)" }}
+                >
+                  {filtered.length} students
+                </span>
+              </div>
 
-                            {/* Custom date pickers */}
-                            {excelMode === "custom" && (
-                                <div style={{ display:"flex",flexDirection:"column",gap:10,marginBottom:16 }}>
-                                    <div>
-                                        <div style={{ fontSize:11,fontWeight:700,color:"#4A6B80",textTransform:"uppercase",letterSpacing:".7px",marginBottom:5 }}>FROM</div>
-                                        <input
-                                            type="date"
-                                            value={excelFrom}
-                                            onChange={e => setExcelFrom(e.target.value)}
-                                            style={{ width:"100%",padding:"9px 12px",borderRadius:9,border:"1.5px solid #A0C0D4",fontSize:13,fontFamily:"'DM Sans',sans-serif",outline:"none",color:"#1C3044" }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize:11,fontWeight:700,color:"#4A6B80",textTransform:"uppercase",letterSpacing:".7px",marginBottom:5 }}>TO</div>
-                                        <input
-                                            type="date"
-                                            value={excelTo}
-                                            min={excelFrom || undefined}
-                                            onChange={e => setExcelTo(e.target.value)}
-                                            style={{ width:"100%",padding:"9px 12px",borderRadius:9,border:"1.5px solid #A0C0D4",fontSize:13,fontFamily:"'DM Sans',sans-serif",outline:"none",color:"#1C3044" }}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Footer */}
-                        <div style={{ padding:"12px 20px 20px",display:"flex",gap:10 }}>
-                            <button
-                                onClick={() => setShowExcelModal(false)}
-                                style={{ flex:1,padding:"10px",borderRadius:10,border:"1.5px solid #d0d5dd",background:"#fff",fontSize:13,fontWeight:600,color:"#4A6B80",cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleExcelModalDownload}
-                                style={{ flex:1,padding:"10px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#7c3aed,#5b21b6)",fontSize:13,fontWeight:700,color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,fontFamily:"'DM Sans',sans-serif" }}
-                            >
-                                <Download size={14} /> Download
-                            </button>
-                        </div>
-                    </div>
+              {/* Right: filter + search */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <select
+                  value={courseFilter}
+                  onChange={(e) => setCourseFilter(e.target.value)}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "#1C3044",
+                    background: "#fff",
+                    border: "1.5px solid rgba(255,255,255,.35)",
+                    borderRadius: 8,
+                    padding: "7px 28px 7px 10px",
+                    fontFamily: "'DM Sans',sans-serif",
+                    outline: "none",
+                    cursor: "pointer",
+                    appearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%2327435B' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 8px center",
+                    minWidth: 110,
+                    flexShrink: 0,
+                  }}
+                >
+                  {courses.map((c) => (
+                    <option key={c} value={c}>
+                      {c === "All" ? "All Classes" : c}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={feeCategory}
+                  onChange={(e) => setFeeCategory(e.target.value)}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "#1C3044",
+                    background: "#fff",
+                    border: "1.5px solid rgba(255,255,255,.35)",
+                    borderRadius: 8,
+                    padding: "7px 28px 7px 10px",
+                    fontFamily: "'DM Sans',sans-serif",
+                    outline: "none",
+                    cursor: "pointer",
+                    appearance: "none",
+                    minWidth: 130,
+                  }}
+                >
+                  <option value="ALL">All Fees</option>
+                  {[
+                    { value: "SCHOOL", label: "School Fee" },
+                    { value: "TUITION", label: "Tuition Fee" },
+                    { value: "EXAM", label: "Exam Fee" },
+                    { value: "TRANSPORT", label: "Transport Fee" },
+                    { value: "BOOKS", label: "Books Fee" },
+                    { value: "LAB", label: "Lab Fee" },
+                    { value: "MISC", label: "Misc Fee" },
+                  ]
+                    .filter((opt) => {
+                      // Only show standard categories that at least one student has
+                      const keyMap = {
+                        SCHOOL: "collegeFee",
+                        TUITION: "tuitionFee",
+                        EXAM: "examFee",
+                        TRANSPORT: "transportFee",
+                        BOOKS: "booksFee",
+                        LAB: "labFee",
+                        MISC: "miscFee",
+                      };
+                      return students.some((s) => {
+                        const bd = JSON.parse(s.feeBreakdown || "{}");
+                        return Number(bd[keyMap[opt.value]] || 0) > 0;
+                      });
+                    })
+                    .map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  {/* ── Dynamic Custom Categories ── */}
+                  {(() => {
+                    const seen = new Set();
+                    const customOpts = [];
+                    students.forEach((s) => {
+                      const bd = JSON.parse(s.feeBreakdown || "{}");
+                      const customs = Array.isArray(bd.customFees)
+                        ? bd.customFees
+                        : [];
+                      customs.forEach((c) => {
+                        const label = c.label || c.name || "";
+                        const amount = Number(c.amount || c.total || 0);
+                        if (label && amount > 0 && !seen.has(label)) {
+                          seen.add(label);
+                          customOpts.push({ value: `CUSTOM__${label}`, label });
+                        }
+                      });
+                    });
+                    return customOpts.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ));
+                  })()}
+                </select>
+                <select
+                  value={paymentFilter}
+                  onChange={(e) => setPaymentFilter(e.target.value)}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "#1C3044",
+                    background: "#fff",
+                    border: "1.5px solid rgba(255,255,255,.35)",
+                    borderRadius: 8,
+                    padding: "7px 28px 7px 10px",
+                    minWidth: 130,
+                  }}
+                >
+                  <option value="ALL">All Status</option>
+                  <option value="PAID">Paid</option>
+                  <option value="UNPAID">Unpaid</option>
+                </select>
+                <div className="sf2-search-wrap flex-1" style={{ minWidth: 0 }}>
+                  <Search size={13} className="sf2-search-ico" />
+                  <input
+                    className="sf2-search-inp"
+                    placeholder="Search name or email…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
                 </div>
-            )}
-        </>
-    );
+              </div>
+            </div>
+
+            {/* Scrollable table */}
+            <div className="overflow-x-auto w-full">
+              <div style={{ padding: "4px 16px 20px" }}>
+                <table className="sf2-tbl" style={{ minWidth: 700 }}>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Class</th>
+
+                      <th>
+                        {feeCategory === "SCHOOL"
+                          ? "School Fee"
+                          : feeCategory === "TUITION"
+                            ? "Tuition Fee"
+                            : feeCategory.startsWith("CUSTOM__")
+                              ? feeCategory.replace("CUSTOM__", "") + " Fee"
+                              : "Total Fees"}
+                      </th>
+
+                      <th>
+                        {feeCategory === "SCHOOL"
+                          ? "Paid School Fee"
+                          : feeCategory === "TUITION"
+                            ? "Paid Tuition Fee"
+                            : feeCategory.startsWith("CUSTOM__")
+                              ? "Paid"
+                              : "Paid"}
+                      </th>
+
+                      <th>
+                        {feeCategory === "SCHOOL"
+                          ? "School Due"
+                          : feeCategory === "TUITION"
+                            ? "Tuition Due"
+                            : feeCategory.startsWith("CUSTOM__")
+                              ? feeCategory.replace("CUSTOM__", "") + " Due"
+                              : "Remaining"}
+                      </th>
+
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={9}
+                          style={{
+                            textAlign: "center",
+                            padding: "40px 0",
+                            color: "#4A6B80",
+                            fontSize: 14,
+                          }}
+                        >
+                          {dateFrom || dateTo ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: 8,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 44,
+                                  height: 44,
+                                  borderRadius: "50%",
+                                  background: "#f0f7fc",
+                                  border: "1.5px solid #c8dff0",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  marginBottom: 4,
+                                }}
+                              >
+                                <CalendarDays size={20} color="#4A6B80" />
+                              </div>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  color: "#1C3044",
+                                  fontSize: 15,
+                                }}
+                              >
+                                No fee records found for the selected date range
+                              </span>
+                              <span style={{ fontSize: 13, color: "#6B8FA8" }}>
+                                Try adjusting the From / To dates or clearing
+                                the filter.
+                              </span>
+                            </div>
+                          ) : (
+                            "No students found"
+                          )}
+                        </td>
+                      </tr>
+                    ) : (
+                      filtered.map((student, idx) => {
+                        const totalFee = Number(student.fees || 0);
+                        const paidAmt = Number(student.paidAmount || 0);
+                        const remaining = Math.max(0, totalFee - paidAmt);
+
+                        const breakdown = JSON.parse(
+                          student.feeBreakdown || "{}",
+                        );
+
+                        const schoolFee = Number(breakdown.collegeFee || 0);
+
+                        const tuitionFee = Number(breakdown.tuitionFee || 0);
+
+                        const schoolPaid = Number(student.schoolFeePaid || 0);
+
+                        const tuitionPaid = Number(student.tuitionFeePaid || 0);
+
+                        const schoolRemaining = Math.max(
+                          0,
+                          schoolFee - schoolPaid,
+                        );
+
+                        const tuitionRemaining = Math.max(
+                          0,
+                          tuitionFee - tuitionPaid,
+                        );
+
+                        // Resolve custom category fee amount
+                        const customFeeAmt = (() => {
+                          if (!feeCategory.startsWith("CUSTOM__")) return 0;
+                          const customLabel = feeCategory.replace(
+                            "CUSTOM__",
+                            "",
+                          );
+                          const customs = Array.isArray(breakdown.customFees)
+                            ? breakdown.customFees
+                            : [];
+                          const match = customs.find(
+                            (c) => (c.label || c.name || "") === customLabel,
+                          );
+                          return Number(match?.amount || match?.total || 0);
+                        })();
+
+                        const displayFee =
+                          feeCategory === "SCHOOL"
+                            ? schoolFee
+                            : feeCategory === "TUITION"
+                              ? tuitionFee
+                              : feeCategory.startsWith("CUSTOM__")
+                                ? customFeeAmt
+                                : totalFee;
+
+                        const displayPaid =
+                          feeCategory === "SCHOOL"
+                            ? schoolPaid
+                            : feeCategory === "TUITION"
+                              ? tuitionPaid
+                              : feeCategory.startsWith("CUSTOM__")
+                                ? 0 // custom fees have no separate paid tracking
+                                : paidAmt;
+
+                        const displayRemaining =
+                          feeCategory === "SCHOOL"
+                            ? schoolRemaining
+                            : feeCategory === "TUITION"
+                              ? tuitionRemaining
+                              : feeCategory.startsWith("CUSTOM__")
+                                ? customFeeAmt
+                                : remaining;
+
+                        const isPaid =
+                          feeCategory === "SCHOOL"
+                            ? schoolFee > 0 && schoolPaid >= schoolFee
+                            : feeCategory === "TUITION"
+                              ? tuitionFee > 0 && tuitionPaid >= tuitionFee
+                              : feeCategory.startsWith("CUSTOM__")
+                                ? false
+                                : totalFee > 0 && paidAmt >= totalFee;
+                        return (
+                          <tr key={student.id}>
+                            <td
+                              style={{
+                                color: "#8fa3b1",
+                                fontSize: 12,
+                              }}
+                            >
+                              {idx + 1}
+                            </td>
+
+                            <td
+                              style={{
+                                fontWeight: 600,
+                              }}
+                            >
+                              {student.name}
+                            </td>
+
+                            <td
+                              style={{
+                                color: "#4A6B80",
+                                fontSize: 13,
+                              }}
+                            >
+                              {student.email}
+                            </td>
+
+                            <td>
+                              <span className="sf2-badge sf2-badge-blue">
+                                {student.course || "—"}
+                              </span>
+                            </td>
+
+                            <td
+                              style={{
+                                fontWeight: 700,
+                                color: "#27435B",
+                              }}
+                            >
+                              ₹{displayFee.toLocaleString("en-IN")}
+                            </td>
+
+                            <td
+                              style={{
+                                fontWeight: 600,
+                                color: "#1a6e3e",
+                              }}
+                            >
+                              {displayPaid > 0 ? (
+                                `₹${displayPaid.toLocaleString("en-IN")}`
+                              ) : (
+                                <span
+                                  style={{
+                                    color: "#A0B8C8",
+                                  }}
+                                >
+                                  —
+                                </span>
+                              )}
+                            </td>
+
+                            <td>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  color:
+                                    displayRemaining > 0
+                                      ? "#a33030"
+                                      : "#1a6e3e",
+                                }}
+                              >
+                                ₹{displayRemaining.toLocaleString("en-IN")}
+                              </span>
+                            </td>
+
+                            <td>
+                              {isPaid ? (
+                                <span className="sf2-badge sf2-badge-green">
+                                  <CheckCircle size={12} />
+                                  Paid
+                                </span>
+                              ) : (
+                                <button
+                                  className="sf2-pay-btn"
+                                  onClick={() => setPayStudent(student)}
+                                >
+                                  Pay
+                                </button>
+                              )}
+                            </td>
+
+                            <td>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: 6,
+                                }}
+                              >
+                                <button
+                                  className="sf2-act sf2-act-edit"
+                                  title="Edit"
+                                  onClick={() => handleEdit(student)}
+                                >
+                                  <Pencil size={13} />
+                                </button>
+
+                                <button
+                                  className="sf2-act sf2-act-del"
+                                  title="Delete"
+                                  onClick={() => handleDelete(student.id)}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+
+                                <button
+                                  className="sf2-act sf2-act-inv"
+                                  title="Invoice"
+                                  onClick={() => setInvoiceStudent(student)}
+                                >
+                                  <FileText size={13} />
+                                </button>
+
+                                <button
+                                  className="sf2-act"
+                                  title="Edit Payment Record"
+                                  onClick={() => setEditPaymentStudent(student)}
+                                  style={{
+                                    background: "#fef6e7",
+                                    color: "#b45309",
+                                    border: "1px solid #fde68a",
+                                  }}
+                                >
+                                  <Pencil size={13} />
+                                </button>
+
+                                {isPremium && (
+                                  <button
+                                    className="sf2-act sf2-act-wa"
+                                    title="Send Fees Reminder"
+                                    onClick={() => setWaStudent(student)}
+                                  >
+                                    <FaWhatsapp size={13} />
+                                  </button>
+                                )}
+
+                                {isPremium && (
+                                  <button
+                                    className="sf2-act sf2-act-inv"
+                                    title="Send Receipt PDF"
+                                    onClick={() => setReceiptStudent(student)}
+                                    style={{
+                                      background: "#eef2ff",
+                                      color: "#4f46e5",
+                                      border: "1px solid #c7d2fe",
+                                    }}
+                                  >
+                                    <FaWhatsapp size={13} />
+                                  </button>
+                                )}
+
+                                {isPremium && (
+                                  <button
+                                    className="sf2-act"
+                                    title="Send Voice Call"
+                                    onClick={() => setVoiceStudent(student)}
+                                    style={{
+                                      background: "#eff6ff",
+                                      color: "#2563eb",
+                                      border: "1px solid #bfdbfe",
+                                    }}
+                                  >
+                                    <FaPhone size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── MODALS ── */}
+      <Addstudent
+        open={openPopup}
+        handleClose={() => setOpenPopup(false)}
+        addStudentData={addStudentData}
+        editData={editData}
+      />
+      {invoiceStudent && (
+        <InvoiceModal
+          student={invoiceStudent}
+          onClose={() => setInvoiceStudent(null)}
+          schoolName={schoolInfo.name}
+          schoolAddress={`${schoolInfo.address || ""}${schoolInfo.city ? ", " + schoolInfo.city : ""}`}
+          schoolLogoUrl={schoolLogoUrl}
+          invoicePrefix={schoolInfo.invoicePrefix || schoolInfo.code}
+        />
+      )}
+
+      {/* ── INVOICE PREFIX SETTINGS MODAL ── */}
+      {showInvoiceSettings && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: "rgba(15,23,42,.55)" }}
+          onClick={() => !invoicePrefixSaving && setShowInvoiceSettings(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-2xl overflow-hidden"
+            style={{
+              background: "#fff",
+              boxShadow: "0 20px 60px rgba(0,0,0,.3)",
+            }}
+          >
+            <div
+              className="px-5 py-4 flex items-center justify-between"
+              style={{ background: "linear-gradient(135deg,#1C3044,#27435B)" }}
+            >
+              <div className="flex items-center gap-2 text-white font-bold text-sm">
+                <Receipt size={16} /> Invoice Number Prefix
+              </div>
+              <button
+                onClick={() =>
+                  !invoicePrefixSaving && setShowInvoiceSettings(false)
+                }
+                style={{
+                  color: "rgba(255,255,255,.8)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5">
+              <p className="text-[12px] text-[#4A6B80] mb-3 leading-relaxed">
+                Choose up to 6 letters for your school. Every fee invoice will
+                be numbered like{" "}
+                <strong>
+                  {(invoicePrefixInput || "ABC").toUpperCase()}-INV-00001
+                </strong>
+                .
+              </p>
+
+              <label className="block text-[11px] font-bold uppercase tracking-wide text-[#4A6B80] mb-1.5">
+                Prefix (letters only, max 6)
+              </label>
+              <input
+                value={invoicePrefixInput}
+                onChange={(e) => {
+                  const v = e.target.value
+                    .replace(/[^A-Za-z]/g, "")
+                    .toUpperCase()
+                    .slice(0, 6);
+                  setInvoicePrefixInput(v);
+                  if (invoicePrefixError) setInvoicePrefixError("");
+                }}
+                placeholder="e.g. ABC"
+                maxLength={6}
+                className="w-full px-3 py-2.5 rounded-xl border text-sm font-bold tracking-widest uppercase outline-none"
+                style={{
+                  borderColor: invoicePrefixError ? "#e05252" : "#c8dff0",
+                }}
+              />
+
+              {invoicePrefixError && (
+                <div className="mt-2 text-[12px] font-semibold text-[#a33030]">
+                  {invoicePrefixError}
+                </div>
+              )}
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={() => setShowInvoiceSettings(false)}
+                  disabled={invoicePrefixSaving}
+                  className="px-4 py-2 rounded-xl text-sm font-bold"
+                  style={{
+                    background: "#eef4f9",
+                    color: "#27435B",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveInvoicePrefix}
+                  disabled={invoicePrefixSaving || !invoicePrefixInput}
+                  className="px-4 py-2 rounded-xl text-sm font-bold text-white"
+                  style={{
+                    background: invoicePrefixSaving
+                      ? "#7c9db4"
+                      : "linear-gradient(135deg,#1a6e3e,#14532d)",
+                    border: "none",
+                    cursor: invoicePrefixSaving ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {invoicePrefixSaving ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {payStudent && (
+        <PayModal
+          student={payStudent}
+          onClose={() => setPayStudent(null)}
+          onPaymentDone={handlePaymentDone}
+        />
+      )}
+      {editPaymentStudent && (
+        <EditPaymentModal
+          student={editPaymentStudent}
+          onClose={() => setEditPaymentStudent(null)}
+          onUpdated={handlePaymentDone}
+        />
+      )}
+      {waStudent && (
+        <WhatsAppConfirmModal
+          student={waStudent}
+          onClose={() => setWaStudent(null)}
+          onConfirm={handleSendWhatsApp}
+        />
+      )}
+      {receiptStudent && (
+        <ReceiptConfirmModal
+          student={receiptStudent}
+          onClose={() => setReceiptStudent(null)}
+          onConfirm={() => {
+            handleSendReceipt(receiptStudent);
+            setReceiptStudent(null);
+          }}
+        />
+      )}
+      {voiceStudent && (
+        <VoiceCallModal
+          student={voiceStudent}
+          schoolInfo={schoolInfo}
+          onClose={() => setVoiceStudent(null)}
+          apiUrl={API_URL}
+        />
+      )}
+      {showBulkReminder && (
+        <BulkReminderModal
+          students={students}
+          onClose={() => setShowBulkReminder(false)}
+        />
+      )}
+
+      {/* ── EXCEL DOWNLOAD MODAL ── */}
+      {showExcelModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,25,38,.65)",
+            backdropFilter: "blur(6px)",
+            zIndex: 1300,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setShowExcelModal(false)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 18,
+              width: "100%",
+              maxWidth: 340,
+              overflow: "hidden",
+              boxShadow: "0 24px 60px rgba(28,48,64,.32)",
+              fontFamily: "'DM Sans',sans-serif",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                background: "linear-gradient(135deg,#1C3044,#27435B)",
+                padding: "16px 20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: "rgba(255,255,255,.14)",
+                    border: "1.5px solid rgba(255,255,255,.22)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Download size={16} color="#fff" />
+                </div>
+                <div>
+                  <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>
+                    Download Excel
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,.55)", fontSize: 11 }}>
+                    Select a period to export
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowExcelModal(false)}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 7,
+                  background: "rgba(255,255,255,.12)",
+                  border: "1px solid rgba(255,255,255,.2)",
+                  color: "rgba(255,255,255,.75)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Mode selector */}
+            <div style={{ padding: "20px 20px 0" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: 8,
+                  marginBottom: 16,
+                }}
+              >
+                {[
+                  { key: "today", label: "Today", icon: "📅" },
+                  { key: "month", label: "This Month", icon: "🗓️" },
+                  { key: "custom", label: "Custom", icon: "✏️" },
+                ].map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setExcelMode(opt.key)}
+                    style={{
+                      padding: "12px 8px",
+                      borderRadius: 11,
+                      border: "2px solid",
+                      borderColor:
+                        excelMode === opt.key ? "#1C3044" : "#d0e2ee",
+                      background: excelMode === opt.key ? "#1C3044" : "#f8fafc",
+                      color: excelMode === opt.key ? "#fff" : "#27435B",
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 4,
+                      transition: "all .15s",
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>{opt.icon}</span>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Info text for today / month */}
+              {excelMode === "today" && (
+                <div
+                  style={{
+                    background: "#f0f7fc",
+                    borderRadius: 9,
+                    padding: "10px 14px",
+                    fontSize: 13,
+                    color: "#27435B",
+                    fontWeight: 500,
+                    marginBottom: 16,
+                    border: "1px solid #d0e2ee",
+                  }}
+                >
+                  📅 Downloads all payments made <strong>today</strong> (
+                  {new Date().toLocaleDateString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                  )
+                </div>
+              )}
+              {excelMode === "month" && (
+                <div
+                  style={{
+                    background: "#f0f7fc",
+                    borderRadius: 9,
+                    padding: "10px 14px",
+                    fontSize: 13,
+                    color: "#27435B",
+                    fontWeight: 500,
+                    marginBottom: 16,
+                    border: "1px solid #d0e2ee",
+                  }}
+                >
+                  🗓️ Downloads all payments for{" "}
+                  <strong>
+                    {new Date().toLocaleDateString("en-IN", {
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </strong>
+                </div>
+              )}
+
+              {/* Custom date pickers */}
+              {excelMode === "custom" && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                    marginBottom: 16,
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "#4A6B80",
+                        textTransform: "uppercase",
+                        letterSpacing: ".7px",
+                        marginBottom: 5,
+                      }}
+                    >
+                      FROM
+                    </div>
+                    <input
+                      type="date"
+                      value={excelFrom}
+                      onChange={(e) => setExcelFrom(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "9px 12px",
+                        borderRadius: 9,
+                        border: "1.5px solid #A0C0D4",
+                        fontSize: 13,
+                        fontFamily: "'DM Sans',sans-serif",
+                        outline: "none",
+                        color: "#1C3044",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "#4A6B80",
+                        textTransform: "uppercase",
+                        letterSpacing: ".7px",
+                        marginBottom: 5,
+                      }}
+                    >
+                      TO
+                    </div>
+                    <input
+                      type="date"
+                      value={excelTo}
+                      min={excelFrom || undefined}
+                      onChange={(e) => setExcelTo(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "9px 12px",
+                        borderRadius: 9,
+                        border: "1.5px solid #A0C0D4",
+                        fontSize: 13,
+                        fontFamily: "'DM Sans',sans-serif",
+                        outline: "none",
+                        color: "#1C3044",
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{ padding: "12px 20px 20px", display: "flex", gap: 10 }}
+            >
+              <button
+                onClick={() => setShowExcelModal(false)}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  borderRadius: 10,
+                  border: "1.5px solid #d0d5dd",
+                  background: "#fff",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#4A6B80",
+                  cursor: "pointer",
+                  fontFamily: "'DM Sans',sans-serif",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExcelModalDownload}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "linear-gradient(135deg,#7c3aed,#5b21b6)",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#fff",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 7,
+                  fontFamily: "'DM Sans',sans-serif",
+                }}
+              >
+                <Download size={14} /> Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
