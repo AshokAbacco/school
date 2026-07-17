@@ -92,7 +92,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
   const isEdit = !!editData;
 
   const [form, setForm] = useState({
-    firstName: "", lastName: "", email: "", phone: "",
+    firstName: "", lastName: "", employeeCode: "", email: "", phone: "",
     password: "", role: "", groupType: "Group B",
     joiningDate: "", basicSalary: "",
     bankAccountNo: "", bankName: "", ifscCode: "",
@@ -105,6 +105,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
       setForm({
         firstName:     editData.firstName     || "",
         lastName:      editData.lastName      || "",
+        employeeCode:  editData.employeeCode  || "",
         email:         editData.email         || "",
         phone:         editData.phone         || "",
         password:      "",
@@ -137,6 +138,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
       if (isEdit) {
         await updateStaff(editData.id, {
           firstName: form.firstName, lastName: form.lastName || "",
+          employeeCode: form.employeeCode || null,
           phone: form.phone || null, email: form.email || null,
           role: form.role, groupType: form.groupType,
           basicSalary: form.basicSalary ? Number(form.basicSalary) : null,
@@ -147,6 +149,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
       } else {
         await createStaff({
           firstName: form.firstName, lastName: form.lastName || "",
+          employeeCode: form.employeeCode || undefined,
           phone: form.phone || undefined, email: form.email || undefined,
           role: form.role, groupType: form.groupType,
           joiningDate: form.joiningDate,
@@ -255,6 +258,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
                 <Field label="First Name" required><StormInput name="firstName" value={form.firstName} onChange={set} placeholder="First name" /></Field>
                 <Field label="Last Name"><StormInput name="lastName" value={form.lastName} onChange={set} placeholder="Last name" /></Field>
               </div>
+              <Field label="Employee Code"><StormInput name="employeeCode" value={form.employeeCode} onChange={set} placeholder="e.g. EMP-0042" /></Field>
               <Field label="Email"><StormInput name="email" value={form.email} onChange={set} placeholder="staff@school.com" type="email" /></Field>
               <div className="staff-2col">
                 <Field label="Phone"><StormInput name="phone" value={form.phone} onChange={set} placeholder="+91 XXXXX XXXXX" /></Field>

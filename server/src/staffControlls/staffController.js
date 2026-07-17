@@ -10,7 +10,7 @@ const SALT_ROUNDS = 10;
 export async function createStaff(req, res) {
   try {
     const {
-      firstName, lastName, phone, email, password,
+      firstName, lastName, employeeCode, phone, email, password,
       role, groupType, basicSalary, joiningDate,
       bankAccountNo, bankName, ifscCode,
     } = req.body;
@@ -40,6 +40,7 @@ export async function createStaff(req, res) {
             userId: user.id,
             firstName,
             lastName: lastName || "",
+            employeeCode: employeeCode || null,
             phone: phone || null,
             email,
             role,
@@ -60,6 +61,7 @@ export async function createStaff(req, res) {
           schoolId,
           firstName,
           lastName: lastName || "",
+          employeeCode: employeeCode || null,
           phone: phone || null,
           email: email || null,
           role,
@@ -166,7 +168,7 @@ export async function updateStaff(req, res) {
     if (!existing) return res.status(404).json({ error: "Staff not found" });
 
     const {
-      firstName, lastName, phone, email,
+      firstName, lastName, employeeCode, phone, email,
       role, groupType, basicSalary, joiningDate,
       bankAccountNo, bankName, ifscCode,
     } = req.body;
@@ -177,6 +179,7 @@ export async function updateStaff(req, res) {
   
         firstName,
         lastName: lastName || "",
+        employeeCode: employeeCode || null,
         phone: phone || null,
         email: email || null,
         role,

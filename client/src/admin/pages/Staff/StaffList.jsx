@@ -335,7 +335,7 @@ export default function StaffList() {
                           </div>
                           <div>
                             <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: C.text }}>{s.firstName} {s.lastName}</p>
-                            <p style={{ margin: 0, fontSize: 10, color: C.textLight }}>{s.email || "—"}</p>
+                            <p style={{ margin: 0, fontSize: 10, color: C.textLight }}>{s.employeeCode ? `#${s.employeeCode}` : (s.email || "—")}</p>
                           </div>
                         </div>
                       </td>
@@ -427,6 +427,7 @@ function ViewModal({ staff: s, onClose, onEdit }) {
         {/* Body */}
         <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
           <InfoSection title="Contact Info">
+            {s.employeeCode && <InfoRow icon={<Mail size={13} color={C.sky} />}  label="Employee Code" value={s.employeeCode} />}
             <InfoRow icon={<Mail size={13} color={C.sky} />}          label="Email"   value={s.email} />
             <InfoRow icon={<Phone size={13} color={C.sky} />}         label="Phone"   value={s.phone} />
             <InfoRow icon={<CalendarDays size={13} color={C.sky} />}  label="Joined"  value={s.joiningDate?.split("T")[0]} />
