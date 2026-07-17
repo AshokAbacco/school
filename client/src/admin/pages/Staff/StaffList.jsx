@@ -1,4 +1,4 @@
-// client/src/admin/pages/Staff/index.jsx
+// src/pages/admin/staff/stafflist.jsx
 // Stormy Morning palette — matches Dashboard.jsx design language exactly
 
 import { useEffect, useState } from "react";
@@ -6,11 +6,12 @@ import {
   Users, FlaskConical, Home, Eye, Pencil, Trash2,
   Plus, RefreshCw, X, Phone, Mail, CalendarDays,
   Banknote, Building2, CreditCard, Hash, ShieldCheck,
-  UserCircle2, ChevronRight, Search, UserX, AlertTriangle,
+  UserCircle2, ChevronRight, Search, UserX, AlertTriangle, Download,
 } from "lucide-react";
 import { fetchStaff, deleteStaff } from "./api/api";
 import StaffAdd from "./components/StaffAdd";
 import BulkImportStaff from "./components/BulkImportStaff";
+import { downloadStaffExcel } from "../../../utils/downloadStaffExcel";
 
 /* ── Design tokens — Stormy Morning (single source of truth) ── */
 const C = {
@@ -234,6 +235,14 @@ export default function StaffList() {
                     onMouseEnter={e => e.currentTarget.style.borderColor = C.sky}
                     onMouseLeave={e => e.currentTarget.style.borderColor = C.borderLight}>
                     <RefreshCw size={15} />
+                  </button>
+                  <button
+                    onClick={() => downloadStaffExcel(staff, { schoolName: "School" })}
+                    disabled={!staff.length}
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 12, border: `1.5px solid ${C.borderLight}`, background: C.white, color: staff.length ? C.textMid : C.border, fontSize: 13, fontWeight: 700, cursor: staff.length ? "pointer" : "not-allowed", boxShadow: "0 2px 8px rgba(56,73,89,0.07)", fontFamily: "'Inter', sans-serif" }}
+                    onMouseEnter={e => { if (staff.length) { e.currentTarget.style.borderColor = C.sky; e.currentTarget.style.color = C.sky; } }}
+                    onMouseLeave={e => { if (staff.length) { e.currentTarget.style.borderColor = C.borderLight; e.currentTarget.style.color = C.textMid; } }}>
+                    <Download size={15} /> Download Excel
                   </button>
                   <button
                     onClick={() => setOpenImport(true)}
