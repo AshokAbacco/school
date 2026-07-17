@@ -1695,8 +1695,9 @@ model StaffProfile {
   id String @id @default(uuid())
 
   // 👤 Basic Info
-  firstName String
-  lastName  String
+  firstName    String
+  lastName     String
+  employeeCode String?
 
   phone String?
   email String?
