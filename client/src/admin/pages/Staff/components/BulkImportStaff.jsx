@@ -36,6 +36,7 @@ const COLORS = {
 const COLUMN_MAP = {
   firstName:     ["first name", "firstname", "first_name", "fname"],
   lastName:      ["last name", "lastname", "last_name", "lname"],
+  employeeCode:  ["employee code", "employeecode", "employee_code", "emp code", "empcode", "staff code", "staff id", "id no", "id number"],
   email:         ["email", "staff email", "staff_email"],
   phone:         ["phone", "mobile", "contact", "phone number"],
   role:          ["role", "designation", "position", "job title"],
@@ -88,6 +89,7 @@ function parseRow(rawRow, headerMap) {
   return {
     firstName:     get("firstName"),
     lastName:      get("lastName"),
+    employeeCode:  get("employeeCode"),
     email:         get("email"),
     phone:         get("phone"),
     role:          get("role"),
@@ -119,13 +121,13 @@ function validateRow(s) {
 // ── Template download ────────────────────────────────────────────────────────
 function downloadTemplate() {
   const headers = [
-    "First Name", "Last Name", "Email", "Phone",
+    "First Name", "Last Name", "Employee Code", "Email", "Phone",
     "Role", "Group Type", "Joining Date",
     "Basic Salary", "Bank Name", "Account No", "IFSC Code",
      "Status",
   ];
   const sample = [
-    "Priya", "Sharma", "priya@school.com", "9876543210",
+    "Priya", "Sharma", "EMP-0042", "priya@school.com", "9876543210",
     "Lab Assistant", "Group B", "01-06-2024",
     "18000", "SBI", "123456789012", "SBIN0001234",
      "ACTIVE",
@@ -258,6 +260,7 @@ export default function BulkImportStaff({ onClose, onSuccess }) {
         await createStaff({
           firstName:     s.firstName,
           lastName:      s.lastName      || "",
+          employeeCode:  s.employeeCode  || undefined,
           email:         s.email         || undefined,
           phone:         s.phone         || undefined,
           role:          s.role,
@@ -473,7 +476,7 @@ export default function BulkImportStaff({ onClose, onSuccess }) {
                     ))}
                   </div>
                   <p style={{ margin: "6px 0 0", fontSize: 11, color: COLORS.secondary, fontFamily: "'Inter',sans-serif" }}>
-                    Optional: Email, Phone, Group Type, Salary, Bank details, Password (creates login access)
+                    Optional: Employee Code, Email, Phone, Group Type, Salary, Bank details, Password (creates login access)
                   </p>
                 </div>
               </div>
@@ -543,7 +546,9 @@ export default function BulkImportStaff({ onClose, onSuccess }) {
                             <td style={{ padding: "10px 12px", color: COLORS.secondary, fontFamily: "'Inter',sans-serif", fontWeight: 600 }}>#{row._idx}</td>
                             <td style={{ padding: "10px 12px", fontWeight: 600, color: COLORS.text, fontFamily: "'Inter',sans-serif" }}>
                               {row.staff.firstName} {row.staff.lastName}
-                              <span style={{ display: "block", fontSize: 10, color: COLORS.secondary, fontWeight: 400 }}>{row.staff.email || "—"}</span>
+                              <span style={{ display: "block", fontSize: 10, color: COLORS.secondary, fontWeight: 400 }}>
+                                {row.staff.employeeCode ? `#${row.staff.employeeCode} · ` : ""}{row.staff.email || "—"}
+                              </span>
                             </td>
                             <td style={{ padding: "10px 12px", color: COLORS.secondary, fontFamily: "'Inter',sans-serif" }}>{row.staff.role || <span style={{ color: "#d97706", fontWeight: 700 }}>Missing</span>}</td>
                             <td style={{ padding: "10px 12px" }}>
