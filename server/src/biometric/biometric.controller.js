@@ -263,13 +263,15 @@ export const searchPersons = async (req, res) => {
           schoolId, deletedAt: null, status: "ACTIVE",
           ...(searchFilter && { OR: [{ firstName: searchFilter }, { lastName: searchFilter }] }),
         },
-        select: { id: true, firstName: true, lastName: true, role: true, groupType: true },
+        select: { id: true, firstName: true, lastName: true, employeeCode: true, role: true, groupType: true },
         take: 50,
         orderBy: { firstName: "asc" },
       });
       results = staff.map((s) => ({
-        id: s.id, name: `${s.firstName} ${s.lastName}`,
-        code: s.groupType || "STAFF", extra: s.role || "Staff",
+        id: s.id,
+        name: `${s.firstName} ${s.lastName}`,
+        code: s.employeeCode || "—",
+        extra: s.role || s.groupType || "Staff",
       }));
 
     } else if (personType === "ADMIN") {
@@ -342,7 +344,7 @@ export const getMappings = async (req, res) => {
         isActive: true, assignedAt: true, deactivatedAt: true,
         student: { select: { id: true, name: true, studentCode: true } },
         teacher: { select: { id: true, firstName: true, lastName: true, employeeCode: true, designation: true } },
-        staff:   { select: { id: true, firstName: true, lastName: true, role: true } },
+        staff:   { select: { id: true, firstName: true, lastName: true, employeeCode: true, role: true } },
         user: {
           select: {
             id: true, name: true, role: true,
@@ -367,7 +369,7 @@ export const getMappings = async (req, res) => {
         personExtra = m.teacher.designation || "";
       } else if (m.personType === "STAFF" && m.staff) {
         personName  = `${m.staff.firstName} ${m.staff.lastName}`;
-        personCode  = "—";
+        personCode = m.staff.employeeCode || "—";
         personExtra = m.staff.role || "";
       } else if ((m.personType === "ADMIN" || m.personType === "FINANCE") && m.user) {
         personName = m.user.name;
@@ -619,7 +621,7 @@ export const getAttendanceLogs = async (req, res) => {
         biometricDevice: { select: { deviceName: true, deviceCode: true } },
         student: { select: { name: true, studentCode: true } },
         teacher: { select: { firstName: true, lastName: true, employeeCode: true } },
-        staff:   { select: { firstName: true, lastName: true } },
+        staff:   { select: { firstName: true, lastName: true, employeeCode: true, } },
         user:    { select: { name: true } },
       },
     });
@@ -650,6 +652,7 @@ export const getAttendanceLogs = async (req, res) => {
       } else if (log.personType === "STAFF" && log.staffId) {
         personId   = log.staffId;
         personName = log.staff ? `${log.staff.firstName} ${log.staff.lastName}` : "Unknown";
+        personCode = log.staff?.employeeCode || null;
       } else if (log.userId) {
         personId   = log.userId;
         personName = log.user?.name || "Unknown";
@@ -804,7 +807,7 @@ export const getBiometricAttendanceReport = async (req, res) => {
         },
         staff: {
           select: {
-            firstName: true, lastName: true, role: true,
+            firstName: true, lastName: true, employeeCode: true, role: true,
             bankName: true, bankAccountNo: true, ifscCode: true,
           },
         },
@@ -834,8 +837,14 @@ export const getBiometricAttendanceReport = async (req, res) => {
         ifscCode      = log.teacher?.ifscCode || null;
       } else if (log.personType === "STAFF" && log.staffId) {
         personId      = log.staffId;
-        name          = log.staff ? `${log.staff.firstName} ${log.staff.lastName}`.trim() : "Unknown";
-        code          = log.staff?.role || null;
+        name          = log.staff
+          ? `${log.staff.firstName} ${log.staff.lastName}`.trim()
+          : "Unknown";
+
+        code = log.staff?.employeeCode
+          ? `${log.staff.employeeCode} - ${log.staff.role || "Staff"}`
+          : (log.staff?.role || null);
+
         bankName      = log.staff?.bankName || null;
         bankAccountNo = log.staff?.bankAccountNo || null;
         ifscCode      = log.staff?.ifscCode || null;
@@ -1095,7 +1104,7 @@ export const getLogs = async (req, res) => {
           biometricDevice: { select: { deviceName: true, deviceCode: true } },
           student: { select: { name: true, studentCode: true } },
           teacher: { select: { firstName: true, lastName: true, employeeCode: true } },
-          staff:   { select: { firstName: true, lastName: true } },
+          staff:   { select: { firstName: true, lastName: true, employeeCode: true, } },
           user:    { select: { name: true } },
         },
       }),
@@ -1111,6 +1120,7 @@ export const getLogs = async (req, res) => {
         personCode = log.teacher.employeeCode;
       } else if (log.personType === "STAFF" && log.staff) {
         personName = `${log.staff.firstName} ${log.staff.lastName}`;
+        personCode = log.staff.employeeCode || "—";
       } else if ((log.personType === "ADMIN" || log.personType === "FINANCE") && log.user) {
         personName = log.user.name;
       }
