@@ -266,9 +266,13 @@ apiFetch(`${BASE}/classes?schoolId=${selectedSchool}`)
         <div>
           <div style={{ fontWeight:700,fontSize:14 }}>{person.name}</div>
           <div style={{ fontSize:12,color:"#6B7280" }}>
-            {person.code!=="—"&&<span>{person.code}</span>}
-            {person.extra&&<span style={{ color:"#9CA3AF",marginLeft:6 }}>· {person.extra}</span>}
-            {person.rollNumber&&<span style={{ color:"#9CA3AF",marginLeft:6 }}>· Roll: {person.rollNumber}</span>}
+            {person.code !== "—" && <span>{person.code}</span>}
+            {person.extra && <span> - {person.extra}</span>}
+            {person.rollNumber && (
+              <span style={{ color:"#9CA3AF",marginLeft:6 }}>
+                · Roll: {person.rollNumber}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -437,7 +441,10 @@ apiFetch(`${BASE}/classes?schoolId=${selectedSchool}`)
                           <div style={{ width:36,height:36,borderRadius:"50%",background:PT_COLOR[personType]?.bg,color:PT_COLOR[personType]?.text,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,flexShrink:0 }}>{p.name[0].toUpperCase()}</div>
                           <div style={{ flex:1,minWidth:0 }}>
                             <div style={{ fontWeight:600,fontSize:14 }}>{p.name}</div>
-                            <div style={{ fontSize:11,color:"#9CA3AF" }}>{p.code!=="—"&&<span>{p.code}</span>}{p.extra&&<span style={{ marginLeft:6 }}>· {p.extra}</span>}</div>
+                            <div style={{ fontSize:11,color:"#9CA3AF" }}>
+                              {p.code !== "—" && <span>{p.code}</span>}
+                              {p.extra && <span> - {p.extra}</span>}
+                            </div>
                           </div>
                           <span style={{ fontSize:12,color:"#9CA3AF",flexShrink:0,display:"flex",alignItems:"center",gap:4 }}>Select <ChevronRight size={13}/></span>
                         </div>
@@ -513,7 +520,16 @@ apiFetch(`${BASE}/classes?schoolId=${selectedSchool}`)
                 : mappings.map((m)=>(
                   <tr key={m.id} style={{ opacity:m.isActive?1:0.5 }}>
                     <td style={tdS}><code style={{ fontFamily:"monospace",fontWeight:700,fontSize:14 }}>{m.enrollmentId}</code></td>
-                    <td style={tdS}><div style={{ fontWeight:600 }}>{m.personName}</div><div style={{ fontSize:11,color:"#9CA3AF" }}>{m.personCode}{m.personExtra?` · ${m.personExtra}`:""}</div></td>
+                    <td style={tdS}>
+                      <div style={{ fontWeight:600 }}>
+                        {m.personName}
+                      </div>
+
+                      <div style={{ fontSize:11,color:"#9CA3AF" }}>
+                        {m.personCode}
+                        {m.personExtra ? ` - ${m.personExtra}` : ""}
+                      </div>
+                    </td>
                     <td style={tdS}><Badge type={m.personType}/></td>
                     <td style={tdS}><span style={{ fontSize:13 }}>{m.deviceName||<span style={{ color:"#D1D5DB" }}>—</span>}</span>{m.deviceCode&&<div style={{ fontSize:11,color:"#9CA3AF" }}>{m.deviceCode}</div>}</td>
                     <td style={{ ...tdS,color:"#6B7280",whiteSpace:"nowrap" }}>{m.assignedAt?new Date(m.assignedAt).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}):"—"}</td>
