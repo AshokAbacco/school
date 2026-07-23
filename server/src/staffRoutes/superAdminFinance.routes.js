@@ -1,4 +1,4 @@
-//server\src\staffRoutes\superAdminFinance.routes.js
+// server/src/staffRoutes/superAdminFinance.routes.js
 import express from "express";
 import authMiddleware from "../middlewares/authMiddleware.js";
 
@@ -7,8 +7,8 @@ import {
   getUniversityStaffSalary,
   getUniversityExpenses,
   debugUniversityChain,
-    updateStudentFinance,      // ← ADD
-  recordStudentPayment,      // ← ADD 
+  updateStudentFinance,
+  recordStudentPayment,
 } from "../staffControlls/superAdminFinance.controller.js";
 
 const router = express.Router();
@@ -16,23 +16,17 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // Student Finance
-router.get(
-  "/student-finance",
-  getUniversityStudentFinance
-);
-router.patch("/student-finance/:id",         updateStudentFinance);
-router.post("/student-finance/:id/payment",  recordStudentPayment);
+router.get("/student-finance", getUniversityStudentFinance);
+router.patch("/student-finance/:id", updateStudentFinance);
+router.post("/student-finance/:id/payment", recordStudentPayment);
+
 // Staff Salary
-router.get(
-  "/staff-salary",
-  getUniversityStaffSalary
-);
+router.get("/staff-salary", getUniversityStaffSalary);
 
 // Expenses
-router.get(
-  "/expenses",
-  getUniversityExpenses
-);
-router.get("/debug", debugUniversityChain); 
+router.get("/expenses", getUniversityExpenses);
+
+// Debug (remove once confirmed working in production)
+router.get("/debug", debugUniversityChain);
 
 export default router;

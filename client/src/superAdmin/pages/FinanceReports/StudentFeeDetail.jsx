@@ -107,18 +107,25 @@ function deriveStudentCategories(student) {
   return result;
 }
 
-// Compute derived fee totals from the StudentList record
+// Compute derived fee totals from the StudentList record.
+//
+// NOTE: totalPaid is now the sum of the per-category *FeePaid columns, NOT
+// student.paidAmount directly. The backend already sends paidAmount as this
+// same derived sum, so in normal operation these are identical — but
+// computing it locally from the category columns too means the UI stays
+// internally consistent (KPI cards === category tables) even if an older
+// cached/stale student object with a stale paidAmount ever slips through.
 function computeFeeSummary(student) {
-    
-  const totalFees   = Number(student.fees || 0);
-  const totalPaid   = Number(student.paidAmount || 0);
-  const totalDue    = Math.max(0, totalFees - totalPaid);
-  const pctCollected = totalFees > 0 ? Math.round((totalPaid / totalFees) * 100) : 0;
+  const totalFees = Number(student.fees || 0);
 
   const catPaid = FEE_CATEGORIES.reduce((acc, c) => {
     acc[c.key] = Number(student[c.key] || 0);
     return acc;
   }, {});
+
+  const totalPaid = Object.values(catPaid).reduce((a, v) => a + v, 0);
+  const totalDue = Math.max(0, totalFees - totalPaid);
+  const pctCollected = totalFees > 0 ? Math.round((totalPaid / totalFees) * 100) : 0;
 
   const feeBreakdown = parseFeeBreakdown(student.feeBreakdown);
 
@@ -200,25 +207,16 @@ export default function StudentFeeDetail({ student: initialStudent, onBack }) {
 
   const { totalFees, totalPaid, totalDue, pctCollected, catPaid, feeBreakdown } = computeFeeSummary(student);
   const studentCategories = deriveStudentCategories(student);
-  // ── DEBUG: remove after fixing ──
-console.log("=== FEE DEBUG ===");
-console.log("totalPaid (paidAmount field):", totalPaid);
-console.log("Raw student object:", student);
-console.log("catPaid breakdown:", catPaid);
-console.log("Sum of categories:", 
-  Object.values(catPaid).reduce((a, v) => a + v, 0)
-);
-console.log("Missing amount:", totalPaid - Object.values(catPaid).reduce((a, v) => a + v, 0));
-FEE_CATEGORIES.forEach(c => {
-  console.log(`  ${c.label} (${c.key}):`, student[c.key], "→ parsed:", Number(student[c.key] || 0));
-});
-// ── END DEBUG ──
 
   const overallStatus = totalFees > 0 && totalDue === 0 ? "PAID"
     : totalPaid > 0 ? "PARTIAL"
     : "UNPAID";
 
   // ── Edit handlers ───────────────────────────────────────────────────────────
+  // NOTE: paidAmount is intentionally NOT part of editData anymore. It is a
+  // derived value (sum of per-category paid columns) and can only change via
+  // Record Payment, so it's shown read-only in the Payment Details section
+  // even while editMode is on.
   const startEdit = () => {
     setEditData({
       name:        student.name        || "",
@@ -227,7 +225,6 @@ FEE_CATEGORIES.forEach(c => {
       course:      student.course      || "",
       address:     student.address     || "",
       fees:        student.fees        || 0,
-      paidAmount:  student.paidAmount  || 0,
       paymentMode: student.paymentMode || "",
       paymentDate: student.paymentDate ? new Date(student.paymentDate).toISOString().slice(0, 10) : "",
     });
@@ -245,8 +242,9 @@ FEE_CATEGORIES.forEach(c => {
     try {
       const payload = {
         ...editData,
-        fees:       Number(editData.fees       || 0),
-        paidAmount: Number(editData.paidAmount || 0),
+        fees: Number(editData.fees || 0),
+        // paidAmount removed — it's derived server-side from category
+        // payments now and can no longer be edited directly here.
       };
       const res = await fetch(
         `${API_URL}/api/superadmin-finance/student-finance/${student.id}`,
@@ -287,14 +285,20 @@ FEE_CATEGORIES.forEach(c => {
       );
       const result = await res.json();
       if (!res.ok) throw new Error(result.message || "Payment failed");
-      // Optimistically update local state
-      setStudent(prev => ({
-        ...prev,
-        paidAmount:  Number(prev.paidAmount  || 0) + Number(payAmount),
-        paymentMode: payMode,
-        paymentDate: new Date().toISOString(),
-        ...(!selCat.isCustom && selCat.key ? { [selCat.key]: Number(prev[selCat.key] || 0) + Number(payAmount) } : {}),
-      }));
+
+      // Prefer the server's authoritative record if it came back (it now
+      // includes the freshly-recomputed paidAmount + category columns), and
+      // fall back to an optimistic local patch otherwise.
+      if (result.data) {
+        setStudent(prev => ({ ...prev, ...result.data }));
+      } else {
+        setStudent(prev => ({
+          ...prev,
+          paymentMode: payMode,
+          paymentDate: new Date().toISOString(),
+          ...(!selCat.isCustom && selCat.key ? { [selCat.key]: Number(prev[selCat.key] || 0) + Number(payAmount) } : {}),
+        }));
+      }
       setPayModal(false);
       setPayAmount(""); setPayMode("CASH"); setPayCategory("");
     } catch (e) {
@@ -358,9 +362,13 @@ FEE_CATEGORIES.forEach(c => {
     fh.height = 22;
     ws.mergeCells(`A${fh.number}:B${fh.number}`);
 
+    // Derive paid/due from category columns here too, so the exported sheet
+    // always matches what's shown on screen even if s.paidAmount is stale.
+    const exportPaid = FEE_CATEGORIES.reduce((a, c) => a + Number(s[c.key] || 0), 0);
+
     addRow("Total Fees",       Number(s.fees || 0),        true);
-    addRow("Amount Paid",      Number(s.paidAmount || 0),  true);
-    addRow("Amount Due",       Math.max(0, Number(s.fees || 0) - Number(s.paidAmount || 0)), true);
+    addRow("Amount Paid",      exportPaid,  true);
+    addRow("Amount Due",       Math.max(0, Number(s.fees || 0) - exportPaid), true);
     addRow("Payment Mode",     s.paymentMode || "—");
     addRow("Last Payment Date",s.paymentDate ? new Date(s.paymentDate).toLocaleDateString("en-IN") : "—");
 
@@ -623,14 +631,16 @@ FEE_CATEGORIES.forEach(c => {
               )}
             </div>
             <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Amount Paid</span>
-              {editMode ? (
-                <input type="number" value={editData.paidAmount ?? totalPaid}
-                  onChange={e => handleChange("paidAmount", e.target.value)}
-                  className="text-sm font-bold text-emerald-700 border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-[#1C3044]" />
-              ) : (
-                <span className="text-sm font-bold text-emerald-700">{fmt(totalPaid)}</span>
-              )}
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Amount Paid
+                {editMode && (
+                  <span className="normal-case font-normal text-slate-300 ml-1">(use Record Payment to change)</span>
+                )}
+              </span>
+              {/* Amount Paid is read-only everywhere, including edit mode —
+                  it's derived from the category columns and can only change
+                  through the Record Payment flow, so it never desyncs. */}
+              <span className="text-sm font-bold text-emerald-700">{fmt(totalPaid)}</span>
             </div>
             <div className="flex flex-col gap-0.5">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Amount Due</span>
