@@ -1,27 +1,61 @@
-// server/src/controllers/superAdminFinance.controller.js
+// server/src/staffControlls/superAdminFinance.controller.js
 //
-// READ-ONLY finance aggregation for SuperAdmin.
-// Fetches data across ALL schools under the logged-in university.
+// READ-ONLY finance aggregation for SuperAdmin, PLUS student edit/payment
+// endpoints.  Fetches data across ALL schools under the logged-in university.
 //
 // req.user.universityId is set by authMiddleware by normalising:
 //   decoded.universityId  (new flat JWT)
 //   decoded.university?.id (old nested JWT)
 //
-// NO writes — pure SELECT queries only.
+// ── IMPORTANT: paidAmount reconciliation fix ────────────────────────────────
+// `paidAmount` on StudentList used to be an independently-editable column
+// that could drift away from the sum of the per-category *FeePaid columns
+// (schoolFeePaid, tuitionFeePaid, examFeePaid, transportFeePaid, booksFeePaid,
+// labFeePaid, miscFeePaid). That caused the KPI cards / progress ring
+// (which read `paidAmount`) to disagree with the "Fee Category Breakdown"
+// and "Category-wise Fee Details" tables (which sum the category columns).
+//
+// Fix:
+//   1. getUniversityStudentFinance now ALWAYS derives paidAmount as the sum
+//      of the category columns before sending it to the frontend.
+//   2. recordStudentPayment now REQUIRES a valid category (no more silent
+//      "FULL" fallback that bumped paidAmount without touching a category
+//      column) and recomputes paidAmount from the category sum afterwards.
+//   3. updateStudentFinance no longer accepts paidAmount from the client at
+//      all — it can only change via recordStudentPayment.
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { prisma } from "../config/db.js";
 
-// ─── tiny helper ─────────────────────────────────────────────────────────────
+// ─── tiny helpers ────────────────────────────────────────────────────────────
 const toNum = (v) => Number(v || 0);
+
+const CATEGORY_FIELDS = [
+  "schoolFeePaid",
+  "tuitionFeePaid",
+  "examFeePaid",
+  "transportFeePaid",
+  "booksFeePaid",
+  "labFeePaid",
+  "miscFeePaid",
+];
+
+const sumCategoryPaid = (s) =>
+  CATEGORY_FIELDS.reduce((sum, k) => sum + Number(s[k] || 0), 0);
+
+const CATEGORY_COLUMN_MAP = {
+  SCHOOL:    "schoolFeePaid",
+  TUITION:   "tuitionFeePaid",
+  EXAM:      "examFeePaid",
+  TRANSPORT: "transportFeePaid",
+  BOOKS:     "booksFeePaid",
+  LAB:       "labFeePaid",
+  MISC:      "miscFeePaid",
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. STUDENT FINANCE
 //    GET /api/superadmin-finance/student-finance
-//
-//    StudentFinance → school → university
-//    Note: paidAmount / paymentDate / paymentMode may not exist in your current
-//    schema.  We return them as-is (null/undefined) and the frontend handles
-//    them gracefully with `|| 0` / `|| "—"` guards.
 // ─────────────────────────────────────────────────────────────────────────────
 export const getUniversityStudentFinance = async (req, res) => {
   try {
@@ -65,46 +99,62 @@ export const getUniversityStudentFinance = async (req, res) => {
       personalInfos.map((p) => [p.studentId, p.gender])
     );
 
-  const normalized = data.map((s) => ({
-    id: String(s.id),
-    studentId: s.studentId || null,
+    const normalized = data.map((s) => {
+      // ── Derive the true paid amount from category columns ─────────────
+      const categoryPaid = sumCategoryPaid(s);
+      const legacyPaidAmount = Number(s.paidAmount || 0);
 
-    name: s.name,
-    email: s.email,
-    phone: s.phone,
+      return {
+        id: String(s.id),
+        studentId: s.studentId || null,
 
-    gender: s.gender || genderMap[s.studentId] || null,
+        name: s.name,
+        email: s.email,
+        phone: s.phone,
 
-    course: s.course || null,
-    address: s.address || null,
-    feeDate: s.feeDate || null,
-    feeBreakdown: s.feeBreakdown || null,
+        gender: s.gender || genderMap[s.studentId] || null,
 
-    fees: Number(s.fees || 0),
-    paidAmount: Number(s.paidAmount || 0),
-    dueAmount: Number(s.fees || 0) - Number(s.paidAmount || 0),
+        course: s.course || null,
+        address: s.address || null,
+        feeDate: s.feeDate || null,
+        feeBreakdown: s.feeBreakdown || null,
 
-    paymentMode: s.paymentMode || null,
-    paymentDate: s.paymentDate || null,
-    paymentStatus: s.paymentStatus || null,
+        fees: Number(s.fees || 0),
 
-    // ── Per-category paid amounts ──────────────────────
-    schoolFeePaid:    Number(s.schoolFeePaid    || 0),
-    tuitionFeePaid:   Number(s.tuitionFeePaid   || 0),
-    examFeePaid:      Number(s.examFeePaid      || 0),
-    transportFeePaid: Number(s.transportFeePaid || 0),
-    booksFeePaid:     Number(s.booksFeePaid     || 0),
-    labFeePaid:       Number(s.labFeePaid       || 0),
-    miscFeePaid:      Number(s.miscFeePaid      || 0),
+        // paidAmount is now ALWAYS the sum of the category columns — this is
+        // what the frontend KPI cards / progress ring read, and it will now
+        // always match the "Fee Category Breakdown" / "Category-wise Fee
+        // Details" tables (which are also computed from these same columns).
+        paidAmount: categoryPaid,
+        dueAmount: Number(s.fees || 0) - categoryPaid,
 
-    school: {
-      id: s.school?.id,
-      name: s.school?.name,
-      code: s.school?.code,
-    },
+        // Diagnostic-only field: non-zero means the raw DB column had drifted
+        // from the true category sum before this response recalculated it.
+        // Safe to ignore on the frontend; useful for spotting bad legacy rows.
+        _paidAmountDrift: legacyPaidAmount - categoryPaid,
 
-    createdAt: s.createdAt,
-  }));
+        paymentMode: s.paymentMode || null,
+        paymentDate: s.paymentDate || null,
+        paymentStatus: s.paymentStatus || null,
+
+        // ── Per-category paid amounts ──────────────────────
+        schoolFeePaid:    Number(s.schoolFeePaid    || 0),
+        tuitionFeePaid:   Number(s.tuitionFeePaid   || 0),
+        examFeePaid:      Number(s.examFeePaid      || 0),
+        transportFeePaid: Number(s.transportFeePaid || 0),
+        booksFeePaid:     Number(s.booksFeePaid     || 0),
+        labFeePaid:       Number(s.labFeePaid       || 0),
+        miscFeePaid:      Number(s.miscFeePaid      || 0),
+
+        school: {
+          id: s.school?.id,
+          name: s.school?.name,
+          code: s.school?.code,
+        },
+
+        createdAt: s.createdAt,
+      };
+    });
 
     return res.status(200).json({
       success: true,
@@ -233,9 +283,6 @@ export const getUniversityStaffSalary = async (req, res) => {
     ]);
 
     // ── Batch-fetch teacher genders from TeacherProfile ───────────────────
-    // TeacherMonthlySalary rows carry a teacherId FK to TeacherProfile.
-    // We collect all unique teacherIds, fetch gender in one query, then
-    // build a lookup map so the normalize loop below is O(1) per row.
     const teacherIds = [
       ...new Set(
         teacherSalary
@@ -268,7 +315,6 @@ export const getUniversityStaffSalary = async (req, res) => {
       _email:      r.teacherEmail || "—",
       _group:      "Teacher",
       _date:       r.paymentDate  || r.createdAt,
-      // gender from snapshot field first, fallback to live TeacherProfile
       gender:      r.gender || teacherGenderMap[r.teacherId] || null,
     }));
 
@@ -282,7 +328,7 @@ export const getUniversityStaffSalary = async (req, res) => {
       _email:      r.adminEmail || "—",
       _group:      "Admin",
       _date:       r.paymentDate || r.createdAt,
-      gender:      null,  // AdminMonthlySalary has no gender source
+      gender:      null,
     }));
 
     const normFinance = financeSalary.map((r) => ({
@@ -295,7 +341,7 @@ export const getUniversityStaffSalary = async (req, res) => {
       _email:      r.financeEmail || "—",
       _group:      "Finance",
       _date:       r.paymentDate  || r.createdAt,
-      gender:      null,  // FinanceMonthlySalary has no gender source
+      gender:      null,
     }));
 
     const normGroupB = groupBSalary.map((r) => ({
@@ -308,7 +354,7 @@ export const getUniversityStaffSalary = async (req, res) => {
       _email:      r.staffEmail || "—",
       _group:      "Group B",
       _date:       r.paymentDate || r.createdAt,
-      gender:      null,  // GroupBStaffSalary has no gender source
+      gender:      null,
     }));
 
     const normGroupC = groupCSalary.map((r) => ({
@@ -321,7 +367,7 @@ export const getUniversityStaffSalary = async (req, res) => {
       _email:      r.staffEmail || "—",
       _group:      "Group C",
       _date:       r.paymentDate || r.createdAt,
-      gender:      null,  // GroupCStaffSalary has no gender source
+      gender:      null,
     }));
 
     const normGroupD = groupDSalary.map((r) => ({
@@ -342,7 +388,7 @@ export const getUniversityStaffSalary = async (req, res) => {
       _email:         "—",
       _group:         "Group D",
       _date:          r.createdAt,
-      gender:         null,  // GroupDStaffSalary has no gender source
+      gender:         null,
     }));
 
     return res.json({
@@ -369,16 +415,6 @@ export const getUniversityStaffSalary = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. EXPENSES
 //    GET /api/superadmin-finance/expenses
-//
-//    Expense → school → university
-//    Expense → ExpenseCategoryMap → ExpenseCategory
-//
-//    The existing school-level expenseController returns data grouped by
-//    category.  The SuperAdmin finance page (ExpensesTab) expects a FLAT array:
-//    [{ id, label, amount, createdAt, category, categoryColor }]
-//
-//    We fetch all non-deleted expenses with their category relation and flatten
-//    them here so normalizeExpenses() on the frontend can work correctly.
 // ─────────────────────────────────────────────────────────────────────────────
 export const getUniversityExpenses = async (req, res) => {
   try {
@@ -393,14 +429,13 @@ export const getUniversityExpenses = async (req, res) => {
 
     const expenses = await prisma.expense.findMany({
       where: {
-        deletedAt: null,           // exclude soft-deleted
-        school: { universityId },  // scope to this university
+        deletedAt: null,
+        school: { universityId },
       },
       include: {
         school: {
           select: { id: true, name: true },
         },
-        // ExpenseCategoryMap → ExpenseCategory
         categories: {
           include: {
             category: {
@@ -412,15 +447,6 @@ export const getUniversityExpenses = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    // ── Flatten for the frontend ──────────────────────────────────────────
-    // The frontend normalizeExpenses() already handles the nested shape, but
-    // we do a light server-side flatten too so the payload is clean:
-    //   category  → string name of the first category (or "Uncategorized")
-    //   categoryColor → color from ExpenseCategory
-    //
-    // The raw `categories` array is also included so normalizeExpenses() can
-    // re-derive it if needed.
-
     const flat = expenses.map((exp) => {
       const firstCat = exp.categories?.[0]?.category;
       return {
@@ -431,10 +457,8 @@ export const getUniversityExpenses = async (req, res) => {
         createdAt:     exp.createdAt,
         schoolId:      exp.schoolId,
         school:        exp.school,
-        // Flattened category info — matches what normalizeExpenses() expects
         category:      firstCat?.name  || "Uncategorized",
         categoryColor: firstCat?.color || null,
-        // Raw nested relation kept so the frontend normalizer can also use it
         categories:    exp.categories,
       };
     });
@@ -452,7 +476,6 @@ export const getUniversityExpenses = async (req, res) => {
     });
   }
 };
-
 
 // TEMPORARY DEBUG — delete after confirming
 export const debugUniversityChain = async (req, res) => {
@@ -521,11 +544,13 @@ export const debugUniversityChain = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ADD THESE TWO HANDLERS to superAdminFinance.controller.js
+// 4. UPDATE STUDENT LIST RECORD
+//    PATCH /api/superadmin-finance/student-finance/:id
+//
+//    NOTE: paidAmount is intentionally NOT accepted here anymore. It can only
+//    change via recordStudentPayment (below), so it can never desync from
+//    the per-category *FeePaid columns again.
 // ─────────────────────────────────────────────────────────────────────────────
-
-// ── 4. UPDATE STUDENT LIST RECORD ────────────────────────────────────────────
-// PATCH /api/superadmin-finance/student-finance/:id
 export const updateStudentFinance = async (req, res) => {
   try {
     const { id } = req.params;
@@ -535,7 +560,6 @@ export const updateStudentFinance = async (req, res) => {
       return res.status(400).json({ success: false, message: "universityId missing in token" });
     }
 
-    // Verify this student belongs to the university before updating
     const existing = await prisma.studentList.findFirst({
       where: {
         id:        Number(id),
@@ -550,7 +574,8 @@ export const updateStudentFinance = async (req, res) => {
 
     const {
       name, email, phone, course, address, gender,
-      fees, paidAmount, paymentMode, paymentDate,
+      fees, paymentMode, paymentDate,
+      // paidAmount deliberately not destructured/accepted — see note above.
     } = req.body;
 
     const updated = await prisma.studentList.update({
@@ -562,27 +587,35 @@ export const updateStudentFinance = async (req, res) => {
         ...(course      !== undefined && { course }),
         ...(address     !== undefined && { address }),
         ...(gender      !== undefined && { gender }),
-        ...(fees        !== undefined && { fees:       Number(fees) }),
-        ...(paidAmount  !== undefined && { paidAmount: Number(paidAmount) }),
+        ...(fees        !== undefined && { fees: Number(fees) }),
         ...(paymentMode !== undefined && { paymentMode }),
         ...(paymentDate !== undefined && paymentDate && { paymentDate: new Date(paymentDate) }),
       },
     });
 
-    return res.json({ success: true, data: updated });
+    return res.json({
+      success: true,
+      data: { ...updated, paidAmount: sumCategoryPaid(updated) },
+    });
   } catch (error) {
     console.error("[superAdminFinance] updateStudentFinance:", error);
     return res.status(500).json({ success: false, message: "Failed to update student", error: error.message });
   }
 };
 
-// ── 5. RECORD A PAYMENT ───────────────────────────────────────────────────────
-// POST /api/superadmin-finance/student-finance/:id/payment
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. RECORD A PAYMENT
+//    POST /api/superadmin-finance/student-finance/:id/payment
 //
-// Body: { amount: number, paymentMode: string, category: string }
-// category examples: "FULL" | "SCHOOL" | "TUITION" | "EXAM" | "TRANSPORT" | "BOOKS" | "LAB" | "MISC"
+//    Body: { amount: number, paymentMode: string, category: string }
+//    category MUST be one of: SCHOOL | TUITION | EXAM | TRANSPORT | BOOKS | LAB | MISC
+//    (the old "FULL" default is removed — every payment must land in a real
+//    category column, otherwise paidAmount and the category breakdown drift
+//    apart, which was the original bug).
 //
-// Increments paidAmount + the matching category column, then logs to StudentFeePayment.
+//    Increments the matching category column, recomputes paidAmount as the
+//    fresh sum of all category columns, then logs to StudentFeePayment.
+// ─────────────────────────────────────────────────────────────────────────────
 export const recordStudentPayment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -600,39 +633,46 @@ export const recordStudentPayment = async (req, res) => {
       return res.status(404).json({ success: false, message: "Student record not found or access denied" });
     }
 
-    const { amount, paymentMode = "CASH", category = "FULL" } = req.body;
+    const { amount, paymentMode = "CASH", category } = req.body;
     const amt = Number(amount || 0);
 
     if (amt <= 0) {
       return res.status(400).json({ success: false, message: "Amount must be greater than 0" });
     }
 
-    // Map category string → prisma column name
-    const categoryColumnMap = {
-      SCHOOL:    "schoolFeePaid",
-      TUITION:   "tuitionFeePaid",
-      EXAM:      "examFeePaid",
-      TRANSPORT: "transportFeePaid",
-      BOOKS:     "booksFeePaid",
-      LAB:       "labFeePaid",
-      MISC:      "miscFeePaid",
-    };
-    const catCol = categoryColumnMap[category.toUpperCase()] || null;
+    const catCol = CATEGORY_COLUMN_MAP[category?.toUpperCase()];
 
-    const newPaidAmount = Number(existing.paidAmount || 0) + amt;
+    if (!catCol) {
+      return res.status(400).json({
+        success: false,
+        message: `A valid fee category is required. Expected one of: ${Object.keys(CATEGORY_COLUMN_MAP).join(", ")}`,
+      });
+    }
 
-    const updated = await prisma.studentList.update({
+    // 1) Increment the category column + payment metadata
+    const afterCategoryUpdate = await prisma.studentList.update({
       where: { id: Number(id) },
       data: {
-        paidAmount:   newPaidAmount,
+        [catCol]: { increment: amt },
         paymentMode,
-        paymentDate:  new Date(),
-        paymentStatus: newPaidAmount >= Number(existing.fees || 0) ? "PAID" : "PARTIAL",
-        ...(catCol ? { [catCol]: { increment: amt } } : {}),
+        paymentDate: new Date(),
       },
     });
 
-    // Log to StudentFeePayment table
+    // 2) Recompute paidAmount + status from the fresh category sum, so
+    //    paidAmount is ALWAYS derived — never independently set.
+    const categoryPaid = sumCategoryPaid(afterCategoryUpdate);
+    const paymentStatus = categoryPaid >= Number(afterCategoryUpdate.fees || 0) ? "PAID" : "PARTIAL";
+
+    const final = await prisma.studentList.update({
+      where: { id: Number(id) },
+      data: {
+        paidAmount: categoryPaid,
+        paymentStatus,
+      },
+    });
+
+    // 3) Log the payment for history/audit
     await prisma.studentFeePayment.create({
       data: {
         studentListId: Number(id),
@@ -642,7 +682,7 @@ export const recordStudentPayment = async (req, res) => {
       },
     });
 
-    return res.json({ success: true, data: updated, recorded: amt });
+    return res.json({ success: true, data: final, recorded: amt });
   } catch (error) {
     console.error("[superAdminFinance] recordStudentPayment:", error);
     return res.status(500).json({ success: false, message: "Failed to record payment", error: error.message });
