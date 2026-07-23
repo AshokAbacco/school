@@ -1,7 +1,4 @@
 import { prisma } from "../../config/db.js";
-import redisClient from "../../utils/redis.js";
-
-const CACHE_TTL = 300; // 5 minutes
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -67,13 +64,6 @@ export async function getAnalytics(req, res) {
     const range        = req.query.range || "30d";
     const since        = rangeToDate(range);
     const prevSince    = prevRangeToDate(range);
-
-    const cacheKey = `analytics:${universityId}:${range}`;
-    const cached   = await redisClient.get(cacheKey);
-
-    if (cached) {
-      return res.json({ ...JSON.parse(cached), fromCache: true });
-    }
 
     // ───────────── Stats ─────────────
 
@@ -157,9 +147,7 @@ export async function getAnalytics(req, res) {
       topSchools,
     };
 
-    await redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(payload));
-
-    return res.json({ ...payload, fromCache: false });
+    return res.json(payload);
 
   } catch (err) {
     console.error("[getAnalytics]", err);
