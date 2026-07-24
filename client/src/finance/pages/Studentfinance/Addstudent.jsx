@@ -122,15 +122,34 @@ if (school.schoolId) {
     .then(d => { setClasses(Array.isArray(d) ? d : []); })
     .catch(e => { console.error("[Addstudent] Failed to fetch classes:", e); setClasses([]); });
 }
-    if (editData) {
+if (editData) {
       setStudentInfo({
         name: editData.name ?? "",
         email: editData.email ?? "",
-        phone: editData.phone ?? "",
+        phone: editData.phone ?? "", // fallback while the real number loads
         course: editData.course ?? "",
         studentId: editData.id ?? "",
       });
       setAutoFilled(true);
+
+      // Pull the real contact number (parent/guardian/personal info) instead
+      // of trusting the possibly-stale StudentList.phone snapshot.
+      if (editData.studentId) {
+        const auth = JSON.parse(localStorage.getItem("auth"));
+        const token = auth?.token;
+        fetch(`${API_URL}/api/finance/studentContactPhone/${editData.studentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.phone) {
+              setStudentInfo((prev) => ({ ...prev, phone: d.phone }));
+            }
+          })
+          .catch((e) =>
+            console.error("[Addstudent] contact phone fetch failed:", e),
+          );
+      }
 
       // Restore fee date if stored
       if (editData.feeDate) {

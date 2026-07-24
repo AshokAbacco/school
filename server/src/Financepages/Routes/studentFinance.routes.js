@@ -842,6 +842,10 @@ router.delete("/deleteStudentFinance/:id", authMiddleware, async (req, res) => {
 //   }
 // });
 // ── STUDENTS BY CLASS ─────────────────────────────────────────────────────────
+// ── STUDENTS BY CLASS ─────────────────────────────────────────────────────────
+// Explicitly selects parentPhone/motherPhone/guardianPhone from
+// student_personal_info (not just a blind include) so the backend
+// guarantees these fields are fetched and returned to the frontend.
 router.get("/studentsByClass", async (req, res) => {
   try {
     const { classSectionId } = req.query;
@@ -851,7 +855,20 @@ router.get("/studentsByClass", async (req, res) => {
     const enrollments = await prisma.studentEnrollment.findMany({
       where: { classSectionId, status: "ACTIVE" },
       include: {
-        student: { include: { personalInfo: true } },
+        student: {
+          include: {
+            personalInfo: {
+              select: {
+                firstName: true,
+                lastName: true,
+                phone: true,          // student's own phone (kept for reference)
+                parentPhone: true,    // ← father's phone, explicitly fetched
+                motherPhone: true,    // ← mother's phone, explicitly fetched
+                guardianPhone: true,  // ← guardian's phone, explicitly fetched
+              },
+            },
+          },
+        },
         classSection: {
           select: { id: true, name: true, grade: true, section: true },
         },
@@ -2575,3 +2592,63 @@ router.get("/paymentLogsByDateRange", authMiddleware, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+
+// ── GET STUDENT CONTACT PHONE (parent/guardian preferred over StudentList) ──
+// Used by the Add/Edit Student Fees modal so phone always reflects the real
+// source (Parent.phone or StudentPersonalInfo), not the cached StudentList.phone.
+// ── GET STUDENT CONTACT PHONE (parent phone from personal info, preferred) ──
+// Used by the Add/Edit Student Fees modal so phone always reflects the real
+// parent contact, not the cached StudentList.phone snapshot.
+router.get(
+  "/studentContactPhone/:studentId",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const { studentId } = req.params;
+      if (!studentId)
+        return res.status(400).json({ message: "studentId required" });
+
+      const realStudent = await prisma.student.findFirst({
+        where: { id: studentId },
+        include: {
+          personalInfo: {
+            select: {
+              phone: true,
+              parentPhone: true,
+              motherPhone: true,
+              guardianPhone: true,
+            },
+          },
+          parentLinks: { include: { parent: true } },
+        },
+      });
+
+      if (!realStudent)
+        return res.status(404).json({ message: "Student not found" });
+
+      // Preference: father's phone (StudentPersonalInfo.parentPhone) — this is
+      // what shows on the Parents tab — then mother, then guardian, then a
+      // linked Parent account, then finally the student's own phone.
+      let phone =
+        realStudent.personalInfo?.parentPhone ||
+        realStudent.personalInfo?.motherPhone ||
+        realStudent.personalInfo?.guardianPhone ||
+        null;
+
+      if (!phone && realStudent.parentLinks?.length) {
+        const primary =
+          realStudent.parentLinks.find((l) => l.isPrimary) ||
+          realStudent.parentLinks[0];
+        phone = primary?.parent?.phone || null;
+      }
+
+      if (!phone) phone = realStudent.personalInfo?.phone || null;
+
+      res.json({ phone: phone || "" });
+    } catch (error) {
+      console.error("studentContactPhone error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  },
+);
