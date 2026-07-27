@@ -229,7 +229,7 @@ const sc = (extra = "") =>
           {f[emailKey] === null ? (
             <button
               type="button"
-              onClick={() => setF((p) => ({ ...p, [emailKey]: p[phKey] || "", [pwKey]: "" }))}
+              onClick={() => setF((p) => ({ ...p, [emailKey]: "", [pwKey]: "" }))}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
               style={{ background: COLORS.primary }}
             >
@@ -857,7 +857,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
         headers: { "Content-Type": "application/json", ...auth() },
         body: JSON.stringify({
           name: [f.fn, f.ln].filter(Boolean).join(" "),
-          email: f.lemail?.trim() || f.email?.trim() || normalizePhone(f.phone),
+          email: f.lemail?.trim() || f.email?.trim() || "",
           password: f.pw,
         }),
       });
