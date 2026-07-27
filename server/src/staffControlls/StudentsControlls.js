@@ -129,10 +129,11 @@ async function createUniqueStudentCode() {
 // ── registerStudent ───────────────────────────────────────────────────────────
 export const registerStudent = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, password } = req.body;
+    const email = req.body.email?.trim() || null;
 
-    if (!email || !password || !name)
-      return res.status(400).json({ message: "name, email and password are required" });
+    if (!password || !name)
+      return res.status(400).json({ message: "name and password are required" });
 
     const schoolId = req.user?.schoolId;
     if (!schoolId)
@@ -148,11 +149,13 @@ export const registerStudent = async (req, res) => {
       });
     }
 
-    const exists = await prisma.student.findFirst({ where: { email, schoolId } });
-    if (exists)
-      return res.status(409).json({
-        message: "A student with this email already exists in this school",
-      });
+    if (email) {
+      const exists = await prisma.student.findFirst({ where: { email, schoolId } });
+      if (exists)
+        return res.status(409).json({
+          message: "A student with this email already exists in this school",
+        });
+    }
 
     const hashed = await bcrypt.hash(password, 10);
     const studentCode = await createUniqueStudentCode();

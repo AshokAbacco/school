@@ -9,6 +9,7 @@ import {
   debugUniversityChain,
   updateStudentFinance,
   recordStudentPayment,
+  getStudentPaymentHistory,
 } from "../staffControlls/superAdminFinance.controller.js";
 
 const router = express.Router();
@@ -19,6 +20,9 @@ router.use(authMiddleware);
 router.get("/student-finance", getUniversityStudentFinance);
 router.patch("/student-finance/:id", updateStudentFinance);
 router.post("/student-finance/:id/payment", recordStudentPayment);
+// NEW: date-wise payment transaction history (mirrors Finance login's
+// GET /paymentHistory/:studentListId), scoped to the logged-in university.
+router.get("/student-finance/:id/payment-history", getStudentPaymentHistory);
 
 // Staff Salary
 router.get("/staff-salary", getUniversityStaffSalary);

@@ -82,14 +82,22 @@ function deriveStudentCategories(student) {
       result.push({ ...cat, total, paid, pending: Math.max(0, total - paid), catCode: PAID_FIELD_TO_CAT[paidField] });
     }
     // Custom fees from feeBreakdown
+    // NOTE: "paid" used to be hardcoded to 0 here, which is why custom fee
+    // categories (e.g. Uniform, Fees) always showed as unpaid for superadmin
+    // even after a payment was recorded against them in Finance login.
+    // The backend now returns `customPaidMap` (keyed by lowercased/trimmed
+    // label) aggregated from the actual payment logs — use it.
     const customFees = Array.isArray(bd.customFees) ? bd.customFees : [];
+    const customPaidMap = student.customPaidMap || {};
     customFees.forEach((cf, i) => {
       const total = Number(cf.total ?? cf.amount ?? 0);
       if (total <= 0) return;
+      const key = String(cf.label || "").toLowerCase().trim();
+      const paid = Number(customPaidMap[key] || 0);
       result.push({
         key: `custom_${i}`, label: cf.label || `Custom Fee ${i + 1}`,
         icon: "💼", color: "#6366f1", bg: "#eef2ff",
-        total, paid: 0, pending: total, catCode: "MISC", isCustom: true,
+        total, paid, pending: Math.max(0, total - paid), catCode: "MISC", isCustom: true,
       });
     });
   }
@@ -123,7 +131,17 @@ function computeFeeSummary(student) {
     return acc;
   }, {});
 
-  const totalPaid = Object.values(catPaid).reduce((a, v) => a + v, 0);
+  const flatPaid = Object.values(catPaid).reduce((a, v) => a + v, 0);
+
+  // NEW: include custom fee-category payments (e.g. Uniform, Fees) so the
+  // KPI cards / progress ring match the Category-wise Fee Details table.
+  const customPaidMap = student.customPaidMap || {};
+  const customPaidTotal = Object.values(customPaidMap).reduce(
+    (a, v) => a + Number(v || 0),
+    0,
+  );
+
+  const totalPaid = flatPaid + customPaidTotal;
   const totalDue = Math.max(0, totalFees - totalPaid);
   const pctCollected = totalFees > 0 ? Math.round((totalPaid / totalFees) * 100) : 0;
 
@@ -204,6 +222,34 @@ export default function StudentFeeDetail({ student: initialStudent, onBack }) {
   const [payCategory, setPayCategory] = useState("");
   const [payLoading, setPayLoading]   = useState(false);
   const [payError, setPayError]       = useState("");
+
+  // Payment history state (date-wise transactions, mirrors Finance login)
+  const [paymentHistory, setPaymentHistory]           = useState([]);
+  const [historyLoading, setHistoryLoading]           = useState(true);
+  const [historyError, setHistoryError]               = useState("");
+
+  const fetchPaymentHistory = async () => {
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const res = await fetch(
+        `${API_URL}/api/superadmin-finance/student-finance/${student.id}/payment-history`,
+        { headers: { Authorization: `Bearer ${getToken()}` } }
+      );
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.message || "Failed to load payment history");
+      setPaymentHistory(Array.isArray(result.data) ? result.data : []);
+    } catch (e) {
+      setHistoryError(e.message || "Failed to load payment history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPaymentHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [student.id]);
 
   const { totalFees, totalPaid, totalDue, pctCollected, catPaid, feeBreakdown } = computeFeeSummary(student);
   const studentCategories = deriveStudentCategories(student);
@@ -301,6 +347,9 @@ export default function StudentFeeDetail({ student: initialStudent, onBack }) {
       }
       setPayModal(false);
       setPayAmount(""); setPayMode("CASH"); setPayCategory("");
+      // Refresh date-wise payment history so the new transaction shows up
+      // immediately, instead of only after a full page reload.
+      fetchPaymentHistory();
     } catch (e) {
       setPayError(e.message || "Failed to record payment");
     } finally {
@@ -754,6 +803,66 @@ export default function StudentFeeDetail({ student: initialStudent, onBack }) {
               )}
             </table>
           </div>
+        </div>
+
+        {/* ── Payment History (date-wise transactions) ── */}
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+            <Calendar size={15} className="text-slate-400" />
+            <span className="text-sm font-bold text-slate-700">Payment History</span>
+          </div>
+
+          {historyLoading ? (
+            <p className="text-xs text-slate-400 text-center py-6">Loading payment history…</p>
+          ) : historyError ? (
+            <p className="text-xs text-red-500 text-center py-6">{historyError}</p>
+          ) : paymentHistory.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-6">No payment transactions recorded yet</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {paymentHistory.map((txn) => (
+                <div key={txn.id} className="px-5 py-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Calendar size={13} className="text-slate-400" />
+                      <span className="text-xs font-bold text-slate-700">{txn.label}</span>
+                      {txn.invoiceNumber && (
+                        <span className="text-[10px] text-slate-400">· {txn.invoiceNumber}</span>
+                      )}
+                    </div>
+                    <span className="text-sm font-bold text-emerald-600">{fmt(txn.amount)}</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[11px] min-w-[440px]">
+                      <thead>
+                        <tr className="text-left text-[9px] font-bold text-slate-400 uppercase tracking-wide">
+                          <th className="py-1 pr-3">Category</th>
+                          <th className="py-1 px-3 text-right">Paid This Txn</th>
+                          <th className="py-1 px-3 text-right">Total</th>
+                          <th className="py-1 pl-3 text-right">Pending</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {txn.items.map((it, i) => (
+                          <tr key={i} className="text-slate-600">
+                            <td className="py-1 pr-3">{it.categoryName}</td>
+                            <td className="py-1 px-3 text-right font-semibold" style={{ color: it.amount > 0 ? "#059669" : "#cbd5e1" }}>
+                              {it.amount > 0 ? fmt(it.amount) : "—"}
+                            </td>
+                            <td className="py-1 px-3 text-right">{fmt(it.totalAmount)}</td>
+                            <td className="py-1 pl-3 text-right">
+                              {it.pending > 0 ? <span className="text-red-500">{fmt(it.pending)}</span> : <span className="text-emerald-600">Cleared</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-1 text-[10px] text-slate-400">Payment mode: {txn.paymentMode || "—"}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>{/* end body */}

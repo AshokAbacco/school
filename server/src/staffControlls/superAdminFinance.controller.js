@@ -43,6 +43,13 @@ const CATEGORY_FIELDS = [
 const sumCategoryPaid = (s) =>
   CATEGORY_FIELDS.reduce((sum, k) => sum + Number(s[k] || 0), 0);
 
+// Zero-initialised accumulator object for summing category fields across
+// payment logs, e.g. { schoolFeePaid: 0, tuitionFeePaid: 0, ... }
+const ZERO_FLAT_PAID = CATEGORY_FIELDS.reduce(
+  (acc, k) => ({ ...acc, [k]: 0 }),
+  {}
+);
+
 const CATEGORY_COLUMN_MAP = {
   SCHOOL:    "schoolFeePaid",
   TUITION:   "tuitionFeePaid",
@@ -77,6 +84,12 @@ export const getUniversityStudentFinance = async (req, res) => {
         school: {
           select: { id: true, name: true, code: true },
         },
+        // ── NEW: needed to see CUSTOM fee-category payments ────────────
+        // Custom fees (added per-school, e.g. "Uniform", "Fees") are never
+        // recorded on the 7 flat *FeePaid columns — they only ever land
+        // in StudentPaymentLog.customFeeBreakdown. Without this include,
+        // superadmin has no way to know a custom fee was ever paid.
+        paymentLogs: true,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -100,9 +113,59 @@ export const getUniversityStudentFinance = async (req, res) => {
     );
 
     const normalized = data.map((s) => {
-      // ── Derive the true paid amount from category columns ─────────────
-      const categoryPaid = sumCategoryPaid(s);
+      const logs = s.paymentLogs || [];
       const legacyPaidAmount = Number(s.paidAmount || 0);
+
+      // ── Aggregate paid amounts from StudentPaymentLog ──────────────────
+      // IMPORTANT: recordSimplePayment (the route Finance login's "Add
+      // Payment" flow uses) ONLY ever writes a StudentPaymentLog row — it
+      // never increments StudentList.schoolFeePaid / examFeePaid / etc.
+      // Those raw columns are therefore stale leftovers, NOT a running
+      // total, for any student paid through that flow. Trusting them (as
+      // sumCategoryPaid(s) used to) meant only whichever single old value
+      // happened to be sitting in the column showed up — e.g. only the
+      // FIRST payment's amount, with every payment after it silently
+      // dropped from the total.
+      //
+      // Fix: sum every category (default AND custom) across ALL payment
+      // logs, exactly like Financepages/Routes/studentFinance.routes.js's
+      // own getStudentFinance route does. Only fall back to the raw
+      // StudentList columns for students who have zero log rows at all
+      // (i.e. genuinely legacy records predating StudentPaymentLog).
+      let categoryPaid;
+      let flatPaid;
+      const customPaidMap = {};
+      let customPaidTotal = 0;
+
+      if (logs.length > 0) {
+        flatPaid = { ...ZERO_FLAT_PAID };
+        logs.forEach((log) => {
+          CATEGORY_FIELDS.forEach((f) => {
+            flatPaid[f] += Number(log[f] || 0);
+          });
+          const custom = log.customFeeBreakdown || {};
+          Object.entries(custom).forEach(([name, amount]) => {
+            const key = String(name).toLowerCase().trim();
+            const amt = Number(amount || 0);
+            customPaidMap[key] = (customPaidMap[key] || 0) + amt;
+            customPaidTotal += amt;
+          });
+        });
+        categoryPaid = CATEGORY_FIELDS.reduce((sum, f) => sum + flatPaid[f], 0);
+      } else {
+        // Legacy fallback: no StudentPaymentLog rows exist for this student
+        // at all (payments predate logging, or came only through the old
+        // recordCategoryPayment/recordStudentPayment flows). Trust the raw
+        // StudentList columns in that case — same as Finance login's own
+        // "Path B" legacy fallback for payment history.
+        flatPaid = CATEGORY_FIELDS.reduce(
+          (acc, f) => ({ ...acc, [f]: Number(s[f] || 0) }),
+          {}
+        );
+        categoryPaid = sumCategoryPaid(s);
+      }
+
+      const totalPaid = categoryPaid + customPaidTotal;
 
       return {
         id: String(s.id),
@@ -121,30 +184,37 @@ export const getUniversityStudentFinance = async (req, res) => {
 
         fees: Number(s.fees || 0),
 
-        // paidAmount is now ALWAYS the sum of the category columns — this is
-        // what the frontend KPI cards / progress ring read, and it will now
-        // always match the "Fee Category Breakdown" / "Category-wise Fee
-        // Details" tables (which are also computed from these same columns).
-        paidAmount: categoryPaid,
-        dueAmount: Number(s.fees || 0) - categoryPaid,
+        // paidAmount is now ALWAYS the sum of every transaction across
+        // BOTH default and custom fee categories — this is what the
+        // frontend KPI cards / progress ring read, and it will now always
+        // match the "Category-wise Fee Details" and "Payment History"
+        // tables (all computed from the same payment-log data).
+        paidAmount: totalPaid,
+        dueAmount: Number(s.fees || 0) - totalPaid,
 
-        // Diagnostic-only field: non-zero means the raw DB column had drifted
-        // from the true category sum before this response recalculated it.
-        // Safe to ignore on the frontend; useful for spotting bad legacy rows.
+        // Per-custom-fee paid amounts, keyed by lowercased/trimmed label
+        // (e.g. { "uniform": 500, "admission": 550 }) — the frontend uses
+        // this to fill in the "Paid" column for custom fee-category rows.
+        customPaidMap,
+
+        // Diagnostic-only field: non-zero means the raw StudentList column
+        // had drifted from the true log-summed total. Safe to ignore on the
+        // frontend; useful for spotting bad legacy rows.
         _paidAmountDrift: legacyPaidAmount - categoryPaid,
 
         paymentMode: s.paymentMode || null,
         paymentDate: s.paymentDate || null,
         paymentStatus: s.paymentStatus || null,
 
-        // ── Per-category paid amounts ──────────────────────
-        schoolFeePaid:    Number(s.schoolFeePaid    || 0),
-        tuitionFeePaid:   Number(s.tuitionFeePaid   || 0),
-        examFeePaid:      Number(s.examFeePaid      || 0),
-        transportFeePaid: Number(s.transportFeePaid || 0),
-        booksFeePaid:     Number(s.booksFeePaid     || 0),
-        labFeePaid:       Number(s.labFeePaid       || 0),
-        miscFeePaid:      Number(s.miscFeePaid      || 0),
+        // ── Per-category paid amounts (summed from payment logs, with
+        //    legacy fallback — see above) ──────────────────────
+        schoolFeePaid:    flatPaid.schoolFeePaid,
+        tuitionFeePaid:   flatPaid.tuitionFeePaid,
+        examFeePaid:      flatPaid.examFeePaid,
+        transportFeePaid: flatPaid.transportFeePaid,
+        booksFeePaid:     flatPaid.booksFeePaid,
+        labFeePaid:       flatPaid.labFeePaid,
+        miscFeePaid:      flatPaid.miscFeePaid,
 
         school: {
           id: s.school?.id,
@@ -544,6 +614,179 @@ export const debugUniversityChain = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 3b. STUDENT PAYMENT HISTORY (date-wise transactions)
+//    GET /api/superadmin-finance/student-finance/:id/payment-history
+//
+//    SuperAdmin previously had NO route for this at all — the Finance
+//    Details page could only ever show current cumulative totals from
+//    StudentList, never the individual date-wise transactions.
+//
+//    This mirrors Financepages/Routes/studentFinance.routes.js's
+//    GET /paymentHistory/:studentListId (the StudentPaymentLog-based path),
+//    scoped to the logged-in university, so SuperAdmin sees exactly the same
+//    per-transaction, date-wise breakdown Finance login sees — e.g. three
+//    separate ₹500 rows with their own dates, instead of one ₹1,500 total.
+// ─────────────────────────────────────────────────────────────────────────────
+export const getStudentPaymentHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const universityId = req.user?.universityId;
+
+    if (!universityId) {
+      return res.status(400).json({ success: false, message: "universityId missing in token" });
+    }
+
+    const studentListId = Number(id);
+
+    // Confirm this student belongs to a school under this university before
+    // showing any of their payment history.
+    const student = await prisma.studentList.findFirst({
+      where: { id: studentListId, deletedAt: null, school: { universityId } },
+    });
+
+    if (!student) {
+      return res.status(404).json({ success: false, message: "Student record not found or access denied" });
+    }
+
+    const logs = await prisma.studentPaymentLog.findMany({
+      where: { studentListId },
+      orderBy: { paidAt: "desc" },
+    });
+
+    if (logs.length === 0) {
+      return res.json({ success: true, count: 0, data: [] });
+    }
+
+    let bd = {};
+    try {
+      bd = student.feeBreakdown ? JSON.parse(student.feeBreakdown) : {};
+    } catch {}
+
+    const getTotal = (key) => {
+      const e = bd[key];
+      return e ? Number(typeof e === "object" ? (e.total ?? e.amount ?? 0) : e) : 0;
+    };
+
+    // Build cumulative running totals oldest → newest (same as Finance login)
+    const orderedLogs = [...logs].reverse();
+    const runningTotals = {
+      schoolFee: 0, tuitionFee: 0, examFee: 0, transportFee: 0,
+      booksFee: 0, labFee: 0, miscFee: 0,
+    };
+
+    const enriched = orderedLogs.map((log) => {
+      runningTotals.schoolFee    += Number(log.schoolFeePaid    || 0);
+      runningTotals.tuitionFee   += Number(log.tuitionFeePaid   || 0);
+      runningTotals.examFee      += Number(log.examFeePaid      || 0);
+      runningTotals.transportFee += Number(log.transportFeePaid || 0);
+      runningTotals.booksFee     += Number(log.booksFeePaid     || 0);
+      runningTotals.labFee       += Number(log.labFeePaid       || 0);
+      runningTotals.miscFee      += Number(log.miscFeePaid      || 0);
+      return {
+        ...log,
+        cumulativeSchoolFee:    runningTotals.schoolFee,
+        cumulativeTuitionFee:   runningTotals.tuitionFee,
+        cumulativeExamFee:      runningTotals.examFee,
+        cumulativeTransportFee: runningTotals.transportFee,
+        cumulativeBooksFee:     runningTotals.booksFee,
+        cumulativeLabFee:       runningTotals.labFee,
+        cumulativeMiscFee:      runningTotals.miscFee,
+      };
+    });
+    enriched.reverse(); // newest-first for display
+
+    const result = enriched.map((log) => {
+      const date = new Date(log.paidAt);
+      const dateKey = date.toLocaleDateString("en-IN", {
+        day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata",
+      });
+
+      const pairs = [
+        { catName: "School Fee",    paid: Number(log.schoolFeePaid    || 0), cumPaid: log.cumulativeSchoolFee,    totalKey: "collegeFee" },
+        { catName: "Tuition Fee",   paid: Number(log.tuitionFeePaid   || 0), cumPaid: log.cumulativeTuitionFee,   totalKey: "tuitionFee" },
+        { catName: "Exam Fee",      paid: Number(log.examFeePaid      || 0), cumPaid: log.cumulativeExamFee,      totalKey: "examFee" },
+        { catName: "Transport Fee", paid: Number(log.transportFeePaid || 0), cumPaid: log.cumulativeTransportFee, totalKey: "transportFee" },
+        { catName: "Books Fee",     paid: Number(log.booksFeePaid     || 0), cumPaid: log.cumulativeBooksFee,     totalKey: "booksFee" },
+        { catName: "Lab Fee",       paid: Number(log.labFeePaid       || 0), cumPaid: log.cumulativeLabFee,       totalKey: "labFee" },
+        { catName: "Miscellaneous", paid: Number(log.miscFeePaid      || 0), cumPaid: log.cumulativeMiscFee,      totalKey: "miscFee" },
+      ];
+
+      const items = [];
+      for (const p of pairs) {
+        const total = getTotal(p.totalKey);
+        if (total <= 0) continue; // skip categories this student doesn't have
+        items.push({
+          categoryName:   p.catName,
+          amount:         p.paid, // 0 if not paid in this transaction
+          cumulativePaid: p.cumPaid,
+          totalAmount:    total,
+          pending:        Math.max(0, total - p.cumPaid),
+          paymentMode:    log.paymentMode,
+        });
+      }
+
+      // Custom fee categories (e.g. Uniform, Fees) — same source as the
+      // Category-wise Fee Details table's customPaidMap, just per-transaction.
+      const customFees = log.customFeeBreakdown || {};
+      const allCustom = Array.isArray(bd.customFees) ? bd.customFees : [];
+      for (const cf of allCustom) {
+        const label = cf.label;
+        const total = Number(cf.total ?? cf.amount ?? 0);
+        if (!label || total <= 0) continue;
+        const paid = Number(customFees[label] || 0);
+        items.push({
+          categoryName:   label,
+          amount:         paid,
+          cumulativePaid: paid,
+          totalAmount:    total,
+          pending:        Math.max(0, total - paid),
+          paymentMode:    log.paymentMode,
+        });
+      }
+
+      // Fallback: no category breakdown available — show one total row
+      if (items.length === 0) {
+        items.push({
+          categoryName:   "Total Fees",
+          amount:         Number(log.amount || 0),
+          cumulativePaid: Number(log.amount || 0),
+          totalAmount:    Number(student.fees || 0),
+          pending:        0,
+          paymentMode:    log.paymentMode,
+        });
+      }
+
+      return {
+        id:             `log_${log.id}`,
+        label:          dateKey,
+        date:           date.toISOString(),
+        receiptNo:      log.id,
+        invoiceNumber:  log.invoiceNumber || null,
+        amount:         Number(log.amount || 0),
+        paymentMode:    log.paymentMode,
+        items,
+      };
+    });
+
+    // Deduplicate labels for same-day payments (append receipt #)
+    const dateCounts = {};
+    result.forEach((r) => { dateCounts[r.label] = (dateCounts[r.label] || 0) + 1; });
+    result.forEach((r) => {
+      if (dateCounts[r.label] > 1) r.label = `${r.label} • Receipt #${r.receiptNo}`;
+    });
+
+    return res.json({ success: true, count: result.length, data: result });
+  } catch (error) {
+    console.error("[superAdminFinance] getStudentPaymentHistory:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch payment history",
+      error: error.message,
+    });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 4. UPDATE STUDENT LIST RECORD
 //    PATCH /api/superadmin-finance/student-finance/:id
 //
@@ -613,8 +856,15 @@ export const updateStudentFinance = async (req, res) => {
 //    category column, otherwise paidAmount and the category breakdown drift
 //    apart, which was the original bug).
 //
-//    Increments the matching category column, recomputes paidAmount as the
-//    fresh sum of all category columns, then logs to StudentFeePayment.
+//    IMPORTANT: This now ALSO writes a StudentPaymentLog row (the same table
+//    Finance login's recordSimplePayment writes to). Previously this route
+//    only incremented the raw StudentList column, which worked fine in
+//    isolation — but getUniversityStudentFinance now sums paid amounts from
+//    StudentPaymentLog whenever any log rows exist for a student (because
+//    Finance login's own payments never touch the raw columns at all). If a
+//    student already had log rows from Finance login and a superadmin
+//    payment only incremented the raw column, that payment would be
+//    invisible everywhere — this write keeps both paths consistent.
 // ─────────────────────────────────────────────────────────────────────────────
 export const recordStudentPayment = async (req, res) => {
   try {
@@ -649,7 +899,10 @@ export const recordStudentPayment = async (req, res) => {
       });
     }
 
-    // 1) Increment the category column + payment metadata
+    // 1) Increment the raw category column + payment metadata. Kept for
+    //    backward compatibility with any other report that still reads the
+    //    raw StudentList columns directly, but note this value is IGNORED
+    //    by getUniversityStudentFinance once any log rows exist (see above).
     const afterCategoryUpdate = await prisma.studentList.update({
       where: { id: Number(id) },
       data: {
@@ -659,20 +912,49 @@ export const recordStudentPayment = async (req, res) => {
       },
     });
 
-    // 2) Recompute paidAmount + status from the fresh category sum, so
-    //    paidAmount is ALWAYS derived — never independently set.
-    const categoryPaid = sumCategoryPaid(afterCategoryUpdate);
-    const paymentStatus = categoryPaid >= Number(afterCategoryUpdate.fees || 0) ? "PAID" : "PARTIAL";
+    // 2) Write a StudentPaymentLog row — this is what makes the payment
+    //    actually count in the log-summed totals and show up date-wise in
+    //    Payment History, consistent with Finance login's own payments.
+    await prisma.studentPaymentLog.create({
+      data: {
+        studentListId: Number(id),
+        amount: amt,
+        paymentMode,
+        paidAt: new Date(),
+        [catCol]: amt,
+        customFeeBreakdown: {},
+        createdBy: req.user?.id ? String(req.user.id) : null,
+      },
+    });
+
+    // 3) Recompute paidAmount from the full set of logs (default + custom),
+    //    so paidAmount is ALWAYS derived — never independently set — and
+    //    always matches what getUniversityStudentFinance will report.
+    const withLogs = await prisma.studentList.findUnique({
+      where: { id: Number(id) },
+      include: { paymentLogs: true },
+    });
+
+    let categoryPaid = 0;
+    let customPaidTotal = 0;
+    (withLogs.paymentLogs || []).forEach((log) => {
+      categoryPaid += CATEGORY_FIELDS.reduce((sum, f) => sum + Number(log[f] || 0), 0);
+      const custom = log.customFeeBreakdown || {};
+      customPaidTotal += Object.values(custom).reduce((s, v) => s + Number(v || 0), 0);
+    });
+    const totalPaid = categoryPaid + customPaidTotal;
+    const paymentStatus = totalPaid >= Number(afterCategoryUpdate.fees || 0) ? "PAID" : "PARTIAL";
 
     const final = await prisma.studentList.update({
       where: { id: Number(id) },
       data: {
-        paidAmount: categoryPaid,
+        paidAmount: totalPaid,
         paymentStatus,
       },
     });
 
-    // 3) Log the payment for history/audit
+    // 4) Also log to StudentFeePayment for whatever audit trail already
+    //    reads from it.
     await prisma.studentFeePayment.create({
       data: {
         studentListId: Number(id),
@@ -682,7 +964,11 @@ export const recordStudentPayment = async (req, res) => {
       },
     });
 
-    return res.json({ success: true, data: final, recorded: amt });
+    return res.json({
+      success: true,
+      data: { ...final, paidAmount: totalPaid },
+      recorded: amt,
+    });
   } catch (error) {
     console.error("[superAdminFinance] recordStudentPayment:", error);
     return res.status(500).json({ success: false, message: "Failed to record payment", error: error.message });
