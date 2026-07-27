@@ -1,3 +1,4 @@
+//  src\superAdmin\pages\Biometric\MappingsTab.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { Users, Search, Monitor, CreditCard, CheckCircle, XCircle, ChevronRight, X, UserCheck, AlertCircle } from "lucide-react";
 

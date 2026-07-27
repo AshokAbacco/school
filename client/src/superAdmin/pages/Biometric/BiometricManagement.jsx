@@ -26,7 +26,7 @@ const STAT_CARDS = [
   { key: "totalDevices",    label: "Total Devices",    Icon: Monitor,      color: "#4F46E5", bg: "#EEF2FF" },
   { key: "mappedUsers",     label: "Mapped Users",     Icon: Users,        color: "#059669", bg: "#ECFDF5" },
   { key: "todayPunches",    label: "Today's Punches",  Icon: Hand,         color: "#D97706", bg: "#FFFBEB" },
-  { key: "unmappedPunches", label: "Unmapped Punches", Icon: AlertTriangle, color: "#DC2626", bg: "#FEF2F2" },
+  // { key: "unmappedPunches", label: "Unmapped Punches", Icon: AlertTriangle, color: "#DC2626", bg: "#FEF2F2" },
 ];
 
 export default function BiometricManagement() {
