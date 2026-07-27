@@ -32,23 +32,52 @@ dotenv.config();
 const PORT = process.env.PORT || 5001;
 
 
-const allowedOrigins = process.env.CLIENT_ORIGIN.split(",");
+// ==================== CORS ====================
+const allowedOrigins = process.env.CLIENT_ORIGIN
+  ? process.env.CLIENT_ORIGIN.split(",").map(origin => origin.trim())
+  : [];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
+console.log("Allowed Origins:", allowedOrigins);
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+const corsOptions = {
+  origin: (origin, callback) => {
+    console.log("Request Origin:", origin);
 
-      console.log("Blocked Origin:", origin);
-      return callback(new Error("CORS not allowed: " + origin));
-    },
-    credentials: true,
-  })
-);
+    // Allow requests without Origin (mobile apps, Postman, curl, etc.)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.log("Blocked Origin:", origin);
+
+    return callback(new Error(`CORS not allowed: ${origin}`));
+  },
+
+  credentials: true,
+
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ],
+
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "Origin",
+  ],
+};
+
+app.use(cors(corsOptions));
 
 
 app.get("/api/image-proxy", async (req, res) => {
