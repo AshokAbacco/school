@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import {
   X, ChevronDown, User, Mail, Phone, BookOpen,
   DollarSign, Plus, Minus, GraduationCap, Building2,
-  AlertCircle, Calendar, Tag, Percent
+  AlertCircle, Calendar, Tag, Percent, Edit2, Check
 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -52,6 +52,8 @@ const Addstudent = ({ open, handleClose, addStudentData, editData }) => {
   // auto-filled info
   const [studentInfo, setStudentInfo] = useState({ name: "", email: "", phone: "", course: "", studentId: "" });
   const [autoFilled, setAutoFilled] = useState(false);
+  // Only relevant in edit mode — lets the user manually correct name/email/phone
+  const [editingContactInfo, setEditingContactInfo] = useState(false);
 
   // ── Fee date ────────────────────────────────────────────────────────────────
   const [feeDate, setFeeDate] = useState(todayISO());
@@ -97,6 +99,7 @@ const Addstudent = ({ open, handleClose, addStudentData, editData }) => {
   const resetForm = () => {
     setSelectedClass(""); setSelectedStudentId("");
     setStudents([]); setAutoFilled(false);
+    setEditingContactInfo(false);
     setStudentInfo({ name: "", email: "", phone: "", course: "", studentId: "" });
     setFeeRows(DEFAULT_FEES);
     setCustomFees([]);
@@ -457,6 +460,13 @@ if (editData) {
         .as-date-inp:focus{border-color:#d97706;box-shadow:0 0 0 3px rgba(217,119,6,.15)}
 
         .as-ig{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .as-ig-edit{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .as-edit-info-btn{display:flex;align-items:center;gap:4px;border:1.5px solid var(--bf);
+          background:var(--bm);color:var(--br);font-size:10.5px;font-weight:700;
+          padding:3px 10px;border-radius:20px;cursor:pointer;font-family:'Sora',sans-serif;
+          transition:all .15s;flex-shrink:0;}
+        .as-edit-info-btn:hover{background:var(--bf);color:var(--brd)}
+        .as-edit-info-btn.done{background:var(--grm);border-color:var(--grf);color:var(--gr)}
         .as-ic{background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 14px}
         .as-icl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;
           color:#15803d;margin-bottom:3px;display:flex;align-items:center;gap:4px}
@@ -747,25 +757,72 @@ if (editData) {
 
             {/* Auto-filled Info */}
             <div>
-              <p className="as-sl">
-                Student Info
-                {autoFilled && <span style={{ fontSize: 10, fontWeight: 700, background: "#dcfce7", color: "#15803d", padding: "1px 7px", borderRadius: 20 }}>AUTO-FILLED ✓</span>}
+              <p className="as-sl" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  Student Info
+                  {autoFilled && !editingContactInfo && (
+                    <span style={{ fontSize: 10, fontWeight: 700, background: "#dcfce7", color: "#15803d", padding: "1px 7px", borderRadius: 20 }}>AUTO-FILLED ✓</span>
+                  )}
+                </span>
+                {/* Edit option only makes sense on an existing record — a freshly
+                    selected student's info is already fresh, so skip it while adding new. */}
+                {editData && autoFilled && (
+                  <button
+                    type="button"
+                    className={`as-edit-info-btn${editingContactInfo ? " done" : ""}`}
+                    onClick={() => setEditingContactInfo(v => !v)}
+                  >
+                    {editingContactInfo ? <><Check size={11} /> Done</> : <><Edit2 size={11} /> Edit</>}
+                  </button>
+                )}
               </p>
+
               {autoFilled ? (
-                <div className="as-ig">
-                  <div className="as-ic">
-                    <div className="as-icl"><Mail size={9} /> Email</div>
-                    <div className="as-icv">{studentInfo.email || "—"}</div>
+                editingContactInfo ? (
+                  <div className="as-ig-edit">
+                    <div className="as-f" style={{ gridColumn: "1 / -1" }}>
+                      <label className="as-lbl"><User size={13} /> Name</label>
+                      <input
+                        className="as-inp"
+                        value={studentInfo.name}
+                        onChange={e => setStudentInfo(p => ({ ...p, name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="as-f">
+                      <label className="as-lbl"><Mail size={13} /> Email</label>
+                      <input
+                        className="as-inp"
+                        type="email"
+                        value={studentInfo.email}
+                        onChange={e => setStudentInfo(p => ({ ...p, email: e.target.value }))}
+                      />
+                    </div>
+                    <div className="as-f">
+                      <label className="as-lbl"><Phone size={13} /> Phone</label>
+                      <input
+                        className="as-inp"
+                        type="tel"
+                        value={studentInfo.phone}
+                        onChange={e => setStudentInfo(p => ({ ...p, phone: e.target.value }))}
+                      />
+                    </div>
                   </div>
-                  <div className="as-ic">
-                    <div className="as-icl"><Phone size={9} /> Phone</div>
-                    <div className="as-icv">{studentInfo.phone || "—"}</div>
+                ) : (
+                  <div className="as-ig">
+                    <div className="as-ic">
+                      <div className="as-icl"><Mail size={9} /> Email</div>
+                      <div className="as-icv">{studentInfo.email || "—"}</div>
+                    </div>
+                    <div className="as-ic">
+                      <div className="as-icl"><Phone size={9} /> Phone</div>
+                      <div className="as-icv">{studentInfo.phone || "—"}</div>
+                    </div>
+                    <div className="as-ic" style={{ gridColumn: "1 / -1" }}>
+                      <div className="as-icl"><BookOpen size={9} /> Course / Class</div>
+                      <div className="as-icv">{studentInfo.course || "—"}</div>
+                    </div>
                   </div>
-                  <div className="as-ic" style={{ gridColumn: "1 / -1" }}>
-                    <div className="as-icl"><BookOpen size={9} /> Course / Class</div>
-                    <div className="as-icv">{studentInfo.course || "—"}</div>
-                  </div>
-                </div>
+                )
               ) : (
                 <div className="as-ph">
                   <AlertCircle size={15} style={{ color: "#94a3b8", flexShrink: 0 }} />

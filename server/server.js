@@ -29,7 +29,7 @@ import voiceRoutes from "./src/voice/routes/voice.routes.js";
 
 import dotenv from "dotenv";
 dotenv.config();
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 
 // ==================== CORS ====================
