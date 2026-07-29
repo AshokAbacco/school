@@ -35,6 +35,17 @@ export const createOrder = async (req, res) => {
       return res.status(400).json({ error: "All fields are required" });
     }
 
+    // 🆕 Referral code validation/normalization — the field is optional,
+    // but if something was sent it should look like a real code
+    // (letters/numbers only, 4-20 chars) before we persist it. Anything
+    // that doesn't match this shape is treated the same as "no code was
+    // sent" rather than rejecting the whole order over a cosmetic field.
+    const REFERRAL_CODE_PATTERN = /^[A-Za-z0-9]{4,20}$/;
+    const normalizedReferralCode =
+      typeof referralCode === "string" && REFERRAL_CODE_PATTERN.test(referralCode.trim())
+        ? referralCode.trim().toUpperCase()
+        : null;
+
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: "Invalid amount. Please add at least 1 user." });
     }
@@ -141,14 +152,18 @@ export const createOrder = async (req, res) => {
         // 🔥 TEMP REGISTER
         tempUserId,
 
-        // 🆕 Referral tracking — still recorded here exactly as before.
+        // 🆕 Referral tracking. Stores the validated/normalized code (see
+        // normalizedReferralCode above) — null when none was sent or it
+        // didn't match the expected format, otherwise the trimmed,
+        // uppercased code exactly as it should appear downstream.
+        //
         // NOTE: we no longer push this to Abacco Tech on creation. Abacco
         // now pulls referral data on its own schedule via
         // GET /api/payment/referrals (see getReferredUsers below). This
         // removes the fire-and-forget notify call that used to live here —
         // see "Referral sync architecture change" note near the bottom of
         // this file for details.
-        referredByCode: referralCode || null,
+        referredByCode: normalizedReferralCode,
       },
     });
 

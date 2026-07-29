@@ -2,6 +2,13 @@
 import { useState, useRef, useEffect } from "react";
 import { X, Crown, Users, CheckCircle2, ChevronRight, Sparkles, ArrowLeft, Lock, GraduationCap, BookOpen } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  captureReferralCodeFromUrl,
+  getStoredReferralCode,
+  isValidReferralCodeFormat,
+  resolveReferralCode,
+  saveReferralCode,
+} from "../../utils/referral";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -28,10 +35,14 @@ export default function PaymentModal({ isOpen, onClose }) {
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
 
-  // 🆕 Capture ?ref=ABARC002 from the URL, if present, so it can be sent
-  // along with the order and credited to the referring vendor on Abacco Tech.
+  // 🆕 Referral code handling — see src/utils/referral.js for the full
+  // rationale. In short: a code can arrive via `?ref=ABARC002` in the URL
+  // or be typed directly into the form. Whichever way it first shows up,
+  // it's persisted to localStorage so it isn't lost if the query string
+  // disappears (e.g. the user navigates around the site) before checkout
+  // finishes, and manual entry always takes priority over the captured
+  // value if the user overrides it.
   const [searchParams] = useSearchParams();
-  const referralCode = searchParams.get("ref") || null;
 
   const [form, setForm] = useState({
     fullName: "",
@@ -39,7 +50,21 @@ export default function PaymentModal({ isOpen, onClose }) {
     email: "",
     phone: "",
     address: "",
+    referralCode: getStoredReferralCode(),
   });
+
+  // Capture `?ref=` whenever the modal opens (or the URL's query params
+  // change) and only prefill the form field if the user hasn't already
+  // typed something into it themselves.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const captured = captureReferralCodeFromUrl(searchParams);
+    if (captured) {
+      setForm((prev) => (prev.referralCode ? prev : { ...prev, referralCode: captured }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, searchParams]);
 
   const plan = PREMIUM_PLAN;
   if (!isOpen) return null;
@@ -64,6 +89,11 @@ export default function PaymentModal({ isOpen, onClose }) {
     if (!form.address.trim()) newErrors.address = "City / Address is required";
     if (studentCount < MIN_STUDENTS) newErrors.studentCount = `Minimum ${MIN_STUDENTS} students required`;
     if (teacherCount < MIN_TEACHERS) newErrors.teacherCount = `Minimum ${MIN_TEACHERS} teachers required`;
+    // 🆕 Referral code is optional, but if something was entered it should
+    // at least look like a real code before we bother sending it along.
+    if (form.referralCode && !isValidReferralCodeFormat(form.referralCode)) {
+      newErrors.referralCode = "Referral code should be 4-20 letters/numbers";
+    }
     return newErrors;
   };
 
@@ -77,6 +107,13 @@ export default function PaymentModal({ isOpen, onClose }) {
     }
     setLoading(true);
 
+    // 🆕 Resolve the final referral code once, right before submitting:
+    // manual field entry wins, falling back to whatever was captured from
+    // the URL/localStorage earlier. This is the single source of truth
+    // sent to the backend — nothing overwrites it after this point.
+    const finalReferralCode = resolveReferralCode(form.referralCode, getStoredReferralCode());
+    saveReferralCode(finalReferralCode);
+
     try {
       const res = await fetch(`${API_URL}/api/payment/create-order`, {
         method: "POST",
@@ -89,7 +126,7 @@ export default function PaymentModal({ isOpen, onClose }) {
           studentCount,
           teacherCount,
           amount: totalPrice,
-          referralCode, // 🆕
+          referralCode: finalReferralCode, // 🆕 always the resolved value — never silently null when a code exists
         }),
       });
 
@@ -416,8 +453,9 @@ export default function PaymentModal({ isOpen, onClose }) {
                   Referral Code <span className="font-normal text-[#a0b5c8]">(optional)</span>
                 </label>
                 <input id="pm-referralCode" name="referralCode" placeholder="e.g. ABARC002" autoComplete="off" onChange={handleChange} value={form.referralCode}
-                  className="h-11 rounded-xl border-[1.5px] border-[#dde7f0] px-3.5 text-[14px] text-[#384959] bg-[#fafcfe] outline-none transition-all duration-150 font-dm placeholder:text-[#b0c4d8] focus:border-[#88BDF2] focus:shadow-[0_0_0_3px_rgba(136,189,242,0.15)]"
+                  className={`h-11 rounded-xl border-[1.5px] px-3.5 text-[14px] text-[#384959] bg-[#fafcfe] outline-none transition-all duration-150 font-dm placeholder:text-[#b0c4d8] focus:border-[#88BDF2] focus:shadow-[0_0_0_3px_rgba(136,189,242,0.15)] ${errors.referralCode ? "border-[#f87171]" : "border-[#dde7f0]"}`}
                 />
+                {errors.referralCode && <span className="text-[11px] text-red-500">⚠ {errors.referralCode}</span>}
               </div>
 
               {serverError && (
