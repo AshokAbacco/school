@@ -3088,6 +3088,9 @@ model Payment {
   // 🔥 Temp Register
   tempUserId String? @unique
 
+  // 🆕 Abacco Tech referral code used at checkout, if any (e.g. "ABARC002")
+  referredByCode String?
+
   // 🔗 Relations
   superAdminId String?
   superAdmin   SuperAdmin? @relation(fields: [superAdminId], references: [id])
@@ -3101,6 +3104,7 @@ model Payment {
   @@index([tempUserId])
   @@index([superAdminId])
   @@index([universityId])
+  @@index([referredByCode]) // 🆕
 }
 
 model Plan {

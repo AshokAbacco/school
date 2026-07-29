@@ -1,7 +1,7 @@
 // src/LandingPages/pricing/Payment.jsx
 import { useState, useRef, useEffect } from "react";
 import { X, Crown, Users, CheckCircle2, ChevronRight, Sparkles, ArrowLeft, Lock, GraduationCap, BookOpen } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -27,6 +27,11 @@ export default function PaymentModal({ isOpen, onClose }) {
   const [step, setStep] = useState("summary");
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+
+  // 🆕 Capture ?ref=ABARC002 from the URL, if present, so it can be sent
+  // along with the order and credited to the referring vendor on Abacco Tech.
+  const [searchParams] = useSearchParams();
+  const referralCode = searchParams.get("ref") || null;
 
   const [form, setForm] = useState({
     fullName: "",
@@ -84,6 +89,7 @@ export default function PaymentModal({ isOpen, onClose }) {
           studentCount,
           teacherCount,
           amount: totalPrice,
+          referralCode, // 🆕
         }),
       });
 
@@ -403,6 +409,15 @@ export default function PaymentModal({ isOpen, onClose }) {
                   />
                   {errors.address && <span className="text-[11px] text-red-500">⚠ {errors.address}</span>}
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-semibold text-[#384959] tracking-[0.3px]" htmlFor="pm-referralCode">
+                  Referral Code <span className="font-normal text-[#a0b5c8]">(optional)</span>
+                </label>
+                <input id="pm-referralCode" name="referralCode" placeholder="e.g. ABARC002" autoComplete="off" onChange={handleChange} value={form.referralCode}
+                  className="h-11 rounded-xl border-[1.5px] border-[#dde7f0] px-3.5 text-[14px] text-[#384959] bg-[#fafcfe] outline-none transition-all duration-150 font-dm placeholder:text-[#b0c4d8] focus:border-[#88BDF2] focus:shadow-[0_0_0_3px_rgba(136,189,242,0.15)]"
+                />
               </div>
 
               {serverError && (

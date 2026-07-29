@@ -24,6 +24,7 @@ export const createOrder = async (req, res) => {
       studentCount = 0,
       teacherCount = 0,
       amount,
+      referralCode, // 🆕 e.g. "ABARC002", sent by the frontend if present
     } = req.body;
 
     const userCount =
@@ -139,6 +140,15 @@ export const createOrder = async (req, res) => {
 
         // 🔥 TEMP REGISTER
         tempUserId,
+
+        // 🆕 Referral tracking — still recorded here exactly as before.
+        // NOTE: we no longer push this to Abacco Tech on creation. Abacco
+        // now pulls referral data on its own schedule via
+        // GET /api/payment/referrals (see getReferredUsers below). This
+        // removes the fire-and-forget notify call that used to live here —
+        // see "Referral sync architecture change" note near the bottom of
+        // this file for details.
+        referredByCode: referralCode || null,
       },
     });
 
@@ -199,6 +209,14 @@ export const verifyPayment = async (req, res) => {
         superAdminId,
       },
     });
+
+    // 🆕 Referral sync architecture change: this used to fire a push
+    // notification to Abacco Tech (POST /referral/register) the moment a
+    // payment was verified as SUCCESS. That push call has been removed.
+    // Abacco Tech now pulls referral rows (including this payment's
+    // updated status) via GET /api/payment/referrals whenever it runs its
+    // sync job, so no action is needed here beyond persisting `status` on
+    // the Payment row itself, which already happened above.
 
     // ✅ Send invoice email
     sendInvoiceEmail({
@@ -297,6 +315,16 @@ export const razorpayWebhook = async (req, res) => {
         });
 
         if (payment && payment.status === "SUCCESS") {
+          // 🆕 Referral sync architecture change: this webhook path used
+          // to be a second route (alongside verifyPayment) that pushed a
+          // referral notification to Abacco Tech, covering the case where
+          // verifyPayment never completed client-side (e.g. user closed
+          // the tab right after paying). That's no longer necessary — this
+          // payment's SUCCESS status is picked up automatically the next
+          // time Abacco Tech runs its pull-based sync against
+          // GET /api/payment/referrals, since that endpoint always reads
+          // the current status straight from this table.
+
           sendInvoiceEmail({
             email:             payment.email,
             fullName:          payment.fullName,
@@ -322,5 +350,56 @@ export const razorpayWebhook = async (req, res) => {
   } catch (err) {
     console.error("❌ webhook error:", err);
     res.status(500).json({ error: "Webhook failed" });
+  }
+};
+
+
+//
+// 🆕 GET REFERRED USERS — powers the Abacco Tech pull-based referral sync
+//
+// GET /api/payment/referrals
+// Protected by x-api-key (see middlewares/apiKey.middleware.js). Called by
+// Abacco Tech's schoolSync service on a schedule (or on-demand) instead of
+// School CRM pushing a fetch() to Abacco on every payment event.
+//
+// Returns every payment that used a referral code, regardless of payment
+// status, so Abacco can see the full lifecycle (PENDING → SUCCESS/FAILED)
+// of each referred lead and keep its own Referral rows in sync.
+//
+export const getReferredUsers = async (req, res) => {
+  try {
+    const referredPayments = await prisma.payment.findMany({
+      where: {
+        referredByCode: { not: null },
+      },
+      select: {
+        id: true,
+        referredByCode: true,
+        fullName: true,
+        schoolName: true,
+        email: true,
+        phone: true,
+        planName: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const data = referredPayments.map((payment) => ({
+      externalId: payment.id,
+      referralCode: payment.referredByCode,
+      userName: payment.fullName || payment.schoolName,
+      email: payment.email,
+      phone: payment.phone,
+      plan: payment.planName,
+      status: payment.status,
+      createdAt: payment.createdAt,
+    }));
+
+    return res.json(data);
+  } catch (err) {
+    console.error("❌ getReferredUsers error:", err);
+    return res.status(500).json({ error: "Failed to fetch referred users" });
   }
 };
