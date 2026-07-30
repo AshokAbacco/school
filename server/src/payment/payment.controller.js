@@ -381,6 +381,16 @@ export const razorpayWebhook = async (req, res) => {
 // status, so Abacco can see the full lifecycle (PENDING → SUCCESS/FAILED)
 // of each referred lead and keep its own Referral rows in sync.
 //
+// 🆕 FIXED: this used to select/return only
+// { id, referredByCode, fullName, schoolName, email, phone, planName,
+//   status, createdAt } — no `amount`, no company name, no payment/order
+// IDs, no paid/expiry dates at all. Abacco Tech's Referral table has had
+// columns for all of this since the Motor Desk integration, but School
+// CRM's export never sent any of it, so those columns stayed null for
+// every School CRM row (showing as "—" in the Deals table). Now sends the
+// same shape Motor Desk's /api/abacco/referrals already sends, so Abacco's
+// schoolSync.service.js can store it the same way.
+//
 export const getReferredUsers = async (req, res) => {
   try {
     const referredPayments = await prisma.payment.findMany({
@@ -395,8 +405,14 @@ export const getReferredUsers = async (req, res) => {
         email: true,
         phone: true,
         planName: true,
+        amount: true,             // 🆕
+        razorpayOrderId: true,    // 🆕
+        razorpayPaymentId: true,  // 🆕
+        planStartDate: true,      // 🆕
+        planEndDate: true,        // 🆕
         status: true,
         createdAt: true,
+        updatedAt: true,          // 🆕 used to approximate paidAt below
       },
       orderBy: { createdAt: "desc" },
     });
@@ -405,10 +421,29 @@ export const getReferredUsers = async (req, res) => {
       externalId: payment.id,
       referralCode: payment.referredByCode,
       userName: payment.fullName || payment.schoolName,
+
+      // 🆕 Richer fields — same shape as Motor Desk's export, so Abacco's
+      // schoolSync.service.js can map them onto the same Referral columns.
+      customerName: payment.fullName,
+      companyName: payment.schoolName,
       email: payment.email,
       phone: payment.phone,
       plan: payment.planName,
+      // School CRM plans always run for exactly one year (see
+      // planEndDate = planStartDate + 1 year in createOrder above) — there's
+      // no per-payment billing cycle concept to report beyond that.
+      billingPeriod: "yearly",
+      amount: payment.amount,
+      orderId: payment.razorpayOrderId,
+      paymentId: payment.razorpayPaymentId,
       status: payment.status,
+      // School CRM doesn't track a dedicated "paid at" timestamp — the
+      // closest real signal is updatedAt at the moment status flips to
+      // SUCCESS, so that's used here, and only then (never for
+      // PENDING/FAILED rows, where there's nothing meaningful to report).
+      paidAt: payment.status === "SUCCESS" ? payment.updatedAt : null,
+      expiryDate: payment.planEndDate,
+
       createdAt: payment.createdAt,
     }));
 
