@@ -685,7 +685,11 @@ export async function generateCertificatePdf(type, data, imageBuffers = {}) {
 
   const browser = await puppeteer.launch({
     headless: "new",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+    ],
   });
 
   try {
