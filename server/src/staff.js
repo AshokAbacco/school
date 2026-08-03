@@ -56,6 +56,11 @@ import deleteAccountRoutes from "./superAdmin/routes/DeleteAccount.routes.js";
 
 import timetableExcelRoutes from "./staffRoutes/timetableexcelroutes.js";
 
+// ── NEW: Certificates module (Transfer Certificate, Hall Ticket, etc.) ────────
+import certificateRoutes from "./certificates/certificate.routes.js";
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 // ── NEW: shared read-only holiday route for teacher/staff logins ──────────────
 import makeHolidayRouter from "./sharedRoutes/holidayRoute.js";
 import authMiddleware from "./middlewares/authMiddleware.js";
@@ -167,6 +172,7 @@ staff.use(
 );
 staff.use("/api/admin/tutorials", tutorialRoutes);
 staff.use("/api/chat", chatRoutes);
+staff.use("/api/certificates", certificateRoutes);
 staff.use("/api", logoRoutes(requireAuth));
 initBiometricScheduler();
 

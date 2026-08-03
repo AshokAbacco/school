@@ -37,6 +37,9 @@ import DeletedRecords from "./pages/settings/DeletedRecords";
 import Profile from "./components/Profile.jsx"
 import ScriptViewingSettings from "./pages/ReEvaluation/ScriptViewingSettings.jsx";
 import ScriptViewRequests from "./pages/ReEvaluation/ScriptViewRequests";
+import CertificatesDashboard from "./pages/certificates/CertificatesDashboard.jsx";
+import CertificateGenerate from "./pages/certificates/CertificateGenerate.jsx";
+import CertificateHistory from "./pages/certificates/CertificateHistory.jsx";
 function AdminRoutes() {
   return (
     <PageLayout>
@@ -97,6 +100,11 @@ function AdminRoutes() {
           path="script-view-requests"
           element={<ScriptViewRequests  />}
         />
+
+        {/* Certificates */}
+        <Route path="certificates" element={<CertificatesDashboard />} />
+        <Route path="certificates/generate" element={<CertificateGenerate />} />
+        <Route path="certificates/history" element={<CertificateHistory />} />
         
       </Routes>
     </PageLayout>
