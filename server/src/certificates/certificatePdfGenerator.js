@@ -7,12 +7,51 @@
 // responsible for resolving R2 keys to buffers via getObjectBuffer() before
 // calling generateCertificatePdf, so this file has no storage dependency.
 
-import puppeteer from "puppeteer";
 import {
   getHallTicketTheme,
   DEFAULT_HALL_TICKET_THEME,
   DEFAULT_HALL_TICKET_INSTRUCTIONS,
 } from "./certificate.constants.js";
+
+// ── Browser launcher ─────────────────────────────────────────────────────────
+// Render (and most hosted/serverless environments) kept failing to find a
+// Chrome binary that regular `puppeteer` tries to download into a cache
+// folder at install time — the classic "Could not find Chrome ... cache
+// path is incorrectly configured" error, even after pinning the cache dir
+// and adding an explicit install step to the build command.
+//
+// @sparticuz/chromium ships a self-contained, pre-built Chromium binary
+// *inside* the npm package itself (extracted at runtime via
+// chromium.executablePath()) — there's no separate download step and
+// therefore no cache-path mismatch to get wrong. It's paired with
+// `puppeteer-core`, which is the same Puppeteer API minus the bundled
+// browser download.
+//
+// Locally (where a full Chrome download works fine and this package isn't
+// installed/needed), it falls back to plain `puppeteer` — dynamically
+// imported so it's not a hard dependency of this file in production.
+async function launchBrowser() {
+  const isHosted = process.env.RENDER || process.env.NODE_ENV === "production";
+
+  if (isHosted) {
+    const [{ default: puppeteerCore }, { default: chromium }] = await Promise.all([
+      import("puppeteer-core"),
+      import("@sparticuz/chromium"),
+    ]);
+    return puppeteerCore.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
+  }
+
+  const { default: puppeteerFull } = await import("puppeteer");
+  return puppeteerFull.launch({
+    headless: "new",
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -683,14 +722,7 @@ export async function generateCertificatePdf(type, data, imageBuffers = {}) {
 
   const html = buildHtml(type, { ...data, photo: images.photo }, images);
 
-  const browser = await puppeteer.launch({
-    headless: "new",
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-    ],
-  });
+  const browser = await launchBrowser();
 
   try {
     const page = await browser.newPage();
