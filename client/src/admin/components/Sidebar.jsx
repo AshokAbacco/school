@@ -23,7 +23,8 @@ import {
   MapPinned,
   BookMarked,
   ReceiptText,
-  FileSearch
+  FileSearch,
+  FileBadge2
 } from "lucide-react";
 
  
@@ -58,7 +59,7 @@ export default function Sidebar({ isOpen, onClose, user }) {
       storedUser?.planName ||
       "Silver";
 
-    console.log("ADMIN PLAN =", userPlan);
+    // console.log("ADMIN PLAN =", userPlan);
 
 const NAV = [
   { icon: LayoutDashboard, label: "Dashboard",   to: "/admin/dashboard" },
@@ -85,6 +86,8 @@ const NAV = [
         to: "/admin/exams",
       }]
     : []),
+
+      { icon: FileBadge2,      label: "Certificates", to: "/admin/certificates" },
 
   // ✅ Gold + Premium
   ...(userPlan !== "Silver"
@@ -116,22 +119,23 @@ const NAV = [
         to: "/admin/meetings",
       }]
     : []),
-  // ✅ Premium only
-  ...(userPlan === "Premium"
-    ? [{
-        icon: ReceiptText,
-        label: "Answer Sheet Management",
-        to: "/admin/viewing-settings",
-      }]
-    : []),
-    // ✅ Premium only
-...(userPlan === "Premium"
-  ? [{
-      icon: FileSearch,
-      label: "Answer Sheet Requests",
-      to: "/admin/script-view-requests",
-    }]
-  : []),
+    
+  //   // ✅ Premium only || i commented but don't dleete
+  //   ...(userPlan === "Premium"
+  //     ? [{
+  //         icon: ReceiptText,
+  //         label: "Answer Sheet Management",
+  //         to: "/admin/viewing-settings",
+  //       }]
+  //     : []),
+  //     // ✅ Premium only || i commented but don't dleete
+  // ...(userPlan === "Premium"
+  //   ? [{
+  //       icon: FileSearch,
+  //       label: "Answer Sheet Requests",
+  //       to: "/admin/script-view-requests",
+  //     }]
+  //   : []),
 
   { icon: Images, label: "Gallery", to: "/admin/gallery" },
 
@@ -153,14 +157,14 @@ const NAV = [
       }]
     : []),
 
-  // ✅ Premium only
-  ...(userPlan === "Premium"
-    ? [{
-        icon: MapPinned,
-        label: "Tracking",
-        to: "/admin/tracking",
-      }]
-    : []),
+  // ✅ Premium only || i commented but don't dleete
+  // ...(userPlan === "Premium"
+  //   ? [{
+  //       icon: MapPinned,
+  //       label: "Tracking",
+  //       to: "/admin/tracking",
+  //     }]
+  //   : []),
 
 ];
 
