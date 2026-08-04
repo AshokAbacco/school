@@ -96,12 +96,12 @@ staff.use(
 
 // staff.use(express.json());
 staff.use(express.json({
-  limit: "50mb",
+  limit: "100mb",
 }));
 
 staff.use(express.urlencoded({
   extended: true,
-  limit: "50mb",
+  limit: "100mb",
 }));
 
 // super admin
