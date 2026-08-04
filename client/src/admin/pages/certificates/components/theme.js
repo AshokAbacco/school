@@ -42,7 +42,4 @@ export const getHallTicketTheme = (id) =>
 export const DEFAULT_HALL_TICKET_INSTRUCTIONS = [
   "Candidates must bring this hall ticket to every examination.",
   "No candidate will be permitted to enter the examination hall without this hall ticket.",
-  "Report to the exam centre at least 30 minutes before the reporting time.",
-  "Mobile phones and electronic devices are strictly prohibited inside the exam hall.",
-  "Candidates must occupy only the seat allotted to them.",
 ].join("\n");

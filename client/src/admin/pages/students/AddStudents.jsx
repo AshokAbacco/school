@@ -946,7 +946,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       identifyingMarks: f.bmarks,
     };
     Object.entries(flds).forEach(([k, v]) => {
-      if (v !== undefined && v !== "" && v !== null) fd.append(k, v);
+      // NOTE: empty strings are intentionally sent (not skipped) so that
+      // clearing a field on the form actually clears it in the database.
+      // Only truly absent values (undefined/null) are omitted.
+      if (v !== undefined && v !== null) fd.append(k, v);
     });
     if (photo) fd.append("profileImage", photo);
 
