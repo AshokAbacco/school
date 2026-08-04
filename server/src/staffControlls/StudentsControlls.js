@@ -93,10 +93,47 @@ const VALID_SCHOOL_BOARDS = [
   "OTHER",
 ];
 
+// Drops keys that were never sent at all (undefined), but KEEPS keys that
+// were sent as an empty string — converting "" to null so Prisma actually
+// clears the column instead of leaving the old value untouched.
+// (Previously this also stripped "", which is why clearing a field on the
+// form and saving silently kept the old value.)
 const compact = (obj) =>
   Object.fromEntries(
-    Object.entries(obj).filter(([, v]) => v !== undefined && v !== ""),
+    Object.entries(obj)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, v === "" ? null : v]),
   );
+
+// Helpers below all follow the same contract:
+//   - input undefined  -> output undefined (field not submitted, leave alone)
+//   - input "" / null  -> output null      (field submitted empty, clear it)
+//   - otherwise        -> parsed/normalized value
+const strOrNull = (v) => {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  const t = String(v).trim();
+  return t === "" ? null : t;
+};
+
+const numOrNull = (v) => {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  const n = parseFloat(v);
+  return Number.isNaN(n) ? null : n;
+};
+
+const dateOrNull = (v) => {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  return new Date(v);
+};
+
+const enumOrNull = (v) => {
+  if (v === undefined) return undefined;
+  if (v === null || v === "") return null;
+  return toEnum(v);
+};
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const NUMBERS = "0123456789";
@@ -325,10 +362,31 @@ export const savePersonalInfo = async (req, res) => {
       profileImageUrl = await uploadToR2(key, req.file.buffer, req.file.mimetype);
     }
 
-    const rawBloodGroup = toEnum(bloodGroup)
-      ?.replace(/\+/g, "_PLUS")
-      .replace(/-/g, "_MINUS");
-    const fixedBloodGroup = bloodGroupMap[rawBloodGroup] || rawBloodGroup;
+    // Blood group needs its own null-aware resolution since it goes through
+    // an extra remapping step (toEnum -> +/- suffix fixup -> bloodGroupMap).
+    let bloodGroupValue;
+    if (bloodGroup === undefined) {
+      bloodGroupValue = undefined;
+    } else if (bloodGroup === "" || bloodGroup === null) {
+      bloodGroupValue = null;
+    } else {
+      const rawBloodGroup = toEnum(bloodGroup)
+        ?.replace(/\+/g, "_PLUS")
+        .replace(/-/g, "_MINUS");
+      bloodGroupValue = bloodGroupMap[rawBloodGroup] || rawBloodGroup;
+    }
+
+    // Boarding type is restricted to an enum, but still needs to support
+    // being cleared back to null when the user removes the selection.
+    let boardingTypeValue;
+    if (boardingType === undefined) {
+      boardingTypeValue = undefined;
+    } else if (boardingType === "" || boardingType === null) {
+      boardingTypeValue = null;
+    } else {
+      const bt = boardingType.toUpperCase();
+      boardingTypeValue = ["HOSTEL", "DAY_SCHOLAR"].includes(bt) ? bt : undefined;
+    }
 
     const data = compact({
       firstName, lastName,
@@ -338,66 +396,65 @@ export const savePersonalInfo = async (req, res) => {
       // ── Father — always saved, independent of any login ──
       parentName, parentEmail,
       parentPhone: normalizePhone(parentPhone),
-      parentOccupation: parentOccupation?.trim() || undefined,
-      parentAnniversaryDate: parentAnniversaryDate ? new Date(parentAnniversaryDate) : undefined,
-      fatherAadhaarNumber: fatherAadhaarNumber?.trim() || undefined,
+      parentOccupation: strOrNull(parentOccupation),
+      parentAnniversaryDate: dateOrNull(parentAnniversaryDate),
+      fatherAadhaarNumber: strOrNull(fatherAadhaarNumber),
       emergencyContact,
 
       // ── Mother — always saved, independent of any login ──
-      motherName: motherName?.trim() || undefined,
-      motherEmail: motherEmail?.trim() || undefined,
+      motherName: strOrNull(motherName),
+      motherEmail: strOrNull(motherEmail),
       motherPhone: normalizePhone(motherPhone),
-      motherOccupation: motherOccupation?.trim() || undefined,
-      motherAnniversaryDate: motherAnniversaryDate ? new Date(motherAnniversaryDate) : undefined,
-      motherAadhaarNumber: motherAadhaarNumber?.trim() || undefined,
+      motherOccupation: strOrNull(motherOccupation),
+      motherAnniversaryDate: dateOrNull(motherAnniversaryDate),
+      motherAadhaarNumber: strOrNull(motherAadhaarNumber),
 
       // ── Guardian — always saved ──
-      guardianName: guardianName?.trim() || undefined,
-      guardianRelation: guardianRelation?.trim() || undefined,
-      guardianEmail: guardianEmail?.trim() || undefined,
+      guardianName: strOrNull(guardianName),
+      guardianRelation: strOrNull(guardianRelation),
+      guardianEmail: strOrNull(guardianEmail),
       guardianPhone: normalizePhone(guardianPhone),
-      guardianOccupation: guardianOccupation?.trim() || undefined,
+      guardianOccupation: strOrNull(guardianOccupation),
 
       // ── Bank details ──
-      bankAccountNumber: bankAccountNumber?.trim() || undefined,
-      ifscCode: ifscCode?.trim()?.toUpperCase() || undefined,
-      bankName: bankName?.trim() || undefined,
-      bankBranch: bankBranch?.trim() || undefined,
+      bankAccountNumber: strOrNull(bankAccountNumber),
+      ifscCode: ifscCode === undefined ? undefined : (strOrNull(ifscCode)?.toUpperCase() ?? null),
+      bankName: strOrNull(bankName),
+      bankBranch: strOrNull(bankBranch),
 
       // ── Boarding type ──
-      boardingType: ["HOSTEL", "DAY_SCHOLAR"].includes((boardingType || "").toUpperCase())
-        ? boardingType.toUpperCase()
-        : undefined,
+      boardingType: boardingTypeValue,
 
-      bloodGroup: fixedBloodGroup,
+      bloodGroup: bloodGroupValue,
       medicalConditions, allergies,
-      aadhaarNumber: aadhaarNumber?.trim() || undefined,
-      panNumber: panNumber?.trim() || undefined,
-      satsNumber: satsNumber?.trim() || undefined,
-      nationality: nationality?.trim() || undefined,
-      religion: religion?.trim() || undefined,
-      casteCategory: casteCategory?.trim() || undefined,
-      motherTongue: motherTongue?.trim() || undefined,
-      subcaste: subcaste?.trim() || undefined,
-      domicileState: domicileState?.trim() || undefined,
-      annualIncome: annualIncome ? parseFloat(annualIncome) : undefined,
+      aadhaarNumber: strOrNull(aadhaarNumber),
+      panNumber: strOrNull(panNumber),
+      satsNumber: strOrNull(satsNumber),
+      nationality: strOrNull(nationality),
+      religion: strOrNull(religion),
+      casteCategory: strOrNull(casteCategory),
+      motherTongue: strOrNull(motherTongue),
+      subcaste: strOrNull(subcaste),
+      domicileState: strOrNull(domicileState),
+      annualIncome: numOrNull(annualIncome),
       physicallyChallenged:
         physicallyChallenged !== undefined
           ? physicallyChallenged === true || physicallyChallenged === "true"
           : undefined,
-      disabilityType: disabilityType?.trim() || undefined,
-      heightCm: heightCm ? parseFloat(heightCm) : undefined,
-      weightKg: weightKg ? parseFloat(weightKg) : undefined,
-      identifyingMarks: identifyingMarks?.trim() || undefined,
+      disabilityType: strOrNull(disabilityType),
+      heightCm: numOrNull(heightCm),
+      weightKg: numOrNull(weightKg),
+      identifyingMarks: strOrNull(identifyingMarks),
       ...(profileImageUrl ? { profileImage: profileImageUrl } : {}),
-      ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
-      ...(gender ? { gender: toEnum(gender) } : {}),
+      dateOfBirth: dateOrNull(dateOfBirth),
+      gender: enumOrNull(gender),
     });
 
-    if (email?.trim()) {
+    const trimmedEmail = email?.trim();
+    if (trimmedEmail) {
       const existingStudent = await prisma.student.findFirst({
         where: {
-          email: email.trim(),
+          email: trimmedEmail,
           NOT: { id: studentId },
         },
       });
@@ -407,16 +464,19 @@ export const savePersonalInfo = async (req, res) => {
           message: "Email already exists",
         });
       }
-
-      await prisma.student.update({
-        where: { id: studentId },
-        data: {
-          email: email.trim(),
-          // name: `${firstName} ${lastName}`.trim(),
-          name: [firstName, lastName].filter(Boolean).join(" "),
-        },
-      });
     }
+
+    // Keep the denormalized `name` field on Student in sync every time,
+    // not only when an email was also provided — otherwise renaming a
+    // student (e.g. clearing/changing lastName) without touching email
+    // left the old combined name stuck on the parent Student record.
+    await prisma.student.update({
+      where: { id: studentId },
+      data: {
+        ...(trimmedEmail ? { email: trimmedEmail } : {}),
+        name: [firstName, lastName].filter(Boolean).join(" "),
+      },
+    });
 
     const personalInfo = await prisma.studentPersonalInfo.upsert({
       where: { studentId },

@@ -95,6 +95,7 @@ const fmtTime12 = (t) => {
   return `${h12}:${mStr.padStart(2, "0")} ${period}`;
 };
 
+
 // "09:00" minus 30 minutes -> "08:30"
 const subtractMinutes = (t, minutes) => {
   if (!t) return null;
@@ -364,11 +365,20 @@ function transferCertificateHtml(data, images) {
     issueDate: data.issueDate,
   });
 }
-
-// ── HALL TICKET — modern, premium, theme-driven design ───────────────────────
+// ── HALL TICKET — modern, premium, theme-driven design (compact, ~half A4) ──
 // This template does NOT use the shared `shell()` — the other six certificate
 // types keep the traditional bordered/watermarked letterhead look, but the
 // Hall Ticket gets its own distinct, card-based layout per the redesign spec.
+//
+// Compact layout notes:
+//  - Exam Information (centre / reporting time / start time) now sits as a
+//    narrow side panel to the right of the student photo+grid, instead of
+//    its own full-width row — saves an entire section's worth of height.
+//  - Instructions are capped to the first 2 lines regardless of how many
+//    the admin typed in (or how many DEFAULT_HALL_TICKET_INSTRUCTIONS has),
+//    per the "keep only the important ones" requirement.
+//  - Sized to occupy roughly the top half of an A4 sheet — the remaining
+//    space is intentionally left blank. Still renders exactly ONE ticket.
 function hallTicketHtml(data, images) {
   const {
     studentName, fatherName, parentOrGuardianName, admissionNumber, rollNumber,
@@ -389,7 +399,7 @@ function hallTicketHtml(data, images) {
     : `<div class="student-photo student-photo-placeholder">Photo</div>`;
 
   // First scheduled subject (chronologically earliest) drives the two
-  // "Exam Information" time cards — the Examination Module has no separate
+  // "Exam Information" time fields — the Examination Module has no separate
   // "reporting time" field, so it's derived as 30 minutes before the exam's
   // own start time, which is the usual convention on board hall tickets.
   const firstSubject = subjects[0] || null;
@@ -408,10 +418,12 @@ function hallTicketHtml(data, images) {
     )
     .join("");
 
+  // Cap to the 2 most important instructions, whatever the source list.
   const instructionsList = (instructions || DEFAULT_HALL_TICKET_INSTRUCTIONS)
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
+    .slice(0, 2)
     .map((line) => `<li>${esc(line)}</li>`)
     .join("");
 
@@ -437,10 +449,12 @@ function hallTicketHtml(data, images) {
     background: var(--bg);
     -webkit-print-color-adjust: exact;
   }
-  .page { width: 210mm; min-height: 297mm; padding: 10mm; position: relative; }
+  /* Page is still full A4; the card is sized to roughly half the sheet's
+     height so the remaining space is intentionally left blank. */
+  .page { width: 210mm; min-height: 297mm; padding: 6mm; position: relative; }
   .card {
-    border: 2px solid var(--border);
-    border-radius: 6px;
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
     overflow: hidden;
   }
 
@@ -448,105 +462,117 @@ function hallTicketHtml(data, images) {
   .header {
     background: linear-gradient(135deg, var(--primary), var(--secondary));
     color: #fff;
-    padding: 6mm 8mm;
+    padding: 3mm 6mm;
     display: flex;
     align-items: center;
-    gap: 5mm;
+    gap: 4mm;
   }
-  .logo { width: 18mm; height: 18mm; object-fit: contain; flex-shrink: 0; background: #fff; border-radius: 4px; padding: 1mm; }
-  .logo-placeholder { display: flex; align-items: center; justify-content: center; font-size: 7pt; color: #999; }
+  .logo { width: 12mm; height: 12mm; object-fit: contain; flex-shrink: 0; background: #fff; border-radius: 3px; padding: 0.8mm; }
+  .logo-placeholder { display: flex; align-items: center; justify-content: center; font-size: 6pt; color: #999; }
   .header-meta { flex: 1; }
-  .school-name { font-size: 19pt; font-weight: 800; margin: 0; letter-spacing: 0.3px; }
-  .school-address { font-size: 8.5pt; opacity: 0.9; margin: 1mm 0 0; }
-  .school-motto { font-size: 8.5pt; font-style: italic; opacity: 0.85; margin: 0.5mm 0 0; }
-  .header-badges { display: flex; flex-direction: column; gap: 1.5mm; align-items: flex-end; }
+  .school-name { font-size: 13pt; font-weight: 800; margin: 0; letter-spacing: 0.2px; }
+  .school-address { font-size: 6.5pt; opacity: 0.9; margin: 0.4mm 0 0; }
+  .school-motto { font-size: 6.5pt; font-style: italic; opacity: 0.85; margin: 0.3mm 0 0; }
+  .header-badges { display: flex; flex-direction: column; gap: 0.8mm; align-items: flex-end; }
   .badge {
     display: inline-block;
-    padding: 1.3mm 4mm;
+    padding: 0.7mm 3mm;
     border-radius: 20px;
-    font-size: 8.5pt;
+    font-size: 6.5pt;
     font-weight: 700;
     white-space: nowrap;
   }
   .badge-exam { background: var(--accent); color: #1a1a1a; }
   .badge-year { background: rgba(255,255,255,0.22); color: #fff; border: 1px solid rgba(255,255,255,0.5); }
-  .cert-no-tag { font-size: 7pt; opacity: 0.85; margin-top: 1mm; }
+  .cert-no-tag { font-size: 5.5pt; opacity: 0.85; margin-top: 0.5mm; }
 
-  .body { padding: 6mm 8mm; }
+  .body { padding: 3mm 6mm; }
 
   .section-title {
-    font-size: 10.5pt;
+    font-size: 8pt;
     font-weight: 800;
     color: var(--primary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin: 0 0 3mm;
-    padding-bottom: 1.5mm;
-    border-bottom: 2px solid var(--accent);
+    letter-spacing: 0.4px;
+    margin: 0 0 1.3mm;
+    padding-bottom: 0.8mm;
+    border-bottom: 1.5px solid var(--accent);
     display: inline-block;
   }
 
-  /* Student info */
-  .student-section { display: flex; gap: 6mm; margin-bottom: 6mm; }
-  .student-photo { width: 26mm; height: 32mm; object-fit: cover; border: 2px solid var(--border); border-radius: 4px; flex-shrink: 0; }
-  .student-photo-placeholder { display: flex; align-items: center; justify-content: center; font-size: 7pt; color: #999; background: #f2f2f2; }
+  /* Top row: photo + student grid + exam-info side panel, all together */
+  .top-row { display: flex; gap: 3.5mm; margin-bottom: 3mm; align-items: stretch; }
+  .student-photo { width: 18mm; height: 22mm; object-fit: cover; border: 1.5px solid var(--border); border-radius: 3px; flex-shrink: 0; }
+  .student-photo-placeholder { display: flex; align-items: center; justify-content: center; font-size: 6pt; color: #999; background: #f2f2f2; }
   .student-grid {
     flex: 1;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 2mm 6mm;
-    font-size: 9.5pt;
+    gap: 0.8mm 4mm;
+    font-size: 7.5pt;
+    align-content: start;
   }
-  .student-grid .field-label { color: var(--secondary); font-weight: 700; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.3px; }
-  .student-grid .field-value { font-weight: 600; margin-top: 0.3mm; }
+  .student-grid .field-label { color: var(--secondary); font-weight: 700; font-size: 6pt; text-transform: uppercase; letter-spacing: 0.2px; }
+  .student-grid .field-value { font-weight: 600; margin-top: 0.2mm; }
 
-  /* Exam info cards */
-  .info-cards { display: flex; gap: 4mm; margin-bottom: 6mm; }
-  .info-card {
-    flex: 1;
+  /* Exam Information side panel — sits beside student info, not below it */
+  .exam-info-box {
+    width: 34mm;
+    flex-shrink: 0;
     background: color-mix(in srgb, var(--primary) 6%, white);
     border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 3mm 4mm;
-    text-align: center;
+    border-radius: 4px;
+    padding: 1.8mm 2.5mm;
   }
-  .info-card .label { font-size: 7.5pt; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.3px; }
-  .info-card .value { font-size: 11pt; font-weight: 800; color: var(--primary); margin-top: 1mm; }
+  .exam-info-box .title {
+    font-size: 6pt;
+    font-weight: 800;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border-bottom: 1px solid var(--accent);
+    padding-bottom: 0.6mm;
+    margin-bottom: 1.3mm;
+  }
+  .exam-info-item { margin-bottom: 1.3mm; }
+  .exam-info-item:last-child { margin-bottom: 0; }
+  .exam-info-item .label { font-size: 5.5pt; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.2px; }
+  .exam-info-item .value { font-size: 7.5pt; font-weight: 800; color: var(--primary); line-height: 1.2; }
 
   /* Schedule table */
-  table.schedule { width: 100%; border-collapse: collapse; margin-bottom: 6mm; font-size: 9.5pt; }
+  table.schedule { width: 100%; border-collapse: collapse; margin-bottom: 2.5mm; font-size: 7.3pt; }
   table.schedule thead th {
     background: var(--primary);
     color: #fff;
     font-weight: 700;
-    padding: 2.5mm 3mm;
+    padding: 1.1mm 2.5mm;
     text-align: left;
-    font-size: 8.5pt;
+    font-size: 6.8pt;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
   }
-  table.schedule tbody td { padding: 2.3mm 3mm; border-bottom: 1px solid #e5e7eb; }
+  table.schedule tbody td { padding: 0.9mm 2.5mm; border-bottom: 1px solid #e5e7eb; }
   table.schedule tbody tr.alt td { background: color-mix(in srgb, var(--primary) 4%, white); }
   table.schedule td.time-cell, table.schedule th.time-col,
   table.schedule td.date-cell, table.schedule th.date-col { white-space: nowrap; }
-  .subject-cell .subject-code { display: block; font-size: 7.5pt; color: #6b7280; font-weight: 400; }
+  .subject-cell .subject-code { display: block; font-size: 6.3pt; color: #6b7280; font-weight: 400; }
 
   /* Instructions */
-  .instructions { margin-bottom: 4mm; }
-  .instructions ul { margin: 0; padding-left: 4.5mm; font-size: 8.5pt; line-height: 1.7; }
-  .instructions li { margin-bottom: 0.8mm; }
+  .instructions { margin-bottom: 1.5mm; }
+  .instructions ul { margin: 0; padding-left: 4mm; font-size: 6.8pt; line-height: 1.4; }
+  .instructions li { margin-bottom: 0.3mm; }
 
   /* Footer */
   .footer {
-    padding: 4mm 8mm;
+    padding: 1.8mm 6mm;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 9pt;
+    font-size: 7pt;
   }
   .footer .sig-block { text-align: center; }
-  .footer .sig-image { max-width: 34mm; max-height: 12mm; object-fit: contain; display: block; margin: 0 auto 1mm; }
-  .footer .sig-line { border-top: 1px solid var(--text); width: 34mm; margin: 0 auto 1mm; }
+  .footer .sig-image { max-width: 24mm; max-height: 8mm; object-fit: contain; display: block; margin: 0 auto 0.5mm; }
+  .footer .sig-line { border-top: 1px solid var(--text); width: 24mm; margin: 0 auto 0.5mm; }
 </style>
 </head>
 <body>
@@ -567,7 +593,7 @@ function hallTicketHtml(data, images) {
       </div>
 
       <div class="body">
-        <div class="student-section">
+        <div class="top-row">
           ${photoBlock}
           <div class="student-grid">
             <div><div class="field-label">Student Name</div><div class="field-value">${esc(studentName)}</div></div>
@@ -579,21 +605,23 @@ function hallTicketHtml(data, images) {
             <div><div class="field-label">Gender</div><div class="field-value">${esc(gender || "________")}</div></div>
             <div><div class="field-label">Contact Number</div><div class="field-value">${esc(contactNumber || "________")}</div></div>
           </div>
-        </div>
 
-        <p class="section-title">Exam Information</p>
-        <div class="info-cards">
-          <div class="info-card">
-            <div class="label">Exam Centre</div>
-            <div class="value">${esc(examCentre || "________")}</div>
-          </div>
-          <div class="info-card">
-            <div class="label">Reporting Time</div>
-            <div class="value">${fmtTime12(reportingTime)}</div>
-          </div>
-          <div class="info-card">
-            <div class="label">Exam Start Time</div>
-            <div class="value">${fmtTime12(examStartTime)}</div>
+          <!-- Exam Information now lives here, beside student info, instead
+               of as its own full-width section below. -->
+          <div class="exam-info-box">
+            <div class="title">Exam Information</div>
+            <div class="exam-info-item">
+              <div class="label">Exam Centre</div>
+              <div class="value">${esc(examCentre || "________")}</div>
+            </div>
+            <div class="exam-info-item">
+              <div class="label">Reporting Time</div>
+              <div class="value">${fmtTime12(reportingTime)}</div>
+            </div>
+            <div class="exam-info-item">
+              <div class="label">Exam Start Time</div>
+              <div class="value">${fmtTime12(examStartTime)}</div>
+            </div>
           </div>
         </div>
 
@@ -604,7 +632,7 @@ function hallTicketHtml(data, images) {
           <thead>
             <tr><th style="width:7%">S.No</th><th style="width:35%">Subject</th><th class="date-col" style="width:18%">Exam Date</th><th style="width:14%">Day</th><th class="time-col" style="width:26%">Time</th></tr>
           </thead>
-          <tbody>${subjectRows || `<tr><td colspan="5" style="text-align:center;color:#999;padding:5mm;">No exam timetable found for this class/section</td></tr>`}</tbody>
+          <tbody>${subjectRows || `<tr><td colspan="5" style="text-align:center;color:#999;padding:3mm;">No exam timetable found for this class/section</td></tr>`}</tbody>
         </table>
 
         <p class="section-title">Instructions</p>
@@ -626,7 +654,6 @@ function hallTicketHtml(data, images) {
 </body>
 </html>`;
 }
-
 // ── Shared prose body for the 5 "formal letter" style certificates ─────────
 const PROSE_BY_TYPE = {
   STUDY_CERTIFICATE: (d) =>
