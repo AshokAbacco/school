@@ -651,8 +651,14 @@ export default function StudentFeesPage() {
     0,
   );
   const totalDueAll = Math.max(0, totalFeesAll - totalPaidAll);
-  const paidCount = students.filter((s) => s.paymentStatus === "PAID").length;
-  const collectionPct =
+  const paidCount = students.filter((s) => {
+    const totalFees = Number(s.fees || 0);
+    const paidAmount = Number(s.paidAmount || 0);
+
+    return totalFees > 0 && paidAmount >= totalFees;
+  }).length;
+
+const collectionPct =
     totalFeesAll > 0 ? Math.round((totalPaidAll / totalFeesAll) * 100) : 0;
 
   const addStudentData = (newStudent) => {
