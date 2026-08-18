@@ -2,9 +2,9 @@
 
 const API = import.meta.env.VITE_API_URL;
 
-console.log("==================================");
-console.log("VITE_API_URL:", API);
-console.log("==================================");
+// console.log("==================================");
+// console.log("VITE_API_URL:", API);
+// console.log("==================================");
 
 const post = async (url, body) => {
   const fullUrl = `${API}${url}`;

@@ -8,7 +8,8 @@ import {
   getStudentsForSchedule,
   saveMarksForSchedule,
   getResultsList,
-  getResultsSummary,   // ← NEW
+  getResultsSummary,   
+  getAdminUploadOverview,  
   deleteMarkEntry,
   exportResultsExcel 
 } from "../staffControlls/resultController.js";
@@ -25,7 +26,8 @@ router.get("/exams/:assessmentGroupId/schedules",         getSchedulesByAssessme
 router.get("/schedule/:scheduleId/students",              getStudentsForSchedule);
 router.post("/schedule/:scheduleId/marks",                saveMarksForSchedule);
 router.get("/list",                                       getResultsList);
-router.get("/summary",                                    getResultsSummary);  // ← NEW
+router.get("/summary",                                    getResultsSummary); 
+router.get("/admin/overview",                             getAdminUploadOverview); 
 router.delete("/marks/:id",                               deleteMarkEntry);
 router.get("/export/excel",                               exportResultsExcel);
 export default router;

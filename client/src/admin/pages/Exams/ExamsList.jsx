@@ -4,14 +4,14 @@ import {
   ClipboardList, Plus, Search, Eye, Pencil, Trash2,
   Globe, Lock, Calculator, RefreshCw,
   BookOpen, AlertTriangle, X, Loader2, BarChart2,
-  AlertCircle, Check,
+  AlertCircle, Check,UploadCloud 
 } from "lucide-react";
 import { fetchGroups, deleteGroup, publishGroup, lockGroup } from "./components/examsApi.js";
 import AddExamsModal from "./components/AddExam.jsx";
 import ViewExamsModal from "./components/ViewExams.jsx";
 import ResultsTab from "./components/ResultsTab.jsx";
 import { getToken } from "../../../auth/storage.js";
-
+import UploadResultsTab from "./components/UploadResultsTab.jsx";
 const API_URL = import.meta.env.VITE_API_URL;
 
 /* ── Status badge ── */
@@ -426,6 +426,7 @@ export default function ExamsList() {
         <div className="flex gap-2 mb-5 flex-wrap fade-up">
           <TabBtn active={activeTab === "exams"}   icon={ClipboardList} label="Exams"   onClick={() => setActiveTab("exams")} />
           <TabBtn active={activeTab === "results"} icon={BarChart2}     label="Results" onClick={() => setActiveTab("results")} />
+          <TabBtn active={activeTab === "upload"}  icon={UploadCloud}   label="Upload Exam Results" onClick={() => setActiveTab("upload")} />
         </div>
 
         {/* ── EXAMS TAB ── */}
@@ -516,6 +517,10 @@ export default function ExamsList() {
         {/* ── RESULTS TAB ── */}
         {activeTab === "results" && (
           <ResultsTab academicYearId={academicYearId} academicYearLabel={academicYearLabel} />
+        )}
+          {/* ── UPLOAD EXAM RESULTS TAB ── */}
+        {activeTab === "upload" && (
+          <UploadResultsTab academicYearId={academicYearId} academicYearLabel={academicYearLabel} />
         )}
 
         {/* ── Terms Panel (fixed overlay, above everything) ── */}

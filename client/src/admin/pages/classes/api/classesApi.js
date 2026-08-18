@@ -20,14 +20,6 @@ const toQuery = (params = {}) => {
 const handle = async (r) => {
   const text = await r.text();
 
-  console.log("=================================");
-  console.log("URL:", r.url);
-  console.log("STATUS:", r.status);
-  console.log("CONTENT-TYPE:", r.headers.get("content-type"));
-  console.log("RESPONSE:");
-  console.log(text);
-  console.log("=================================");
-
   let j = null;
 
   try {

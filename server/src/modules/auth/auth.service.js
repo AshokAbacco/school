@@ -564,78 +564,91 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
   };
 };
 
-// ── Student login (via parent phone) ─────────────────────────────────────
-export const loginStudentService = async ({ phone, password }) => {
-  const variants = phoneVariants(phone);
-
-  // Find parent by phone, get their linked student
-  let student = null;
-  let parentPhone = null;
-
-  for (const v of variants) {
-    const parent = await prisma.parent.findFirst({
-      where: { phone: v },
-      include: {
-        studentLinks: {
-          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-          include: {
-            student: {
-              include: {
-                school: {
-                  include: {
-                    university: {
-                      include: {
-                        Subscription: {
-                          orderBy: { createdAt: "desc" },
-                          take: 1,
-                          include: { payment: { select: { planName: true } } },
-                        },
-                      },
-                    },
-                  },
-                },
-                personalInfo: {
-                  select: { firstName: true, lastName: true, profileImage: true },
-                },
-                parentLinks: {
-                  include: {
-                    parent: { select: { id: true, name: true, phone: true } },
-                  },
-                },
-                enrollments: {
-                  where: { status: "ACTIVE" },
-                  select: {
-                    admissionDate: true,
-                    rollNumber: true,
-                    status: true,
-                    classSection: {
-                      select: { id: true, name: true, grade: true, section: true },
-                    },
-                    academicYear: { select: { id: true, name: true } },
-                  },
-                  orderBy: { createdAt: "desc" },
-                  take: 1,
-                },
-              },
-            },
+// ── Student login (own email, OR via parent phone) ────────────────────────
+const STUDENT_INCLUDE = {
+  school: {
+    include: {
+      university: {
+        include: {
+          Subscription: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            include: { payment: { select: { planName: true } } },
           },
         },
       },
+    },
+  },
+  personalInfo: {
+    select: { firstName: true, lastName: true, profileImage: true },
+  },
+  parentLinks: {
+    include: {
+      parent: { select: { id: true, name: true, phone: true } },
+    },
+  },
+  enrollments: {
+    where: { status: "ACTIVE" },
+    select: {
+      admissionDate: true,
+      rollNumber: true,
+      status: true,
+      classSection: {
+        select: { id: true, name: true, grade: true, section: true },
+      },
+      academicYear: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 1,
+  },
+};
+
+export const loginStudentService = async ({ phone, password }) => {
+  const identifier = String(phone || "").trim();
+
+  let student = null;
+
+  if (isEmail(identifier)) {
+    // ── Student's own email — direct lookup, no parent proxy ──
+    student = await prisma.student.findFirst({
+      where: { email: identifier },
+      include: STUDENT_INCLUDE,
     });
 
-    if (parent?.studentLinks?.length) {
-      student = parent.studentLinks[0].student;
-      parentPhone = parent.phone;
-      break;
+    if (!student) {
+      throw {
+        status: 401,
+        message: "No student account found with this email address.",
+      };
     }
-  }
+  } else {
+    // ── Parent's mobile number (proxy login, original behaviour) ──
+    const variants = phoneVariants(identifier);
 
-  if (!student) {
-    throw {
-      status: 401,
-      message:
-        "No student account linked to this mobile number. Please use the parent's registered mobile number.",
-    };
+    for (const v of variants) {
+      const parent = await prisma.parent.findFirst({
+        where: { phone: v },
+        include: {
+          studentLinks: {
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            include: { student: { include: STUDENT_INCLUDE } },
+          },
+        },
+      });
+
+      if (parent?.studentLinks?.length) {
+        student = parent.studentLinks[0].student;
+        break;
+      }
+    }
+
+    if (!student) {
+      throw {
+        status: 401,
+        message:
+          "No student account linked to this mobile number. Please use the parent's registered mobile number.",
+      };
+    }
   }
 
   if (!student.isActive) {
@@ -647,7 +660,7 @@ export const loginStudentService = async ({ phone, password }) => {
 
   const isValid = await bcrypt.compare(password, student.password);
   if (!isValid)
-    throw { status: 401, message: "Invalid mobile number or password" };
+    throw { status: 401, message: "Invalid credentials" };
 
   if (student.personalInfo?.status === "SUSPENDED") {
     throw { status: 403, message: "Your account is suspended. Contact your school." };
@@ -683,43 +696,56 @@ export const loginStudentService = async ({ phone, password }) => {
   };
 };
 
-// ── Parent login (by own phone) ───────────────────────────────────────────
+// ── Parent login (by own phone OR email) ──────────────────────────────────
 export const loginParentService = async ({ phone, password }) => {
-  const variants = phoneVariants(phone);
-  let parent = null;
-
-  for (const v of variants) {
-    parent = await prisma.parent.findFirst({
-      where: { phone: v, isActive: true },
+  const identifier = String(phone || "").trim();
+  const includeOpts = {
+    school: {
       include: {
-        school: {
+        university: {
           include: {
-            university: {
-              include: {
-                Subscription: {
-                  orderBy: { createdAt: "desc" },
-                  take: 1,
-                  include: { payment: { select: { planName: true } } },
-                },
-              },
+            Subscription: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              include: { payment: { select: { planName: true } } },
             },
           },
         },
       },
+    },
+  };
+
+  let parent = null;
+
+  if (isEmail(identifier)) {
+    // ── Email lookup ──
+    parent = await prisma.parent.findFirst({
+      where: { email: identifier, isActive: true },
+      include: includeOpts,
       orderBy: { createdAt: "desc" },
     });
-    if (parent) break;
+  } else {
+    // ── Phone lookup (original behaviour) ──
+    const variants = phoneVariants(identifier);
+    for (const v of variants) {
+      parent = await prisma.parent.findFirst({
+        where: { phone: v, isActive: true },
+        include: includeOpts,
+        orderBy: { createdAt: "desc" },
+      });
+      if (parent) break;
+    }
   }
 
   if (!parent)
-    throw { status: 401, message: "Invalid mobile number or password" };
+    throw { status: 401, message: "Invalid credentials" };
 
   if (parent.school?.university?.isDeactivated)
     throw { status: 403, message: DEACTIVATED_MSG };
 
   const isValid = await bcrypt.compare(password, parent.password);
   if (!isValid)
-    throw { status: 401, message: "Invalid mobile number or password" };
+    throw { status: 401, message: "Invalid credentials" };
 
   const token = generateToken({
     id: parent.id,
@@ -901,6 +927,29 @@ export const loginWithOtpService = async ({ phone, password, selectedRole }) => 
         u?.teacherProfile?.phone ||
         u?.financeProfile?.phone ||
         null;
+    } else if (selectedRole === "PARENT") {
+      const pr = await prisma.parent.findFirst({
+        where: { email: String(phone).trim() },
+        select: { phone: true },
+      });
+      otpPhone = pr?.phone || null;
+    } else if (selectedRole === "STUDENT") {
+      // Student logged in with their own email — OTP still goes to a phone.
+      // Prefer the primary linked parent's phone, fall back to the student's
+      // own personalInfo phone if one is on file.
+      const st = await prisma.student.findFirst({
+        where: { email: String(phone).trim() },
+        select: {
+          personalInfo: { select: { phone: true } },
+          parentLinks: {
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            select: { parent: { select: { phone: true } } },
+            take: 1,
+          },
+        },
+      });
+      otpPhone =
+        st?.parentLinks?.[0]?.parent?.phone || st?.personalInfo?.phone || null;
     }
 
     if (!otpPhone) {

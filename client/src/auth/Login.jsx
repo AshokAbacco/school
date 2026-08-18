@@ -114,7 +114,7 @@ export default function Login({ onSwitchToRegister }) {
       return setError("Please enter mobile number and password");
     }
 
-    // Phone validation — only enforce for student/parent (staff/superAdmin allow email)
+    // Phone validation — only strictly enforced for Bus Head (phone-only login)
     const isEmailInput = /\S+@\S+\.\S+/.test(phone.trim());
     if (!isEmailInput) {
       const digits = phone.replace(/\D/g, "");
@@ -211,19 +211,20 @@ export default function Login({ onSwitchToRegister }) {
 
   const activeTab = TOP_TABS.find((t) => t.value === type);
 
-  // Student hint text
-  const isPhoneOnlyType = type === "student" || type === "parent" || type === "busHead";
+  // Only Bus Head remains phone-only; every other role accepts phone OR email
+  const isPhoneOnlyType = type === "busHead";
 
   const phonePlaceholder = isPhoneOnlyType
-    ? (type === "student" ? "Parent's mobile number" : "Enter mobile number")
+    ? "Enter mobile number"
+    : type === "student"
+    ? "Your email, or parent's mobile number"
     : "Mobile number or email address";
 
-  const phoneHint =
-    type === "student"
-      ? "Use the parent's registered mobile number"
-      : isPhoneOnlyType
-      ? null
-      : "You can sign in with your mobile number or email address";
+  const phoneHint = isPhoneOnlyType
+    ? null
+    : type === "student"
+    ? "Sign in with your own email, or your parent's registered mobile number"
+    : "You can sign in with your mobile number or email address";
 
   return (
     <>
@@ -812,10 +813,10 @@ export default function Login({ onSwitchToRegister }) {
             {/* Mobile Number */}
             <div className="field-group">
               <label className="field-label">
-                {type === "student"
-                  ? "Parent's Mobile Number"
-                  : isPhoneOnlyType
+                {isPhoneOnlyType
                   ? "Mobile Number"
+                  : type === "student"
+                  ? "Email or Parent's Mobile Number"
                   : "Mobile Number or Email"}
               </label>
               <div className="field-wrap">

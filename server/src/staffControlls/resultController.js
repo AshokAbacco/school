@@ -618,10 +618,6 @@ export async function getResultsList(req, res) {
   }
 }
 
-// ─── GET /api/results/summary ──────────────────────────────────────────────
-// Returns per-student aggregated results from resultSummary table.
-// Filters: ?classSectionId=&assessmentGroupId=
-// Used by ResultsTab to show class-level stats and student result tables.
 export async function getResultsSummary(req, res) {
   try {
     const userId   = req.user?.id;
@@ -747,83 +743,96 @@ export async function deleteMarkEntry(req, res) {
 }
 
 
+// ─── GET /api/results/admin/overview ───────────────────────────────────────
+// Admin-only. Powers the "Upload Exam Results" main page:
+//   - 4 status cards (Total Classes, Total Students, Uploaded Results, Pending Results)
+//   - class-wise breakdown (uploaded vs pending exam-schedules per class)
+export async function getAdminUploadOverview(req, res) {
+  try {
+    const schoolId = req.user?.schoolId;
+    const role     = req.user?.role;
+    if (!schoolId) return err(res, "Unauthorized", 401);
+    if (role !== "ADMIN") return err(res, "Forbidden", 403);
 
-// export const exportResultsExcel = async (req, res) => {
-//   try {
-//     const { classSectionId, assessmentGroupId, subjectId } = req.query;
+    const activeYear = await getActiveYear(schoolId);
+    if (!activeYear) return err(res, "No active academic year", 404);
 
-//     if (!classSectionId || !assessmentGroupId) {
-//       return res.status(400).json({ message: "Missing params" });
-//     }
+    const [classSections, schedules] = await Promise.all([
+      prisma.classSection.findMany({
+        where: { schoolId, deletedAt: null },
+        orderBy: [{ grade: "asc" }, { section: "asc" }],
+        select: {
+          id: true, grade: true, section: true, name: true,
+          _count: {
+            select: {
+              studentEnrollments: {
+                where: { academicYearId: activeYear.id, status: "ACTIVE" },
+              },
+            },
+          },
+        },
+      }),
+      prisma.assessmentSchedule.findMany({
+        where: {
+          classSection: { schoolId },
+          assessmentGroup: { academicYearId: activeYear.id, schoolId },
+        },
+        select: {
+          id: true,
+          classSectionId: true,
+          assessmentGroupId: true,
+          subject: { select: { id: true, name: true } },
+          _count: { select: { marks: true } },
+        },
+      }),
+    ]);
 
-//     const results = await prisma.marks.findMany({
-//       where: {
-//         schedule: {
-//           classSectionId,
-//           assessmentGroupId,
-//           ...(subjectId ? { subjectId } : {}),
-//         },
-//       },
-//       include: {
-//         student: true,
-//         schedule: {
-//           include: {
-//             subject: true,
-//             classSection: true,
-//             assessmentGroup: true,
-//           },
-//         },
-//       },
-//     });
+    const schedulesByClass = new Map();
+    for (const s of schedules) {
+      if (!schedulesByClass.has(s.classSectionId)) schedulesByClass.set(s.classSectionId, []);
+      schedulesByClass.get(s.classSectionId).push(s);
+    }
 
-//     const data = results.map((r) => {
-//       const marks = Number(r.marksObtained || 0);
-//       const total = Number(r.schedule.maxMarks || 0);
-//       const pct = total > 0 ? ((marks / total) * 100).toFixed(1) : 0;
+    let uploadedResults = 0;
+    let pendingResults  = 0;
 
-//       return {
-//         Student: r.student.name,
-//         Subject: r.schedule.subject.name,
-//         Exam: r.schedule.assessmentGroup.name,
-//         Marks: marks,
-//         Total: total,
-//         Percentage: pct,
-//         Grade: r.isAbsent ? "AB" : getGrade(pct),
-//       };
-//     });
+    const classWise = classSections.map((cs) => {
+      const list      = schedulesByClass.get(cs.id) || [];
+      const uploaded  = list.filter((s) => s._count.marks > 0).length;
+      const pending   = list.length - uploaded;
+      uploadedResults += uploaded;
+      pendingResults  += pending;
 
-//     const wb = XLSX.utils.book_new();
-//     const ws = XLSX.utils.json_to_sheet(data);
+      return {
+        classSectionId:    cs.id,
+        grade:             cs.grade,
+        section:           cs.section,
+        name:              cs.name,
+        studentCount:      cs._count.studentEnrollments,
+        examCount:         new Set(list.map((s) => s.assessmentGroupId)).size,
+        totalSchedules:    list.length,
+        uploadedSchedules: uploaded,
+        pendingSchedules:  pending,
+      };
+    });
 
-//     XLSX.utils.book_append_sheet(wb, ws, "Results");
+    const totalStudents = classSections.reduce((sum, c) => sum + c._count.studentEnrollments, 0);
 
-//     const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-
-//     res.setHeader(
-//       "Content-Disposition",
-//       "attachment; filename=results.xlsx"
-//     );
-//     res.setHeader(
-//       "Content-Type",
-//       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-//     );
-
-//     res.send(buffer);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ message: "Export failed" });
-//   }
-// };
-
-
-// ─── INSTALL DEPENDENCY (run once) ───────────────────────────────────────────
-// npm install exceljs
-// ─────────────────────────────────────────────────────────────────────────────
-// Replace the existing exportResultsExcel at the bottom of resultController.js
-// Also add this import at the top of the file:
-//   import ExcelJS from "exceljs";
-// (You can remove the old `import XLSX from "xlsx"` if it's only used here)
-// ─────────────────────────────────────────────────────────────────────────────
+    return ok(res, {
+      stats: {
+        totalClasses:    classSections.length,
+        totalStudents,
+        uploadedResults,
+        pendingResults,
+      },
+      classWise,
+      academicYear: activeYear,
+    });
+  } catch (e) {
+    console.error("[getAdminUploadOverview]", e);
+    return err(res, e.message, 500);
+  }
+}
 
 export const exportResultsExcel = async (req, res) => {
   try {
