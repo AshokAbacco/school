@@ -4,9 +4,10 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   BarChart2, Users, TrendingUp, Award, ChevronRight,
   ArrowLeft, BookOpen, Search, X, Loader2, AlertCircle,
-  CheckCircle2, XCircle, Minus,Download
+  CheckCircle2, XCircle, Minus,Download, FileText
 } from "lucide-react";
 import { getToken } from "../../../../auth/storage.js";
+import StudentReportModal from "./StudentReportModal.jsx";
 
 /* ─── constants ─────────────────────────────────────────────────────────── */
 const API_URL = import.meta.env.VITE_API_URL;
@@ -181,14 +182,14 @@ function ClassCard({ cs, onClick }) {
 }
 
 /* ─── Student Results Table ─────────────────────────────────────────────── */
-function StudentResultsTable({ rows, subjectMode = false }) {
+function StudentResultsTable({ rows, subjectMode = false, onViewReport }) {
   const marksHeader = subjectMode ? "Marks" : "Total Marks";
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ background: "#f8fbff" }}>
-            {["#", "Student", "Roll No", marksHeader, "Percentage", "Grade", "Status"].map(h => (
+            {["#", "Student", "Roll No", marksHeader, "Percentage", "Grade", "Status", ""].map(h => (
               <th key={h} style={{
                 ...font, padding: "10px 14px", textAlign: "left",
                 fontSize: 11, fontWeight: 700, letterSpacing: ".06em",
@@ -261,6 +262,24 @@ function StudentResultsTable({ rows, subjectMode = false }) {
                     </span>
                   )}
                 </td>
+                <td style={{ padding: "11px 14px" }}>
+                  {!isAbsent && r.studentId && (
+                    <button
+                      onClick={() => onViewReport?.(r)}
+                      title="View marks & report card"
+                      style={{
+                        display: "flex", alignItems: "center", gap: 5,
+                        padding: "5px 10px", borderRadius: 8,
+                        background: "#eef4fb", border: `1px solid ${C.border}`,
+                        color: C.blue, cursor: "pointer",
+                        ...font, fontSize: 11, fontWeight: 700,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <FileText size={12} /> View
+                    </button>
+                  )}
+                </td>
               </tr>
             );
           })}
@@ -281,6 +300,7 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
   // Subject filter
   const [subjects,     setSubjects]     = useState([]);   // subjects that have results for selected exam+class
   const [selSubjectId, setSelSubjectId] = useState("all"); // "all" or a subjectId string
+  const [reportView,   setReportView]   = useState(null); // { studentId, studentName } | null
 
   // fetch exam groups that have schedules for this class
   useEffect(() => {
@@ -588,10 +608,23 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
             ) : results.length === 0 ? (
               <EmptyBox msg="No results entered for this exam yet." />
             ) : (
-              <StudentResultsTable rows={results} subjectMode={selSubjectId !== "all"} />
+              <StudentResultsTable
+                rows={results}
+                subjectMode={selSubjectId !== "all"}
+                onViewReport={(r) => setReportView({ studentId: r.studentId, studentName: r.studentName })}
+              />
             )}
           </div>
         </>
+      )}
+
+      {reportView && selExam && (
+        <StudentReportModal
+          studentId={reportView.studentId}
+          studentName={reportView.studentName}
+          assessmentGroupId={selExam.id}
+          onClose={() => setReportView(null)}
+        />
       )}
     </div>
   );

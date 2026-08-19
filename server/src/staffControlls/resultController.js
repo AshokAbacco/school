@@ -1,6 +1,7 @@
 import { prisma } from "../config/db.js";
 // import XLSX from "xlsx";
 import ExcelJS from "exceljs";
+import { generateSignedUrl } from "../lib/r2.js";
 
 const ok  = (res, data)         => res.json({ success: true, ...data });
 const err = (res, msg, s = 400) => res.status(s).json({ success: false, message: msg });
@@ -1140,3 +1141,250 @@ export const exportResultsExcel = async (req, res) => {
     res.status(500).json({ message: "Export failed", error: error.message });
   }
 };
+// ═══════════════════════════════════════════════════════════════
+//  GET /api/results/report/:studentId/:assessmentGroupId
+//  Admin/Staff view of a single student's full report card
+//  (same shape the student/parent "Marks & Report Card" page uses)
+// ═══════════════════════════════════════════════════════════════
+
+const GRADE_SCALE_FULL = [
+  { min: 90, max: 100, grade: "A+", label: "Outstanding"   },
+  { min: 80, max:  89, grade: "A",  label: "Excellent"     },
+  { min: 70, max:  79, grade: "B",  label: "Very Good"     },
+  { min: 60, max:  69, grade: "C",  label: "Good"          },
+  { min: 50, max:  59, grade: "D",  label: "Average"       },
+  { min:  0, max:  49, grade: "F",  label: "Below Average" },
+];
+
+function calcGradeFull(percentage) {
+  return (
+    GRADE_SCALE_FULL.find((g) => percentage >= g.min && percentage <= g.max) ??
+    { grade: "F", label: "Below Average" }
+  );
+}
+
+function computeTotalsFull(marksRows) {
+  let totalObtained = 0, totalMax = 0, hasFail = false;
+  for (const m of marksRows) {
+    if (!m.isAbsent && m.marksObtained !== null) {
+      totalObtained += m.marksObtained;
+      if (
+        m.schedule.passingMarks !== null &&
+        m.marksObtained < m.schedule.passingMarks
+      ) {
+        hasFail = true;
+      }
+    }
+    totalMax += m.schedule.maxMarks;
+  }
+  const percentage =
+    totalMax > 0
+      ? parseFloat(((totalObtained / totalMax) * 100).toFixed(2))
+      : 0;
+  const gradeInfo = hasFail
+    ? { grade: "F", label: "Fail" }
+    : calcGradeFull(percentage);
+  return { totalObtained, totalMax, percentage, gradeInfo, hasFail };
+}
+
+const REPORT_SCHOOL_SELECT = {
+  select: {
+    id: true, name: true, address: true, city: true, state: true,
+    phone: true, email: true, logoUrl: true, type: true,
+    university: {
+      select: {
+        superAdmins: { select: { profileImage: true }, take: 1 },
+      },
+    },
+  },
+};
+
+async function resolveLogoUrlAdmin(school) {
+  const rawKey =
+    school?.university?.superAdmins?.[0]?.profileImage ??
+    school?.logoUrl ??
+    null;
+  if (!rawKey) return null;
+  if (rawKey.startsWith("http://") || rawKey.startsWith("https://")) return rawKey;
+  try {
+    return await generateSignedUrl(rawKey, 240);
+  } catch (e) {
+    console.error("[resolveLogoUrlAdmin] signed URL generation failed:", e.message);
+    return null;
+  }
+}
+
+export async function getStudentReportCard(req, res) {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return err(res, "Unauthorized", 401);
+
+    const { studentId, assessmentGroupId } = req.params;
+    if (!studentId || !assessmentGroupId) {
+      return err(res, "studentId and assessmentGroupId are required", 400);
+    }
+
+    const [enrollment, assessmentGroup] = await Promise.all([
+      prisma.studentEnrollment.findFirst({
+        where:   { studentId, status: "ACTIVE" },
+        orderBy: { createdAt: "desc" },
+        include: {
+          academicYear: true,
+          classSection: {
+            include: { stream: true, course: true, school: REPORT_SCHOOL_SELECT },
+          },
+        },
+      }),
+      prisma.assessmentGroup.findUnique({
+        where:   { id: assessmentGroupId },
+        include: { term: true },
+      }),
+    ]);
+
+    if (!enrollment) return err(res, "No active enrollment found for this student", 404);
+    if (!assessmentGroup) return err(res, "Exam not found", 404);
+    if (assessmentGroup.schoolId !== schoolId) return err(res, "Unauthorized", 403);
+
+    const [personalInfo, student, marks] = await Promise.all([
+      prisma.studentPersonalInfo.findUnique({ where: { studentId } }),
+      prisma.student.findUnique({ where: { id: studentId }, select: { name: true, email: true } }),
+      prisma.marks.findMany({
+        where: {
+          studentId,
+          deletedAt: null,
+          schedule: { assessmentGroupId, classSectionId: enrollment.classSectionId },
+        },
+        include: {
+          schedule: { include: { subject: { select: { id: true, name: true, code: true } } } },
+        },
+        orderBy: { schedule: { subject: { name: "asc" } } },
+      }),
+    ]);
+
+    if (marks.length === 0) return err(res, "No marks found for this exam", 404);
+
+    const subjectResults = marks.map((m) => {
+      const obtained = m.isAbsent ? null : (m.marksObtained ?? null);
+      const maxMarks = m.schedule.maxMarks;
+      const passing  = m.schedule.passingMarks ?? null;
+      const pct =
+        obtained !== null && maxMarks > 0
+          ? parseFloat(((obtained / maxMarks) * 100).toFixed(2))
+          : null;
+
+      let resultStatus = "absent";
+      if (!m.isAbsent && obtained !== null) {
+        resultStatus = passing !== null ? (obtained >= passing ? "pass" : "fail") : "pass";
+      }
+
+      return {
+        subjectId:     m.schedule.subject.id,
+        subjectName:   m.schedule.subject.name,
+        subjectCode:   m.schedule.subject.code,
+        marksObtained: obtained,
+        maxMarks,
+        passingMarks:  passing,
+        percentage:    pct,
+        grade:         pct !== null ? calcGradeFull(pct).grade : "—",
+        gradeLabel:    pct !== null ? calcGradeFull(pct).label : "—",
+        resultStatus,
+        isAbsent:      m.isAbsent,
+        remarks:       m.remarks ?? null,
+        examDate:      m.schedule.examDate,
+      };
+    });
+
+    const { totalObtained, totalMax, percentage, gradeInfo, hasFail } = computeTotalsFull(marks);
+
+    const [allClassMarks, resultSummary] = await Promise.all([
+      prisma.marks.findMany({
+        where: { schedule: { assessmentGroupId, classSectionId: enrollment.classSectionId } },
+        include: { schedule: { select: { maxMarks: true, passingMarks: true } } },
+      }),
+      prisma.resultSummary.findFirst({
+        where: { studentId, assessmentGroupId, academicYearId: enrollment.academicYearId },
+      }),
+    ]);
+
+    const studentTotalsMap = {};
+    for (const m of allClassMarks) {
+      if (!studentTotalsMap[m.studentId]) studentTotalsMap[m.studentId] = { rows: [] };
+      studentTotalsMap[m.studentId].rows.push(m);
+    }
+
+    const studentSummaries = Object.entries(studentTotalsMap)
+      .map(([sid, { rows }]) => {
+        const t = computeTotalsFull(rows);
+        return { studentId: sid, total: t.totalObtained, pct: t.percentage };
+      })
+      .sort((a, b) => (b.total !== a.total ? b.total - a.total : b.pct - a.pct));
+
+    let rank = 1;
+    for (let i = 0; i < studentSummaries.length; i++) {
+      if (i > 0) {
+        const prev = studentSummaries[i - 1];
+        const curr = studentSummaries[i];
+        if (curr.total !== prev.total || curr.pct !== prev.pct) rank = i + 1;
+      }
+      if (studentSummaries[i].studentId === studentId) break;
+    }
+
+    const school = enrollment.classSection.school;
+
+    const data = {
+      student: {
+        id:              studentId,
+        name:            student?.name,
+        admissionNumber: enrollment.admissionNumber,
+        rollNumber:      enrollment.rollNumber,
+        firstName:       personalInfo?.firstName,
+        lastName:        personalInfo?.lastName,
+        profileImage:    personalInfo?.profileImage,
+        gender:          personalInfo?.gender,
+        dateOfBirth:     personalInfo?.dateOfBirth,
+      },
+      enrollment: {
+        className:     enrollment.classSection.name,
+        grade:         enrollment.classSection.grade,
+        section:       enrollment.classSection.section,
+        stream:        enrollment.classSection.stream?.name ?? null,
+        course:        enrollment.classSection.course?.name ?? null,
+        academicYear:  enrollment.academicYear.name,
+        schoolName:    school?.name    ?? null,
+        schoolAddress: school?.address ?? null,
+        schoolCity:    school?.city    ?? null,
+        schoolState:   school?.state   ?? null,
+        schoolPhone:   school?.phone   ?? null,
+        schoolEmail:   school?.email   ?? null,
+        schoolLogoUrl: await resolveLogoUrlAdmin(school),
+      },
+      exam: {
+        id:        assessmentGroup.id,
+        name:      assessmentGroup.name,
+        weightage: assessmentGroup.weightage,
+        isLocked:  assessmentGroup.isLocked,
+        isPublished: assessmentGroup.isPublished,
+        term: assessmentGroup.term
+          ? { id: assessmentGroup.term.id, name: assessmentGroup.term.name }
+          : null,
+      },
+      subjectResults,
+      summary: {
+        totalObtained,
+        totalMax,
+        percentage,
+        grade:               hasFail ? "F"    : gradeInfo.grade,
+        gradeLabel:           hasFail ? "Fail" : gradeInfo.label,
+        hasFail,
+        rank,
+        totalStudentsInClass: studentSummaries.length,
+        isPublished:          resultSummary?.isPublished ?? assessmentGroup.isPublished,
+      },
+    };
+
+    return ok(res, { data });
+  } catch (error) {
+    console.error("[getStudentReportCard]", error);
+    return err(res, "Server error", 500);
+  }
+}
