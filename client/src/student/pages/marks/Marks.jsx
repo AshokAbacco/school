@@ -8,10 +8,12 @@ import {
 } from "lucide-react";
 
 import { getToken }        from "../../../auth/storage.js";
+import { useSchoolLogo }   from "../../../hooks/useSchoolLogo.js";
 import { C, FONT, GLOBAL_CSS } from "./tokens.js";
 import SummaryCards from "./components/SummaryCards.jsx";
 import SubjectTable from "./components/SubjectTable.jsx";
 import PerformanceInsights from "./components/PerformanceInsights.jsx";
+import ThemeModal from "./components/ThemeModal.jsx";
 import { downloadReportPDF } from "./utils/downloadPDF.js";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
@@ -113,15 +115,51 @@ function ErrorBanner({ message }) {
   );
 }
 
-/* ── Vertical accent bar header ── */
-function PageHeader({ loading, enrollment, isMobile }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+/* ── School logo (falls back to the accent bar if no logo / it fails to load) ── */
+function SchoolLogo({ src, alt, size }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
       <div style={{
-        width: 4, height: isMobile ? 26 : 32, borderRadius: 99, flexShrink: 0,
+        width: 4, height: size === "sm" ? 26 : 32, borderRadius: 99, flexShrink: 0,
         background: `linear-gradient(180deg, ${C.light} 0%, ${C.dark} 100%)`,
       }} />
+    );
+  }
+  const dim = size === "sm" ? 38 : 46;
+  return (
+    <img
+      src={src}
+      alt={alt || "School logo"}
+      onError={() => setFailed(true)}
+      style={{
+        width: dim, height: dim, borderRadius: 12, flexShrink: 0,
+        objectFit: "cover", background: C.white,
+        border: `1.5px solid ${C.border}`,
+        boxShadow: "0 1px 4px rgba(56,73,89,0.10)",
+      }}
+    />
+  );
+}
+
+function PageHeader({ loading, enrollment, isMobile, logoUrl }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+      <SchoolLogo
+        src={logoUrl ?? enrollment?.schoolLogoUrl}
+        alt={enrollment?.schoolName}
+        size={isMobile ? "sm" : "md"}
+      />
       <div>
+        {enrollment?.schoolName && (
+          <p style={{
+            margin: 0, fontSize: isMobile ? 10 : 11.5, fontWeight: 800,
+            color: C.mid, letterSpacing: "0.04em", textTransform: "uppercase",
+            fontFamily: FONT.sans,
+          }}>
+            {enrollment.schoolName}
+          </p>
+        )}
         <h1 style={{
           margin: 0,
           fontSize: isMobile ? "clamp(17px,5vw,20px)" : "clamp(20px,3vw,26px)",
@@ -149,6 +187,10 @@ export default function Marks() {
   const isMobile = width < 640;
   const isTablet = width >= 640 && width < 1024;
 
+  // ✅ Same hook/endpoint the sidebar uses (/api/school/logo) — guarantees
+  // this page shows the exact same logo as the rest of the app.
+  const sidebarLogoUrl = useSchoolLogo();
+
   const [examGroups, setExamGroups] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [reportData, setReportData] = useState(null);
@@ -159,6 +201,7 @@ export default function Marks() {
   const [errorReport, setErrorReport] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [notPublished, setNotPublished] = useState(false);
+  const [themeModalOpen, setThemeModalOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -205,16 +248,25 @@ export default function Marks() {
   const selectedGroup = examGroups.find((g) => g.id === selectedId);
   const showReport = !loadingReport && !!reportData;
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback((themeKey = "default") => {
     if (!reportData) return;
     setPdfLoading(true);
     const enriched = {
       ...reportData,
-      enrollment: { ...reportData.enrollment, schoolName: enrollment?.schoolName ?? "School" },
+      enrollment: {
+        ...reportData.enrollment,
+        schoolName:    reportData?.enrollment?.schoolName    ?? enrollment?.schoolName    ?? "School",
+        schoolLogoUrl: sidebarLogoUrl ?? reportData?.enrollment?.schoolLogoUrl ?? enrollment?.schoolLogoUrl ?? null,
+      },
     };
-    try { downloadReportPDF(enriched); }
-    finally { setTimeout(() => setPdfLoading(false), 600); }
-  }, [reportData, enrollment]);
+    try { downloadReportPDF(enriched, themeKey); }
+    finally {
+      setTimeout(() => {
+        setPdfLoading(false);
+        setThemeModalOpen(false);
+      }, 600);
+    }
+  }, [reportData, enrollment, sidebarLogoUrl]);
 
   // ✅ FIX: Split groups so the dropdown is grouped and clearly labelled
   const publishedGroups   = examGroups.filter((g) => g.isPublished);
@@ -234,7 +286,7 @@ export default function Marks() {
           flexWrap: "wrap", gap: 12,
           marginBottom: isMobile ? 14 : 20,
         }}>
-          <PageHeader loading={loadingGroups} enrollment={enrollment} isMobile={isMobile} />
+          <PageHeader loading={loadingGroups} enrollment={enrollment} isMobile={isMobile} logoUrl={sidebarLogoUrl} />
 
           {/* Controls */}
           <div style={{
@@ -281,7 +333,7 @@ export default function Marks() {
             {showReport && (
               <button
                 className="mrk-dl-btn"
-                onClick={handleDownload}
+                onClick={() => setThemeModalOpen(true)}
                 disabled={pdfLoading}
                 style={{ flex: isMobile ? "1" : "unset" }}
               >
@@ -378,7 +430,7 @@ export default function Marks() {
                 </div>
                 <button
                   className="mrk-dl-btn"
-                  onClick={handleDownload}
+                  onClick={() => setThemeModalOpen(true)}
                   disabled={pdfLoading}
                   style={{
                     padding: "10px 22px", fontSize: 13,
@@ -396,6 +448,13 @@ export default function Marks() {
         )}
 
       </div>
+
+      <ThemeModal
+        open={themeModalOpen}
+        onClose={() => setThemeModalOpen(false)}
+        onConfirm={(themeKey) => handleDownload(themeKey)}
+        loading={pdfLoading}
+      />
     </>
   );
 }

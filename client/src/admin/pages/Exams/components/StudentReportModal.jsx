@@ -5,15 +5,32 @@
 // straight from the Exams → Results table.
 
 import React, { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Loader2, AlertCircle, Download, Printer } from "lucide-react";
+import { ArrowLeft, Loader2, AlertCircle, Download } from "lucide-react";
 import { getToken } from "../../../../auth/storage.js";
+import { useSchoolLogo } from "../../../../hooks/useSchoolLogo.js";
 import SummaryCards from "../../../../student/pages/marks/components/SummaryCards.jsx";
 import SubjectTable from "../../../../student/pages/marks/components/SubjectTable.jsx";
 import PerformanceInsights from "../../../../student/pages/marks/components/PerformanceInsights.jsx";
+import ThemeModal from "../../../../student/pages/marks/components/ThemeModal.jsx";
 import { downloadReportPDF } from "../../../../student/pages/marks/utils/downloadPDF.js";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const authHdr = () => ({ Authorization: `Bearer ${getToken()}` });
+
+/* School logo badge for the header bar — silently collapses if there's
+   no logo URL or the image fails to load. */
+function SchoolLogo({ src, alt }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return null;
+  return (
+    <img
+      src={src}
+      alt={alt || "School logo"}
+      onError={() => setFailed(true)}
+      className="h-9 w-9 flex-shrink-0 rounded-lg border border-white/25 bg-white object-cover sm:h-10 sm:w-10"
+    />
+  );
+}
 
 /* Only the modal's content survives when the browser print dialog fires.
    Kept as raw CSS since @media print can't be expressed with Tailwind utilities. */
@@ -35,6 +52,12 @@ export default function StudentReportModal({ studentId, assessmentGroupId, stude
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [themeModalOpen, setThemeModalOpen] = useState(false);
+
+  // ✅ Same hook/endpoint the sidebar uses (/api/school/logo) — guarantees the
+  // report card shows the exact same logo as the rest of the admin panel,
+  // instead of a possibly-stale logo nested inside the report payload.
+  const sidebarLogoUrl = useSchoolLogo();
 
   useEffect(() => {
     if (!studentId || !assessmentGroupId) return;
@@ -58,12 +81,25 @@ export default function StudentReportModal({ studentId, assessmentGroupId, stude
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback((themeKey = "default") => {
     if (!data) return;
     setPdfLoading(true);
-    try { downloadReportPDF(data); }
-    finally { setTimeout(() => setPdfLoading(false), 600); }
-  }, [data]);
+    const enriched = {
+      ...data,
+      enrollment: {
+        ...data.enrollment,
+        // ✅ Prefer the sidebar's logo source so the PDF matches the app exactly
+        schoolLogoUrl: sidebarLogoUrl ?? data?.enrollment?.schoolLogoUrl ?? null,
+      },
+    };
+    try { downloadReportPDF(enriched, themeKey); }
+    finally {
+      setTimeout(() => {
+        setPdfLoading(false);
+        setThemeModalOpen(false);
+      }, 600);
+    }
+  }, [data, sidebarLogoUrl]);
 
   return (
     <div
@@ -89,22 +125,30 @@ export default function StudentReportModal({ studentId, assessmentGroupId, stude
             <ArrowLeft size={14} /> Back
           </button>
 
-          <div className="order-3 min-w-0 flex-1 basis-full sm:order-none sm:basis-auto sm:text-left">
-            <p className="truncate text-sm font-extrabold sm:text-base">
-              {studentName || data?.student?.name || "Student"} — Marks &amp; Report Card
-            </p>
-            {data?.exam?.name && (
-              <p className="mt-0.5 text-[11px] font-medium text-white/75">
-                {data.exam.term?.name ? `${data.exam.term.name} · ` : ""}{data.exam.name}
+          <div className="order-3 flex min-w-0 flex-1 basis-full items-center gap-2.5 sm:order-none sm:basis-auto sm:text-left">
+            <SchoolLogo src={sidebarLogoUrl ?? data?.enrollment?.schoolLogoUrl} alt={data?.enrollment?.schoolName} />
+            <div className="min-w-0">
+              {data?.enrollment?.schoolName && (
+                <p className="truncate text-[10px] font-bold uppercase tracking-wide text-white/70">
+                  {data.enrollment.schoolName}
+                </p>
+              )}
+              <p className="truncate text-sm font-extrabold sm:text-base">
+                {studentName || data?.student?.name || "Student"} — Marks &amp; Report Card
               </p>
-            )}
+              {data?.exam?.name && (
+                <p className="mt-0.5 text-[11px] font-medium text-white/75">
+                  {data.exam.term?.name ? `${data.exam.term.name} · ` : ""}{data.exam.name}
+                </p>
+              )}
+            </div>
           </div>
 
           {data && (
             <div className="flex flex-shrink-0 items-center gap-2">
              
               <button
-                onClick={handleDownload}
+                onClick={() => setThemeModalOpen(true)}
                 disabled={pdfLoading}
                 className="flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-65"
               >
@@ -158,6 +202,13 @@ export default function StudentReportModal({ studentId, assessmentGroupId, stude
           )}
         </div>
       </div>
+
+      <ThemeModal
+        open={themeModalOpen}
+        onClose={() => setThemeModalOpen(false)}
+        onConfirm={(themeKey) => handleDownload(themeKey)}
+        loading={pdfLoading}
+      />
     </div>
   );
 }

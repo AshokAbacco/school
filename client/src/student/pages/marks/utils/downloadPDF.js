@@ -1,5 +1,7 @@
 // client/src/student/pages/marks/utils/downloadPDF.js
 // Modern Dashboard A4 portrait — clean layout matching Stormy Morning theme.
+// Supports the school logo, 4 selectable colour themes, and an inline
+// marks-wise progress chart (SVG bars, no external chart library needed).
 
 import { GRADE_SCALE, C, FONT } from "../tokens.js";
 
@@ -26,6 +28,112 @@ function buildContact(enrollment) {
   return parts.join("  ·  ");
 }
 
+// ── Colour themes ───────────────────────────────────────────────
+// "default" is byte-for-byte the original Stormy Morning palette this
+// file already used — nothing changes visually unless another theme
+// is explicitly picked. yellow / blue / red are the 3 new options.
+export const PDF_THEMES = {
+  default: {
+    key: "default",
+    name: "Default",
+    swatch: C?.light ?? "#88bdf2",
+    dark: C?.dark ?? "#1e293b",
+    mid: C?.mid ?? "#64748b",
+    light: C?.light ?? "#88bdf2",
+    bgLight: "rgba(237,243,250,0.7)",
+    border: "rgba(136,189,242,0.25)",
+    textLight: C?.textLight ?? "#94a3b8",
+    pass: "#10b981",
+    fail: "#ef4444",
+  },
+  yellow: {
+    key: "yellow",
+    name: "Yellow",
+    swatch: "#f5c518",
+    dark: "#7a5b00",
+    mid: "#8a6d1f",
+    light: "#f5c518",
+    bgLight: "rgba(255,247,214,0.75)",
+    border: "rgba(245,197,24,0.35)",
+    textLight: "#b08d2b",
+    pass: "#10b981",
+    fail: "#ef4444",
+  },
+  blue: {
+    key: "blue",
+    name: "Blue",
+    swatch: "#2f80ed",
+    dark: "#0b3d91",
+    mid: "#3d5a80",
+    light: "#2f80ed",
+    bgLight: "rgba(224,238,255,0.75)",
+    border: "rgba(47,128,237,0.30)",
+    textLight: "#5c7ca6",
+    pass: "#10b981",
+    fail: "#ef4444",
+  },
+  red: {
+    key: "red",
+    name: "Red",
+    swatch: "#e5484d",
+    dark: "#7a1224",
+    mid: "#9a5158",
+    light: "#e5484d",
+    bgLight: "rgba(255,231,231,0.75)",
+    border: "rgba(229,72,77,0.32)",
+    textLight: "#b66b70",
+    pass: "#10b981",
+    fail: "#b3261e",
+  },
+};
+
+// Fetch a (possibly signed/cross-origin) image URL and convert it to a data URI
+// so html2canvas can render it reliably without CORS/timing issues.
+//
+// R2 signed URLs typically don't send CORS headers on a plain GET, so a direct
+// fetch(url, {mode:"cors"}) silently fails here (an <img> tag can still display
+// the same URL fine, since *displaying* an image doesn't require CORS — only
+// *reading its bytes* via fetch/canvas does). To get around that we route the
+// request through the app's own /api/image-proxy endpoint, which fetches the
+// image server-side (no CORS restriction there) and re-serves it with
+// Access-Control-Allow-Origin: * — falling back to a direct fetch if the
+// proxy itself is unreachable.
+const PDF_API_BASE =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
+  "http://localhost:5000";
+
+async function fetchAsDataUrl(fetchUrl, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(fetchUrl, { signal: controller.signal });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function toDataUrl(url, timeoutMs = 6000) {
+  if (!url) return null;
+
+  // 1. Preferred path — via the backend image proxy (adds CORS headers)
+  const proxied = `${PDF_API_BASE}/api/image-proxy?url=${encodeURIComponent(url)}`;
+  const viaProxy = await fetchAsDataUrl(proxied, timeoutMs);
+  if (viaProxy) return viaProxy;
+
+  // 2. Fallback — try fetching the URL directly, in case it already allows CORS
+  return fetchAsDataUrl(url, timeoutMs);
+}
+
 // Dynamically inject the html2pdf library script tag into the head if not present
 function loadHtml2Pdf() {
   return new Promise((resolve, reject) => {
@@ -39,7 +147,44 @@ function loadHtml2Pdf() {
   });
 }
 
-export async function downloadReportPDF(reportData) {
+// ── Marks-wise progress chart (plain inline SVG bars) ──────────────
+function buildProgressChartSVG(subjectResults, palette) {
+  const rows = (subjectResults ?? []).filter(
+    (s) => !s.isAbsent && s.percentage != null
+  );
+  if (!rows.length) return "";
+
+  const W = 680, H = 150, padTop = 18, padBottom = 34;
+  const maxBarH = H - padTop - padBottom;
+  const gap = 14;
+  const barW = Math.min(46, (W - gap * (rows.length + 1)) / rows.length);
+  const totalWidth = rows.length * barW + (rows.length + 1) * gap;
+  const startX = Math.max(gap, (W - totalWidth) / 2 + gap);
+
+  const bars = rows.map((s, i) => {
+    const pct = Math.max(0, Math.min(100, s.percentage));
+    const barH = (pct / 100) * maxBarH;
+    const x = startX + i * (barW + gap);
+    const y = padTop + (maxBarH - barH);
+    const label = String(s.subjectCode || s.subjectName || "").slice(0, 8);
+    const barColor = pct >= 50 ? palette.light : palette.fail;
+    return `
+      <g>
+        <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(barH, 2)}" rx="4" fill="${barColor}" opacity="0.92" />
+        <text x="${x + barW / 2}" y="${y - 5}" font-size="8.5" font-weight="700" text-anchor="middle" fill="${palette.dark}">${pct}%</text>
+        <text x="${x + barW / 2}" y="${H - padBottom + 14}" font-size="7" font-weight="600" text-anchor="middle" fill="${palette.mid}">${label}</text>
+      </g>`;
+  }).join("");
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg">
+      <line x1="0" y1="${padTop + maxBarH}" x2="${W}" y2="${padTop + maxBarH}" stroke="${palette.border}" stroke-width="1.5" />
+      <line x1="0" y1="${padTop}" x2="${W}" y2="${padTop}" stroke="${palette.border}" stroke-width="0.75" stroke-dasharray="2,3" />
+      ${bars}
+    </svg>`;
+}
+
+export async function downloadReportPDF(reportData, themeKey = "default") {
   if (!reportData) return;
 
   // 1. Ensure the download library is available
@@ -53,6 +198,9 @@ export async function downloadReportPDF(reportData) {
   }
 
   const { student, enrollment, exam, subjectResults, summary } = reportData;
+
+  // 2. Pre-fetch the school logo (if any) as a data URI so it renders reliably in the PDF
+  const logoDataUrl = await toDataUrl(enrollment?.schoolLogoUrl);
 
   const schoolName    = (enrollment?.schoolName   ?? "SCHOOL NAME").toUpperCase();
   const schoolAddr    = buildAddress(enrollment);
@@ -77,17 +225,8 @@ export async function downloadReportPDF(reportData) {
   const examTitle    = [termName, examName].filter(Boolean).join(" — ").toUpperCase();
   const overallResult = summary?.hasFail ? "FAIL" : "PASS";
 
-  // Palette definitions mimicking your tokens.js
-  const palette = {
-    dark: C?.dark ?? "#1e293b",
-    mid: C?.mid ?? "#64748b",
-    light: C?.light ?? "#88bdf2",
-    bgLight: "rgba(237,243,250,0.7)",
-    border: "rgba(136,189,242,0.25)",
-    textLight: C?.textLight ?? "#94a3b8",
-    pass: "#10b981",
-    fail: "#ef4444"
-  };
+  // 3. Resolve the selected colour theme (falls back to default = original look)
+  const palette = PDF_THEMES[themeKey] || PDF_THEMES.default;
 
   const subjectRows = (subjectResults ?? []).map((s, i) => {
     const absent  = s.isAbsent;
@@ -112,6 +251,12 @@ export async function downloadReportPDF(reportData) {
       <td class="tl" style="color: ${palette.mid};">${g.label}</td>
     </tr>`).join("");
 
+  const logoHtml = logoDataUrl
+    ? `<img src="${logoDataUrl}" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1px solid ${palette.border}; background:#ffffff; flex-shrink:0;" />`
+    : `<div style="width: 4px; height: 36px; border-radius: 99px; background: linear-gradient(180deg, ${palette.light} 0%, ${palette.dark} 100%);"></div>`;
+
+  const chartSvg = buildProgressChartSVG(subjectResults, palette);
+
   // Create a hidden wrapper container to assemble our print-ready layout out of the view viewport
   const element = document.createElement("div");
   element.style.width = "190mm";
@@ -124,7 +269,7 @@ export async function downloadReportPDF(reportData) {
   
   <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid ${palette.light}; padding-bottom: 12px; margin-bottom: 16px;">
     <div style="display: flex; align-items: center; gap: 10px;">
-      <div style="width: 4px; height: 36px; border-radius: 99px; background: linear-gradient(180deg, ${palette.light} 0%, ${palette.dark} 100%);"></div>
+      ${logoHtml}
       <div>
         <h1 style="font-size: 13.5pt; font-weight: 800; color: ${palette.dark}; margin: 0; letter-spacing: -0.5px;">${schoolName}</h1>
         ${schoolAddr ? `<div style="font-size: 7pt; color: ${palette.mid}; margin-top: 1px;">${schoolAddr} ${schoolContact ? `· ${schoolContact}` : ""}</div>` : ""}
@@ -220,6 +365,15 @@ export async function downloadReportPDF(reportData) {
     </tfoot>
   </table>
 
+  ${chartSvg ? `
+  <div style="border: 1px solid ${palette.border}; border-radius: 8px; background:#ffffff; padding: 10px 12px; margin-bottom: 20px;">
+    <div style="font-size: 7.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.dark}; letter-spacing: 1px; margin-bottom: 6px; display:flex; align-items:center; gap:6px;">
+      <span style="display:inline-block; width:6px; height:6px; background:${palette.light}; border-radius:50%;"></span>
+      Marks-wise Progress Report
+    </div>
+    ${chartSvg}
+  </div>` : ""}
+
   <div style="display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: stretch; margin-bottom: 20px;">
     
     <div style="border: 1px solid ${palette.border}; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
@@ -301,7 +455,7 @@ export async function downloadReportPDF(reportData) {
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
-  // 3. Fire-and-forget generation and trigger local disk streaming download
+  // 4. Fire-and-forget generation and trigger local disk streaming download
   try {
     await html2pdf().set(options).from(element).save();
   } catch (error) {
