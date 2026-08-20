@@ -97,6 +97,7 @@ function MobileSubjectCard({ s, idx, total }) {
   const absent = s.isAbsent;
   const pct    = s.percentage;
   const color  = absent ? C.mid : pctColor(pct ?? 0);
+  const comp   = s.components;
 
   return (
     <div style={{
@@ -122,29 +123,61 @@ function MobileSubjectCard({ s, idx, total }) {
         <ResultBadge status={s.resultStatus} />
       </div>
 
-      {/* Row 2: stats grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
-        {[
-          { label: "Obtained", value: absent ? "—" : (s.marksObtained ?? "—"), color: absent ? C.mid : color, large: true },
-          { label: "Max",      value: s.maxMarks,            color: C.mid },
-          { label: "Pass",     value: s.passingMarks ?? "—", color: C.mid },
-          { label: "Overall",  value: absent ? "—" : (pct != null ? `${pct}%` : "—"), color: absent ? C.mid : color },
-        ].map(({ label, value, color: col, large }) => (
-          <div key={label} style={{
-            textAlign: "center",
-            background: "rgba(237,243,250,0.70)",
-            borderRadius: 9, padding: "7px 4px",
-            border: "1px solid rgba(136,189,242,0.18)",
-          }}>
-            <div style={{ fontSize: 9, color: C.textLight, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3, fontWeight: 700 }}>
-              {label}
+      {/* Row 2: stats grid — FA breakdown if this subject has components, else standard */}
+      {comp ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+          {[
+            { label: "R&R", value: absent ? "—" : (comp.rr ?? "—") },
+            { label: "CW",  value: absent ? "—" : (comp.cw ?? "—") },
+            { label: "PW",  value: absent ? "—" : (comp.pw ?? "—") },
+            { label: "ST",  value: absent ? "—" : (comp.st ?? "—") },
+          ].map(({ label, value }) => (
+            <div key={label} style={{
+              textAlign: "center",
+              background: "rgba(237,243,250,0.70)",
+              borderRadius: 9, padding: "7px 4px",
+              border: "1px solid rgba(136,189,242,0.18)",
+            }}>
+              <div style={{ fontSize: 9, color: C.textLight, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3, fontWeight: 700 }}>
+                {label}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: absent ? C.mid : C.dark, fontFamily: FONT.sans }}>
+                {value}
+              </div>
             </div>
-            <div style={{ fontSize: large ? 16 : 13, fontWeight: large ? 900 : 700, color: col, fontFamily: FONT.sans }}>
-              {value}
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+          {[
+            { label: "Obtained", value: absent ? "—" : (s.marksObtained ?? "—"), color: absent ? C.mid : color, large: true },
+            { label: "Max",      value: s.maxMarks,            color: C.mid },
+            { label: "Pass",     value: s.passingMarks ?? "—", color: C.mid },
+            { label: "Overall",  value: absent ? "—" : (pct != null ? `${pct}%` : "—"), color: absent ? C.mid : color },
+          ].map(({ label, value, color: col, large }) => (
+            <div key={label} style={{
+              textAlign: "center",
+              background: "rgba(237,243,250,0.70)",
+              borderRadius: 9, padding: "7px 4px",
+              border: "1px solid rgba(136,189,242,0.18)",
+            }}>
+              <div style={{ fontSize: 9, color: C.textLight, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 3, fontWeight: 700 }}>
+                {label}
+              </div>
+              <div style={{ fontSize: large ? 16 : 13, fontWeight: large ? 900 : 700, color: col, fontFamily: FONT.sans }}>
+                {value}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {comp && (
+        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: C.mid, fontWeight: 600 }}>
+          <span>TOT: <b style={{ color: C.dark }}>{absent ? "—" : (s.marksObtained ?? "—")}</b></span>
+          <span>PER: <b style={{ color: C.dark }}>{absent ? "—" : (pct != null ? `${pct}%` : "—")}</b></span>
+        </div>
+      )}
 
       {!absent && s.grade && (
         <div style={{ marginTop: 9, display: "flex", alignItems: "center", gap: 6 }}>
@@ -167,7 +200,27 @@ const COLS = [
   { key: "result",   label: "Result",     flex: "0 0 82px",  align: "center" },
 ];
 
+/* Formative Assessment format — R&R / CW / PW / ST breakdown */
+const FA_COLS = [
+  { key: "subject", label: "Subject", flex: "1 1 150px", align: "left"   },
+  { key: "rr",      label: "R&R",     flex: "0 0 54px",  align: "center" },
+  { key: "cw",      label: "CW",      flex: "0 0 54px",  align: "center" },
+  { key: "pw",      label: "PW",      flex: "0 0 54px",  align: "center" },
+  { key: "st",      label: "ST",      flex: "0 0 54px",  align: "center" },
+  { key: "tot",     label: "TOT",     flex: "0 0 60px",  align: "center" },
+  { key: "grd",     label: "GRD",     flex: "0 0 60px",  align: "center" },
+  { key: "per",     label: "PER(%)",  flex: "0 0 70px",  align: "center" },
+];
+
 export default function SubjectTable({ subjects, summary, loading, isLocked, isMobile }) {
+  // A report is treated as "Formative Assessment" if any subject in it was
+  // uploaded using that format (components present). Subjects within the
+  // same report that used the standard format still show — with the R&R/CW/
+  // PW/ST cells blank and TOT falling back to their plain marksObtained.
+  const isFA = !!subjects?.some((s) => s.components);
+  const cols = isFA ? FA_COLS : COLS;
+  const minWidth = isFA ? 560 : 620;
+
   return (
     <div className="mrk-card anim-3" style={{ minWidth: 0 }}>
       {/* Header */}
@@ -249,9 +302,9 @@ export default function SubjectTable({ subjects, summary, loading, isLocked, isM
             display: "flex", padding: "9px 20px",
             background: C.bg,
             borderBottom: `1.5px solid rgba(136,189,242,0.20)`,
-            gap: 8, minWidth: 620,
+            gap: 8, minWidth,
           }}>
-            {COLS.map(col => (
+            {cols.map(col => (
               <div key={col.key} style={{
                 flex: col.flex, textAlign: col.align,
                 fontSize: 9, fontWeight: 800, color: C.mid,
@@ -268,6 +321,56 @@ export default function SubjectTable({ subjects, summary, loading, isLocked, isM
             const absent = s.isAbsent;
             const pct    = s.percentage;
             const color  = absent ? C.mid : pctColor(pct ?? 0);
+            const comp   = s.components;
+
+            if (isFA) {
+              return (
+                <div
+                  key={s.subjectId}
+                  className="subj-row"
+                  style={{
+                    display: "flex", alignItems: "center",
+                    padding: "13px 20px", gap: 8,
+                    borderBottom: idx < subjects.length - 1 ? `1px solid rgba(136,189,242,0.15)` : "none",
+                    background: absent ? `${C.bg}88` : C.white,
+                    minWidth,
+                  }}
+                >
+                  <div style={{ flex: "1 1 150px", minWidth: 0 }}>
+                    <p style={{
+                      margin: 0, fontSize: 13, fontWeight: 700,
+                      color: absent ? C.mid : C.dark,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      {s.subjectName}
+                    </p>
+                    {s.subjectCode && <p style={{ margin: 0, fontSize: 10, color: C.textLight, marginTop: 1 }}>{s.subjectCode}</p>}
+                    <MiniBar pct={pct ?? 0} />
+                  </div>
+                  {["rr", "cw", "pw", "st"].map((f) => (
+                    <div key={f} style={{ flex: "0 0 54px", textAlign: "center" }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: absent ? C.mid : C.dark }}>
+                        {absent ? "—" : (comp?.[f] ?? "—")}
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{ flex: "0 0 60px", textAlign: "center" }}>
+                    <span style={{ fontSize: 15, fontWeight: 900, color: absent ? C.mid : color, fontFamily: FONT.sans }}>
+                      {absent ? "—" : (s.marksObtained ?? "—")}
+                    </span>
+                  </div>
+                  <div style={{ flex: "0 0 60px", textAlign: "center" }}>
+                    {absent ? <span style={{ color: C.mid, fontSize: 12 }}>—</span> : <GradeBadge grade={s.grade} />}
+                  </div>
+                  <div style={{ flex: "0 0 70px", textAlign: "center" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: absent ? C.mid : color }}>
+                      {absent ? "—" : pct != null ? `${pct}%` : "—"}
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div
                 key={s.subjectId}
@@ -277,7 +380,7 @@ export default function SubjectTable({ subjects, summary, loading, isLocked, isM
                   padding: "13px 20px", gap: 8,
                   borderBottom: idx < subjects.length - 1 ? `1px solid rgba(136,189,242,0.15)` : "none",
                   background: absent ? `${C.bg}88` : C.white,
-                  minWidth: 620,
+                  minWidth,
                 }}
               >
                 <div style={{ flex: "1 1 160px", minWidth: 0 }}>
@@ -318,43 +421,74 @@ export default function SubjectTable({ subjects, summary, loading, isLocked, isM
           })}
 
           {/* Totals row */}
-          <div style={{
-            display: "flex", alignItems: "center",
-            padding: "13px 20px", gap: 8,
-            borderTop: `2px solid rgba(136,189,242,0.30)`,
-            background: `linear-gradient(90deg, ${C.bg}, ${C.white})`,
-            minWidth: 620,
-          }}>
-            <div style={{ flex: "1 1 160px" }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: C.dark, textTransform: "uppercase", letterSpacing: "0.07em" }}>
-                Grand Total
-              </span>
+          {isFA ? (
+            <div style={{
+              display: "flex", alignItems: "center",
+              padding: "13px 20px", gap: 8,
+              borderTop: `2px solid rgba(136,189,242,0.30)`,
+              background: `linear-gradient(90deg, ${C.bg}, ${C.white})`,
+              minWidth,
+            }}>
+              <div style={{ flex: "1 1 150px" }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: C.dark, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                  Grand Total
+                </span>
+              </div>
+              <div style={{ flex: "0 0 54px" }} />
+              <div style={{ flex: "0 0 54px" }} />
+              <div style={{ flex: "0 0 54px" }} />
+              <div style={{ flex: "0 0 54px" }} />
+              <div style={{ flex: "0 0 60px", textAlign: "center" }}>
+                <span style={{ fontSize: 15, fontWeight: 900, color: C.dark }}>{summary?.totalObtained ?? "—"}</span>
+              </div>
+              <div style={{ flex: "0 0 60px", textAlign: "center" }}>
+                <GradeBadge grade={summary?.grade} />
+              </div>
+              <div style={{ flex: "0 0 70px", textAlign: "center" }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: pctColor(summary?.percentage ?? 0) }}>
+                  {summary?.percentage ?? "—"}%
+                </span>
+              </div>
             </div>
-            <div style={{ flex: "0 0 80px", textAlign: "center" }}>
-              <span style={{ fontSize: 17, fontWeight: 900, color: C.dark }}>{summary?.totalObtained ?? "—"}</span>
+          ) : (
+            <div style={{
+              display: "flex", alignItems: "center",
+              padding: "13px 20px", gap: 8,
+              borderTop: `2px solid rgba(136,189,242,0.30)`,
+              background: `linear-gradient(90deg, ${C.bg}, ${C.white})`,
+              minWidth,
+            }}>
+              <div style={{ flex: "1 1 160px" }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: C.dark, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                  Grand Total
+                </span>
+              </div>
+              <div style={{ flex: "0 0 80px", textAlign: "center" }}>
+                <span style={{ fontSize: 17, fontWeight: 900, color: C.dark }}>{summary?.totalObtained ?? "—"}</span>
+              </div>
+              <div style={{ flex: "0 0 66px", textAlign: "center" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.mid }}>{summary?.totalMax ?? "—"}</span>
+              </div>
+              <div style={{ flex: "0 0 72px" }} />
+              <div style={{ flex: "0 0 80px", textAlign: "center" }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: pctColor(summary?.percentage ?? 0) }}>
+                  {summary?.percentage ?? "—"}%
+                </span>
+              </div>
+              <div style={{ flex: "0 0 70px", textAlign: "center" }}>
+                <GradeBadge grade={summary?.grade} />
+              </div>
+              <div style={{ flex: "0 0 82px", textAlign: "center" }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 800,
+                  color: summary?.hasFail ? C.red : "#059669",
+                  letterSpacing: "0.04em",
+                }}>
+                  {summary?.hasFail ? "✗ FAIL" : "✓ PASS"}
+                </span>
+              </div>
             </div>
-            <div style={{ flex: "0 0 66px", textAlign: "center" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.mid }}>{summary?.totalMax ?? "—"}</span>
-            </div>
-            <div style={{ flex: "0 0 72px" }} />
-            <div style={{ flex: "0 0 80px", textAlign: "center" }}>
-              <span style={{ fontSize: 12, fontWeight: 800, color: pctColor(summary?.percentage ?? 0) }}>
-                {summary?.percentage ?? "—"}%
-              </span>
-            </div>
-            <div style={{ flex: "0 0 70px", textAlign: "center" }}>
-              <GradeBadge grade={summary?.grade} />
-            </div>
-            <div style={{ flex: "0 0 82px", textAlign: "center" }}>
-              <span style={{
-                fontSize: 11, fontWeight: 800,
-                color: summary?.hasFail ? C.red : "#059669",
-                letterSpacing: "0.04em",
-              }}>
-                {summary?.hasFail ? "✗ FAIL" : "✓ PASS"}
-              </span>
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>

@@ -18,6 +18,34 @@ const T = {
   red: "#dc2626", redLight: "#fef2f2", green: "#059669", greenLight: "#ecfdf5",
 };
 
+// ─── Marking formats ────────────────────────────────────────────────────────
+const FORMATS = [
+  { id: "standard", label: "Standard (Marks / 100)" },
+  { id: "fa",        label: "Formative Assessment (R&R, CW, PW, ST)" },
+];
+
+const GRADE_SCALE = [
+  { min: 90, grade: "A+" },
+  { min: 80, grade: "A"  },
+  { min: 70, grade: "B"  },
+  { min: 60, grade: "C"  },
+  { min: 50, grade: "D"  },
+  { min: 0,  grade: "F"  },
+];
+function calcGrade(pct) {
+  if (pct == null || isNaN(pct)) return "—";
+  return GRADE_SCALE.find((g) => pct >= g.min)?.grade ?? "—";
+}
+
+// Sum of the 4 component fields → TOT (also written to marksObtained)
+function faTotal(components) {
+  const { rr, cw, pw, st } = components || {};
+  return [rr, cw, pw, st].reduce((sum, v) => {
+    const n = Number(v);
+    return sum + (v !== "" && v != null && !isNaN(n) ? n : 0);
+  }, 0);
+}
+
 // ─── small pieces ────────────────────────────────────────────────────────
 function Field({ label, children }) {
   return (
@@ -129,6 +157,102 @@ const StudentRow = memo(function StudentRow({ student, maxMarks, onUpdate }) {
   );
 });
 
+// ─── Student row — Formative Assessment format (R&R / CW / PW / ST) ───────
+const FA_FIELD_COLS = "36px 60px 1fr 54px 54px 54px 54px 56px 46px 34px 70px 1fr";
+const FA_MINI_INPUT = {
+  width: "100%", textAlign: "center", background: T.white, border: `1.5px solid ${T.border}`,
+  borderRadius: 8, padding: "6px 4px", fontSize: 12.5, color: T.text, outline: "none",
+};
+
+const StudentRowFA = memo(function StudentRowFA({ student, maxMarks, onUpdate }) {
+  const components = student.components || { rr: "", cw: "", pw: "", st: "" };
+  const tot = student.isAbsent ? null : faTotal(components);
+  const pct = tot != null && maxMarks > 0 ? Math.round((tot / maxMarks) * 1000) / 10 : null;
+  const grd = pct != null ? calcGrade(pct) : "—";
+
+  const updateComponent = (field, value) => {
+    const nextComponents = { ...components, [field]: value };
+    onUpdate(student.studentId, "components", nextComponents);
+    onUpdate(student.studentId, "marksObtained", student.isAbsent ? "" : faTotal(nextComponents));
+  };
+
+  return (
+    <div
+      style={{
+        display: "grid", gridTemplateColumns: FA_FIELD_COLS,
+        gap: 8, padding: "11px 14px", alignItems: "center",
+        borderBottom: `1px solid ${T.border}`,
+        opacity: student.selected ? 1 : 0.45,
+        transition: "opacity 0.15s",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={!!student.selected}
+        onChange={(e) => onUpdate(student.studentId, "selected", e.target.checked)}
+        style={{ width: 15, height: 15, accentColor: T.blue, cursor: "pointer" }}
+      />
+      <span style={{ fontSize: 12, fontWeight: 700, color: T.slate }}>{student.rollNumber || "–"}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        <div style={{
+          width: 26, height: 26, borderRadius: "50%", background: T.blueLight,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 10.5, fontWeight: 800, color: T.blue, flexShrink: 0,
+        }}>
+          {student.studentName?.[0] || "S"}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: T.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{student.studentName}</div>
+          <div style={{ fontSize: 10, color: T.slate }}>{student.admissionNumber || student.email || ""}</div>
+        </div>
+      </div>
+
+      {["rr", "cw", "pw", "st"].map((f) => (
+        <input
+          key={f}
+          type="number" min="0"
+          value={student.isAbsent ? "" : (components[f] ?? "")}
+          disabled={student.isAbsent || !student.selected}
+          onChange={(e) => updateComponent(f, e.target.value)}
+          style={FA_MINI_INPUT}
+        />
+      ))}
+
+      <span style={{ textAlign: "center", fontSize: 13, fontWeight: 800, color: T.navy }}>{tot ?? "—"}</span>
+      <span style={{
+        textAlign: "center", fontSize: 11, fontWeight: 800, color: T.blue,
+        background: T.blueLight, borderRadius: 6, padding: "2px 0",
+      }}>{grd}</span>
+      <span style={{ textAlign: "center", fontSize: 11.5, fontWeight: 700, color: T.slate }}>{pct != null ? `${pct}%` : "—"}</span>
+
+      <label style={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }} title="Absent">
+        <input
+          type="checkbox"
+          checked={!!student.isAbsent}
+          disabled={!student.selected}
+          onChange={(e) => {
+            onUpdate(student.studentId, "isAbsent", e.target.checked);
+            if (e.target.checked) onUpdate(student.studentId, "marksObtained", "");
+          }}
+          style={{ width: 14, height: 14, accentColor: T.red, cursor: "pointer" }}
+        />
+      </label>
+
+      <input
+        type="text"
+        value={student.remarks || ""}
+        disabled={!student.selected}
+        onChange={(e) => onUpdate(student.studentId, "remarks", e.target.value)}
+        placeholder="Optional remarks…"
+        style={{
+          width: "100%", background: T.white, border: `1.5px solid ${T.border}`,
+          borderRadius: 9, padding: "7px 10px", fontSize: 12.5, color: T.text, outline: "none",
+        }}
+      />
+    </div>
+  );
+});
+
 // ─── Main modal ─────────────────────────────────────────────────────────────
 export default function AdminUploadResultModal({ presetClass, onClose, onSaved }) {
   const [exams, setExams]               = useState([]);
@@ -215,7 +339,11 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
     fetchStudentsForSchedule(subj.scheduleId)
       .then((j) => {
-        const students = (j.data?.students || []).map((s) => ({ ...s, selected: true }));
+        const students = (j.data?.students || []).map((s) => ({
+          ...s,
+          selected: true,
+          components: s.components || { rr: "", cw: "", pw: "", st: "" },
+        }));
         setSubjectData((prev) => ({
           ...prev,
           [activeSubjectId]: {
@@ -257,9 +385,19 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     });
   }, [activeSubjectId]);
 
+  // ── Marking format per subject tab (defaults to "standard") ──
+  const setSubjectFormat = useCallback((format) => {
+    setSubjectData((prev) => {
+      const cur = prev[activeSubjectId];
+      if (!cur) return prev;
+      return { ...prev, [activeSubjectId]: { ...cur, format } };
+    });
+  }, [activeSubjectId]);
+
   const activeData    = subjectData[activeSubjectId];
   const activeSubject = subjectsForClass.find((s) => s.id === activeSubjectId);
   const activeStudents = activeData?.students || [];
+  const activeFormat   = activeData?.format || "standard";
   const selectedCount  = activeStudents.filter((s) => s.selected).length;
   const allSelected    = activeStudents.length > 0 && selectedCount === activeStudents.length;
 
@@ -299,6 +437,10 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
             marksObtained: s.isAbsent ? null : s.marksObtained,
             isAbsent:      !!s.isAbsent,
             remarks:       s.remarks || "",
+            // Only persist the component breakdown for subjects marked with
+            // the Formative Assessment format — standard-format subjects
+            // keep sending components: null (cleared, if previously set).
+            components:    data.format === "fa" ? s.components : null,
           })));
         } catch (e) {
           failed.push(subjMeta?.name || subjId);
@@ -450,19 +592,39 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                   <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.slate, margin: 0 }}>
                     <User size={12} /> {activeSubject?.name} — Student Marks {activeSubject?.maxMarks ? `(Max ${activeSubject.maxMarks})` : ""}
                   </p>
-                  {activeStudents.length > 0 && (
-                    <button
-                      onClick={() => toggleSelectAll(!allSelected)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
-                        color: T.blue, background: T.blueLight, border: "1px solid #bfdbfe",
-                        borderRadius: 8, padding: "5px 12px", cursor: "pointer",
-                      }}
-                    >
-                      {allSelected ? <CheckSquare size={13} /> : <Square size={13} />}
-                      {allSelected ? "Unselect all" : "Select all students"}
-                    </button>
-                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    {/* Format selector — left of Select all / Unselect all */}
+                    <div style={{ position: "relative", minWidth: 210 }}>
+                      <select
+                        value={activeFormat}
+                        onChange={(e) => setSubjectFormat(e.target.value)}
+                        style={{
+                          width: "100%", appearance: "none", cursor: "pointer",
+                          background: T.white, border: `1.5px solid ${T.border}`, borderRadius: 8,
+                          padding: "6px 28px 6px 10px", fontSize: 12, fontWeight: 700, color: T.navy, outline: "none",
+                        }}
+                      >
+                        {FORMATS.map((f) => (
+                          <option key={f.id} value={f.id}>{f.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={12} style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: T.slate }} />
+                    </div>
+
+                    {activeStudents.length > 0 && (
+                      <button
+                        onClick={() => toggleSelectAll(!allSelected)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
+                          color: T.blue, background: T.blueLight, border: "1px solid #bfdbfe",
+                          borderRadius: 8, padding: "5px 12px", cursor: "pointer",
+                        }}
+                      >
+                        {allSelected ? <CheckSquare size={13} /> : <Square size={13} />}
+                        {allSelected ? "Unselect all" : "Select all students"}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {activeData?.loading ? (
@@ -473,6 +635,32 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                 ) : activeStudents.length === 0 ? (
                   <div style={{ padding: "28px 20px", textAlign: "center", background: T.slateLight, borderRadius: 14 }}>
                     <p style={{ fontSize: 13, color: T.slate }}>No students found for this class.</p>
+                  </div>
+                ) : activeFormat === "fa" ? (
+                  <div style={{ border: `1.5px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
+                    <div style={{
+                      display: "grid", gridTemplateColumns: FA_FIELD_COLS, gap: 8,
+                      padding: "10px 14px", background: T.slateLight, borderBottom: `1px solid ${T.border}`,
+                      fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: T.slate,
+                    }}>
+                      <span></span>
+                      <span>Roll No</span>
+                      <span>Student</span>
+                      <span style={{ textAlign: "center" }}>R&amp;R</span>
+                      <span style={{ textAlign: "center" }}>CW</span>
+                      <span style={{ textAlign: "center" }}>PW</span>
+                      <span style={{ textAlign: "center" }}>ST</span>
+                      <span style={{ textAlign: "center" }}>TOT</span>
+                      <span style={{ textAlign: "center" }}>GRD</span>
+                      <span style={{ textAlign: "center" }}>PER(%)</span>
+                      <span style={{ textAlign: "center" }}>Absent</span>
+                      <span>Remarks</span>
+                    </div>
+                    <div style={{ maxHeight: 360, overflowY: "auto" }}>
+                      {activeStudents.map((s) => (
+                        <StudentRowFA key={s.studentId} student={s} maxMarks={activeSubject?.maxMarks || 100} onUpdate={updateStudent} />
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <div style={{ border: `1.5px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>

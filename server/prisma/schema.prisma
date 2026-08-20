@@ -1285,6 +1285,7 @@ model Marks {
   student    Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   marksObtained Float?
+  components    Json?
 
   isAbsent Boolean @default(false)
   remarks  String?

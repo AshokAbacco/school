@@ -331,7 +331,7 @@ export async function getStudentsForSchedule(req, res) {
       }),
       prisma.marks.findMany({
         where: { scheduleId: req.params.scheduleId },
-        select: { id: true, studentId: true, marksObtained: true, isAbsent: true, remarks: true },
+        select: { id: true, studentId: true, marksObtained: true, isAbsent: true, remarks: true, components: true },
       }),
     ]);
 
@@ -360,6 +360,7 @@ export async function getStudentsForSchedule(req, res) {
         marksObtained:   m?.marksObtained ?? "",
         isAbsent:        m?.isAbsent || false,
         remarks:         m?.remarks || "",
+        components:      m?.components || null,
       };
     });
 
@@ -443,6 +444,10 @@ export async function saveMarksForSchedule(req, res) {
           marksObtained: marksValue,
           isAbsent:      !!item.isAbsent,
           remarks:       item.remarks?.trim() || null,
+          // Optional component breakdown (e.g. Formative Assessment format:
+          // R&R / CW / PW / ST). marksObtained is still the authoritative
+          // total (TOT) — the frontend computes and sends it either way.
+          components:    item.components ?? null,
         };
         return tx.marks.upsert({
           where:  { scheduleId_studentId: { scheduleId, studentId: item.studentId } },
@@ -1193,15 +1198,19 @@ const REPORT_SCHOOL_SELECT = {
     phone: true, email: true, logoUrl: true, type: true,
     university: {
       select: {
-        superAdmins: { select: { profileImage: true }, take: 1 },
+        logoUrl: true,   // ✅ the actual logo the SuperAdmin uploads (Settings → Profile → upload-logo)
       },
     },
   },
 };
 
+// The school's real logo is the one the SuperAdmin uploads, which is
+// stored on university.logoUrl (see superAdminProfile.controller.js
+// → updateSchoolLogo). school.logoUrl is checked as a fallback for
+// schools that have their own logo set independently.
 async function resolveLogoUrlAdmin(school) {
   const rawKey =
-    school?.university?.superAdmins?.[0]?.profileImage ??
+    school?.university?.logoUrl ??
     school?.logoUrl ??
     null;
   if (!rawKey) return null;
@@ -1245,7 +1254,7 @@ export async function getStudentReportCard(req, res) {
     if (!assessmentGroup) return err(res, "Exam not found", 404);
     if (assessmentGroup.schoolId !== schoolId) return err(res, "Unauthorized", 403);
 
-    const [personalInfo, student, marks] = await Promise.all([
+    const [personalInfo, student, marks, allClassMarks, resultSummary, schoolLogoUrl] = await Promise.all([
       prisma.studentPersonalInfo.findUnique({ where: { studentId } }),
       prisma.student.findUnique({ where: { id: studentId }, select: { name: true, email: true } }),
       prisma.marks.findMany({
@@ -1259,6 +1268,18 @@ export async function getStudentReportCard(req, res) {
         },
         orderBy: { schedule: { subject: { name: "asc" } } },
       }),
+      // ✅ Runs concurrently with the queries above instead of waiting for
+      // them to finish first — cuts a full DB round-trip off report load time.
+      prisma.marks.findMany({
+        where: { schedule: { assessmentGroupId, classSectionId: enrollment.classSectionId } },
+        include: { schedule: { select: { maxMarks: true, passingMarks: true } } },
+      }),
+      prisma.resultSummary.findFirst({
+        where: { studentId, assessmentGroupId, academicYearId: enrollment.academicYearId },
+      }),
+      // ✅ Also parallelized — doesn't depend on marks/summary, only on the
+      // school object already resolved in the enrollment query above.
+      resolveLogoUrlAdmin(enrollment.classSection.school),
     ]);
 
     if (marks.length === 0) return err(res, "No marks found for this exam", 404);
@@ -1291,20 +1312,13 @@ export async function getStudentReportCard(req, res) {
         isAbsent:      m.isAbsent,
         remarks:       m.remarks ?? null,
         examDate:      m.schedule.examDate,
+        // ✅ Formative Assessment breakdown (R&R/CW/PW/ST), if this subject
+        // was uploaded using that format. null for standard-format subjects.
+        components:    m.components ?? null,
       };
     });
 
     const { totalObtained, totalMax, percentage, gradeInfo, hasFail } = computeTotalsFull(marks);
-
-    const [allClassMarks, resultSummary] = await Promise.all([
-      prisma.marks.findMany({
-        where: { schedule: { assessmentGroupId, classSectionId: enrollment.classSectionId } },
-        include: { schedule: { select: { maxMarks: true, passingMarks: true } } },
-      }),
-      prisma.resultSummary.findFirst({
-        where: { studentId, assessmentGroupId, academicYearId: enrollment.academicYearId },
-      }),
-    ]);
 
     const studentTotalsMap = {};
     for (const m of allClassMarks) {
@@ -1356,7 +1370,7 @@ export async function getStudentReportCard(req, res) {
         schoolState:   school?.state   ?? null,
         schoolPhone:   school?.phone   ?? null,
         schoolEmail:   school?.email   ?? null,
-        schoolLogoUrl: await resolveLogoUrlAdmin(school),
+        schoolLogoUrl: schoolLogoUrl,
       },
       exam: {
         id:        assessmentGroup.id,

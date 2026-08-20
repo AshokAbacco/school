@@ -1,7 +1,7 @@
 // client/src/student/pages/marks/utils/downloadPDF.js
 // Modern Dashboard A4 portrait — clean layout matching Stormy Morning theme.
-// Supports the school logo, 4 selectable colour themes, and an inline
-// marks-wise progress chart (SVG bars, no external chart library needed).
+// Supports the school logo, 4 selectable colour themes, an inline marks-wise
+// progress chart, and Formative Assessment (R&R/CW/PW/ST) format detection.
 
 import { GRADE_SCALE, C, FONT } from "../tokens.js";
 
@@ -228,10 +228,32 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
   // 3. Resolve the selected colour theme (falls back to default = original look)
   const palette = PDF_THEMES[themeKey] || PDF_THEMES.default;
 
-  const subjectRows = (subjectResults ?? []).map((s, i) => {
-    const absent  = s.isAbsent;
-    const bg      = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
-    return `
+  // Detect whether this report should render in Formative Assessment format —
+  // true if any subject was uploaded with a components (R&R/CW/PW/ST) breakdown.
+  const isFA = (subjectResults ?? []).some((s) => s.components);
+
+  const subjectRows = isFA
+    ? (subjectResults ?? []).map((s, i) => {
+        const absent = s.isAbsent;
+        const bg     = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
+        const comp   = s.components || {};
+        return `
+      <tr style="background:${bg}; ${absent ? "color:" + palette.textLight + "; font-style:italic;" : ""}">
+        <td class="tc" style="color: ${palette.mid};">${i + 1}</td>
+        <td class="tl" style="font-weight:600; color: ${palette.dark};">${s.subjectName}${s.subjectCode ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>` : ""}</td>
+        <td class="tc">${absent ? "—" : (comp.rr ?? "—")}</td>
+        <td class="tc">${absent ? "—" : (comp.cw ?? "—")}</td>
+        <td class="tc">${absent ? "—" : (comp.pw ?? "—")}</td>
+        <td class="tc">${absent ? "—" : (comp.st ?? "—")}</td>
+        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${absent ? "AB" : (s.marksObtained ?? "—")}</td>
+        <td class="tc fw" style="color: ${palette.dark};">${absent ? "—" : (s.grade ?? "—")}</td>
+        <td class="tc">${absent ? "—" : (s.percentage != null ? `${s.percentage}%` : "—")}</td>
+      </tr>`;
+      }).join("")
+    : (subjectResults ?? []).map((s, i) => {
+        const absent  = s.isAbsent;
+        const bg      = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
+        return `
       <tr style="background:${bg}; ${absent ? "color:" + palette.textLight + "; font-style:italic;" : ""}">
         <td class="tc" style="color: ${palette.mid};">${i + 1}</td>
         <td class="tl" style="font-weight:600; color: ${palette.dark};">${s.subjectName}${s.subjectCode ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>` : ""}</td>
@@ -242,7 +264,7 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
         <td class="tc fw" style="color: ${palette.dark};">${absent ? "—" : (s.grade ?? "—")}</td>
         <td class="tc fw" style="color: ${s.resultStatus === 'fail' ? palette.fail : palette.pass};">${rl(s.resultStatus)}</td>
       </tr>`;
-  }).join("");
+      }).join("");
 
   const gradeRows = GRADE_SCALE.map(g => `
     <tr>
@@ -250,6 +272,105 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
       <td class="tc" style="color: ${palette.mid};">${g.min}–${g.max}%</td>
       <td class="tl" style="color: ${palette.mid};">${g.label}</td>
     </tr>`).join("");
+
+  // Formative Assessment abbreviation legend — shown instead of the
+  // Standard Scale panel when this report used the FA marking format.
+  const FA_LEGEND = [
+    { abbr: "R&R", label: "Read and reflection" },
+    { abbr: "CW",  label: "Class Work Performance" },
+    { abbr: "PW",  label: "Project Work Performance" },
+    { abbr: "ST",  label: "Slip Test (FA 1 Exams Performance)" },
+    { abbr: "TOT", label: "Total" },
+    { abbr: "GRD", label: "Grade" },
+  ];
+  const faLegendRows = FA_LEGEND.map(g => `
+    <tr>
+      <td class="tc fw" style="color: ${palette.dark}; width:34px;">${g.abbr}</td>
+      <td class="tl" style="color: ${palette.mid};">${g.label}</td>
+    </tr>`).join("");
+
+  const subjectTableHead = isFA
+    ? `
+      <tr>
+        <th style="width:26px;">#</th>
+        <th class="tl" style="width:auto;">Subject</th>
+        <th style="width:44px;">R&amp;R</th>
+        <th style="width:44px;">CW</th>
+        <th style="width:44px;">PW</th>
+        <th style="width:44px;">ST</th>
+        <th style="width:54px;">TOT</th>
+        <th style="width:54px;">GRD</th>
+        <th style="width:60px;">PER(%)</th>
+      </tr>`
+    : `
+      <tr>
+        <th style="width:26px;">#</th>
+        <th class="tl" style="width:auto;">Subject</th>
+        <th style="width:60px;">Max Marks</th>
+        <th style="width:60px;">Pass Marks</th>
+        <th style="width:74px;">Marks Obtained</th>
+        <th style="width:64px;">Overall %</th>
+        <th style="width:54px;">Grade</th>
+        <th style="width:54px;">Result</th>
+      </tr>`;
+
+  const subjectTableFoot = isFA
+    ? `
+      <tr class="tot-row">
+        <td class="tc">—</td>
+        <td class="tl">Grand Total</td>
+        <td class="tc">—</td>
+        <td class="tc">—</td>
+        <td class="tc">—</td>
+        <td class="tc">—</td>
+        <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}</td>
+        <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
+        <td class="tc">${summary?.percentage ?? "—"}%</td>
+      </tr>`
+    : `
+      <tr class="tot-row">
+        <td class="tc">—</td>
+        <td class="tl">Grand Total</td>
+        <td class="tc">${summary?.totalMax ?? "—"}</td>
+        <td class="tc">—</td>
+        <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}</td>
+        <td class="tc">${summary?.percentage ?? "—"}%</td>
+        <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
+        <td class="tc" style="font-size:8pt; color:${summary?.hasFail ? palette.fail : palette.pass} !important;">${overallResult}</td>
+      </tr>`;
+
+  const scaleLegendPanel = isFA
+    ? `
+    <div style="border: 1px solid ${palette.border}; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
+      <div style="font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; background: rgba(237,243,250,0.8); padding: 5px 0; color: ${palette.dark}; border-bottom: 1px solid ${palette.border};">Formative Assessment Key</div>
+      <div style="padding: 6px; flex-grow: 1;">
+        <style>
+          .fa-mini-table { width: 100%; border-collapse: collapse; }
+          .fa-mini-table td { padding: 2.5px 4px; font-size: 6.4pt; border-bottom: 1px dashed ${palette.border}; }
+          .fa-mini-table tr:last-child td { border-bottom: none; }
+        </style>
+        <table class="fa-mini-table">
+          <tbody>${faLegendRows}</tbody>
+        </table>
+      </div>
+    </div>`
+    : `
+    <div style="border: 1px solid ${palette.border}; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
+      <div style="font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; background: rgba(237,243,250,0.8); padding: 5px 0; color: ${palette.dark}; border-bottom: 1px solid ${palette.border};">Standard Scale</div>
+      <div style="padding: 6px; flex-grow: 1;">
+        <style>
+          .grade-mini-table { width: 100%; border-collapse: collapse; }
+          .grade-mini-table td { padding: 2.5px 4px; font-size: 6.8pt; border-bottom: 1px dashed ${palette.border}; }
+          .grade-mini-table tr:last-child td { border-bottom: none; }
+        </style>
+        <table class="grade-mini-table">
+          <tbody>${gradeRows}</tbody>
+        </table>
+        <div style="font-size: 5.5pt; color: ${palette.textLight}; margin-top: 6px; text-align: center; font-weight: 600;">
+          P: Pass &nbsp;·&nbsp; F: Fail &nbsp;·&nbsp; AB: Absent
+        </div>
+      </div>
+    </div>`;
 
   const logoHtml = logoDataUrl
     ? `<img src="${logoDataUrl}" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1px solid ${palette.border}; background:#ffffff; flex-shrink:0;" />`
@@ -337,31 +458,13 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
 
   <table class="pdf-table">
     <thead>
-      <tr>
-        <th style="width:26px;">#</th>
-        <th class="tl" style="width:auto;">Subject</th>
-        <th style="width:60px;">Max Marks</th>
-        <th style="width:60px;">Pass Marks</th>
-        <th style="width:74px;">Marks Obtained</th>
-        <th style="width:64px;">Overall %</th>
-        <th style="width:54px;">Grade</th>
-        <th style="width:54px;">Result</th>
-      </tr>
+      ${subjectTableHead}
     </thead>
     <tbody>
       ${subjectRows}
     </tbody>
     <tfoot>
-      <tr class="tot-row">
-        <td class="tc">—</td>
-        <td class="tl">Grand Total</td>
-        <td class="tc">${summary?.totalMax ?? "—"}</td>
-        <td class="tc">—</td>
-        <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}</td>
-        <td class="tc">${summary?.percentage ?? "—"}%</td>
-        <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
-        <td class="tc" style="font-size:8pt; color:${summary?.hasFail ? palette.fail : palette.pass} !important;">${overallResult}</td>
-      </tr>
+      ${subjectTableFoot}
     </tfoot>
   </table>
 
@@ -376,22 +479,7 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
 
   <div style="display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: stretch; margin-bottom: 20px;">
     
-    <div style="border: 1px solid ${palette.border}; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
-      <div style="font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; background: rgba(237,243,250,0.8); padding: 5px 0; color: ${palette.dark}; border-bottom: 1px solid ${palette.border};">Standard Scale</div>
-      <div style="padding: 6px; flex-grow: 1;">
-        <style>
-          .grade-mini-table { width: 100%; border-collapse: collapse; }
-          .grade-mini-table td { padding: 2.5px 4px; font-size: 6.8pt; border-bottom: 1px dashed ${palette.border}; }
-          .grade-mini-table tr:last-child td { border-bottom: none; }
-        </style>
-        <table class="grade-mini-table">
-          <tbody>${gradeRows}</tbody>
-        </table>
-        <div style="font-size: 5.5pt; color: ${palette.textLight}; margin-top: 6px; text-align: center; font-weight: 600;">
-          P: Pass &nbsp;·&nbsp; F: Fail &nbsp;·&nbsp; AB: Absent
-        </div>
-      </div>
-    </div>
+    ${scaleLegendPanel}
 
     <div style="border: 1px solid ${palette.border}; border-radius: 8px; background: #ffffff; display: flex; flex-direction: column; overflow: hidden;">
       <div style="font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; background: rgba(237,243,250,0.8); padding: 5px 0; color: ${palette.dark}; border-bottom: 1px solid ${palette.border};">Consolidated Performance Overview</div>
