@@ -429,6 +429,10 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
           <div style="border-top: 1px solid ${palette.border}; margin-bottom: 3px;"></div>
           <div style="font-size: 6pt; font-weight: 800; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.3px;">Principal Signature</div>
         </div>
+        <div style="text-align: center; width: 105px;">
+          <div style="border-top: 1px solid ${palette.border}; margin-bottom: 3px;"></div>
+          <div style="font-size: 5pt; font-weight: 900; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.3px;">Class Teacher Signature</div>
+        </div>
         
         <div style="text-align: center; width: 105px;">
           <div style="border-top: 1px solid ${palette.border}; margin-bottom: 3px;"></div>
