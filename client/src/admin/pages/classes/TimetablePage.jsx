@@ -94,17 +94,27 @@ const fmtTime = (t) => {
 
 function Toast({ type, msg, onClose }) {
   useEffect(() => {
-    const t = setTimeout(onClose, 3500);
+    // Warnings are longer messages — give them more time to be read
+    const t = setTimeout(onClose, type === "warning" ? 6000 : 3500);
     return () => clearTimeout(t);
   }, []);
+
+  const theme =
+    type === "success"
+      ? { bg: "#f0fdf4", border: "#bbf7d0", fg: "#15803d" }
+      : type === "warning"
+        ? { bg: "#fffbeb", border: "#fde68a", fg: "#b45309" }
+        : { bg: "#fef2f2", border: "#fecaca", fg: "#dc2626" };
+
   return (
     <div
       className="fixed bottom-6 right-6 flex items-center gap-2 rounded-xl shadow-lg text-sm font-medium z-50"
       style={{
         padding: "12px 18px",
-        background: type === "success" ? "#f0fdf4" : "#fef2f2",
-        border: `1.5px solid ${type === "success" ? "#bbf7d0" : "#fecaca"}`,
-        color: type === "success" ? "#15803d" : "#dc2626",
+        maxWidth: 420,
+        background: theme.bg,
+        border: `1.5px solid ${theme.border}`,
+        color: theme.fg,
       }}
     >
       {type === "success" ? (
@@ -1149,15 +1159,31 @@ const handleSave = async () => {
       });
     });
 
-    await saveTimetableEntries(selectedClass.id, {
+    const res = await saveTimetableEntries(selectedClass.id, {
       academicYearId: yearId,
       entries,
     });
 
-    setToast({
-      type: "success",
-      msg: "Timetable saved!",
-    });
+    // Teacher double-booking no longer blocks the save — the backend
+    // saves it and reports any overlaps so the admin is simply informed.
+    const overlaps = res?.teacherOverlaps || [];
+
+    if (overlaps.length > 0) {
+      const otherClasses = [
+        ...new Set(overlaps.flatMap((o) => o.alsoAssignedIn || [])),
+      ];
+      setToast({
+        type: "warning",
+        msg: `Timetable saved. ${overlaps.length} period${
+          overlaps.length > 1 ? "s" : ""
+        } use a teacher who is also assigned to ${otherClasses.join(", ")} at the same time.`,
+      });
+    } else {
+      setToast({
+        type: "success",
+        msg: "Timetable saved!",
+      });
+    }
   } catch (err) {
     setToast({
       type: "error",

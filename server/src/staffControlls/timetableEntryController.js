@@ -89,7 +89,7 @@ export const getTimetableEntries = async (req, res) => {
 //  KEY RULES:
 //  ✅ Only deletes entries for THIS class + year (not all classes)
 //  ✅ Validates day matches periodDefinition.dayType
-//  ✅ Detects teacher conflicts across classes
+//  ⚠️ Teacher double-booking is ALLOWED (reported, never blocked)
 //  ✅ Auto upserts TeacherAssignment
 // ═══════════════════════════════════════════════════════════════
 
@@ -159,38 +159,64 @@ export const saveTimetableEntries = async (req, res) => {
       });
     }
 
-    // ── Teacher conflict detection ───────────────────────────
-    // Same teacher cannot be in two classes at same day + same period
-    const conflicts = [];
-    for (const entry of entries) {
-        if (!entry.teacherId) continue;
-      const conflict = await prisma.timetableEntry.findFirst({
-        where: {
-          schoolId,
-          academicYearId,
-          day: entry.day,
-          periodDefinitionId: entry.periodDefinitionId, // ✅ NEW
-          teacherId: entry.teacherId,
-          NOT: { classSectionId }, // exclude current class
-        },
-        include: {
-          classSection: { select: { name: true } },
-        },
-      });
-      if (conflict) {
-        conflicts.push({
-          day: entry.day,
-          periodDefinitionId: entry.periodDefinitionId,
-          teacherId: entry.teacherId,
-          conflictingClass: conflict.classSection.name,
+    // ── Teacher double-booking check (NON-BLOCKING) ──────────
+    // A teacher IS allowed to be assigned to more than one class in
+    // the same day + period. We no longer reject the save — we only
+    // collect the overlaps and hand them back as informational
+    // warnings so the UI can surface them if it wants to.
+    let teacherOverlaps = [];
+    try {
+      const teacherEntries = entries.filter((e) => e.teacherId);
+
+      if (teacherEntries.length > 0) {
+        // Single query instead of one-per-entry
+        const existing = await prisma.timetableEntry.findMany({
+          where: {
+            schoolId,
+            academicYearId,
+            NOT: { classSectionId }, // ignore this class's own rows
+            day: { in: [...new Set(teacherEntries.map((e) => e.day))] },
+            periodDefinitionId: {
+              in: [...new Set(teacherEntries.map((e) => e.periodDefinitionId))],
+            },
+            teacherId: {
+              in: [...new Set(teacherEntries.map((e) => e.teacherId))],
+            },
+          },
+          select: {
+            day: true,
+            periodDefinitionId: true,
+            teacherId: true,
+            classSection: { select: { name: true } },
+          },
         });
+
+        // "day:periodDefinitionId:teacherId" -> [other class names]
+        const busyMap = new Map();
+        for (const row of existing) {
+          const k = `${row.day}:${row.periodDefinitionId}:${row.teacherId}`;
+          if (!busyMap.has(k)) busyMap.set(k, []);
+          busyMap.get(k).push(row.classSection?.name || "Unknown class");
+        }
+
+        teacherOverlaps = teacherEntries
+          .map((e) => {
+            const k = `${e.day}:${e.periodDefinitionId}:${e.teacherId}`;
+            const alsoIn = busyMap.get(k);
+            if (!alsoIn?.length) return null;
+            return {
+              day: e.day,
+              periodDefinitionId: e.periodDefinitionId,
+              periodLabel: periodDefMap.get(e.periodDefinitionId)?.label || null,
+              teacherId: e.teacherId,
+              alsoAssignedIn: [...new Set(alsoIn)],
+            };
+          })
+          .filter(Boolean);
       }
-    }
-    if (conflicts.length > 0) {
-      return res.status(409).json({
-        message: "Teacher conflict detected",
-        conflicts,
-      });
+    } catch {
+      // Advisory only — never let this break the save
+      teacherOverlaps = [];
     }
 
     // ── Save inside transaction ──────────────────────────────
@@ -274,7 +300,14 @@ export const saveTimetableEntries = async (req, res) => {
     });
 
     await cacheService.invalidateSchool(schoolId);
-    return res.json({ message: "Timetable saved", entries: saved });
+    return res.json({
+      message: "Timetable saved",
+      entries: saved,
+      teacherOverlaps,
+      ...(teacherOverlaps.length > 0 && {
+        warning: `Saved. ${teacherOverlaps.length} period(s) have a teacher who is also assigned to another class at the same time.`,
+      }),
+    });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
