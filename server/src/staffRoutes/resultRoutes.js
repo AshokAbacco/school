@@ -13,6 +13,7 @@ import {
   deleteMarkEntry,
   exportResultsExcel,
   getStudentReportCard,
+  getSubExamGroups,
 } from "../staffControlls/resultController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 
@@ -32,4 +33,5 @@ router.get("/admin/overview",                             getAdminUploadOverview
 router.delete("/marks/:id",                               deleteMarkEntry);
 router.get("/export/excel",                               exportResultsExcel);
 router.get("/report/:studentId/:assessmentGroupId",       getStudentReportCard);
+router.get("/sub-exams",                                  getSubExamGroups);
 export default router;

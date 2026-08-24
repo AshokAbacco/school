@@ -212,14 +212,26 @@ const FA_COLS = [
   { key: "per",     label: "PER(%)",  flex: "0 0 70px",  align: "center" },
 ];
 
+/* Sub Exam combined — Assessment + Final Exam → Total + Grade */
+const COMBINED_COLS = [
+  { key: "subject",    label: "Subject",     flex: "1 1 170px", align: "left"   },
+  { key: "assessment", label: "Assessment",  flex: "0 0 100px", align: "center" },
+  { key: "final",      label: "Final Exam",  flex: "0 0 100px", align: "center" },
+  { key: "total",      label: "Total",       flex: "0 0 84px",  align: "center" },
+  { key: "grade",      label: "Grade",       flex: "0 0 70px",  align: "center" },
+];
+
 export default function SubjectTable({ subjects, summary, loading, isLocked, isMobile }) {
   // A report is treated as "Formative Assessment" if any subject in it was
   // uploaded using that format (components present). Subjects within the
   // same report that used the standard format still show — with the R&R/CW/
   // PW/ST cells blank and TOT falling back to their plain marksObtained.
-  const isFA = !!subjects?.some((s) => s.components);
-  const cols = isFA ? FA_COLS : COLS;
-  const minWidth = isFA ? 560 : 620;
+  const isFA       = !!subjects?.some((s) => s.components);
+  // A report is "combined" when a Sub Exam (Assessment) was merged in —
+  // backend flags each subject with isCombined: true when that's the case.
+  const isCombined = !!subjects?.some((s) => s.isCombined);
+  const cols = isCombined ? COMBINED_COLS : isFA ? FA_COLS : COLS;
+  const minWidth = isCombined ? 540 : isFA ? 560 : 620;
 
   return (
     <div className="mrk-card anim-3" style={{ minWidth: 0 }}>
@@ -323,6 +335,52 @@ export default function SubjectTable({ subjects, summary, loading, isLocked, isM
             const color  = absent ? C.mid : pctColor(pct ?? 0);
             const comp   = s.components;
 
+            if (isCombined) {
+              return (
+                <div
+                  key={s.subjectId}
+                  className="subj-row"
+                  style={{
+                    display: "flex", alignItems: "center",
+                    padding: "13px 20px", gap: 8,
+                    borderBottom: idx < subjects.length - 1 ? `1px solid rgba(136,189,242,0.15)` : "none",
+                    background: absent ? `${C.bg}88` : C.white,
+                    minWidth,
+                  }}
+                >
+                  <div style={{ flex: "1 1 170px", minWidth: 0 }}>
+                    <p style={{
+                      margin: 0, fontSize: 13, fontWeight: 700,
+                      color: absent ? C.mid : C.dark,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      {s.subjectName}
+                    </p>
+                    {s.subjectCode && <p style={{ margin: 0, fontSize: 10, color: C.textLight, marginTop: 1 }}>{s.subjectCode}</p>}
+                    <MiniBar pct={pct ?? 0} />
+                  </div>
+                  <div style={{ flex: "0 0 100px", textAlign: "center" }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: C.dark }}>
+                      {s.subExamObtained ?? "—"}<span style={{ color: C.textLight, fontWeight: 500 }}>/{s.subExamMax ?? "—"}</span>
+                    </span>
+                  </div>
+                  <div style={{ flex: "0 0 100px", textAlign: "center" }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: C.dark }}>
+                      {absent ? "AB" : (s.mainObtained ?? "—")}<span style={{ color: C.textLight, fontWeight: 500 }}>/{s.mainMax ?? "—"}</span>
+                    </span>
+                  </div>
+                  <div style={{ flex: "0 0 84px", textAlign: "center" }}>
+                    <span style={{ fontSize: 15, fontWeight: 900, color: absent ? C.mid : color, fontFamily: FONT.sans }}>
+                      {s.totalObtained ?? "—"}
+                    </span>
+                  </div>
+                  <div style={{ flex: "0 0 70px", textAlign: "center" }}>
+                    {absent ? <span style={{ color: C.mid, fontSize: 12 }}>—</span> : <GradeBadge grade={s.grade} />}
+                  </div>
+                </div>
+              );
+            }
+
             if (isFA) {
               return (
                 <div
@@ -421,7 +479,31 @@ export default function SubjectTable({ subjects, summary, loading, isLocked, isM
           })}
 
           {/* Totals row */}
-          {isFA ? (
+          {isCombined ? (
+            <div style={{
+              display: "flex", alignItems: "center",
+              padding: "13px 20px", gap: 8,
+              borderTop: `2px solid rgba(136,189,242,0.30)`,
+              background: `linear-gradient(90deg, ${C.bg}, ${C.white})`,
+              minWidth,
+            }}>
+              <div style={{ flex: "1 1 170px" }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: C.dark, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                  Grand Total
+                </span>
+              </div>
+              <div style={{ flex: "0 0 100px" }} />
+              <div style={{ flex: "0 0 100px" }} />
+              <div style={{ flex: "0 0 84px", textAlign: "center" }}>
+                <span style={{ fontSize: 15, fontWeight: 900, color: C.dark }}>
+                  {summary?.totalObtained ?? "—"}<span style={{ fontSize: 11, fontWeight: 500, color: C.textLight }}>/{summary?.totalMax ?? "—"}</span>
+                </span>
+              </div>
+              <div style={{ flex: "0 0 70px", textAlign: "center" }}>
+                <GradeBadge grade={summary?.grade} />
+              </div>
+            </div>
+          ) : isFA ? (
             <div style={{
               display: "flex", alignItems: "center",
               padding: "13px 20px", gap: 8,

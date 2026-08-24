@@ -1,7 +1,7 @@
 // client/src/student/pages/marks/utils/downloadPDF.js
 // Modern Dashboard A4 portrait — clean layout matching Stormy Morning theme.
-// Supports the school logo, 4 selectable colour themes, an inline marks-wise
-// progress chart, and Formative Assessment (R&R/CW/PW/ST) format detection.
+// Supports the school logo, 4 selectable colour themes, and an inline
+// marks-wise progress chart (SVG bars, no external chart library needed).
 
 import { GRADE_SCALE, C, FONT } from "../tokens.js";
 
@@ -231,8 +231,25 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
   // Detect whether this report should render in Formative Assessment format —
   // true if any subject was uploaded with a components (R&R/CW/PW/ST) breakdown.
   const isFA = (subjectResults ?? []).some((s) => s.components);
+  // Detect a Sub Exam ("Assessment") combined into this report — takes
+  // priority over the FA layout if both were somehow present.
+  const isCombined = (subjectResults ?? []).some((s) => s.isCombined);
 
-  const subjectRows = isFA
+  const subjectRows = isCombined
+    ? (subjectResults ?? []).map((s, i) => {
+        const absent = s.isAbsent;
+        const bg     = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
+        return `
+      <tr style="background:${bg}; ${absent ? "color:" + palette.textLight + "; font-style:italic;" : ""}">
+        <td class="tc" style="color: ${palette.mid};">${i + 1}</td>
+        <td class="tl" style="font-weight:600; color: ${palette.dark};">${s.subjectName}${s.subjectCode ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>` : ""}</td>
+        <td class="tc">${s.subExamObtained ?? "—"}/${s.subExamMax ?? "—"}</td>
+        <td class="tc">${absent ? "AB" : (s.mainObtained ?? "—")}/${s.mainMax ?? "—"}</td>
+        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${s.totalObtained ?? "—"}</td>
+        <td class="tc fw" style="color: ${palette.dark};">${absent ? "—" : (s.grade ?? "—")}</td>
+      </tr>`;
+      }).join("")
+    : isFA
     ? (subjectResults ?? []).map((s, i) => {
         const absent = s.isAbsent;
         const bg     = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
@@ -289,7 +306,17 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
       <td class="tl" style="color: ${palette.mid};">${g.label}</td>
     </tr>`).join("");
 
-  const subjectTableHead = isFA
+  const subjectTableHead = isCombined
+    ? `
+      <tr>
+        <th style="width:26px;">#</th>
+        <th class="tl" style="width:auto;">Subject</th>
+        <th style="width:76px;">Assessment</th>
+        <th style="width:76px;">Final Exam</th>
+        <th style="width:60px;">Total</th>
+        <th style="width:54px;">Grade</th>
+      </tr>`
+    : isFA
     ? `
       <tr>
         <th style="width:26px;">#</th>
@@ -314,7 +341,17 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
         <th style="width:54px;">Result</th>
       </tr>`;
 
-  const subjectTableFoot = isFA
+  const subjectTableFoot = isCombined
+    ? `
+      <tr class="tot-row">
+        <td class="tc">—</td>
+        <td class="tl">Grand Total</td>
+        <td class="tc">—</td>
+        <td class="tc">—</td>
+        <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}/${summary?.totalMax ?? "—"}</td>
+        <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
+      </tr>`
+    : isFA
     ? `
       <tr class="tot-row">
         <td class="tc">—</td>

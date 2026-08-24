@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import {
   fetchExamGroups, fetchAllClassSections, fetchSchedulesForExam,
-  fetchStudentsForSchedule, saveMarks,
+  fetchStudentsForSchedule, saveMarks, fetchSubExamGroups,
 } from "./uploadResultsApi.js";
 import { downloadSampleExcel, readExcelFile, matchExcelRowsToStudents, downloadSampleExcelAllSubjects, readExcelWorkbookAllSheets, matchWorkbookToSubjects } from "./excelMarksUtils.js";
 
@@ -290,6 +290,84 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
   const [saving, setSaving]   = useState(false);
   const [done, setDone]       = useState(false);
   const [error, setError]     = useState("");
+
+  // ── Sub Exam (optional) — exams filed under the default "Assessment" term.
+  // Kept as a parallel, standard-format-only entry table so it can't disturb
+  // the existing main-exam flow (FA format, Excel import) in any way.
+  const [subExamGroups, setSubExamGroups]     = useState([]);
+  const [subExamId, setSubExamId]             = useState("");
+  const [loadingSubExams, setLoadingSubExams] = useState(false);
+  const [subSchedules, setSubSchedules]       = useState([]);
+  const [loadingSubSchedules, setLoadingSubSchedules] = useState(false);
+  // subSubjectData[subjectId] = { scheduleId, students, loading }
+  const [subSubjectData, setSubSubjectData]   = useState({});
+
+  useEffect(() => {
+    setLoadingSubExams(true);
+    fetchSubExamGroups()
+      .then((j) => setSubExamGroups(j.data || []))
+      .catch(() => {}) // optional feature — fail silently, dropdown just stays empty
+      .finally(() => setLoadingSubExams(false));
+  }, []);
+
+  useEffect(() => {
+    setSubSchedules([]);
+    setSubSubjectData({});
+    if (!subExamId) return;
+    setLoadingSubSchedules(true);
+    fetchSchedulesForExam(subExamId)
+      .then((j) => setSubSchedules(j.data || []))
+      .catch((e) => setError(e.message || "Failed to load sub exam schedules"))
+      .finally(() => setLoadingSubSchedules(false));
+  }, [subExamId]);
+
+  // Sub-exam schedule for the currently active MAIN subject, matched by subjectId
+  const subSubjectForActive = useMemo(() => {
+    if (!subExamId || !classId || !activeSubjectId) return null;
+    const s = subSchedules.find((sc) => sc.classSectionId === classId && sc.subjectId === activeSubjectId);
+    if (!s) return null;
+    return { id: s.subjectId, scheduleId: s.id, maxMarks: s.maxMarks, passingMarks: s.passingMarks };
+  }, [subExamId, classId, activeSubjectId, subSchedules]);
+
+  // Lazily load students for the active subject's SUB exam schedule
+  useEffect(() => {
+    if (!subSubjectForActive) return;
+    if (subSubjectData[subSubjectForActive.id]?.students) return;
+
+    setSubSubjectData((prev) => ({
+      ...prev,
+      [subSubjectForActive.id]: { ...(prev[subSubjectForActive.id] || {}), loading: true },
+    }));
+
+    fetchStudentsForSchedule(subSubjectForActive.scheduleId)
+      .then((j) => {
+        const students = (j.data?.students || []).map((s) => ({ ...s, selected: true }));
+        setSubSubjectData((prev) => ({
+          ...prev,
+          [subSubjectForActive.id]: { scheduleId: subSubjectForActive.scheduleId, students, loading: false },
+        }));
+      })
+      .catch((e) => {
+        setError(e.message || "Failed to load sub exam students");
+        setSubSubjectData((prev) => ({ ...prev, [subSubjectForActive.id]: { ...(prev[subSubjectForActive.id] || {}), loading: false } }));
+      });
+  }, [subSubjectForActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateSubStudent = useCallback((studentId, key, value) => {
+    if (!subSubjectForActive) return;
+    const subjId = subSubjectForActive.id;
+    setSubSubjectData((prev) => {
+      const cur = prev[subjId];
+      if (!cur) return prev;
+      return {
+        ...prev,
+        [subjId]: {
+          ...cur,
+          students: cur.students.map((s) => s.studentId === studentId ? { ...s, [key]: value } : s),
+        },
+      };
+    });
+  }, [subSubjectForActive]);
 
   // ── Initial load: exams + all classes (unrestricted) ──
   useEffect(() => {
@@ -623,6 +701,26 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
           failed.push(subjMeta?.name || subjId);
         }
       }
+
+      // ── Also persist Sub Exam entries (if any subject has one loaded) ──
+      for (const [subjId, subData] of Object.entries(subSubjectData)) {
+        if (!subData?.students?.length) continue;
+        const selected = subData.students.filter((s) => s.selected);
+        if (!selected.length) continue;
+        const subjMeta = subjectsForClass.find((s) => s.id === subjId);
+        try {
+          await saveMarks(subData.scheduleId, selected.map((s) => ({
+            studentId:     s.studentId,
+            marksObtained: s.isAbsent ? null : s.marksObtained,
+            isAbsent:      !!s.isAbsent,
+            remarks:       s.remarks || "",
+            components:    null,
+          })));
+        } catch (e) {
+          failed.push(`${subjMeta?.name || subjId} (Sub Exam)`);
+        }
+      }
+
       if (failed.length) {
         setError(`Failed to save: ${failed.join(", ")}. Other subjects were saved — please retry the failed ones.`);
       } else {
@@ -642,8 +740,8 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(15,39,68,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}
-      
+      style={{ position: "fixed", inset: 0, background: "rgba(15,39,68,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", zIndex: 9999, padding: "20px 20px" }}
+      onClick={onClose}
     >
       <div
         style={{ width: "100%", maxWidth: 1120, maxHeight: "96vh", overflowY: "auto", borderRadius: 20, background: T.bg }}
@@ -682,7 +780,7 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
             {/* ── Filter section ── */}
             <div style={{ padding: "20px 24px 4px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <Field label="Exam">
                   <Dropdown value={examId} onChange={(e) => setExamId(e.target.value)} disabled={loadingInit}>
                     <option value="">{loadingInit ? "Loading…" : "Select exam"}</option>
@@ -696,6 +794,14 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                     <option value="">{loadingInit ? "Loading…" : "Select class"}</option>
                     {classes.map((c) => (
                       <option key={c.id} value={c.id}>Grade {c.grade}{c.section ? ` – ${c.section}` : ""}</option>
+                    ))}
+                  </Dropdown>
+                </Field>
+                <Field label="Sub Exam (Optional)">
+                  <Dropdown value={subExamId} onChange={(e) => setSubExamId(e.target.value)} disabled={loadingSubExams}>
+                    <option value="">{loadingSubExams ? "Loading…" : "None"}</option>
+                    {subExamGroups.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
                     ))}
                   </Dropdown>
                 </Field>
@@ -830,12 +936,59 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
               )}
             </div>
 
+            {/* ── Sub Exam ("Assessment") marks — only when a Sub Exam is selected
+                 and it has a schedule for the currently active subject ── */}
+            {activeSubjectId && subExamId && (
+              <div style={{ padding: "18px 24px 0" }}>
+                <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7c3aed", margin: "0 0 12px" }}>
+                  <Layers size={12} /> {activeSubject?.name} — Assessment Marks (Sub Exam)
+                  {subSubjectForActive?.maxMarks ? ` (Max ${subSubjectForActive.maxMarks})` : ""}
+                </p>
+
+                {loadingSubSchedules ? (
+                  <div style={{ padding: "16px 0", textAlign: "center", color: T.slate, fontSize: 13 }}>
+                    <Loader2 size={16} style={{ animation: "adminSpin 0.8s linear infinite", display: "inline", marginRight: 8 }} /> Loading sub exam…
+                  </div>
+                ) : !subSubjectForActive ? (
+                  <div style={{ padding: "16px 20px", textAlign: "center", background: "#f5f3ff", border: "1.5px solid #ddd6fe", borderRadius: 14, marginBottom: 8 }}>
+                    <p style={{ fontSize: 12.5, color: "#7c3aed", margin: 0 }}>
+                      No sub exam schedule found for {activeSubject?.name} in this class. Create one via Exams → Add Exam under the "Assessment" term first.
+                    </p>
+                  </div>
+                ) : subSubjectData[activeSubjectId]?.loading ? (
+                  <div style={{ padding: "24px 0", textAlign: "center" }}>
+                    <Loader2 size={18} color="#7c3aed" style={{ animation: "adminSpin 0.8s linear infinite" }} />
+                  </div>
+                ) : (
+                  <div style={{ border: "1.5px solid #ddd6fe", borderRadius: 14, overflow: "hidden", marginBottom: 8 }}>
+                    <div style={{
+                      display: "grid", gridTemplateColumns: "36px 70px 1fr 110px 88px 1fr", gap: 10,
+                      padding: "10px 14px", background: "#f5f3ff", borderBottom: "1px solid #ddd6fe",
+                      fontSize: 10.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#7c3aed",
+                    }}>
+                      <span></span>
+                      <span>Roll No</span>
+                      <span>Student</span>
+                      <span>Marks / {subSubjectForActive.maxMarks}</span>
+                      <span>Absent</span>
+                      <span>Remarks</span>
+                    </div>
+                    <div style={{ maxHeight: 280, overflowY: "auto" }}>
+                      {(subSubjectData[activeSubjectId]?.students || []).map((s) => (
+                        <StudentRow key={s.studentId} student={s} maxMarks={subSubjectForActive.maxMarks || 100} onUpdate={updateSubStudent} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── Students table for active subject ── */}
             {activeSubjectId && (
               <div style={{ padding: "18px 24px 8px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
                   <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.slate, margin: 0 }}>
-                    <User size={12} /> {activeSubject?.name} — Student Marks {activeSubject?.maxMarks ? `(Max ${activeSubject.maxMarks})` : ""}
+                    <User size={12} /> {activeSubject?.name} — {subExamId ? "Final Exam" : "Student"} Marks {activeSubject?.maxMarks ? `(Max ${activeSubject.maxMarks})` : ""}
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     {/* Format selector — left of Select all / Unselect all */}

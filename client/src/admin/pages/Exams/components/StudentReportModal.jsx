@@ -47,7 +47,7 @@ const PRINT_CSS = `
 }
 `;
 
-export default function StudentReportModal({ studentId, assessmentGroupId, studentName, onClose }) {
+export default function StudentReportModal({ studentId, assessmentGroupId, subAssessmentGroupId, studentName, onClose }) {
   const [data, setData]             = useState(null);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState("");
@@ -63,7 +63,9 @@ export default function StudentReportModal({ studentId, assessmentGroupId, stude
     if (!studentId || !assessmentGroupId) return;
     let cancelled = false;
     setLoading(true); setError(""); setData(null);
-    fetch(`${API_URL}/api/results/report/${studentId}/${assessmentGroupId}`, { headers: authHdr() })
+    const url = new URL(`${API_URL}/api/results/report/${studentId}/${assessmentGroupId}`);
+    if (subAssessmentGroupId) url.searchParams.set("subAssessmentGroupId", subAssessmentGroupId);
+    fetch(url, { headers: authHdr() })
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok || !j.success) throw new Error(j.message || `HTTP ${r.status}`);
@@ -73,7 +75,7 @@ export default function StudentReportModal({ studentId, assessmentGroupId, stude
       .catch((e) => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [studentId, assessmentGroupId]);
+  }, [studentId, assessmentGroupId, subAssessmentGroupId]);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
@@ -139,6 +141,7 @@ export default function StudentReportModal({ studentId, assessmentGroupId, stude
               {data?.exam?.name && (
                 <p className="mt-0.5 text-[11px] font-medium text-white/75">
                   {data.exam.term?.name ? `${data.exam.term.name} · ` : ""}{data.exam.name}
+                  {data.hasSubExam ? ` + ${data.subExam?.name || "Assessment"}` : ""}
                 </p>
               )}
             </div>

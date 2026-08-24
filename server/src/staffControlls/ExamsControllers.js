@@ -1,3 +1,4 @@
+// server/src/staffControlls/ExamsControllers.js
 import { PrismaClient } from "@prisma/client";
 import cacheService from "../utils/cacheService.js";
 
@@ -133,11 +134,14 @@ export const getGroups = async (req, res) => {
 
     const [groups, allSchedules] = await Promise.all([
       prisma.assessmentGroup.findMany({
-        where: { academicYearId },
+        // ✅ FIX: exclude soft-deleted groups — deleteGroup() only sets
+        // deletedAt, it never removes the row, so without this filter a
+        // "deleted" exam kept reappearing on the next list refresh.
+        where: { academicYearId, deletedAt: null },
         include: { term: true },
       }),
       prisma.assessmentSchedule.findMany({
-        where: { assessmentGroup: { academicYearId } },
+        where: { assessmentGroup: { academicYearId, deletedAt: null } },
         select: {
           id: true,
           assessmentGroupId: true,

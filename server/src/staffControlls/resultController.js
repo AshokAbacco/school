@@ -236,6 +236,43 @@ export async function getResultExamGroups(req, res) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  GET /api/results/sub-exams
+//  Returns the "Assessment" term (auto-created if missing) and the
+//  exam groups filed under it — these are selectable as "Sub Exam"
+//  in the Upload Results modal and combined into the report card.
+// ═══════════════════════════════════════════════════════════════
+export async function getSubExamGroups(req, res) {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return err(res, "Unauthorized", 401);
+
+    const activeYear = await getActiveYear(schoolId);
+    if (!activeYear) return err(res, "No active academic year", 404);
+
+    // Find-or-create the default "Assessment" term for this school+year.
+    let assessmentTerm = await prisma.assessmentTerm.findFirst({
+      where: { schoolId, academicYearId: activeYear.id, name: "Assessment" },
+    });
+    if (!assessmentTerm) {
+      assessmentTerm = await prisma.assessmentTerm.create({
+        data: { schoolId, academicYearId: activeYear.id, name: "Assessment" },
+      });
+    }
+
+    const subExams = await prisma.assessmentGroup.findMany({
+      where: { schoolId, academicYearId: activeYear.id, termId: assessmentTerm.id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, weightage: true, isPublished: true, isLocked: true },
+    });
+
+    return ok(res, { term: assessmentTerm, data: subExams });
+  } catch (e) {
+    console.error("[getSubExamGroups]", e);
+    return err(res, e.message, 500);
+  }
+}
+
 // ─── GET /api/results/exams/:assessmentGroupId/schedules ──────────────────
 export async function getSchedulesByAssessmentGroup(req, res) {
   try {
@@ -1345,6 +1382,115 @@ export async function getStudentReportCard(req, res) {
 
     const school = enrollment.classSection.school;
 
+    // ── Optional: combine with a "Sub Exam" (an AssessmentGroup filed under
+    // the default "Assessment" term) — e.g. Assessment (20) + Final Exam (80).
+    // Backward compatible: with no ?subAssessmentGroupId, everything below is
+    // skipped and the response is byte-for-byte what it was before.
+    const { subAssessmentGroupId } = req.query;
+    let subExamGroup = null;
+    let finalSubjectResults = subjectResults;
+    let finalSummary = {
+      totalObtained, totalMax, percentage,
+      grade:      hasFail ? "F"    : gradeInfo.grade,
+      gradeLabel: hasFail ? "Fail" : gradeInfo.label,
+      hasFail, rank,
+      totalStudentsInClass: studentSummaries.length,
+      isPublished: resultSummary?.isPublished ?? assessmentGroup.isPublished,
+    };
+
+    if (subAssessmentGroupId) {
+      subExamGroup = await prisma.assessmentGroup.findUnique({ where: { id: subAssessmentGroupId } });
+      if (subExamGroup && subExamGroup.schoolId === schoolId) {
+        const [subMarks, allClassSubMarks] = await Promise.all([
+          prisma.marks.findMany({
+            where: {
+              studentId, deletedAt: null,
+              schedule: { assessmentGroupId: subAssessmentGroupId, classSectionId: enrollment.classSectionId },
+            },
+            include: { schedule: { include: { subject: { select: { id: true } } } } },
+          }),
+          prisma.marks.findMany({
+            where: { schedule: { assessmentGroupId: subAssessmentGroupId, classSectionId: enrollment.classSectionId } },
+            include: { schedule: { select: { maxMarks: true, passingMarks: true } } },
+          }),
+        ]);
+
+        const subBySubject = new Map();
+        for (const m of subMarks) {
+          subBySubject.set(m.schedule.subject.id, {
+            obtained: m.isAbsent ? null : (m.marksObtained ?? null),
+            maxMarks: m.schedule.maxMarks,
+            isAbsent: m.isAbsent,
+          });
+        }
+
+        // Per-subject: Assessment (sub exam) + Final Exam (main exam) → Total + Grade
+        finalSubjectResults = subjectResults.map((s) => {
+          const subEntry      = subBySubject.get(s.subjectId);
+          const mainObtained  = s.isAbsent ? null : s.marksObtained;
+          const mainMax       = s.maxMarks;
+          const subObtained   = subEntry && !subEntry.isAbsent ? subEntry.obtained : null;
+          const subMax        = subEntry ? subEntry.maxMarks : 0;
+          const totalObtainedSubj = (mainObtained ?? 0) + (subObtained ?? 0);
+          const totalMaxSubj     = mainMax + subMax;
+          const pct = totalMaxSubj > 0
+            ? parseFloat(((totalObtainedSubj / totalMaxSubj) * 100).toFixed(2))
+            : null;
+          return {
+            ...s,
+            isCombined:      true,
+            mainObtained,    mainMax,
+            subExamObtained: subObtained, subExamMax: subMax,
+            totalObtained:   totalObtainedSubj,
+            totalMax:        totalMaxSubj,
+            percentage:      pct,
+            grade:           pct !== null ? calcGradeFull(pct).grade : "—",
+          };
+        });
+
+        // Combined class-wide totals → rank, using main + sub exam marks together
+        const mainTotalsMap = {};
+        for (const m of allClassMarks) (mainTotalsMap[m.studentId] ??= []).push(m);
+        const subTotalsMap = {};
+        for (const m of allClassSubMarks) (subTotalsMap[m.studentId] ??= []).push(m);
+
+        const allStudentIds = new Set([...Object.keys(mainTotalsMap), ...Object.keys(subTotalsMap)]);
+        const combinedStudentSummaries = [...allStudentIds]
+          .map((sid) => {
+            const mainT = computeTotalsFull(mainTotalsMap[sid] || []);
+            const subT  = computeTotalsFull(subTotalsMap[sid] || []);
+            return { studentId: sid, total: mainT.totalObtained + subT.totalObtained };
+          })
+          .sort((a, b) => b.total - a.total);
+
+        let combinedRank = 1;
+        for (let i = 0; i < combinedStudentSummaries.length; i++) {
+          if (i > 0 && combinedStudentSummaries[i].total !== combinedStudentSummaries[i - 1].total) combinedRank = i + 1;
+          if (combinedStudentSummaries[i].studentId === studentId) break;
+        }
+
+        const grandTotalObtained = finalSubjectResults.reduce((sum, x) => sum + (x.totalObtained || 0), 0);
+        const grandTotalMax      = finalSubjectResults.reduce((sum, x) => sum + (x.totalMax || 0), 0);
+        const grandPct = grandTotalMax > 0
+          ? parseFloat(((grandTotalObtained / grandTotalMax) * 100).toFixed(2))
+          : 0;
+        const grandGradeInfo = calcGradeFull(grandPct);
+        const combinedHasFail = finalSubjectResults.some((x) => x.grade === "F");
+
+        finalSummary = {
+          totalObtained: grandTotalObtained,
+          totalMax:      grandTotalMax,
+          percentage:    grandPct,
+          grade:         combinedHasFail ? "F"    : grandGradeInfo.grade,
+          gradeLabel:    combinedHasFail ? "Fail" : grandGradeInfo.label,
+          hasFail:       combinedHasFail,
+          rank:          combinedRank,
+          totalStudentsInClass: combinedStudentSummaries.length,
+          isPublished:   resultSummary?.isPublished ?? assessmentGroup.isPublished,
+        };
+      }
+    }
+
     const data = {
       student: {
         id:              studentId,
@@ -1382,18 +1528,11 @@ export async function getStudentReportCard(req, res) {
           ? { id: assessmentGroup.term.id, name: assessmentGroup.term.name }
           : null,
       },
-      subjectResults,
-      summary: {
-        totalObtained,
-        totalMax,
-        percentage,
-        grade:               hasFail ? "F"    : gradeInfo.grade,
-        gradeLabel:           hasFail ? "Fail" : gradeInfo.label,
-        hasFail,
-        rank,
-        totalStudentsInClass: studentSummaries.length,
-        isPublished:          resultSummary?.isPublished ?? assessmentGroup.isPublished,
-      },
+      // ✅ Present only when a Sub Exam was combined into this report
+      hasSubExam: !!subExamGroup,
+      subExam: subExamGroup ? { id: subExamGroup.id, name: subExamGroup.name } : null,
+      subjectResults: finalSubjectResults,
+      summary: finalSummary,
     };
 
     return ok(res, { data });

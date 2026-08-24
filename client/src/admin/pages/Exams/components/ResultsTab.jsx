@@ -302,6 +302,19 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
   const [selSubjectId, setSelSubjectId] = useState("all"); // "all" or a subjectId string
   const [reportView,   setReportView]   = useState(null); // { studentId, studentName } | null
 
+  // ── Sub Exam (optional) — combines an "Assessment" exam into the report
+  // card shown from "View" (Subject-wise Marks Statement → Assessment + Final
+  // Exam + Total + Grade). Purely additive; leaving it unset behaves exactly
+  // as before.
+  const [subExamGroups, setSubExamGroups] = useState([]);
+  const [subExamId,     setSubExamId]     = useState("");
+
+  useEffect(() => {
+    apiFetch("/api/results/sub-exams")
+      .then((j) => setSubExamGroups(j.data || []))
+      .catch(() => {}); // optional feature — fail silently, dropdown just stays empty
+  }, []);
+
   // fetch exam groups that have schedules for this class
   useEffect(() => {
     setLoading(true);
@@ -324,6 +337,7 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
   useEffect(() => {
     setSelSubjectId("all");
     setSubjects([]);
+    setSubExamId("");
   }, [selExam]);
 
   // Fetch results — either per-subject (from /list) or aggregated (from /summary)
@@ -480,6 +494,35 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
             ))}
           </div>
 
+          {subExamGroups.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+              <span style={{ ...font, fontSize: 11.5, fontWeight: 700, color: C.mid, letterSpacing: "0.04em" }}>
+                Combine with Sub Exam (Optional):
+              </span>
+              <div style={{ position: "relative" }}>
+                <select
+                  value={subExamId}
+                  onChange={(e) => setSubExamId(e.target.value)}
+                  style={{
+                    ...font, appearance: "none", cursor: "pointer",
+                    background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 8,
+                    padding: "6px 30px 6px 12px", fontSize: 12, fontWeight: 700, color: C.dark, outline: "none",
+                  }}
+                >
+                  <option value="">None</option>
+                  {subExamGroups.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
+              {subExamId && (
+                <span style={{ ...font, fontSize: 11, color: C.mid }}>
+                  "View" will show Assessment + Final Exam + Total for each student
+                </span>
+              )}
+            </div>
+          )}
+
           {/* mini stat row */}
           {!resLoading && results.length > 0 && (
             <div style={{
@@ -623,6 +666,7 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
           studentId={reportView.studentId}
           studentName={reportView.studentName}
           assessmentGroupId={selExam.id}
+          subAssessmentGroupId={subExamId || undefined}
           onClose={() => setReportView(null)}
         />
       )}

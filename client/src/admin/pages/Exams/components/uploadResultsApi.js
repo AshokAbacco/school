@@ -28,6 +28,12 @@ export const fetchAllClassSections = () =>
 export const fetchExamGroups = () =>
   fetch(`${BASE}/exams`, { headers: authHeaders() }).then(handle);
 
+// ── "Sub Exam" groups — exams filed under the default "Assessment" term.
+//    Auto-creates that term on first call. Used by the optional Sub Exam
+//    dropdown in the Upload Results modal + combined report card. ──────────
+export const fetchSubExamGroups = () =>
+  fetch(`${BASE}/sub-exams`, { headers: authHeaders() }).then(handle);
+
 // ── ALL schedules (every class + subject) for a given exam — admin gets the
 //    unrestricted list (see getSchedulesByAssessmentGroup ADMIN branch) ─────
 export const fetchSchedulesForExam = (assessmentGroupId) =>
