@@ -1,13 +1,14 @@
 // client/src/admin/pages/Exams/components/AdminUploadResultModal.jsx
-import { useEffect, useState, useCallback, useMemo, memo } from "react";
+import { useEffect, useState, useCallback, useMemo, memo, useRef } from "react";
 import {
   X, ChevronDown, BookOpen, Save, Loader2, AlertCircle, Check,
-  User, Hash, CheckSquare, Square, UploadCloud,
+  User, Hash, CheckSquare, Square, UploadCloud, FileDown, FileUp, Layers,
 } from "lucide-react";
 import {
   fetchExamGroups, fetchAllClassSections, fetchSchedulesForExam,
   fetchStudentsForSchedule, saveMarks,
 } from "./uploadResultsApi.js";
+import { downloadSampleExcel, readExcelFile, matchExcelRowsToStudents, downloadSampleExcelAllSubjects, readExcelWorkbookAllSheets, matchWorkbookToSubjects } from "./excelMarksUtils.js";
 
 // ─── Design tokens (mirrors teacher/AddResult.jsx palette) ─────────────────
 const T = {
@@ -253,6 +254,24 @@ const StudentRowFA = memo(function StudentRowFA({ student, maxMarks, onUpdate })
   );
 });
 
+// Fetches + normalizes one subject's student list into the shape stored in
+// subjectData[subjectId]. Standalone (not a hook) so it can be reused both
+// by the lazy per-tab loader and by the "load everything for bulk Excel" flow.
+async function fetchSubjectEntry(subj) {
+  const j = await fetchStudentsForSchedule(subj.scheduleId);
+  const students = (j.data?.students || []).map((s) => ({
+    ...s,
+    selected: true,
+    components: s.components || { rr: "", cw: "", pw: "", st: "" },
+  }));
+  return {
+    scheduleId: subj.scheduleId,
+    scheduleInfo: j.data?.schedule,
+    students,
+    loading: false,
+  };
+}
+
 // ─── Main modal ─────────────────────────────────────────────────────────────
 export default function AdminUploadResultModal({ presetClass, onClose, onSaved }) {
   const [exams, setExams]               = useState([]);
@@ -337,22 +356,9 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
       [activeSubjectId]: { ...(prev[activeSubjectId] || {}), loading: true },
     }));
 
-    fetchStudentsForSchedule(subj.scheduleId)
-      .then((j) => {
-        const students = (j.data?.students || []).map((s) => ({
-          ...s,
-          selected: true,
-          components: s.components || { rr: "", cw: "", pw: "", st: "" },
-        }));
-        setSubjectData((prev) => ({
-          ...prev,
-          [activeSubjectId]: {
-            scheduleId: subj.scheduleId,
-            scheduleInfo: j.data?.schedule,
-            students,
-            loading: false,
-          },
-        }));
+    fetchSubjectEntry(subj)
+      .then((entry) => {
+        setSubjectData((prev) => ({ ...prev, [activeSubjectId]: entry }));
       })
       .catch((e) => {
         setError(e.message || "Failed to load students");
@@ -394,12 +400,183 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     });
   }, [activeSubjectId]);
 
+  // ── Excel: download a sample sheet for the active subject ──
+  const [excelError, setExcelError]     = useState("");
+  const [excelNotice, setExcelNotice]   = useState("");
+  const [uploadingExcel, setUploadingExcel] = useState(false);
+  const excelInputRef = useRef(null);
+
+  const handleDownloadSample = () => {
+    const data = subjectData[activeSubjectId];
+    const subj = subjectsForClass.find((s) => s.id === activeSubjectId);
+    if (!data?.students?.length || !subj) return;
+    downloadSampleExcel({
+      subjectName: subj.name,
+      maxMarks:    subj.maxMarks,
+      examName:    exams.find((e) => e.id === examId)?.name || "Exam",
+      className:   classes.find((c) => c.id === classId)
+        ? `Grade ${classes.find((c) => c.id === classId).grade}${classes.find((c) => c.id === classId).section ? "-" + classes.find((c) => c.id === classId).section : ""}`
+        : "Class",
+      format: data.format || "standard",
+      students: data.students,
+    });
+  };
+
+  const handleUploadExcelClick = () => {
+    setExcelError(""); setExcelNotice("");
+    excelInputRef.current?.click();
+  };
+
+  const handleExcelFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+
+    const subjId = activeSubjectId;
+    const cur = subjectData[subjId];
+    if (!cur?.students?.length) return;
+
+    setUploadingExcel(true);
+    setExcelError(""); setExcelNotice("");
+    try {
+      const rows = await readExcelFile(file);
+      const { isFA, updates, matchedCount, totalRows } = matchExcelRowsToStudents(rows, cur.students);
+
+      setSubjectData((prev) => {
+        const c = prev[subjId];
+        if (!c) return prev;
+        return {
+          ...prev,
+          [subjId]: {
+            ...c,
+            format: isFA ? "fa" : "standard",
+            students: c.students.map((s) => (updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s)),
+          },
+        };
+      });
+
+      setExcelNotice(
+        matchedCount < totalRows
+          ? `Matched ${matchedCount} of ${totalRows} rows. Unmatched rows were skipped (check Roll No / Student spelling).`
+          : `Matched all ${matchedCount} students from the uploaded file.`
+      );
+    } catch (err) {
+      setExcelError(err.message || "Failed to process the uploaded Excel file");
+    } finally {
+      setUploadingExcel(false);
+    }
+  };
+
   const activeData    = subjectData[activeSubjectId];
   const activeSubject = subjectsForClass.find((s) => s.id === activeSubjectId);
   const activeStudents = activeData?.students || [];
   const activeFormat   = activeData?.format || "standard";
   const selectedCount  = activeStudents.filter((s) => s.selected).length;
   const allSelected    = activeStudents.length > 0 && selectedCount === activeStudents.length;
+
+  useEffect(() => {
+    setExcelError(""); setExcelNotice("");
+  }, [activeSubjectId]);
+
+  // ── Excel: ALL subjects at once (multi-sheet workbook) ──
+  const [bulkBusy, setBulkBusy]     = useState(false);
+  const [bulkError, setBulkError]   = useState("");
+  const [bulkNotice, setBulkNotice] = useState("");
+  const bulkInputRef = useRef(null);
+
+  // Fetches any subject in this class whose students haven't been loaded yet,
+  // merges them into subjectData, and returns the up-to-date map.
+  const ensureAllSubjectsLoaded = async () => {
+    const missing = subjectsForClass.filter((s) => !subjectData[s.id]?.students);
+    if (!missing.length) return subjectData;
+
+    const fetched = await Promise.all(
+      missing.map(async (s) => [s.id, await fetchSubjectEntry(s)])
+    );
+    const merged = { ...subjectData };
+    fetched.forEach(([id, entry]) => { merged[id] = entry; });
+    setSubjectData(merged);
+    return merged;
+  };
+
+  const handleDownloadAllSample = async () => {
+    if (!subjectsForClass.length) return;
+    setBulkError(""); setBulkNotice("");
+    setBulkBusy(true);
+    try {
+      const data = await ensureAllSubjectsLoaded();
+      const subjectsPayload = subjectsForClass.map((s) => ({
+        name: s.name,
+        maxMarks: s.maxMarks,
+        format: data[s.id]?.format || "standard",
+        students: data[s.id]?.students || [],
+      }));
+      downloadSampleExcelAllSubjects({
+        subjects: subjectsPayload,
+        examName: exams.find((e) => e.id === examId)?.name || "Exam",
+        className: (() => {
+          const c = classes.find((cc) => cc.id === classId);
+          return c ? `Grade ${c.grade}${c.section ? "-" + c.section : ""}` : "Class";
+        })(),
+      });
+    } catch (err) {
+      setBulkError(err.message || "Failed to prepare the sample file");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleUploadAllClick = () => {
+    setBulkError(""); setBulkNotice("");
+    bulkInputRef.current?.click();
+  };
+
+  const handleAllSubjectsFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setBulkBusy(true);
+    setBulkError(""); setBulkNotice("");
+    try {
+      const data = await ensureAllSubjectsLoaded();
+      const sheets = await readExcelWorkbookAllSheets(file);
+
+      const subjectsForMatch = subjectsForClass.map((s) => ({
+        id: s.id,
+        name: s.name,
+        code: s.code,
+        students: data[s.id]?.students || [],
+      }));
+
+      const { results, unmatchedSheets } = matchWorkbookToSubjects(sheets, subjectsForMatch);
+
+      setSubjectData((prev) => {
+        const next = { ...prev };
+        results.forEach(({ subjectId, isFA, updates }) => {
+          const cur = next[subjectId];
+          if (!cur) return;
+          next[subjectId] = {
+            ...cur,
+            format: isFA ? "fa" : "standard",
+            students: cur.students.map((s) => (updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s)),
+          };
+        });
+        return next;
+      });
+
+      const totalMatched = results.reduce((sum, r) => sum + r.matchedCount, 0);
+      const subjNames = results.map((r) => r.subjectName).join(", ");
+      setBulkNotice(
+        `Filled ${totalMatched} student entr${totalMatched !== 1 ? "ies" : "y"} across ${results.length} subject${results.length !== 1 ? "s" : ""} (${subjNames}).` +
+        (unmatchedSheets.length ? ` Sheets not matched to a subject: ${unmatchedSheets.join(", ")}.` : "")
+      );
+    } catch (err) {
+      setBulkError(err.message || "Failed to process the uploaded Excel file");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   // Which subject tabs already have data ready to save (visited + selections made)
   const loadedSubjectIds = Object.keys(subjectData).filter((id) => subjectData[id]?.students?.length);
@@ -466,10 +643,10 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
   return (
     <div
       style={{ position: "fixed", inset: 0, background: "rgba(15,39,68,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}
-      onClick={onClose}
+      
     >
       <div
-        style={{ width: "100%", maxWidth: 1120, maxHeight: "92vh", overflowY: "auto", borderRadius: 20, background: T.bg }}
+        style={{ width: "100%", maxWidth: 1120, maxHeight: "96vh", overflowY: "auto", borderRadius: 20, background: T.bg }}
         onClick={(e) => e.stopPropagation()}
       >
         {done ? (
@@ -537,9 +714,77 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
             {/* ── Subject tabs ── */}
             <div style={{ padding: "16px 24px 0" }}>
-              <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.slate, marginBottom: 12 }}>
-                <BookOpen size={12} /> Subjects — click each to enter its marks
-              </p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+                <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.slate, margin: 0 }}>
+                  <BookOpen size={12} /> Subjects — click each to enter its marks
+                </p>
+
+                {classId && subjectsForClass.length > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <button
+                      onClick={handleDownloadAllSample}
+                      disabled={bulkBusy}
+                      title="Download one Excel file with a sheet per subject, for the whole class"
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
+                        color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe",
+                        borderRadius: 8, padding: "6px 12px",
+                        cursor: bulkBusy ? "default" : "pointer", opacity: bulkBusy ? 0.65 : 1,
+                      }}
+                    >
+                      {bulkBusy
+                        ? <Loader2 size={13} style={{ animation: "adminSpin 0.8s linear infinite" }} />
+                        : <Layers size={13} />}
+                      Download All Subjects Sample
+                    </button>
+
+                    <button
+                      onClick={handleUploadAllClick}
+                      disabled={bulkBusy}
+                      title="Upload one Excel file covering every subject at once"
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
+                        color: T.navy, background: T.blueLight, border: "1px solid #bfdbfe",
+                        borderRadius: 8, padding: "6px 12px",
+                        cursor: bulkBusy ? "default" : "pointer", opacity: bulkBusy ? 0.65 : 1,
+                      }}
+                    >
+                      {bulkBusy
+                        ? <Loader2 size={13} style={{ animation: "adminSpin 0.8s linear infinite" }} />
+                        : <FileUp size={13} />}
+                      Upload All Subjects
+                    </button>
+                    <input
+                      ref={bulkInputRef}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleAllSubjectsFileChange}
+                      style={{ display: "none" }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {bulkError && (
+                <div style={{
+                  display: "flex", alignItems: "flex-start", gap: 8,
+                  padding: "10px 12px", borderRadius: 10, marginBottom: 12,
+                  background: T.redLight, border: "1.5px solid #fca5a5", color: T.red, fontSize: 12.5,
+                }}>
+                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>{bulkError}</span>
+                </div>
+              )}
+              {bulkNotice && !bulkError && (
+                <div style={{
+                  display: "flex", alignItems: "flex-start", gap: 8,
+                  padding: "10px 12px", borderRadius: 10, marginBottom: 12,
+                  background: "#f5f3ff", border: "1.5px solid #ddd6fe", color: "#7c3aed", fontSize: 12.5,
+                }}>
+                  <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>{bulkNotice}</span>
+                </div>
+              )}
 
               {loadingSchedules ? (
                 <div style={{ padding: "16px 0", textAlign: "center", color: T.slate, fontSize: 13 }}>
@@ -612,6 +857,47 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                     </div>
 
                     {activeStudents.length > 0 && (
+                      <>
+                        <button
+                          onClick={handleDownloadSample}
+                          title="Download a blank Excel sheet for this subject's students"
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
+                            color: T.teal, background: "#ecfdf5", border: "1px solid #a7f3d0",
+                            borderRadius: 8, padding: "5px 12px", cursor: "pointer",
+                          }}
+                        >
+                          <FileDown size={13} /> Download Sample Excel
+                        </button>
+
+                        <button
+                          onClick={handleUploadExcelClick}
+                          disabled={uploadingExcel}
+                          title="Upload a filled Excel sheet to bulk-fill marks"
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
+                            color: T.amber, background: T.amberLight, border: "1px solid #fde68a",
+                            borderRadius: 8, padding: "5px 12px",
+                            cursor: uploadingExcel ? "default" : "pointer",
+                            opacity: uploadingExcel ? 0.65 : 1,
+                          }}
+                        >
+                          {uploadingExcel
+                            ? <Loader2 size={13} style={{ animation: "adminSpin 0.8s linear infinite" }} />
+                            : <FileUp size={13} />}
+                          {uploadingExcel ? "Reading…" : "Upload Excel"}
+                        </button>
+                        <input
+                          ref={excelInputRef}
+                          type="file"
+                          accept=".xlsx,.xls,.csv"
+                          onChange={handleExcelFileChange}
+                          style={{ display: "none" }}
+                        />
+                      </>
+                    )}
+
+                    {activeStudents.length > 0 && (
                       <button
                         onClick={() => toggleSelectAll(!allSelected)}
                         style={{
@@ -626,6 +912,27 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                     )}
                   </div>
                 </div>
+
+                {excelError && (
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: 8,
+                    padding: "10px 12px", borderRadius: 10, marginBottom: 12,
+                    background: T.redLight, border: "1.5px solid #fca5a5", color: T.red, fontSize: 12.5,
+                  }}>
+                    <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span>{excelError}</span>
+                  </div>
+                )}
+                {excelNotice && !excelError && (
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: 8,
+                    padding: "10px 12px", borderRadius: 10, marginBottom: 12,
+                    background: T.greenLight, border: "1.5px solid #a7f3d0", color: T.green, fontSize: 12.5,
+                  }}>
+                    <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span>{excelNotice}</span>
+                  </div>
+                )}
 
                 {activeData?.loading ? (
                   <div style={{ padding: "32px 0", textAlign: "center" }}>
