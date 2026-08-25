@@ -322,8 +322,11 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
     apiFetch(`/api/exams/groups/${academicYearId}`)
       .then(data => {
         const all = Array.isArray(data) ? data : [];
-        // ✅ Filter only groups that have a schedule for this specific class
+        // ✅ Filter only groups that have a schedule for this specific class,
+        // and exclude Sub Exams (exams filed under the default "Assessment"
+        // term) — those only belong in the "Combine with Sub Exam" dropdown.
         const relevant = all.filter(g =>
+          g.term?.name !== "Assessment" &&
           (g.assessmentSchedules || []).some(sc => sc.classSectionId === cs.id)
         );
         setExams(relevant);

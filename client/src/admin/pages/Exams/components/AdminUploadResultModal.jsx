@@ -1,4 +1,3 @@
-// client/src/admin/pages/Exams/components/AdminUploadResultModal.jsx
 import { useEffect, useState, useCallback, useMemo, memo, useRef } from "react";
 import {
   X, ChevronDown, BookOpen, Save, Loader2, AlertCircle, Check,
@@ -10,7 +9,6 @@ import {
 } from "./uploadResultsApi.js";
 import { downloadSampleExcel, readExcelFile, matchExcelRowsToStudents, downloadSampleExcelAllSubjects, readExcelWorkbookAllSheets, matchWorkbookToSubjects } from "./excelMarksUtils.js";
 
-// ─── Design tokens (mirrors teacher/AddResult.jsx palette) ─────────────────
 const T = {
   navy: "#0f2744", blue: "#2563eb", blueLight: "#dbeafe",
   teal: "#0d9488", amber: "#d97706", amberLight: "#fef3c7",
@@ -19,7 +17,6 @@ const T = {
   red: "#dc2626", redLight: "#fef2f2", green: "#059669", greenLight: "#ecfdf5",
 };
 
-// ─── Marking formats ────────────────────────────────────────────────────────
 const FORMATS = [
   { id: "standard", label: "Standard (Marks / 100)" },
   { id: "fa",        label: "Formative Assessment (R&R, CW, PW, ST)" },
@@ -38,7 +35,6 @@ function calcGrade(pct) {
   return GRADE_SCALE.find((g) => pct >= g.min)?.grade ?? "—";
 }
 
-// Sum of the 4 component fields → TOT (also written to marksObtained)
 function faTotal(components) {
   const { rr, cw, pw, st } = components || {};
   return [rr, cw, pw, st].reduce((sum, v) => {
@@ -47,7 +43,6 @@ function faTotal(components) {
   }, 0);
 }
 
-// ─── small pieces ────────────────────────────────────────────────────────
 function Field({ label, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -87,7 +82,6 @@ function InfoChip({ label, value, accent = T.navy, bg = T.slateLight }) {
   );
 }
 
-// ─── Student row (with selection checkbox) ─────────────────────────────────
 const StudentRow = memo(function StudentRow({ student, maxMarks, onUpdate }) {
   return (
     <div
@@ -158,7 +152,6 @@ const StudentRow = memo(function StudentRow({ student, maxMarks, onUpdate }) {
   );
 });
 
-// ─── Student row — Formative Assessment format (R&R / CW / PW / ST) ───────
 const FA_FIELD_COLS = "36px 60px 1fr 54px 54px 54px 54px 56px 46px 34px 70px 1fr";
 const FA_MINI_INPUT = {
   width: "100%", textAlign: "center", background: T.white, border: `1.5px solid ${T.border}`,
@@ -254,9 +247,6 @@ const StudentRowFA = memo(function StudentRowFA({ student, maxMarks, onUpdate })
   );
 });
 
-// Fetches + normalizes one subject's student list into the shape stored in
-// subjectData[subjectId]. Standalone (not a hook) so it can be reused both
-// by the lazy per-tab loader and by the "load everything for bulk Excel" flow.
 async function fetchSubjectEntry(subj) {
   const j = await fetchStudentsForSchedule(subj.scheduleId);
   const students = (j.data?.students || []).map((s) => ({
@@ -272,9 +262,8 @@ async function fetchSubjectEntry(subj) {
   };
 }
 
-// ─── Main modal ─────────────────────────────────────────────────────────────
 export default function AdminUploadResultModal({ presetClass, onClose, onSaved }) {
-  const [exams, setExams]               = useState([]);
+  const [rawExams, setRawExams]         = useState([]);
   const [examId, setExamId]             = useState("");
   const [classes, setClasses]           = useState([]);
   const [classId, setClassId]           = useState(presetClass?.classSectionId || "");
@@ -284,31 +273,38 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
   const [loadingSchedules, setLoadingSchedules] = useState(false);
 
   const [activeSubjectId, setActiveSubjectId] = useState("");
-  // subjectData[subjectId] = { scheduleId, scheduleInfo, students, loading, touched }
   const [subjectData, setSubjectData]   = useState({});
 
   const [saving, setSaving]   = useState(false);
   const [done, setDone]       = useState(false);
   const [error, setError]     = useState("");
 
-  // ── Sub Exam (optional) — exams filed under the default "Assessment" term.
-  // Kept as a parallel, standard-format-only entry table so it can't disturb
-  // the existing main-exam flow (FA format, Excel import) in any way.
   const [subExamGroups, setSubExamGroups]     = useState([]);
   const [subExamId, setSubExamId]             = useState("");
   const [loadingSubExams, setLoadingSubExams] = useState(false);
   const [subSchedules, setSubSchedules]       = useState([]);
   const [loadingSubSchedules, setLoadingSubSchedules] = useState(false);
-  // subSubjectData[subjectId] = { scheduleId, students, loading }
   const [subSubjectData, setSubSubjectData]   = useState({});
 
   useEffect(() => {
     setLoadingSubExams(true);
     fetchSubExamGroups()
       .then((j) => setSubExamGroups(j.data || []))
-      .catch(() => {}) // optional feature — fail silently, dropdown just stays empty
+      .catch(() => {})
       .finally(() => setLoadingSubExams(false));
   }, []);
+
+  const exams = useMemo(() => {
+    const subIds = new Set(subExamGroups.map((g) => g.id));
+    return rawExams.filter((e) => !subIds.has(e.id));
+  }, [rawExams, subExamGroups]);
+
+  useEffect(() => {
+    if (!exams.length) return;
+    if (!examId || !exams.some((e) => e.id === examId)) {
+      setExamId(exams[0].id);
+    }
+  }, [exams]);
 
   useEffect(() => {
     setSubSchedules([]);
@@ -321,15 +317,75 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
       .finally(() => setLoadingSubSchedules(false));
   }, [subExamId]);
 
-  // Sub-exam schedule for the currently active MAIN subject, matched by subjectId
+  useEffect(() => {
+    Promise.all([fetchExamGroups(), fetchAllClassSections()])
+      .then(([ej, cj]) => {
+        setRawExams(ej.data || []);
+        setClasses(cj.classSections || cj.data || []);
+      })
+      .catch((e) => setError(e.message || "Failed to load exams / classes"))
+      .finally(() => setLoadingInit(false));
+  }, []);
+
+  useEffect(() => {
+    setSchedules([]);
+    setSubjectData({});
+    setActiveSubjectId("");
+    if (!examId) return;
+    setLoadingSchedules(true);
+    fetchSchedulesForExam(examId)
+      .then((j) => setSchedules(j.data || []))
+      .catch((e) => setError(e.message || "Failed to load schedules"))
+      .finally(() => setLoadingSchedules(false));
+  }, [examId]);
+
+  const subjectsForClass = useMemo(() => {
+    if (!classId) return [];
+    const map = new Map();
+    schedules
+      .filter((s) => s.classSectionId === classId)
+      .forEach((s) => {
+        if (!map.has(s.subjectId)) {
+          map.set(s.subjectId, {
+            id: s.subjectId,
+            name: s.subject?.name || "Subject",
+            code: s.subject?.code || "",
+            scheduleId: s.id,
+            maxMarks: s.maxMarks,
+            passingMarks: s.passingMarks,
+          });
+        }
+      });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [schedules, classId]);
+
   const subSubjectForActive = useMemo(() => {
     if (!subExamId || !classId || !activeSubjectId) return null;
-    const s = subSchedules.find((sc) => sc.classSectionId === classId && sc.subjectId === activeSubjectId);
-    if (!s) return null;
-    return { id: s.subjectId, scheduleId: s.id, maxMarks: s.maxMarks, passingMarks: s.passingMarks };
-  }, [subExamId, classId, activeSubjectId, subSchedules]);
 
-  // Lazily load students for the active subject's SUB exam schedule
+    const activeSubjMeta = subjectsForClass.find((s) => s.id === activeSubjectId);
+    const selClass       = classes.find((c) => c.id === classId);
+
+    let s = subSchedules.find((sc) => sc.classSectionId === classId && sc.subjectId === activeSubjectId);
+
+    if (!s) {
+      s = subSchedules.find((sc) => {
+        const classMatches =
+          sc.classSectionId === classId ||
+          (selClass && sc.classSection &&
+            String(sc.classSection.grade) === String(selClass.grade) &&
+            String(sc.classSection.section || "") === String(selClass.section || ""));
+        const subjectMatches =
+          sc.subjectId === activeSubjectId ||
+          (activeSubjMeta &&
+            (sc.subject?.name || "").trim().toLowerCase() === (activeSubjMeta.name || "").trim().toLowerCase());
+        return classMatches && subjectMatches;
+      });
+    }
+
+    if (!s) return null;
+    return { id: activeSubjectId, scheduleId: s.id, maxMarks: s.maxMarks, passingMarks: s.passingMarks };
+  }, [subExamId, classId, activeSubjectId, subSchedules, subjectsForClass, classes]);
+
   useEffect(() => {
     if (!subSubjectForActive) return;
     if (subSubjectData[subSubjectForActive.id]?.students) return;
@@ -351,7 +407,7 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
         setError(e.message || "Failed to load sub exam students");
         setSubSubjectData((prev) => ({ ...prev, [subSubjectForActive.id]: { ...(prev[subSubjectForActive.id] || {}), loading: false } }));
       });
-  }, [subSubjectForActive]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [subSubjectForActive]);
 
   const updateSubStudent = useCallback((studentId, key, value) => {
     if (!subSubjectForActive) return;
@@ -369,65 +425,17 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     });
   }, [subSubjectForActive]);
 
-  // ── Initial load: exams + all classes (unrestricted) ──
-  useEffect(() => {
-    Promise.all([fetchExamGroups(), fetchAllClassSections()])
-      .then(([ej, cj]) => {
-        const examList = ej.data || [];
-        setExams(examList);
-        if (examList.length) setExamId(examList[0].id);
-        setClasses(cj.classSections || cj.data || []);
-      })
-      .catch((e) => setError(e.message || "Failed to load exams / classes"))
-      .finally(() => setLoadingInit(false));
-  }, []);
-
-  // ── When exam changes: fetch ALL schedules for that exam (every class + subject) ──
-  useEffect(() => {
-    setSchedules([]);
-    setSubjectData({});
-    setActiveSubjectId("");
-    if (!examId) return;
-    setLoadingSchedules(true);
-    fetchSchedulesForExam(examId)
-      .then((j) => setSchedules(j.data || []))
-      .catch((e) => setError(e.message || "Failed to load schedules"))
-      .finally(() => setLoadingSchedules(false));
-  }, [examId]);
-
-  // ── Subjects scheduled for the selected class, within the selected exam ──
-  const subjectsForClass = useMemo(() => {
-    if (!classId) return [];
-    const map = new Map();
-    schedules
-      .filter((s) => s.classSectionId === classId)
-      .forEach((s) => {
-        if (!map.has(s.subjectId)) {
-          map.set(s.subjectId, {
-            id: s.subjectId,
-            name: s.subject?.name || "Subject",
-            code: s.subject?.code || "",
-            scheduleId: s.id,
-            maxMarks: s.maxMarks,
-            passingMarks: s.passingMarks,
-          });
-        }
-      });
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [schedules, classId]);
-
-  // Reset active subject whenever the class or its subject list changes
   useEffect(() => {
     setSubjectData({});
     setActiveSubjectId(subjectsForClass[0]?.id || "");
-  }, [classId, subjectsForClass.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [classId, subjectsForClass.length]);
 
-  // ── Lazily load students for the active subject's schedule ──
   useEffect(() => {
     if (!activeSubjectId) return;
     const subj = subjectsForClass.find((s) => s.id === activeSubjectId);
     if (!subj) return;
-    if (subjectData[activeSubjectId]?.students) return; // already loaded/cached
+    if (subjectData[activeSubjectId]?.students)
+      return;
 
     setSubjectData((prev) => ({
       ...prev,
@@ -442,7 +450,7 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
         setError(e.message || "Failed to load students");
         setSubjectData((prev) => ({ ...prev, [activeSubjectId]: { ...(prev[activeSubjectId] || {}), loading: false } }));
       });
-  }, [activeSubjectId, subjectsForClass]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeSubjectId, subjectsForClass]);
 
   const updateStudent = useCallback((studentId, key, value) => {
     setSubjectData((prev) => {
@@ -469,7 +477,6 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     });
   }, [activeSubjectId]);
 
-  // ── Marking format per subject tab (defaults to "standard") ──
   const setSubjectFormat = useCallback((format) => {
     setSubjectData((prev) => {
       const cur = prev[activeSubjectId];
@@ -478,7 +485,6 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     });
   }, [activeSubjectId]);
 
-  // ── Excel: download a sample sheet for the active subject ──
   const [excelError, setExcelError]     = useState("");
   const [excelNotice, setExcelNotice]   = useState("");
   const [uploadingExcel, setUploadingExcel] = useState(false);
@@ -507,7 +513,7 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
   const handleExcelFileChange = async (e) => {
     const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-selecting the same file later
+    e.target.value = "";
     if (!file) return;
 
     const subjId = activeSubjectId;
@@ -556,14 +562,11 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     setExcelError(""); setExcelNotice("");
   }, [activeSubjectId]);
 
-  // ── Excel: ALL subjects at once (multi-sheet workbook) ──
   const [bulkBusy, setBulkBusy]     = useState(false);
   const [bulkError, setBulkError]   = useState("");
   const [bulkNotice, setBulkNotice] = useState("");
   const bulkInputRef = useRef(null);
 
-  // Fetches any subject in this class whose students haven't been loaded yet,
-  // merges them into subjectData, and returns the up-to-date map.
   const ensureAllSubjectsLoaded = async () => {
     const missing = subjectsForClass.filter((s) => !subjectData[s.id]?.students);
     if (!missing.length) return subjectData;
@@ -656,14 +659,12 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     }
   };
 
-  // Which subject tabs already have data ready to save (visited + selections made)
   const loadedSubjectIds = Object.keys(subjectData).filter((id) => subjectData[id]?.students?.length);
 
   const handleSaveAll = async () => {
     setError("");
     if (!loadedSubjectIds.length) return setError("Enter marks for at least one subject first");
 
-    // validate all loaded subjects before saving anything
     for (const subjId of loadedSubjectIds) {
       const data = subjectData[subjId];
       const subjMeta = subjectsForClass.find((s) => s.id === subjId);
@@ -685,24 +686,21 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
         const data = subjectData[subjId];
         const subjMeta = subjectsForClass.find((s) => s.id === subjId);
         const selected = data.students.filter((s) => s.selected);
-        if (!selected.length) continue; // nothing checked for this subject — skip
+        if (!selected.length)
+          continue;
         try {
           await saveMarks(data.scheduleId, selected.map((s) => ({
             studentId:     s.studentId,
             marksObtained: s.isAbsent ? null : s.marksObtained,
             isAbsent:      !!s.isAbsent,
             remarks:       s.remarks || "",
-            // Only persist the component breakdown for subjects marked with
-            // the Formative Assessment format — standard-format subjects
-            // keep sending components: null (cleared, if previously set).
-            components:    data.format === "fa" ? s.components : null,
+            components: data.format === "fa" ? s.components : null,
           })));
         } catch (e) {
           failed.push(subjMeta?.name || subjId);
         }
       }
 
-      // ── Also persist Sub Exam entries (if any subject has one loaded) ──
       for (const [subjId, subData] of Object.entries(subSubjectData)) {
         if (!subData?.students?.length) continue;
         const selected = subData.students.filter((s) => s.selected);
@@ -757,7 +755,6 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
           </div>
         ) : (
           <>
-            {/* ── Header ── */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 24px", background: T.white, borderBottom: `1px solid ${T.border}`, position: "sticky", top: 0, zIndex: 2, borderRadius: "20px 20px 0 0" }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: T.blueLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <UploadCloud size={21} color={T.navy} />
@@ -778,7 +775,6 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
               </div>
             )}
 
-            {/* ── Filter section ── */}
             <div style={{ padding: "20px 24px 4px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <Field label="Exam">
@@ -818,7 +814,6 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
             <div style={{ height: 1, background: T.border, margin: "8px 24px" }} />
 
-            {/* ── Subject tabs ── */}
             <div style={{ padding: "16px 24px 0" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
                 <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.slate, margin: 0 }}>
@@ -936,8 +931,6 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
               )}
             </div>
 
-            {/* ── Sub Exam ("Assessment") marks — only when a Sub Exam is selected
-                 and it has a schedule for the currently active subject ── */}
             {activeSubjectId && subExamId && (
               <div style={{ padding: "18px 24px 0" }}>
                 <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7c3aed", margin: "0 0 12px" }}>
@@ -983,7 +976,6 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
               </div>
             )}
 
-            {/* ── Students table for active subject ── */}
             {activeSubjectId && (
               <div style={{ padding: "18px 24px 8px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
@@ -991,7 +983,6 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                     <User size={12} /> {activeSubject?.name} — {subExamId ? "Final Exam" : "Student"} Marks {activeSubject?.maxMarks ? `(Max ${activeSubject.maxMarks})` : ""}
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    {/* Format selector — left of Select all / Unselect all */}
                     <div style={{ position: "relative", minWidth: 210 }}>
                       <select
                         value={activeFormat}
@@ -1146,7 +1137,6 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
               </div>
             )}
 
-            {/* ── Footer ── */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "18px 24px", background: T.white, borderTop: `1px solid ${T.border}`, position: "sticky", bottom: 0, borderRadius: "0 0 20px 20px" }}>
               <span style={{ fontSize: 12, color: T.slate }}>
                 {loadedSubjectIds.length > 0

@@ -34,12 +34,12 @@ export async function getResultsMeta(req, res) {
     if (!activeYear) return err(res, "No active academic year", 404);
 
     if (role === "ADMIN") {
-      const [exams, schedules] = await Promise.all([
-        prisma.assessmentGroup.findMany({
-          where: { schoolId, academicYearId: activeYear.id },
-          orderBy: { createdAt: "desc" },
-          select: { id: true, name: true, term: { select: { id: true, name: true } } },
-        }),
+        const [exams, schedules] = await Promise.all([
+          prisma.assessmentGroup.findMany({
+            where: { schoolId, academicYearId: activeYear.id, deletedAt: null },
+            orderBy: { createdAt: "desc" },
+            select: { id: true, name: true, term: { select: { id: true, name: true } } },
+          }),
         prisma.assessmentSchedule.findMany({
           where: { assessmentGroup: { academicYearId: activeYear.id, schoolId } },
           select: {
@@ -82,7 +82,7 @@ export async function getResultsMeta(req, res) {
 
     const [exams, schedules] = await Promise.all([
       prisma.assessmentGroup.findMany({
-        where: { schoolId, academicYearId: activeYear.id },
+        where: { schoolId, academicYearId: activeYear.id, deletedAt: null },
         orderBy: { createdAt: "desc" },
         select: { id: true, name: true, term: { select: { id: true, name: true } } },
       }),
@@ -221,7 +221,7 @@ export async function getResultExamGroups(req, res) {
     if (!activeYear) return err(res, "No active academic year", 404);
 
     const exams = await prisma.assessmentGroup.findMany({
-      where: { schoolId, academicYearId: activeYear.id },
+      where: { schoolId, academicYearId: activeYear.id, deletedAt: null },
       orderBy: { createdAt: "desc" },
       select: {
         id: true, name: true, weightage: true, isPublished: true, isLocked: true, termId: true,
@@ -250,23 +250,31 @@ export async function getSubExamGroups(req, res) {
     const activeYear = await getActiveYear(schoolId);
     if (!activeYear) return err(res, "No active academic year", 404);
 
-    // Find-or-create the default "Assessment" term for this school+year.
-    let assessmentTerm = await prisma.assessmentTerm.findFirst({
-      where: { schoolId, academicYearId: activeYear.id, name: "Assessment" },
+    // Find every term named "Assessment" (case/whitespace tolerant) — not
+    // just the first one. Duplicate term rows with the same label can exist
+    // (same class of bug as duplicate Subject/ClassSection rows seen
+    // elsewhere), and exams filed under any of them are still Sub Exams.
+    let assessmentTerms = await prisma.assessmentTerm.findMany({
+      where: {
+        schoolId, academicYearId: activeYear.id, deletedAt: null,
+        name: { equals: "Assessment", mode: "insensitive" },
+      },
     });
-    if (!assessmentTerm) {
-      assessmentTerm = await prisma.assessmentTerm.create({
+    if (!assessmentTerms.length) {
+      const created = await prisma.assessmentTerm.create({
         data: { schoolId, academicYearId: activeYear.id, name: "Assessment" },
       });
+      assessmentTerms = [created];
     }
+    const termIds = assessmentTerms.map((t) => t.id);
 
     const subExams = await prisma.assessmentGroup.findMany({
-      where: { schoolId, academicYearId: activeYear.id, termId: assessmentTerm.id },
+      where: { schoolId, academicYearId: activeYear.id, termId: { in: termIds }, deletedAt: null },
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, weightage: true, isPublished: true, isLocked: true },
     });
 
-    return ok(res, { term: assessmentTerm, data: subExams });
+    return ok(res, { term: assessmentTerms[0], terms: assessmentTerms, data: subExams });
   } catch (e) {
     console.error("[getSubExamGroups]", e);
     return err(res, e.message, 500);

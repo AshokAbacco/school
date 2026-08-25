@@ -148,20 +148,69 @@ function loadHtml2Pdf() {
 }
 
 // ── Marks-wise progress chart (plain inline SVG bars) ──────────────
-function buildProgressChartSVG(subjectResults, palette) {
-  const rows = (subjectResults ?? []).filter(
-    (s) => !s.isAbsent && s.percentage != null
-  );
+// Combined reports (Sub Exam + Main Exam) get a grouped chart: two bars per
+// subject (Final Exam vs Assessment), with a small colour legend. Standard/FA
+// reports keep the original single-bar-per-subject chart, unchanged.
+function buildProgressChartSVG(subjectResults, palette, isCombined) {
+  const rows = (subjectResults ?? []).filter((s) => !s.isAbsent);
   if (!rows.length) return "";
+
+  if (isCombined) {
+    const W = 680, H = 172, padTop = 26, padBottom = 34;
+    const maxBarH = H - padTop - padBottom;
+    const barW = 15, barGap = 3, groupGap = 20;
+    const pairW = barW * 2 + barGap;
+    const totalWidth = rows.length * pairW + (rows.length - 1) * groupGap;
+    const startX = Math.max(8, (W - totalWidth) / 2);
+
+    const bars = rows.map((s, i) => {
+      const subPct  = s.subExamMax ? Math.max(0, Math.min(100, Math.round(((s.subExamObtained || 0) / s.subExamMax) * 100))) : 0;
+      const mainPct = s.mainMax    ? Math.max(0, Math.min(100, Math.round(((s.mainObtained    || 0) / s.mainMax)    * 100))) : 0;
+      const gx = startX + i * (pairW + groupGap);
+      const mainH = (mainPct / 100) * maxBarH;
+      const subH  = (subPct  / 100) * maxBarH;
+      const mainY = padTop + (maxBarH - mainH);
+      const subY  = padTop + (maxBarH - subH);
+      const label = String(s.subjectCode || s.subjectName || "").slice(0, 9);
+
+      return `
+        <g>
+          <rect x="${gx}" y="${mainY}" width="${barW}" height="${Math.max(mainH, 2)}" rx="3" fill="${palette.light}" />
+          <text x="${gx + barW / 2}" y="${mainY - 4}" font-size="6.3" font-weight="700" text-anchor="middle" fill="${palette.dark}">${mainPct}%</text>
+          <rect x="${gx + barW + barGap}" y="${subY}" width="${barW}" height="${Math.max(subH, 2)}" rx="3" fill="${palette.mid}" opacity="0.88" />
+          <text x="${gx + barW + barGap + barW / 2}" y="${subY - 4}" font-size="6.3" font-weight="700" text-anchor="middle" fill="${palette.dark}">${subPct}%</text>
+          <text x="${gx + pairW / 2}" y="${H - padBottom + 14}" font-size="7" font-weight="600" text-anchor="middle" fill="${palette.mid}">${label}</text>
+        </g>`;
+    }).join("");
+
+    const legend = `
+      <g>
+        <rect x="${W - 188}" y="2" width="9" height="9" rx="2" fill="${palette.light}" />
+        <text x="${W - 175}" y="10.5" font-size="7" font-weight="600" fill="${palette.mid}">Final Exam</text>
+        <rect x="${W - 96}" y="2" width="9" height="9" rx="2" fill="${palette.mid}" opacity="0.88" />
+        <text x="${W - 83}" y="10.5" font-size="7" font-weight="600" fill="${palette.mid}">Assessment</text>
+      </g>`;
+
+    return `
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg">
+        ${legend}
+        <line x1="0" y1="${padTop + maxBarH}" x2="${W}" y2="${padTop + maxBarH}" stroke="${palette.border}" stroke-width="1.5" />
+        <line x1="0" y1="${padTop}" x2="${W}" y2="${padTop}" stroke="${palette.border}" stroke-width="0.75" stroke-dasharray="2,3" />
+        ${bars}
+      </svg>`;
+  }
+
+  const singleRows = rows.filter((s) => s.percentage != null);
+  if (!singleRows.length) return "";
 
   const W = 680, H = 150, padTop = 18, padBottom = 34;
   const maxBarH = H - padTop - padBottom;
   const gap = 14;
-  const barW = Math.min(46, (W - gap * (rows.length + 1)) / rows.length);
-  const totalWidth = rows.length * barW + (rows.length + 1) * gap;
+  const barW = Math.min(46, (W - gap * (singleRows.length + 1)) / singleRows.length);
+  const totalWidth = singleRows.length * barW + (singleRows.length + 1) * gap;
   const startX = Math.max(gap, (W - totalWidth) / 2 + gap);
 
-  const bars = rows.map((s, i) => {
+  const bars = singleRows.map((s, i) => {
     const pct = Math.max(0, Math.min(100, s.percentage));
     const barH = (pct / 100) * maxBarH;
     const x = startX + i * (barW + gap);
@@ -243,10 +292,11 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
       <tr style="background:${bg}; ${absent ? "color:" + palette.textLight + "; font-style:italic;" : ""}">
         <td class="tc" style="color: ${palette.mid};">${i + 1}</td>
         <td class="tl" style="font-weight:600; color: ${palette.dark};">${s.subjectName}${s.subjectCode ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>` : ""}</td>
-        <td class="tc">${s.subExamObtained ?? "—"}/${s.subExamMax ?? "—"}</td>
         <td class="tc">${absent ? "AB" : (s.mainObtained ?? "—")}/${s.mainMax ?? "—"}</td>
+        <td class="tc">${s.subExamObtained ?? "—"}/${s.subExamMax ?? "—"}</td>
         <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${s.totalObtained ?? "—"}</td>
         <td class="tc fw" style="color: ${palette.dark};">${absent ? "—" : (s.grade ?? "—")}</td>
+        <td class="tc">${absent ? "—" : (s.percentage != null ? `${s.percentage}%` : "—")}</td>
       </tr>`;
       }).join("")
     : isFA
@@ -311,10 +361,11 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
       <tr>
         <th style="width:26px;">#</th>
         <th class="tl" style="width:auto;">Subject</th>
-        <th style="width:76px;">Assessment</th>
         <th style="width:76px;">Final Exam</th>
+        <th style="width:76px;">Assessment</th>
         <th style="width:60px;">Total</th>
         <th style="width:54px;">Grade</th>
+        <th style="width:64px;">Overall %</th>
       </tr>`
     : isFA
     ? `
@@ -350,6 +401,7 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
         <td class="tc">—</td>
         <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}/${summary?.totalMax ?? "—"}</td>
         <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
+        <td class="tc">${summary?.percentage ?? "—"}%</td>
       </tr>`
     : isFA
     ? `
@@ -413,7 +465,7 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
     ? `<img src="${logoDataUrl}" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1px solid ${palette.border}; background:#ffffff; flex-shrink:0;" />`
     : `<div style="width: 4px; height: 36px; border-radius: 99px; background: linear-gradient(180deg, ${palette.light} 0%, ${palette.dark} 100%);"></div>`;
 
-  const chartSvg = buildProgressChartSVG(subjectResults, palette);
+  const chartSvg = buildProgressChartSVG(subjectResults, palette, isCombined);
 
   // Create a hidden wrapper container to assemble our print-ready layout out of the view viewport
   const element = document.createElement("div");
