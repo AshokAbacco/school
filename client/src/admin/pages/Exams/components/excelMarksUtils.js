@@ -180,8 +180,11 @@ function safeSheetName(name, used) {
   return candidate;
 }
 
-// subjects: [{ name, maxMarks, format, students }] — one row per student, per subject sheet
-export function downloadSampleExcelAllSubjects({ subjects, examName, className }) {
+// subjects: [{ name, maxMarks, format, students, subExam? }] — one row per student, per subject sheet.
+// subExam (optional): { maxMarks, students } — final marks and sub-exam (assessment) marks for the
+// same subject are entered on separate sheets: "Subject" and "Subject (Assessment)". Sub-exam sheets
+// are always Standard format (no FA support for sub exams).
+export function downloadSampleExcelAllSubjects({ subjects, examName, className, subExamName }) {
   const wb = XLSX.utils.book_new();
   const usedNames = new Set();
 
@@ -201,9 +204,17 @@ export function downloadSampleExcelAllSubjects({ subjects, examName, className }
     ws["!cols"] = header.map((h) => ({ wch: Math.max(12, String(h).length + 4) }));
 
     XLSX.utils.book_append_sheet(wb, ws, safeSheetName(subj.name, usedNames));
+
+    if (subj.subExam?.students?.length) {
+      const saHeader = ["Roll No", "Student", `Marks / ${subj.subExam.maxMarks ?? ""}`, "Absent", "Remarks"];
+      const saRows = subj.subExam.students.map((s) => [s.rollNumber || "", s.studentName || "", "", "No", ""]);
+      const saWs = XLSX.utils.aoa_to_sheet([saHeader, ...saRows]);
+      saWs["!cols"] = saHeader.map((h) => ({ wch: Math.max(12, String(h).length + 4) }));
+      XLSX.utils.book_append_sheet(wb, saWs, safeSheetName(`${subj.name} (Assessment)`, usedNames));
+    }
   });
 
-  const filename = `${safeFileToken(examName)}_${safeFileToken(className)}_AllSubjects_Sample.xlsx`;
+  const filename = `${safeFileToken(examName)}${subExamName ? "_" + safeFileToken(subExamName) : ""}_${safeFileToken(className)}_AllSubjects_Sample.xlsx`;
   XLSX.writeFile(wb, filename);
 }
 
@@ -236,7 +247,9 @@ function normalizeName(s) {
 
 // Matches each sheet name to a subject (by name, then by code), and runs the
 // same row-matching logic as the single-subject upload for each sheet found.
-// subjects: [{ id, name, code, students }]
+// Sheets named "Subject (Assessment)" are routed to that subject's sub-exam
+// students instead of its final-exam students.
+// subjects: [{ id, name, code, students, subExam?: { students } }]
 export function matchWorkbookToSubjects(sheets, subjects) {
   const bySubjectNorm = new Map();
   (subjects || []).forEach((s) => {
@@ -244,20 +257,40 @@ export function matchWorkbookToSubjects(sheets, subjects) {
     if (s.code) bySubjectNorm.set(normalizeName(s.code), s);
   });
 
-  const results = [];        // { subjectId, subjectName, isFA, updates, matchedCount, totalRows }
+  const results = [];         // { subjectId, subjectName, isFA, updates, matchedCount, totalRows } — final marks
+  const subExamResults = [];  // { subjectId, subjectName, updates, matchedCount, totalRows } — sub-exam marks
   const unmatchedSheets = [];
 
   for (const [sheetName, rows] of Object.entries(sheets || {})) {
     if (!rows.length) continue;
 
-    let subj = bySubjectNorm.get(normalizeName(sheetName));
+    // Excel may have appended " (2)" etc. to keep sheet names unique, and/or
+    // an " (Assessment)" suffix marking this as the sub-exam sheet.
+    const assessmentMatch = sheetName.match(/^(.*?)\s*\(assessment\)\s*(?:\(\d+\))?$/i);
+    const isAssessmentSheet = !!assessmentMatch;
+    const lookupName = isAssessmentSheet ? assessmentMatch[1] : sheetName;
+
+    let subj = bySubjectNorm.get(normalizeName(lookupName));
     if (!subj) {
-      // Excel may have appended " (2)" etc. to keep sheet names unique
-      const stripped = sheetName.replace(/\s*\(\d+\)\s*$/, "");
+      const stripped = lookupName.replace(/\s*\(\d+\)\s*$/, "");
       subj = bySubjectNorm.get(normalizeName(stripped));
     }
     if (!subj) {
       unmatchedSheets.push(sheetName);
+      continue;
+    }
+
+    if (isAssessmentSheet) {
+      if (!subj.subExam?.students?.length) {
+        unmatchedSheets.push(`${sheetName} (no sub exam schedule for this subject)`);
+        continue;
+      }
+      try {
+        const { updates, matchedCount, totalRows } = matchExcelRowsToStudents(rows, subj.subExam.students);
+        subExamResults.push({ subjectId: subj.id, subjectName: subj.name, updates, matchedCount, totalRows });
+      } catch {
+        unmatchedSheets.push(`${sheetName} (no matching students)`);
+      }
       continue;
     }
 
@@ -269,7 +302,7 @@ export function matchWorkbookToSubjects(sheets, subjects) {
     }
   }
 
-  if (!results.length) {
+  if (!results.length && !subExamResults.length) {
     throw new Error(
       unmatchedSheets.length
         ? `None of the sheet names matched a subject for this class (${unmatchedSheets.join(", ")}).`
@@ -277,7 +310,7 @@ export function matchWorkbookToSubjects(sheets, subjects) {
     );
   }
 
-  return { results, unmatchedSheets };
+  return { results, subExamResults, unmatchedSheets };
 }
 
 export { calcGrade };

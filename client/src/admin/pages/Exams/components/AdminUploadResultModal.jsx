@@ -359,13 +359,16 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [schedules, classId]);
 
-  const subSubjectForActive = useMemo(() => {
-    if (!subExamId || !classId || !activeSubjectId) return null;
+  // Resolves the sub-exam (assessment) schedule for ANY subject id — used both
+  // for the currently active subject and, in bulk Excel mode, for every
+  // scheduled subject in the class at once.
+  const resolveSubSchedule = useCallback((subjectId) => {
+    if (!subExamId || !classId || !subjectId) return null;
 
-    const activeSubjMeta = subjectsForClass.find((s) => s.id === activeSubjectId);
-    const selClass       = classes.find((c) => c.id === classId);
+    const subjMeta  = subjectsForClass.find((s) => s.id === subjectId);
+    const selClass  = classes.find((c) => c.id === classId);
 
-    let s = subSchedules.find((sc) => sc.classSectionId === classId && sc.subjectId === activeSubjectId);
+    let s = subSchedules.find((sc) => sc.classSectionId === classId && sc.subjectId === subjectId);
 
     if (!s) {
       s = subSchedules.find((sc) => {
@@ -375,16 +378,21 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
             String(sc.classSection.grade) === String(selClass.grade) &&
             String(sc.classSection.section || "") === String(selClass.section || ""));
         const subjectMatches =
-          sc.subjectId === activeSubjectId ||
-          (activeSubjMeta &&
-            (sc.subject?.name || "").trim().toLowerCase() === (activeSubjMeta.name || "").trim().toLowerCase());
+          sc.subjectId === subjectId ||
+          (subjMeta &&
+            (sc.subject?.name || "").trim().toLowerCase() === (subjMeta.name || "").trim().toLowerCase());
         return classMatches && subjectMatches;
       });
     }
 
     if (!s) return null;
-    return { id: activeSubjectId, scheduleId: s.id, maxMarks: s.maxMarks, passingMarks: s.passingMarks };
-  }, [subExamId, classId, activeSubjectId, subSchedules, subjectsForClass, classes]);
+    return { id: subjectId, scheduleId: s.id, maxMarks: s.maxMarks, passingMarks: s.passingMarks };
+  }, [subExamId, classId, subSchedules, subjectsForClass, classes]);
+
+  const subSubjectForActive = useMemo(
+    () => resolveSubSchedule(activeSubjectId),
+    [activeSubjectId, resolveSubSchedule]
+  );
 
   useEffect(() => {
     if (!subSubjectForActive) return;
@@ -424,6 +432,21 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
       };
     });
   }, [subSubjectForActive]);
+
+  // Merges a { studentId: patch } map (e.g. from an Excel upload) into a sub-exam subject's students.
+  const applySubStudentUpdates = useCallback((subjectId, updates) => {
+    setSubSubjectData((prev) => {
+      const cur = prev[subjectId];
+      if (!cur) return prev;
+      return {
+        ...prev,
+        [subjectId]: {
+          ...cur,
+          students: cur.students.map((s) => (updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s)),
+        },
+      };
+    });
+  }, []);
 
   useEffect(() => {
     setSubjectData({});
@@ -558,9 +581,65 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
   const selectedCount  = activeStudents.filter((s) => s.selected).length;
   const allSelected    = activeStudents.length > 0 && selectedCount === activeStudents.length;
 
+  // ── Sub Exam (Assessment) Excel — single subject, standard format only ───
+  const [subExcelError, setSubExcelError]         = useState("");
+  const [subExcelNotice, setSubExcelNotice]       = useState("");
+  const [uploadingSubExcel, setUploadingSubExcel] = useState(false);
+  const subExcelInputRef = useRef(null);
+
+  const activeSubExamName = subExamGroups.find((g) => g.id === subExamId)?.name || "Assessment";
+
+  const handleDownloadSubSample = () => {
+    const data = subSubjectData[activeSubjectId];
+    if (!data?.students?.length || !subSubjectForActive) return;
+    downloadSampleExcel({
+      subjectName: activeSubject?.name || "Subject",
+      maxMarks:    subSubjectForActive.maxMarks,
+      examName:    activeSubExamName,
+      className:   classes.find((c) => c.id === classId)
+        ? `Grade ${classes.find((c) => c.id === classId).grade}${classes.find((c) => c.id === classId).section ? "-" + classes.find((c) => c.id === classId).section : ""}`
+        : "Class",
+      format:      "standard",
+      students:    data.students,
+    });
+  };
+
+  const handleUploadSubExcelClick = () => {
+    setSubExcelError(""); setSubExcelNotice("");
+    subExcelInputRef.current?.click();
+  };
+
+  const handleSubExcelFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    const subjId = activeSubjectId;
+    const cur = subSubjectData[subjId];
+    if (!cur?.students?.length) return;
+
+    setUploadingSubExcel(true);
+    setSubExcelError(""); setSubExcelNotice("");
+    try {
+      const rows = await readExcelFile(file);
+      const { updates, matchedCount, totalRows } = matchExcelRowsToStudents(rows, cur.students);
+      applySubStudentUpdates(subjId, updates);
+      setSubExcelNotice(
+        matchedCount < totalRows
+          ? `Matched ${matchedCount} of ${totalRows} rows. Unmatched rows were skipped (check Roll No / Student spelling).`
+          : `Matched all ${matchedCount} students from the uploaded file.`
+      );
+    } catch (err) {
+      setSubExcelError(err.message || "Failed to process the uploaded Excel file");
+    } finally {
+      setUploadingSubExcel(false);
+    }
+  };
+
   useEffect(() => {
     setExcelError(""); setExcelNotice("");
-  }, [activeSubjectId]);
+    setSubExcelError(""); setSubExcelNotice("");
+  }, [activeSubjectId, subExamId]);
 
   const [bulkBusy, setBulkBusy]     = useState(false);
   const [bulkError, setBulkError]   = useState("");
@@ -580,21 +659,53 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     return merged;
   };
 
+  // Loads every scheduled subject's sub-exam (assessment) students at once, for
+  // subjects that actually have a matching sub-exam schedule. No-op when no
+  // sub exam is selected.
+  const ensureAllSubExamsLoaded = async () => {
+    if (!subExamId) return subSubjectData;
+    const targets = subjectsForClass
+      .map((s) => ({ subjectId: s.id, sched: resolveSubSchedule(s.id) }))
+      .filter((t) => t.sched);
+    const missing = targets.filter((t) => !subSubjectData[t.subjectId]?.students);
+    if (!missing.length) return subSubjectData;
+
+    const fetched = await Promise.all(
+      missing.map(async (t) => {
+        const j = await fetchStudentsForSchedule(t.sched.scheduleId);
+        const students = (j.data?.students || []).map((s) => ({ ...s, selected: true }));
+        return [t.subjectId, { scheduleId: t.sched.scheduleId, students, loading: false }];
+      })
+    );
+    const merged = { ...subSubjectData };
+    fetched.forEach(([id, entry]) => { merged[id] = entry; });
+    setSubSubjectData(merged);
+    return merged;
+  };
+
   const handleDownloadAllSample = async () => {
     if (!subjectsForClass.length) return;
     setBulkError(""); setBulkNotice("");
     setBulkBusy(true);
     try {
       const data = await ensureAllSubjectsLoaded();
-      const subjectsPayload = subjectsForClass.map((s) => ({
-        name: s.name,
-        maxMarks: s.maxMarks,
-        format: data[s.id]?.format || "standard",
-        students: data[s.id]?.students || [],
-      }));
+      const subData = subExamId ? await ensureAllSubExamsLoaded() : {};
+      const subjectsPayload = subjectsForClass.map((s) => {
+        const sched = subExamId ? resolveSubSchedule(s.id) : null;
+        return {
+          name: s.name,
+          maxMarks: s.maxMarks,
+          format: data[s.id]?.format || "standard",
+          students: data[s.id]?.students || [],
+          subExam: sched && subData[s.id]?.students?.length
+            ? { maxMarks: sched.maxMarks, students: subData[s.id].students }
+            : null,
+        };
+      });
       downloadSampleExcelAllSubjects({
         subjects: subjectsPayload,
         examName: exams.find((e) => e.id === examId)?.name || "Exam",
+        subExamName: subExamId ? (subExamGroups.find((g) => g.id === subExamId)?.name || "") : "",
         className: (() => {
           const c = classes.find((cc) => cc.id === classId);
           return c ? `Grade ${c.grade}${c.section ? "-" + c.section : ""}` : "Class";
@@ -621,16 +732,21 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     setBulkError(""); setBulkNotice("");
     try {
       const data = await ensureAllSubjectsLoaded();
+      const subData = subExamId ? await ensureAllSubExamsLoaded() : {};
       const sheets = await readExcelWorkbookAllSheets(file);
 
-      const subjectsForMatch = subjectsForClass.map((s) => ({
-        id: s.id,
-        name: s.name,
-        code: s.code,
-        students: data[s.id]?.students || [],
-      }));
+      const subjectsForMatch = subjectsForClass.map((s) => {
+        const sched = subExamId ? resolveSubSchedule(s.id) : null;
+        return {
+          id: s.id,
+          name: s.name,
+          code: s.code,
+          students: data[s.id]?.students || [],
+          subExam: sched && subData[s.id]?.students?.length ? { students: subData[s.id].students } : null,
+        };
+      });
 
-      const { results, unmatchedSheets } = matchWorkbookToSubjects(sheets, subjectsForMatch);
+      const { results, subExamResults, unmatchedSheets } = matchWorkbookToSubjects(sheets, subjectsForMatch);
 
       setSubjectData((prev) => {
         const next = { ...prev };
@@ -646,11 +762,32 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
         return next;
       });
 
+      if (subExamResults.length) {
+        setSubSubjectData((prev) => {
+          const next = { ...prev };
+          subExamResults.forEach(({ subjectId, updates }) => {
+            const cur = next[subjectId];
+            if (!cur) return;
+            next[subjectId] = {
+              ...cur,
+              students: cur.students.map((s) => (updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s)),
+            };
+          });
+          return next;
+        });
+      }
+
       const totalMatched = results.reduce((sum, r) => sum + r.matchedCount, 0);
       const subjNames = results.map((r) => r.subjectName).join(", ");
+      const subExamMatched = subExamResults.reduce((sum, r) => sum + r.matchedCount, 0);
+      const subExamNames = subExamResults.map((r) => r.subjectName).join(", ");
+
       setBulkNotice(
         `Filled ${totalMatched} student entr${totalMatched !== 1 ? "ies" : "y"} across ${results.length} subject${results.length !== 1 ? "s" : ""} (${subjNames}).` +
-        (unmatchedSheets.length ? ` Sheets not matched to a subject: ${unmatchedSheets.join(", ")}.` : "")
+        (subExamResults.length
+          ? ` Also filled ${subExamMatched} sub-exam entr${subExamMatched !== 1 ? "ies" : "y"} across ${subExamResults.length} subject${subExamResults.length !== 1 ? "s" : ""} (${subExamNames}).`
+          : "") +
+        (unmatchedSheets.length ? ` Sheets not matched: ${unmatchedSheets.join(", ")}.` : "")
       );
     } catch (err) {
       setBulkError(err.message || "Failed to process the uploaded Excel file");
@@ -825,7 +962,9 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                     <button
                       onClick={handleDownloadAllSample}
                       disabled={bulkBusy}
-                      title="Download one Excel file with a sheet per subject, for the whole class"
+                      title={subExamId
+                        ? "Download one Excel file with a sheet per subject (plus a sub-exam sheet per subject), for the whole class"
+                        : "Download one Excel file with a sheet per subject, for the whole class"}
                       style={{
                         display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
                         color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe",
@@ -842,7 +981,9 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                     <button
                       onClick={handleUploadAllClick}
                       disabled={bulkBusy}
-                      title="Upload one Excel file covering every subject at once"
+                      title={subExamId
+                        ? "Upload one Excel file covering every subject and sub-exam sheet at once"
+                        : "Upload one Excel file covering every subject at once"}
                       style={{
                         display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
                         color: T.navy, background: T.blueLight, border: "1px solid #bfdbfe",
@@ -933,10 +1074,73 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
             {activeSubjectId && subExamId && (
               <div style={{ padding: "18px 24px 0" }}>
-                <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7c3aed", margin: "0 0 12px" }}>
-                  <Layers size={12} /> {activeSubject?.name} — Assessment Marks (Sub Exam)
-                  {subSubjectForActive?.maxMarks ? ` (Max ${subSubjectForActive.maxMarks})` : ""}
-                </p>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+                  <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7c3aed", margin: 0 }}>
+                    <Layers size={12} /> {activeSubject?.name} — Assessment Marks (Sub Exam)
+                    {subSubjectForActive?.maxMarks ? ` (Max ${subSubjectForActive.maxMarks})` : ""}
+                  </p>
+
+                  {subSubjectForActive && (subSubjectData[activeSubjectId]?.students?.length > 0) && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        onClick={handleDownloadSubSample}
+                        title="Download a blank Excel sheet for this subject's sub-exam students"
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
+                          color: T.teal, background: "#ecfdf5", border: "1px solid #a7f3d0",
+                          borderRadius: 8, padding: "5px 12px", cursor: "pointer",
+                        }}
+                      >
+                        <FileDown size={13} /> Download Sample Excel
+                      </button>
+                      <button
+                        onClick={handleUploadSubExcelClick}
+                        disabled={uploadingSubExcel}
+                        title="Upload a filled Excel sheet to bulk-fill sub-exam marks"
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
+                          color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe",
+                          borderRadius: 8, padding: "5px 12px",
+                          cursor: uploadingSubExcel ? "default" : "pointer",
+                          opacity: uploadingSubExcel ? 0.65 : 1,
+                        }}
+                      >
+                        {uploadingSubExcel
+                          ? <Loader2 size={13} style={{ animation: "adminSpin 0.8s linear infinite" }} />
+                          : <FileUp size={13} />}
+                        {uploadingSubExcel ? "Reading…" : "Upload Excel"}
+                      </button>
+                      <input
+                        ref={subExcelInputRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={handleSubExcelFileChange}
+                        style={{ display: "none" }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {subExcelError && (
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: 8,
+                    padding: "10px 12px", borderRadius: 10, marginBottom: 12,
+                    background: T.redLight, border: "1.5px solid #fca5a5", color: T.red, fontSize: 12.5,
+                  }}>
+                    <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span>{subExcelError}</span>
+                  </div>
+                )}
+                {subExcelNotice && !subExcelError && (
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: 8,
+                    padding: "10px 12px", borderRadius: 10, marginBottom: 12,
+                    background: "#f5f3ff", border: "1.5px solid #ddd6fe", color: "#7c3aed", fontSize: 12.5,
+                  }}>
+                    <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span>{subExcelNotice}</span>
+                  </div>
+                )}
 
                 {loadingSubSchedules ? (
                   <div style={{ padding: "16px 0", textAlign: "center", color: T.slate, fontSize: 13 }}>
