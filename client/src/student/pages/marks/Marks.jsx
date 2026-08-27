@@ -248,7 +248,7 @@ export default function Marks() {
   const selectedGroup = examGroups.find((g) => g.id === selectedId);
   const showReport = !loadingReport && !!reportData;
 
-  const handleDownload = useCallback((themeKey = "default") => {
+  const handleDownload = useCallback((themeKey = "default", attendance = [], remarks = "") => {
     if (!reportData) return;
     setPdfLoading(true);
     const enriched = {
@@ -259,7 +259,7 @@ export default function Marks() {
         schoolLogoUrl: sidebarLogoUrl ?? reportData?.enrollment?.schoolLogoUrl ?? enrollment?.schoolLogoUrl ?? null,
       },
     };
-    try { downloadReportPDF(enriched, themeKey); }
+      try { downloadReportPDF(enriched, themeKey, attendance, remarks); }
     finally {
       setTimeout(() => {
         setPdfLoading(false);
@@ -452,7 +452,7 @@ export default function Marks() {
       <ThemeModal
         open={themeModalOpen}
         onClose={() => setThemeModalOpen(false)}
-        onConfirm={(themeKey) => handleDownload(themeKey)}
+        onConfirm={(themeKey, attendance, remarks) => handleDownload(themeKey, attendance, remarks)}
         loading={pdfLoading}
       />
     </>

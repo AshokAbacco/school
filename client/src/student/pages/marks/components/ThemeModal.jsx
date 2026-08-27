@@ -1,18 +1,35 @@
 // client/src/student/pages/marks/components/ThemeModal.jsx
-// Small confirm-before-download modal — lets the user pick a PDF colour
-// theme (Default + Yellow + Blue + Red) before the report card downloads.
-// Shared by the student Marks page and the admin StudentReportModal.
+// Confirm-before-download modal — lets the user pick a PDF colour theme
+// (Default + Yellow + Blue + Red) and optionally enter a month-wise
+// attendance table before the report card downloads. Shared by the student
+// Marks page and the admin StudentReportModal.
 
 import { useState } from "react";
-import { X, Download, Loader2, Check } from "lucide-react";
+import { X, Download, Loader2, Check, Plus, Trash2, CalendarDays, MessageSquare } from "lucide-react";
 import { PDF_THEMES } from "../utils/downloadPDF.js";
 import { C, FONT } from "../tokens.js";
 
 const THEME_LIST = Object.values(PDF_THEMES);
+let rowIdSeq = 0;
+const newRow = () => ({ id: ++rowIdSeq, month: "", total: "", present: "" });
 
 export default function ThemeModal({ open, onClose, onConfirm, loading }) {
   const [selected, setSelected] = useState("default");
+  const [attendance, setAttendance] = useState([]);
+  const [remarks, setRemarks] = useState("");
   if (!open) return null;
+
+  const addRow = () => setAttendance((rows) => [...rows, newRow()]);
+  const removeRow = (id) => setAttendance((rows) => rows.filter((r) => r.id !== id));
+  const updateRow = (id, key, value) =>
+    setAttendance((rows) => rows.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
+
+  const handleConfirm = () => {
+    const cleanRows = attendance
+      .filter((r) => r.month.trim() !== "")
+      .map((r) => ({ month: r.month.trim(), total: r.total, present: r.present }));
+    onConfirm(selected, cleanRows, remarks.trim());
+  };
 
   return (
     <div
@@ -21,22 +38,23 @@ export default function ThemeModal({ open, onClose, onConfirm, loading }) {
         position: "fixed", inset: 0, zIndex: 2000,
         background: "rgba(15,23,42,0.55)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        padding: 16,
+        padding: 16, overflowY: "auto",
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "100%", maxWidth: 380,
+          width: "100%", maxWidth: 460,
           background: C.white, borderRadius: 18,
           border: `1.5px solid ${C.border}`,
           boxShadow: "0 24px 60px rgba(15,23,42,0.30)",
           padding: 20, fontFamily: FONT.sans,
+          maxHeight: "90vh", overflowY: "auto",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
           <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.dark }}>
-            Choose a PDF theme
+            Prepare Report Card PDF
           </p>
           <button
             onClick={onClose}
@@ -50,9 +68,12 @@ export default function ThemeModal({ open, onClose, onConfirm, loading }) {
           </button>
         </div>
         <p style={{ margin: "2px 0 16px", fontSize: 12, color: C.textLight, fontWeight: 500 }}>
-          Pick a colour theme for the downloaded report card.
+          Pick a colour theme, and optionally add monthly attendance.
         </p>
 
+        <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 800, color: C.dark, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          Colour Theme
+        </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
           {THEME_LIST.map((t) => {
             const active = selected === t.key;
@@ -84,6 +105,98 @@ export default function ThemeModal({ open, onClose, onConfirm, loading }) {
           })}
         </div>
 
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <p style={{ margin: 0, fontSize: 11, fontWeight: 800, color: C.dark, textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 6 }}>
+            <CalendarDays size={13} /> Attendance (Optional)
+          </p>
+          <button
+            onClick={addRow}
+            style={{
+              display: "flex", alignItems: "center", gap: 4,
+              background: C.bg, border: `1.5px solid ${C.border}`,
+              borderRadius: 8, padding: "4px 9px",
+              fontSize: 11, fontWeight: 700, color: C.dark, cursor: "pointer",
+              fontFamily: FONT.sans,
+            }}
+          >
+            <Plus size={12} /> Add Month
+          </button>
+        </div>
+
+        {attendance.length === 0 ? (
+          <p style={{ margin: "0 0 20px", fontSize: 11.5, color: C.textLight, fontStyle: "italic" }}>
+            No months added — the PDF will skip the Attendance Report section.
+          </p>
+        ) : (
+          <div style={{ marginBottom: 20, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 74px 74px 26px", gap: 6, padding: "0 2px" }}>
+              <span style={{ fontSize: 9.5, fontWeight: 800, color: C.textLight, textTransform: "uppercase", letterSpacing: "0.05em" }}>Month</span>
+              <span style={{ fontSize: 9.5, fontWeight: 800, color: C.textLight, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center" }}>Total</span>
+              <span style={{ fontSize: 9.5, fontWeight: 800, color: C.textLight, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center" }}>Present</span>
+              <span />
+            </div>
+            {attendance.map((row) => (
+              <div key={row.id} style={{ display: "grid", gridTemplateColumns: "1fr 74px 74px 26px", gap: 6, alignItems: "center" }}>
+                <input
+                  value={row.month}
+                  onChange={(e) => updateRow(row.id, "month", e.target.value)}
+                  placeholder="e.g. June"
+                  style={{
+                    padding: "7px 9px", borderRadius: 8, border: `1.5px solid ${C.border}`,
+                    fontSize: 12.5, color: C.dark, outline: "none", fontFamily: FONT.sans,
+                  }}
+                />
+                <input
+                  type="number" min="0"
+                  value={row.total}
+                  onChange={(e) => updateRow(row.id, "total", e.target.value)}
+                  placeholder="30"
+                  style={{
+                    padding: "7px 6px", borderRadius: 8, border: `1.5px solid ${C.border}`,
+                    fontSize: 12.5, color: C.dark, outline: "none", textAlign: "center", fontFamily: FONT.sans,
+                  }}
+                />
+                <input
+                  type="number" min="0"
+                  value={row.present}
+                  onChange={(e) => updateRow(row.id, "present", e.target.value)}
+                  placeholder="28"
+                  style={{
+                    padding: "7px 6px", borderRadius: 8, border: `1.5px solid ${C.border}`,
+                    fontSize: 12.5, color: C.dark, outline: "none", textAlign: "center", fontFamily: FONT.sans,
+                  }}
+                />
+                <button
+                  onClick={() => removeRow(row.id)}
+                  aria-label="Remove month"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: "none", border: "none", cursor: "pointer", color: C.red, padding: 4,
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 800, color: C.dark, textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 6 }}>
+          <MessageSquare size={13} /> Remarks (Optional)
+        </p>
+        <textarea
+          value={remarks}
+          onChange={(e) => setRemarks(e.target.value)}
+          placeholder="e.g. Good progress this term…"
+          rows={3}
+          style={{
+            width: "100%", resize: "vertical", marginBottom: 20,
+            padding: "9px 10px", borderRadius: 10, border: `1.5px solid ${C.border}`,
+            fontSize: 12.5, color: C.dark, outline: "none", fontFamily: FONT.sans,
+            boxSizing: "border-box",
+          }}
+        />
+
         <div style={{ display: "flex", gap: 8 }}>
           <button
             onClick={onClose}
@@ -97,7 +210,7 @@ export default function ThemeModal({ open, onClose, onConfirm, loading }) {
             Cancel
           </button>
           <button
-            onClick={() => onConfirm(selected)}
+            onClick={handleConfirm}
             disabled={loading}
             style={{
               flex: 1.4, display: "flex", alignItems: "center", justifyContent: "center", gap: 7,

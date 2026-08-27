@@ -83,18 +83,17 @@ export default function StudentReportModal({ studentId, assessmentGroupId, subAs
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const handleDownload = useCallback((themeKey = "default") => {
+  const handleDownload = useCallback((themeKey = "default", attendance = [], remarks = "") => {
     if (!data) return;
     setPdfLoading(true);
     const enriched = {
       ...data,
       enrollment: {
         ...data.enrollment,
-        // ✅ Prefer the sidebar's logo source so the PDF matches the app exactly
         schoolLogoUrl: sidebarLogoUrl ?? data?.enrollment?.schoolLogoUrl ?? null,
       },
     };
-    try { downloadReportPDF(enriched, themeKey); }
+    try { downloadReportPDF(enriched, themeKey, attendance, remarks); }
     finally {
       setTimeout(() => {
         setPdfLoading(false);
@@ -209,7 +208,7 @@ export default function StudentReportModal({ studentId, assessmentGroupId, subAs
       <ThemeModal
         open={themeModalOpen}
         onClose={() => setThemeModalOpen(false)}
-        onConfirm={(themeKey) => handleDownload(themeKey)}
+        onConfirm={(themeKey, attendance, remarks) => handleDownload(themeKey, attendance, remarks)}
         loading={pdfLoading}
       />
     </div>

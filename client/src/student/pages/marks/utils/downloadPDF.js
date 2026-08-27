@@ -1,7 +1,7 @@
 // client/src/student/pages/marks/utils/downloadPDF.js
-// Modern Dashboard A4 portrait — clean layout matching Stormy Morning theme.
-// Supports the school logo, 4 selectable colour themes, and an inline
-// marks-wise progress chart (SVG bars, no external chart library needed).
+// Modern Dashboard A4 portrait — clean, compact layout matching Stormy
+// Morning theme. Supports the school logo and 4 selectable colour themes.
+// Sizing is tuned to fit up to ~6 subjects on a single page.
 
 import { GRADE_SCALE, C, FONT } from "../tokens.js";
 
@@ -29,9 +29,6 @@ function buildContact(enrollment) {
 }
 
 // ── Colour themes ───────────────────────────────────────────────
-// "default" is byte-for-byte the original Stormy Morning palette this
-// file already used — nothing changes visually unless another theme
-// is explicitly picked. yellow / blue / red are the 3 new options.
 export const PDF_THEMES = {
   default: {
     key: "default",
@@ -87,17 +84,6 @@ export const PDF_THEMES = {
   },
 };
 
-// Fetch a (possibly signed/cross-origin) image URL and convert it to a data URI
-// so html2canvas can render it reliably without CORS/timing issues.
-//
-// R2 signed URLs typically don't send CORS headers on a plain GET, so a direct
-// fetch(url, {mode:"cors"}) silently fails here (an <img> tag can still display
-// the same URL fine, since *displaying* an image doesn't require CORS — only
-// *reading its bytes* via fetch/canvas does). To get around that we route the
-// request through the app's own /api/image-proxy endpoint, which fetches the
-// image server-side (no CORS restriction there) and re-serves it with
-// Access-Control-Allow-Origin: * — falling back to a direct fetch if the
-// proxy itself is unreachable.
 const PDF_API_BASE =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
   "http://localhost:5000";
@@ -124,17 +110,12 @@ async function fetchAsDataUrl(fetchUrl, timeoutMs) {
 
 async function toDataUrl(url, timeoutMs = 6000) {
   if (!url) return null;
-
-  // 1. Preferred path — via the backend image proxy (adds CORS headers)
   const proxied = `${PDF_API_BASE}/api/image-proxy?url=${encodeURIComponent(url)}`;
   const viaProxy = await fetchAsDataUrl(proxied, timeoutMs);
   if (viaProxy) return viaProxy;
-
-  // 2. Fallback — try fetching the URL directly, in case it already allows CORS
   return fetchAsDataUrl(url, timeoutMs);
 }
 
-// Dynamically inject the html2pdf library script tag into the head if not present
 function loadHtml2Pdf() {
   return new Promise((resolve, reject) => {
     if (window.html2pdf) return resolve(window.html2pdf);
@@ -147,96 +128,9 @@ function loadHtml2Pdf() {
   });
 }
 
-// ── Marks-wise progress chart (plain inline SVG bars) ──────────────
-// Combined reports (Sub Exam + Main Exam) get a grouped chart: two bars per
-// subject (Final Exam vs Assessment), with a small colour legend. Standard/FA
-// reports keep the original single-bar-per-subject chart, unchanged.
-function buildProgressChartSVG(subjectResults, palette, isCombined) {
-  const rows = (subjectResults ?? []).filter((s) => !s.isAbsent);
-  if (!rows.length) return "";
-
-  if (isCombined) {
-    const W = 680, H = 172, padTop = 26, padBottom = 34;
-    const maxBarH = H - padTop - padBottom;
-    const barW = 15, barGap = 3, groupGap = 20;
-    const pairW = barW * 2 + barGap;
-    const totalWidth = rows.length * pairW + (rows.length - 1) * groupGap;
-    const startX = Math.max(8, (W - totalWidth) / 2);
-
-    const bars = rows.map((s, i) => {
-      const subPct  = s.subExamMax ? Math.max(0, Math.min(100, Math.round(((s.subExamObtained || 0) / s.subExamMax) * 100))) : 0;
-      const mainPct = s.mainMax    ? Math.max(0, Math.min(100, Math.round(((s.mainObtained    || 0) / s.mainMax)    * 100))) : 0;
-      const gx = startX + i * (pairW + groupGap);
-      const mainH = (mainPct / 100) * maxBarH;
-      const subH  = (subPct  / 100) * maxBarH;
-      const mainY = padTop + (maxBarH - mainH);
-      const subY  = padTop + (maxBarH - subH);
-      const label = String(s.subjectCode || s.subjectName || "").slice(0, 9);
-
-      return `
-        <g>
-          <rect x="${gx}" y="${mainY}" width="${barW}" height="${Math.max(mainH, 2)}" rx="3" fill="${palette.light}" />
-          <text x="${gx + barW / 2}" y="${mainY - 4}" font-size="6.3" font-weight="700" text-anchor="middle" fill="${palette.dark}">${mainPct}%</text>
-          <rect x="${gx + barW + barGap}" y="${subY}" width="${barW}" height="${Math.max(subH, 2)}" rx="3" fill="${palette.mid}" opacity="0.88" />
-          <text x="${gx + barW + barGap + barW / 2}" y="${subY - 4}" font-size="6.3" font-weight="700" text-anchor="middle" fill="${palette.dark}">${subPct}%</text>
-          <text x="${gx + pairW / 2}" y="${H - padBottom + 14}" font-size="7" font-weight="600" text-anchor="middle" fill="${palette.mid}">${label}</text>
-        </g>`;
-    }).join("");
-
-    const legend = `
-      <g>
-        <rect x="${W - 188}" y="2" width="9" height="9" rx="2" fill="${palette.light}" />
-        <text x="${W - 175}" y="10.5" font-size="7" font-weight="600" fill="${palette.mid}">Final Exam</text>
-        <rect x="${W - 96}" y="2" width="9" height="9" rx="2" fill="${palette.mid}" opacity="0.88" />
-        <text x="${W - 83}" y="10.5" font-size="7" font-weight="600" fill="${palette.mid}">Assessment</text>
-      </g>`;
-
-    return `
-      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg">
-        ${legend}
-        <line x1="0" y1="${padTop + maxBarH}" x2="${W}" y2="${padTop + maxBarH}" stroke="${palette.border}" stroke-width="1.5" />
-        <line x1="0" y1="${padTop}" x2="${W}" y2="${padTop}" stroke="${palette.border}" stroke-width="0.75" stroke-dasharray="2,3" />
-        ${bars}
-      </svg>`;
-  }
-
-  const singleRows = rows.filter((s) => s.percentage != null);
-  if (!singleRows.length) return "";
-
-  const W = 680, H = 150, padTop = 18, padBottom = 34;
-  const maxBarH = H - padTop - padBottom;
-  const gap = 14;
-  const barW = Math.min(46, (W - gap * (singleRows.length + 1)) / singleRows.length);
-  const totalWidth = singleRows.length * barW + (singleRows.length + 1) * gap;
-  const startX = Math.max(gap, (W - totalWidth) / 2 + gap);
-
-  const bars = singleRows.map((s, i) => {
-    const pct = Math.max(0, Math.min(100, s.percentage));
-    const barH = (pct / 100) * maxBarH;
-    const x = startX + i * (barW + gap);
-    const y = padTop + (maxBarH - barH);
-    const label = String(s.subjectCode || s.subjectName || "").slice(0, 8);
-    const barColor = pct >= 50 ? palette.light : palette.fail;
-    return `
-      <g>
-        <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(barH, 2)}" rx="4" fill="${barColor}" opacity="0.92" />
-        <text x="${x + barW / 2}" y="${y - 5}" font-size="8.5" font-weight="700" text-anchor="middle" fill="${palette.dark}">${pct}%</text>
-        <text x="${x + barW / 2}" y="${H - padBottom + 14}" font-size="7" font-weight="600" text-anchor="middle" fill="${palette.mid}">${label}</text>
-      </g>`;
-  }).join("");
-
-  return `
-    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg">
-      <line x1="0" y1="${padTop + maxBarH}" x2="${W}" y2="${padTop + maxBarH}" stroke="${palette.border}" stroke-width="1.5" />
-      <line x1="0" y1="${padTop}" x2="${W}" y2="${padTop}" stroke="${palette.border}" stroke-width="0.75" stroke-dasharray="2,3" />
-      ${bars}
-    </svg>`;
-}
-
-export async function downloadReportPDF(reportData, themeKey = "default") {
+export async function downloadReportPDF(reportData, themeKey = "default", attendance = [], remarks = "") {
   if (!reportData) return;
 
-  // 1. Ensure the download library is available
   let html2pdf;
   try {
     html2pdf = await loadHtml2Pdf();
@@ -248,7 +142,6 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
 
   const { student, enrollment, exam, subjectResults, summary } = reportData;
 
-  // 2. Pre-fetch the school logo (if any) as a data URI so it renders reliably in the PDF
   const logoDataUrl = await toDataUrl(enrollment?.schoolLogoUrl);
 
   const schoolName    = (enrollment?.schoolName   ?? "SCHOOL NAME").toUpperCase();
@@ -261,7 +154,7 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
   const termName     = exam?.term?.name         ?? "";
   const studentName  = (student?.name          ?? "—").toUpperCase();
   const admNo        = student?.admissionNumber ?? "—";
-  const rollNo       = student?.rollNumber      ?? "—";
+  const rollNo        = student?.rollNumber      ?? "—";
   const dob          = student?.dateOfBirth
     ? new Date(student.dateOfBirth).toLocaleDateString("en-IN", {
         day: "2-digit", month: "2-digit", year: "numeric",
@@ -274,14 +167,9 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
   const examTitle    = [termName, examName].filter(Boolean).join(" — ").toUpperCase();
   const overallResult = summary?.hasFail ? "FAIL" : "PASS";
 
-  // 3. Resolve the selected colour theme (falls back to default = original look)
   const palette = PDF_THEMES[themeKey] || PDF_THEMES.default;
 
-  // Detect whether this report should render in Formative Assessment format —
-  // true if any subject was uploaded with a components (R&R/CW/PW/ST) breakdown.
   const isFA = (subjectResults ?? []).some((s) => s.components);
-  // Detect a Sub Exam ("Assessment") combined into this report — takes
-  // priority over the FA layout if both were somehow present.
   const isCombined = (subjectResults ?? []).some((s) => s.isCombined);
 
   const subjectRows = isCombined
@@ -340,8 +228,6 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
       <td class="tl" style="color: ${palette.mid};">${g.label}</td>
     </tr>`).join("");
 
-  // Formative Assessment abbreviation legend — shown instead of the
-  // Standard Scale panel when this report used the FA marking format.
   const FA_LEGEND = [
     { abbr: "R&R", label: "Read and reflection" },
     { abbr: "CW",  label: "Class Work Performance" },
@@ -428,14 +314,20 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
         <td class="tc" style="font-size:8pt; color:${summary?.hasFail ? palette.fail : palette.pass} !important;">${overallResult}</td>
       </tr>`;
 
+  // ── Dark section-header style (matches Attendance / Remarks bars) ──
+  const sectionHeader = (title) => `
+    <div style="font-size: 7.4pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; background: ${palette.dark}; color: #ffffff; padding: 5.5px 0;">
+      ${title}
+    </div>`;
+
   const scaleLegendPanel = isFA
     ? `
-    <div style="border: 1px solid ${palette.border}; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
-      <div style="font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; background: rgba(237,243,250,0.8); padding: 5px 0; color: ${palette.dark}; border-bottom: 1px solid ${palette.border};">Formative Assessment Key</div>
-      <div style="padding: 6px; flex-grow: 1;">
+    <div style="border: 1px solid ${palette.dark}; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
+      ${sectionHeader("Formative Assessment Key")}
+      <div style="padding: 4px; flex-grow: 1;">
         <style>
           .fa-mini-table { width: 100%; border-collapse: collapse; }
-          .fa-mini-table td { padding: 2.5px 4px; font-size: 6.4pt; border-bottom: 1px dashed ${palette.border}; }
+          .fa-mini-table td { padding: 2px 4px; font-size: 6pt; border-bottom: 1px dashed ${palette.dark}; }
           .fa-mini-table tr:last-child td { border-bottom: none; }
         </style>
         <table class="fa-mini-table">
@@ -444,30 +336,68 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
       </div>
     </div>`
     : `
-    <div style="border: 1px solid ${palette.border}; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
-      <div style="font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; background: rgba(237,243,250,0.8); padding: 5px 0; color: ${palette.dark}; border-bottom: 1px solid ${palette.border};">Standard Scale</div>
-      <div style="padding: 6px; flex-grow: 1;">
+    <div style="border: 1px solid ${palette.dark}; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
+      ${sectionHeader("Standard Scale")}
+      <div style="padding: 4px; flex-grow: 1;">
         <style>
           .grade-mini-table { width: 100%; border-collapse: collapse; }
-          .grade-mini-table td { padding: 2.5px 4px; font-size: 6.8pt; border-bottom: 1px dashed ${palette.border}; }
+          .grade-mini-table td { padding: 2px 4px; font-size: 6.3pt; border-bottom: 1px dashed ${palette.dark}; }
           .grade-mini-table tr:last-child td { border-bottom: none; }
         </style>
         <table class="grade-mini-table">
           <tbody>${gradeRows}</tbody>
         </table>
-        <div style="font-size: 5.5pt; color: ${palette.textLight}; margin-top: 6px; text-align: center; font-weight: 600;">
+        <div style="font-size: 5.1pt; color: ${palette.textLight}; margin-top: 5px; text-align: center; font-weight: 600;">
           P: Pass &nbsp;·&nbsp; F: Fail &nbsp;·&nbsp; AB: Absent
         </div>
       </div>
     </div>`;
 
   const logoHtml = logoDataUrl
-    ? `<img src="${logoDataUrl}" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1px solid ${palette.border}; background:#ffffff; flex-shrink:0;" />`
-    : `<div style="width: 4px; height: 36px; border-radius: 99px; background: linear-gradient(180deg, ${palette.light} 0%, ${palette.dark} 100%);"></div>`;
+    ? `<img src="${logoDataUrl}" style="width:34px; height:34px; border-radius:9px; object-fit:cover; border:1px solid ${palette.dark}; background:#ffffff; flex-shrink:0;" />`
+    : `<div style="width: 4px; height: 30px; border-radius: 99px; background: linear-gradient(180deg, ${palette.light} 0%, ${palette.dark} 100%);"></div>`;
 
-  const chartSvg = buildProgressChartSVG(subjectResults, palette, isCombined);
+  const validAttendance = (attendance ?? []).filter((r) => r?.month && String(r.month).trim() !== "");
+  const attendanceSection = validAttendance.length
+    ? `
+  <div style="border: 1.5px solid ${palette.dark}; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
+    ${sectionHeader("Attendance Report")}
+    <table style="width: 100%; border-collapse: collapse;">
+      <tr>
+        <td style="border: none; padding: 0;"></td>
+        ${validAttendance.map((r) => `<td colspan="2" style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 7.2pt; font-weight: 800; color: ${palette.dark}; text-align: center; background: ${palette.bgLight};">${String(r.month).toUpperCase()}</td>`).join("")}
+      </tr>
+      <tr>
+        <td rowspan="2" style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 6.8pt; font-weight: 800; color: ${palette.dark}; text-transform: uppercase; vertical-align: middle;">Attendance</td>
+        ${validAttendance.map(() => `
+          <td style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 6.4pt; font-weight: 800; color: ${palette.dark}; text-align: center;">Total Days</td>
+          <td style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 6.4pt; font-weight: 800; color: ${palette.dark}; text-align: center;">Present Days</td>`).join("")}
+      </tr>
+      <tr>
+        ${validAttendance.map((r) => `
+          <td style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 7.4pt; font-weight: 700; color: ${palette.dark}; text-align: center;">${r.total !== "" && r.total != null ? r.total : "—"}</td>
+          <td style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 7.4pt; font-weight: 700; color: ${palette.dark}; text-align: center;">${r.present !== "" && r.present != null ? r.present : "—"}</td>`).join("")}
+      </tr>
+    </table>
+  </div>`
+    : "";
 
-  // Create a hidden wrapper container to assemble our print-ready layout out of the view viewport
+  const hasRemarks = remarks && String(remarks).trim() !== "";
+  const remarksSection = `
+  <div style="border: 1.5px solid ${palette.dark}; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
+    ${sectionHeader("Remarks")}
+    ${hasRemarks
+      ? `<div style="min-height: 34px; padding: 8px 11px; font-size: 7.4pt; color: ${palette.dark}; font-weight: 500;">
+           ${String(remarks).trim()}
+         </div>`
+      : `<div style="padding: 10px 12px 6px 12px;">
+           <div style="border-bottom: 1px solid ${palette.border}; height: 18px;"></div>
+           <div style="border-bottom: 1px solid ${palette.border}; height: 18px;"></div>
+           <div style="height: 18px;"></div>
+         </div>`
+    }
+  </div>`;
+
   const element = document.createElement("div");
   element.style.width = "190mm";
   element.style.padding = "0";
@@ -475,151 +405,148 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
   element.style.backgroundColor = "#ffffff";
 
   element.innerHTML = `
-<div style="font-family: ${FONT?.sans ?? "Inter, sans-serif"}; font-size: 8pt; color: ${palette.dark}; line-height: 1.4; padding: 4mm;">
+<div style="font-family: ${FONT?.sans ?? "Inter, sans-serif"}; font-size: 7.8pt; color: ${palette.dark}; line-height: 1.35; padding: 3mm;">
   
-  <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid ${palette.light}; padding-bottom: 12px; margin-bottom: 16px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid ${palette.light}; padding-bottom: 8px; margin-bottom: 10px;">
     <div style="display: flex; align-items: center; gap: 10px;">
       ${logoHtml}
       <div>
-        <h1 style="font-size: 13.5pt; font-weight: 800; color: ${palette.dark}; margin: 0; letter-spacing: -0.5px;">${schoolName}</h1>
-        ${schoolAddr ? `<div style="font-size: 7pt; color: ${palette.mid}; margin-top: 1px;">${schoolAddr} ${schoolContact ? `· ${schoolContact}` : ""}</div>` : ""}
+        <h1 style="font-size: 12.8pt; font-weight: 800; color: ${palette.dark}; margin: 0; letter-spacing: -0.5px;">${schoolName}</h1>
+        ${schoolAddr ? `<div style="font-size: 6.6pt; color: ${palette.mid}; margin-top: 1px;">${schoolAddr} ${schoolContact ? `· ${schoolContact}` : ""}</div>` : ""}
       </div>
     </div>
     <div style="text-align: right;">
-      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.light}; letter-spacing: 1px;">REPORT CARD</div>
-      <div style="font-size: 7pt; color: ${palette.textLight}; font-weight: 500; margin-top: 1px;">${examTitle}</div>
+      <div style="font-size: 8.2pt; font-weight: 800; color: ${palette.light}; letter-spacing: 1px;">REPORT CARD</div>
+      <div style="font-size: 6.6pt; color: ${palette.textLight}; font-weight: 500; margin-top: 1px;">${examTitle}</div>
     </div>
   </div>
 
-  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px;">
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
-      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Student Name</div>
-      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">${studentName}</div>
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px;">
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
+      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Student Name</div>
+      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">${studentName}</div>
     </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
-      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Class & Section</div>
-      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${className}</div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
+      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Class & Section</div>
+      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${className}</div>
     </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
-      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Roll Number</div>
-      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${rollNo}</div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
+      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Roll Number</div>
+      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${rollNo}</div>
     </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
-      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Admission No.</div>
-      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${admNo}</div>
-    </div>
-  </div>
-
-  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px;">
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
-      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Date of Birth</div>
-      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${dob}</div>
-    </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
-      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Gender</div>
-      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${gender}</div>
-    </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
-      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Academic Year</div>
-      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${academicYear}</div>
-    </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.border}; padding: 6px 10px; border-radius: 8px;">
-      <div style="font-size: 6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Date of Issue</div>
-      <div style="font-size: 8.5pt; font-weight: 800; color: ${palette.dark}; margin-top: 2px;">${today}</div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
+      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Admission No.</div>
+      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${admNo}</div>
     </div>
   </div>
 
-  <div style="font-size: 7.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.dark}; letter-spacing: 1px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-     <span style="display:inline-block; width:6px; height:6px; background:${palette.light}; border-radius:50%;"></span>
-     Subject-wise Marks Statement
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px;">
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
+      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Date of Birth</div>
+      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${dob}</div>
+    </div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
+      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Gender</div>
+      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${gender}</div>
+    </div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
+      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Academic Year</div>
+      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${academicYear}</div>
+    </div>
+    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
+      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Date of Issue</div>
+      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${today}</div>
+    </div>
   </div>
 
   <style>
-    .pdf-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 20px; border-radius: 8px; overflow: hidden; border: 1px solid ${palette.border}; }
-    .pdf-table th { background: rgba(237,243,250,0.9); font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px; color: ${palette.dark}; padding: 7px 6px; border-bottom: 1.5px solid ${palette.border}; }
-    .pdf-table td { padding: 6px; border-bottom: 1px solid ${palette.border}; font-size: 8pt; color: ${palette.mid}; }
+    .pdf-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 0; }
+    .pdf-table th { background: rgba(237,243,250,0.9); font-size: 6.2pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2px; color: ${palette.dark}; padding: 5px 6px; border-bottom: 1.5px solid ${palette.dark}; }
+    .pdf-table td { padding: 5px 6px; border-bottom: 1px solid ${palette.dark}; font-size: 7.5pt; color: ${palette.mid}; }
     .pdf-table tr:last-child td { border-bottom: none; }
     .tc { text-align: center; }
-    .tl { text-align: left !important; padding-left: 10px !important; }
+    .tl { text-align: left !important; padding-left: 8px !important; }
     .fw { font-weight: 700; }
-    .tot-row td { background: rgba(237,243,250,0.85) !important; font-weight: 800; font-size: 8.5pt; color: ${palette.dark} !important; border-top: 1.5px solid ${palette.light} !important; }
+    .tot-row td { background: rgba(237,243,250,0.85) !important; font-weight: 800; font-size: 7.9pt; color: ${palette.dark} !important; border-top: 1.5px solid ${palette.light} !important; }
   </style>
 
-  <table class="pdf-table">
-    <thead>
-      ${subjectTableHead}
-    </thead>
-    <tbody>
-      ${subjectRows}
-    </tbody>
-    <tfoot>
-      ${subjectTableFoot}
-    </tfoot>
-  </table>
+  <!-- 1. Subject-wise Marks Statement -->
+  <div style="border: 1.5px solid ${palette.dark}; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
+    ${sectionHeader("Subject-wise Marks Statement")}
+    <table class="pdf-table">
+      <thead>
+        ${subjectTableHead}
+      </thead>
+      <tbody>
+        ${subjectRows}
+      </tbody>
+      <tfoot>
+        ${subjectTableFoot}
+      </tfoot>
+    </table>
+  </div>
 
-  ${chartSvg ? `
-  <div style="border: 1px solid ${palette.border}; border-radius: 8px; background:#ffffff; padding: 10px 12px; margin-bottom: 20px;">
-    <div style="font-size: 7.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.dark}; letter-spacing: 1px; margin-bottom: 6px; display:flex; align-items:center; gap:6px;">
-      <span style="display:inline-block; width:6px; height:6px; background:${palette.light}; border-radius:50%;"></span>
-      Marks-wise Progress Report
-    </div>
-    ${chartSvg}
-  </div>` : ""}
+  <!-- 2. Attendance Report -->
+  ${attendanceSection}
 
-  <div style="display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: stretch; margin-bottom: 20px;">
+  <!-- 3. Remarks -->
+  ${remarksSection}
+
+  <!-- 4. Standard Scale & Consolidated Performance Overview -->
+  <div style="display: grid; grid-template-columns: 150px 1fr; gap: 8px; align-items: stretch; margin-bottom: 8px;">
     
     ${scaleLegendPanel}
 
-    <div style="border: 1px solid ${palette.border}; border-radius: 8px; background: #ffffff; display: flex; flex-direction: column; overflow: hidden;">
-      <div style="font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; background: rgba(237,243,250,0.8); padding: 5px 0; color: ${palette.dark}; border-bottom: 1px solid ${palette.border};">Consolidated Performance Overview</div>
+    <div style="border: 1px solid ${palette.dark}; border-radius: 7px; background: #ffffff; display: flex; flex-direction: column; overflow: hidden;">
+      ${sectionHeader("Consolidated Performance Overview")}
       
-      <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 10px 10px 0 10px;">
-        <div style="border: 1px solid ${palette.border}; background: ${palette.bgLight}; border-radius: 6px; padding: 5px; text-align: center;">
-          <div style="font-size: 5.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 3px; border-bottom: 0.5px solid ${palette.border};">Total Obtained</div>
-          <div style="font-size: 9.5pt; font-weight: 800; color: ${palette.dark};">${summary?.totalObtained ?? "—"}<span style="font-size:6pt; font-weight:500; color:${palette.textLight};">/${summary?.totalMax ?? "—"}</span></div>
+      <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px 6px 0 6px;">
+        <div style="border: 1px solid ${palette.dark}; background: ${palette.bgLight}; border-radius: 5px; padding: 3.5px; text-align: center;">
+          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${palette.dark};">Total Obtained</div>
+          <div style="font-size: 8.4pt; font-weight: 800; color: ${palette.dark};">${summary?.totalObtained ?? "—"}<span style="font-size:5.5pt; font-weight:500; color:${palette.textLight};">/${summary?.totalMax ?? "—"}</span></div>
         </div>
         
-        <div style="border: 1px solid ${palette.border}; background: ${palette.bgLight}; border-radius: 6px; padding: 5px; text-align: center;">
-          <div style="font-size: 5.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 3px; border-bottom: 0.5px solid ${palette.border};">Percentage</div>
-          <div style="font-size: 9.5pt; font-weight: 800; color: ${palette.dark};">${summary?.percentage ?? "—"}%</div>
+        <div style="border: 1px solid ${palette.dark}; background: ${palette.bgLight}; border-radius: 5px; padding: 3.5px; text-align: center;">
+          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${palette.dark};">Percentage</div>
+          <div style="font-size: 8.4pt; font-weight: 800; color: ${palette.dark};">${summary?.percentage ?? "—"}%</div>
         </div>
         
-        <div style="border: 1px solid ${palette.border}; background: ${palette.bgLight}; border-radius: 6px; padding: 5px; text-align: center;">
-          <div style="font-size: 5.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 3px; border-bottom: 0.5px solid ${palette.border};">Overall Grade</div>
-          <div style="font-size: 9.5pt; font-weight: 800; color: ${palette.dark};">${summary?.grade ?? "—"}</div>
+        <div style="border: 1px solid ${palette.dark}; background: ${palette.bgLight}; border-radius: 5px; padding: 3.5px; text-align: center;">
+          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${palette.dark};">Overall Grade</div>
+          <div style="font-size: 8.4pt; font-weight: 800; color: ${palette.dark};">${summary?.grade ?? "—"}</div>
         </div>
         
-        <div style="border: 1px solid ${palette.border}; background: ${palette.bgLight}; border-radius: 6px; padding: 5px; text-align: center;">
-          <div style="font-size: 5.5pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 3px; border-bottom: 0.5px solid ${palette.border};">Class Rank</div>
-          <div style="font-size: 9.5pt; font-weight: 800; color: ${palette.dark};">${summary?.rank != null ? `#${summary.rank}` : "—"}</div>
-          <div style="font-size: 5pt; color: ${palette.textLight};">of ${summary?.totalStudentsInClass ?? "—"}</div>
+        <div style="border: 1px solid ${palette.dark}; background: ${palette.bgLight}; border-radius: 5px; padding: 3.5px; text-align: center;">
+          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${palette.dark};">Class Rank</div>
+          <div style="font-size: 8.4pt; font-weight: 800; color: ${palette.dark};">${summary?.rank != null ? `#${summary.rank}` : "—"}</div>
+          <div style="font-size: 4.6pt; color: ${palette.textLight};">of ${summary?.totalStudentsInClass ?? "—"}</div>
         </div>
         
-        <div style="border: 1px solid ${summary?.hasFail ? palette.fail : palette.light}; background: #ffffff; border-radius: 6px; padding: 5px; text-align: center;">
-          <div style="font-size: 5.5pt; font-weight: 800; text-transform: uppercase; color: ${summary?.hasFail ? palette.fail : palette.light}; padding-bottom: 2px; margin-bottom: 3px; border-bottom: 0.5px solid ${summary?.hasFail ? 'rgba(239,68,68,0.2)' : palette.border};">Final Result</div>
-          <div style="font-size: 10pt; font-weight: 900; color: ${summary?.hasFail ? palette.fail : palette.pass}; letter-spacing: 0.5px;">${overallResult}</div>
+        <div style="border: 1px solid ${summary?.hasFail ? palette.fail : palette.light}; background: #ffffff; border-radius: 5px; padding: 3.5px; text-align: center;">
+          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${summary?.hasFail ? palette.fail : palette.light}; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${summary?.hasFail ? 'rgba(239,68,68,0.2)' : palette.dark};">Final Result</div>
+          <div style="font-size: 9pt; font-weight: 900; color: ${summary?.hasFail ? palette.fail : palette.pass}; letter-spacing: 0.5px;">${overallResult}</div>
         </div>
       </div>
       
-      <div style="margin-top: auto; padding: 16px 12px 10px 12px; display: flex; justify-content: space-between; align-items: flex-end;">
-        <div style="text-align: center; width: 105px;">
-          <div style="border-top: 1px solid ${palette.border}; margin-bottom: 3px;"></div>
-          <div style="font-size: 6pt; font-weight: 800; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.3px;">Principal Signature</div>
+      <div style="margin-top: auto; padding: 10px 8px 6px 8px; display: flex; justify-content: space-between; align-items: flex-end;">
+        <div style="text-align: center; width: 95px;">
+          <div style="border-top: 1px solid ${palette.dark}; margin-bottom: 2px;"></div>
+          <div style="font-size: 5.3pt; font-weight: 800; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.2px;">Principal Signature</div>
         </div>
-        <div style="text-align: center; width: 105px;">
-          <div style="border-top: 1px solid ${palette.border}; margin-bottom: 3px;"></div>
-          <div style="font-size: 5pt; font-weight: 900; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.3px;">Class Teacher Signature</div>
+        <div style="text-align: center; width: 95px;">
+          <div style="border-top: 1px solid ${palette.dark}; margin-bottom: 2px;"></div>
+          <div style="font-size: 4.6pt; font-weight: 900; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.2px;">Class Teacher Signature</div>
         </div>
         
-        <div style="text-align: center; width: 105px;">
-          <div style="border-top: 1px solid ${palette.border}; margin-bottom: 3px;"></div>
-          <div style="font-size: 6pt; font-weight: 800; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.3px;">Parent Guardian</div>
+        <div style="text-align: center; width: 95px;">
+          <div style="border-top: 1px solid ${palette.dark}; margin-bottom: 2px;"></div>
+          <div style="font-size: 5.3pt; font-weight: 800; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.2px;">Parent Guardian</div>
         </div>
       </div>
     </div>
   </div>
 
-  <div style="border-top: 1px solid ${palette.border}; padding: 5px 4px 0 4px; display: flex; justify-content: space-between; align-items: center; font-size: 5.8pt; color: ${palette.textLight}; font-weight: 500;">
+  <div style="border-top: 1px solid ${palette.dark}; padding: 4px 3px 0 3px; display: flex; justify-content: space-between; align-items: center; font-size: 5pt; color: ${palette.textLight}; font-weight: 500;">
     <span>* System generated secure report card documentation.</span>
     <span>Powered by ${schoolName} </span>
   </div>
@@ -627,16 +554,14 @@ export async function downloadReportPDF(reportData, themeKey = "default") {
 </div>
   `;
 
-  // Options configuration setup for html2pdf conversion
   const options = {
-    margin: [6, 8, 6, 8], // top, left, bottom, right in mm
+    margin: [4, 6, 4, 6],
     filename: `MarkSheet_${studentName.replace(/\s+/g, "_")}_${examName.replace(/\s+/g, "_")}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
-  // 4. Fire-and-forget generation and trigger local disk streaming download
   try {
     await html2pdf().set(options).from(element).save();
   } catch (error) {
