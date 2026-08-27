@@ -1,7 +1,8 @@
 // client/src/student/pages/marks/utils/downloadPDF.js
 // Modern Dashboard A4 portrait — clean, compact layout matching Stormy
-// Morning theme. Supports the school logo and 4 selectable colour themes.
-// Sizing is tuned to fit up to ~6 subjects on a single page.
+// Morning theme. Supports the school logo, 4 selectable colour themes, and
+// a compact marks-wise progress chart. Sizing is tuned to fit up to ~6
+// subjects on a single page.
 
 import { GRADE_SCALE, C, FONT } from "../tokens.js";
 
@@ -126,6 +127,90 @@ function loadHtml2Pdf() {
     script.onerror = () => reject(new Error("Failed to load html2pdf library"));
     document.head.appendChild(script);
   });
+}
+
+// Compact marks-wise progress chart (SVG bars) — sized small so it never
+// pushes the report onto a second page.
+function buildProgressChartSVG(subjectResults, palette, isCombined) {
+  const rows = (subjectResults ?? []).filter((s) => !s.isAbsent);
+  if (!rows.length) return "";
+
+  if (isCombined) {
+    const W = 680, H = 108, padTop = 16, padBottom = 22;
+    const maxBarH = H - padTop - padBottom;
+    const barW = 13, barGap = 3, groupGap = 16;
+    const pairW = barW * 2 + barGap;
+    const totalWidth = rows.length * pairW + (rows.length - 1) * groupGap;
+    const startX = Math.max(8, (W - totalWidth) / 2);
+
+    const bars = rows.map((s, i) => {
+      const subPct  = s.subExamMax ? Math.max(0, Math.min(100, Math.round(((s.subExamObtained || 0) / s.subExamMax) * 100))) : 0;
+      const mainPct = s.mainMax    ? Math.max(0, Math.min(100, Math.round(((s.mainObtained    || 0) / s.mainMax)    * 100))) : 0;
+      const gx = startX + i * (pairW + groupGap);
+      const mainH = (mainPct / 100) * maxBarH;
+      const subH  = (subPct  / 100) * maxBarH;
+      const mainY = padTop + (maxBarH - mainH);
+      const subY  = padTop + (maxBarH - subH);
+      const label = String(s.subjectCode || s.subjectName || "").slice(0, 9);
+
+      return `
+        <g>
+          <rect x="${gx}" y="${mainY}" width="${barW}" height="${Math.max(mainH, 2)}" rx="2.5" fill="${palette.light}" />
+          <text x="${gx + barW / 2}" y="${mainY - 3}" font-size="6" font-weight="700" text-anchor="middle" fill="${palette.dark}">${mainPct}%</text>
+          <rect x="${gx + barW + barGap}" y="${subY}" width="${barW}" height="${Math.max(subH, 2)}" rx="2.5" fill="${palette.mid}" opacity="0.88" />
+          <text x="${gx + barW + barGap + barW / 2}" y="${subY - 3}" font-size="6" font-weight="700" text-anchor="middle" fill="${palette.dark}">${subPct}%</text>
+          <text x="${gx + pairW / 2}" y="${H - padBottom + 12}" font-size="6.3" font-weight="600" text-anchor="middle" fill="${palette.mid}">${label}</text>
+        </g>`;
+    }).join("");
+
+    const legend = `
+      <g>
+        <rect x="${W - 170}" y="2" width="8" height="8" rx="2" fill="${palette.light}" />
+        <text x="${W - 158}" y="9.5" font-size="6.3" font-weight="600" fill="${palette.mid}">Final Exam</text>
+        <rect x="${W - 88}" y="2" width="8" height="8" rx="2" fill="${palette.mid}" opacity="0.88" />
+        <text x="${W - 76}" y="9.5" font-size="6.3" font-weight="600" fill="${palette.mid}">Assessment</text>
+      </g>`;
+
+    return `
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg">
+        ${legend}
+        <line x1="0" y1="${padTop + maxBarH}" x2="${W}" y2="${padTop + maxBarH}" stroke="${palette.dark}" stroke-width="1.25" />
+        <line x1="0" y1="${padTop}" x2="${W}" y2="${padTop}" stroke="${palette.dark}" stroke-width="0.6" stroke-dasharray="2,3" />
+        ${bars}
+      </svg>`;
+  }
+
+  const singleRows = rows.filter((s) => s.percentage != null);
+  if (!singleRows.length) return "";
+
+  const W = 680, H = 98, padTop = 14, padBottom = 22;
+  const maxBarH = H - padTop - padBottom;
+  const gap = 12;
+  const barW = Math.min(38, (W - gap * (singleRows.length + 1)) / singleRows.length);
+  const totalWidth = singleRows.length * barW + (singleRows.length + 1) * gap;
+  const startX = Math.max(gap, (W - totalWidth) / 2 + gap);
+
+  const bars = singleRows.map((s, i) => {
+    const pct = Math.max(0, Math.min(100, s.percentage));
+    const barH = (pct / 100) * maxBarH;
+    const x = startX + i * (barW + gap);
+    const y = padTop + (maxBarH - barH);
+    const label = String(s.subjectCode || s.subjectName || "").slice(0, 8);
+    const barColor = pct >= 50 ? palette.light : palette.fail;
+    return `
+      <g>
+        <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(barH, 2)}" rx="3" fill="${barColor}" opacity="0.92" />
+        <text x="${x + barW / 2}" y="${y - 4}" font-size="7" font-weight="700" text-anchor="middle" fill="${palette.dark}">${pct}%</text>
+        <text x="${x + barW / 2}" y="${H - padBottom + 12}" font-size="6.3" font-weight="600" text-anchor="middle" fill="${palette.mid}">${label}</text>
+      </g>`;
+  }).join("");
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg">
+      <line x1="0" y1="${padTop + maxBarH}" x2="${W}" y2="${padTop + maxBarH}" stroke="${palette.dark}" stroke-width="1.25" />
+      <line x1="0" y1="${padTop}" x2="${W}" y2="${padTop}" stroke="${palette.dark}" stroke-width="0.6" stroke-dasharray="2,3" />
+      ${bars}
+    </svg>`;
 }
 
 export async function downloadReportPDF(reportData, themeKey = "default", attendance = [], remarks = "") {
@@ -357,6 +442,8 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
     ? `<img src="${logoDataUrl}" style="width:34px; height:34px; border-radius:9px; object-fit:cover; border:1px solid ${palette.dark}; background:#ffffff; flex-shrink:0;" />`
     : `<div style="width: 4px; height: 30px; border-radius: 99px; background: linear-gradient(180deg, ${palette.light} 0%, ${palette.dark} 100%);"></div>`;
 
+  const chartSvg = buildProgressChartSVG(subjectResults, palette, isCombined);
+
   const validAttendance = (attendance ?? []).filter((r) => r?.month && String(r.month).trim() !== "");
   const attendanceSection = validAttendance.length
     ? `
@@ -375,8 +462,8 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
       </tr>
       <tr>
         ${validAttendance.map((r) => `
-          <td style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 7.4pt; font-weight: 700; color: ${palette.dark}; text-align: center;">${r.total !== "" && r.total != null ? r.total : "—"}</td>
-          <td style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 7.4pt; font-weight: 700; color: ${palette.dark}; text-align: center;">${r.present !== "" && r.present != null ? r.present : "—"}</td>`).join("")}
+          <td style="border: 1.5px solid ${palette.dark}; padding: 8px 7px; font-size: 7.4pt; font-weight: 700; color: ${palette.dark}; text-align: center;">${r.total !== "" && r.total != null ? r.total : ""}</td>
+          <td style="border: 1.5px solid ${palette.dark}; padding: 8px 7px; font-size: 7.4pt; font-weight: 700; color: ${palette.dark}; text-align: center;">${r.present !== "" && r.present != null ? r.present : ""}</td>`).join("")}
       </tr>
     </table>
   </div>`
@@ -486,13 +573,22 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
     </table>
   </div>
 
-  <!-- 2. Attendance Report -->
+  <!-- 2. Marks-wise Progress Report (chart) -->
+  ${chartSvg ? `
+  <div style="border: 1.5px solid ${palette.dark}; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
+    ${sectionHeader("Marks-wise Progress Report")}
+    <div style="background:#ffffff; padding: 6px 10px;">
+      ${chartSvg}
+    </div>
+  </div>` : ""}
+
+  <!-- 3. Attendance Report -->
   ${attendanceSection}
 
-  <!-- 3. Remarks -->
+  <!-- 4. Remarks -->
   ${remarksSection}
 
-  <!-- 4. Standard Scale & Consolidated Performance Overview -->
+  <!-- 5. Standard Scale & Consolidated Performance Overview -->
   <div style="display: grid; grid-template-columns: 150px 1fr; gap: 8px; align-items: stretch; margin-bottom: 8px;">
     
     ${scaleLegendPanel}
