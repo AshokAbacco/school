@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { getToken } from "../../../../auth/storage.js";
 import StudentReportModal from "./StudentReportModal.jsx";
+import BulkReportDownloadModal from "./BulkReportDownloadModal.jsx";
 
 /* ─── constants ─────────────────────────────────────────────────────────── */
 const API_URL = import.meta.env.VITE_API_URL;
@@ -182,13 +183,24 @@ function ClassCard({ cs, onClick }) {
 }
 
 /* ─── Student Results Table ─────────────────────────────────────────────── */
-function StudentResultsTable({ rows, subjectMode = false, onViewReport }) {
+function StudentResultsTable({ rows, subjectMode = false, onViewReport, selectedIds, onToggleRow, onToggleAll }) {
   const marksHeader = subjectMode ? "Marks" : "Total Marks";
+  const selectableRows = rows.filter((r) => !r.isAbsent && r.studentId);
+  const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selectedIds.has(r.studentId));
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ background: "#f8fbff" }}>
+            <th style={{ padding: "10px 14px", width: 34 }}>
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={(e) => onToggleAll?.(e.target.checked)}
+                title="Select all"
+                style={{ width: 14, height: 14, accentColor: C.blue, cursor: "pointer" }}
+              />
+            </th>
             {["#", "Student", "Roll No", marksHeader, "Percentage", "Grade", "Status", ""].map(h => (
               <th key={h} style={{
                 ...font, padding: "10px 14px", textAlign: "left",
@@ -206,9 +218,20 @@ function StudentResultsTable({ rows, subjectMode = false, onViewReport }) {
             const pct  = Number(r.percentage ?? 0);
             const bar  = pctBar(pct);
             const gc   = gradeColor(r.grade);
+            const canSelect = !isAbsent && !!r.studentId;
             return (
               <tr key={r.studentId || i}
                 style={{ borderBottom: `1px solid ${C.border}` }}>
+                <td style={{ padding: "11px 14px" }}>
+                  {canSelect && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(r.studentId)}
+                      onChange={(e) => onToggleRow?.(r.studentId, e.target.checked)}
+                      style={{ width: 14, height: 14, accentColor: C.blue, cursor: "pointer" }}
+                    />
+                  )}
+                </td>
                 <td style={{ ...font, padding: "11px 14px", fontSize: 12, color: C.mid }}>{i + 1}</td>
                 <td style={{ ...font, padding: "11px 14px", fontSize: 13, fontWeight: 600, color: C.dark }}>
                   {r.studentName}
@@ -291,7 +314,7 @@ function StudentResultsTable({ rows, subjectMode = false, onViewReport }) {
 
 /* ─── Class Detail View ──────────────────────────────────────────────────── */
 function ClassDetailView({ cs, academicYearId, onBack }) {
-  const [exams,        setExams]        = useState([]);
+  const [rawGroups,    setRawGroups]    = useState([]); // all exam groups w/ a schedule for this class (unfiltered by Sub Exam)
   const [selExam,      setSelExam]      = useState(null);
   const [results,      setResults]      = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -301,6 +324,26 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
   const [subjects,     setSubjects]     = useState([]);   // subjects that have results for selected exam+class
   const [selSubjectId, setSelSubjectId] = useState("all"); // "all" or a subjectId string
   const [reportView,   setReportView]   = useState(null); // { studentId, studentName } | null
+
+  // ── Bulk "Download Reports" — checkbox selection across the results table ──
+  const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+
+  const toggleRowSelection = useCallback((studentId, checked) => {
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(studentId); else next.delete(studentId);
+      return next;
+    });
+  }, []);
+
+  const toggleAllSelection = useCallback((checked) => {
+    setSelectedStudentIds(() => {
+      if (!checked) return new Set();
+      const ids = results.filter((r) => !r.isAbsent && r.studentId).map((r) => r.studentId);
+      return new Set(ids);
+    });
+  }, [results]);
 
   // ── Sub Exam (optional) — combines an "Assessment" exam into the report
   // card shown from "View" (Subject-wise Marks Statement → Assessment + Final
@@ -322,19 +365,34 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
     apiFetch(`/api/exams/groups/${academicYearId}`)
       .then(data => {
         const all = Array.isArray(data) ? data : [];
-        // ✅ Filter only groups that have a schedule for this specific class,
-        // and exclude Sub Exams (exams filed under the default "Assessment"
-        // term) — those only belong in the "Combine with Sub Exam" dropdown.
+        // Only groups that have a schedule for this specific class. Sub Exam
+        // exclusion happens separately below, by ID against the authoritative
+        // Sub Exam list — see the `exams` memo.
         const relevant = all.filter(g =>
-          g.term?.name !== "Assessment" &&
           (g.assessmentSchedules || []).some(sc => sc.classSectionId === cs.id)
         );
-        setExams(relevant);
-        if (relevant.length) setSelExam(relevant[0]);
+        setRawGroups(relevant);
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [cs.id, academicYearId]);
+
+  // ✅ Exclude Sub Exams from the main exam tabs by ID (against the same
+  // authoritative list the "Combine with Sub Exam" dropdown uses), not by
+  // term *name* — robust even if duplicate "Assessment"-named term rows exist.
+  const exams = useMemo(() => {
+    const subIds = new Set(subExamGroups.map(g => g.id));
+    return rawGroups.filter(g => !subIds.has(g.id));
+  }, [rawGroups, subExamGroups]);
+
+  // Keep the selected exam valid as `exams` settles (e.g. once the Sub Exam
+  // list arrives and something gets excluded after the initial pick).
+  useEffect(() => {
+    if (!exams.length) return;
+    if (!selExam || !exams.some(e => e.id === selExam.id)) {
+      setSelExam(exams[0]);
+    }
+  }, [exams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When exam changes, reset subject selection
   useEffect(() => {
@@ -399,6 +457,12 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
         .finally(() => setResLoading(false));
     }
   }, [selExam, cs.id, selSubjectId]);
+
+  // Reset selection whenever the underlying results set changes (new exam,
+  // subject filter, or class) so stale student ids don't linger.
+  useEffect(() => {
+    setSelectedStudentIds(new Set());
+  }, [selExam, selSubjectId, cs.id]);
 
   const passed  = results.filter(r => !r.isAbsent && r.percentage >= 50).length;
   const failed  = results.filter(r => !r.isAbsent && r.percentage < 50).length;
@@ -627,26 +691,53 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
                 <Loader2 size={15} color={C.mid}
                   style={{ animation: "spin 1s linear infinite" }} />
               )}
-              <button
-                onClick={handleExportResults}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 14px",
-                  borderRadius: 10,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  background: "#e0f2fe",
-                  color: "#0369a1",
-                  border: "1px solid #7dd3fc",
-                  cursor: "pointer",
-                  fontFamily: "'Inter', sans-serif",
-                }}
-              >
-                <Download size={14} />
-                Export {selExam?.name}
-              </button>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginLeft: "auto"   // 👈 pushes to right side
+              }}>
+                <button
+                  onClick={() => setBulkModalOpen(true)}
+                  disabled={selectedStudentIds.size === 0}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 14px",
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: selectedStudentIds.size === 0 ? "#f1f5f9" : "#eef4fb",
+                    color: selectedStudentIds.size === 0 ? "#94a3b8" : C.blue,
+                    border: `1px solid ${selectedStudentIds.size === 0 ? C.border : "#bcd7f5"}`,
+                    cursor: selectedStudentIds.size === 0 ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <FileText size={14} />
+                  Download Reports {selectedStudentIds.size > 0 ? `(${selectedStudentIds.size})` : ""}
+                </button>
+
+                <button
+                  onClick={handleExportResults}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 14px",
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: "#e0f2fe",
+                    color: "#0369a1",
+                    border: "1px solid #7dd3fc",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Download size={14} />
+                  Export {selExam?.name}
+                </button>
+              </div>
             </div>
 
             {resLoading ? (
@@ -658,6 +749,9 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
                 rows={results}
                 subjectMode={selSubjectId !== "all"}
                 onViewReport={(r) => setReportView({ studentId: r.studentId, studentName: r.studentName })}
+                selectedIds={selectedStudentIds}
+                onToggleRow={toggleRowSelection}
+                onToggleAll={toggleAllSelection}
               />
             )}
           </div>
@@ -671,6 +765,18 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
           assessmentGroupId={selExam.id}
           subAssessmentGroupId={subExamId || undefined}
           onClose={() => setReportView(null)}
+        />
+      )}
+
+      {bulkModalOpen && selExam && (
+        <BulkReportDownloadModal
+          open={bulkModalOpen}
+          students={results
+            .filter((r) => selectedStudentIds.has(r.studentId))
+            .map((r) => ({ studentId: r.studentId, studentName: r.studentName }))}
+          assessmentGroupId={selExam.id}
+          subAssessmentGroupId={subExamId || undefined}
+          onClose={() => setBulkModalOpen(false)}
         />
       )}
     </div>
@@ -750,15 +856,6 @@ export default function ResultsTab({ academicYearId, academicYearLabel }) {
       // 3. Exam groups to count per class
       const grps   = await apiFetch(`/api/exams/groups/${academicYearId}`);
       const groups = Array.isArray(grps) ? grps : [];
-
-      // Group summaries by classSectionId
-    //   const byClass = {};
-    //   summaries.forEach(s => {
-    //     const cid = s.classSectionId;
-    //     if (!cid) return;
-    //     if (!byClass[cid]) byClass[cid] = [];
-    //     byClass[cid].push(s);
-    //   });
 
     const enriched = sections.map(sec => {
     // ✅ FIX: direct filter (no map dependency)
@@ -845,7 +942,6 @@ export default function ResultsTab({ academicYearId, academicYearLabel }) {
     );
   }
 
- 
   /* ── class grid ── */
   return (
     <div>

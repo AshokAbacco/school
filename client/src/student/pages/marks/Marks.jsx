@@ -386,36 +386,25 @@ export default function Marks() {
   const selectedGroup = examGroups.find((g) => g.id === selectedId);
   const showReport = !loadingReport && !!reportData;
 
-  const handleDownload = useCallback(
-    (themeKey = "default") => {
-      if (!reportData) return;
-      setPdfLoading(true);
-      const enriched = {
-        ...reportData,
-        enrollment: {
-          ...reportData.enrollment,
-          schoolName:
-            reportData?.enrollment?.schoolName ??
-            enrollment?.schoolName ??
-            "School",
-          schoolLogoUrl:
-            sidebarLogoUrl ??
-            reportData?.enrollment?.schoolLogoUrl ??
-            enrollment?.schoolLogoUrl ??
-            null,
-        },
-      };
-      try {
-        downloadReportPDF(enriched, themeKey);
-      } finally {
-        setTimeout(() => {
-          setPdfLoading(false);
-          setThemeModalOpen(false);
-        }, 600);
-      }
-    },
-    [reportData, enrollment, sidebarLogoUrl],
-  );
+  const handleDownload = useCallback((themeKey = "default", attendance = [], remarks = "") => {
+    if (!reportData) return;
+    setPdfLoading(true);
+    const enriched = {
+      ...reportData,
+      enrollment: {
+        ...reportData.enrollment,
+        schoolName:    reportData?.enrollment?.schoolName    ?? enrollment?.schoolName    ?? "School",
+        schoolLogoUrl: sidebarLogoUrl ?? reportData?.enrollment?.schoolLogoUrl ?? enrollment?.schoolLogoUrl ?? null,
+      },
+    };
+      try { downloadReportPDF(enriched, themeKey, attendance, remarks); }
+    finally {
+      setTimeout(() => {
+        setPdfLoading(false);
+        setThemeModalOpen(false);
+      }, 600);
+    }
+  }, [reportData, enrollment, sidebarLogoUrl]);
 
   // ✅ FIX: Split groups so the dropdown is grouped and clearly labelled
   const publishedGroups = examGroups.filter((g) => g.isPublished);
@@ -674,7 +663,7 @@ export default function Marks() {
       <ThemeModal
         open={themeModalOpen}
         onClose={() => setThemeModalOpen(false)}
-        onConfirm={(themeKey) => handleDownload(themeKey)}
+        onConfirm={(themeKey, attendance, remarks) => handleDownload(themeKey, attendance, remarks)}
         loading={pdfLoading}
       />
     </>
