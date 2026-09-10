@@ -5,7 +5,9 @@ import { generateToken } from "../modules/auth/auth.utils.js";
 import { sendSmsOtp, normalizePhone } from "../modules/auth/sms.js";
 
 const stripCountryCode = (phone) => {
-  let p = String(phone || "").replace(/\D/g, "").trim();
+  let p = String(phone || "")
+    .replace(/\D/g, "")
+    .trim();
   if (p.startsWith("91") && p.length === 12) p = p.slice(2);
   return p;
 };
@@ -16,22 +18,30 @@ const phoneVariants = (phone) => {
   return [digits, `91${digits}`, `+91${digits}`];
 };
 
-const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+const generateOtp = () =>
+  Math.floor(100000 + Math.random() * 900000).toString();
 
 // ── Create BusHead (SuperAdmin action) ─────────────────────────────────────
 // No OTP step here — account is created and active immediately.
 export const createBusHeadService = async (
   { name, phone, password, accessType, schoolId },
-  { superAdminId, universityId }
+  { superAdminId, universityId },
 ) => {
   if (!name || !phone || !password) {
-    throw { status: 400, message: "Name, mobile number and password are required" };
+    throw {
+      status: 400,
+      message: "Name, mobile number and password are required",
+    };
   }
 
-  const normalizedType = accessType === "ALL_SCHOOLS" ? "ALL_SCHOOLS" : "SINGLE_SCHOOL";
+  const normalizedType =
+    accessType === "ALL_SCHOOLS" ? "ALL_SCHOOLS" : "SINGLE_SCHOOL";
 
   if (normalizedType === "SINGLE_SCHOOL" && !schoolId) {
-    throw { status: 400, message: "Please select a school for single-school access" };
+    throw {
+      status: 400,
+      message: "Please select a school for single-school access",
+    };
   }
 
   if (normalizedType === "SINGLE_SCHOOL") {
@@ -46,7 +56,11 @@ export const createBusHeadService = async (
   const existing = await prisma.busHead.findFirst({
     where: { phone: { in: phoneVariants(phone) } },
   });
-  if (existing) throw { status: 409, message: "A Bus Head with this mobile number already exists" };
+  if (existing)
+    throw {
+      status: 409,
+      message: "A Bus Head with this mobile number already exists",
+    };
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
@@ -94,39 +108,103 @@ export const listBusHeadsService = async ({ universityId }) => {
 };
 
 // ── Activate / Deactivate a BusHead (SuperAdmin action) ────────────────────
-export const setBusHeadStatusService = async (busHeadId, isActive, { universityId }) => {
-  const busHead = await prisma.busHead.findFirst({ where: { id: busHeadId, universityId } });
+export const setBusHeadStatusService = async (
+  busHeadId,
+  isActive,
+  { universityId },
+) => {
+  const busHead = await prisma.busHead.findFirst({
+    where: { id: busHeadId, universityId },
+  });
   if (!busHead) throw { status: 404, message: "Bus Head not found" };
 
-  await prisma.busHead.update({ where: { id: busHeadId }, data: { isActive: !!isActive } });
+  await prisma.busHead.update({
+    where: { id: busHeadId },
+    data: { isActive: !!isActive },
+  });
 
   return { message: isActive ? "Bus Head activated" : "Bus Head deactivated" };
 };
 
 // ── BusHead Login — STEP 1: verify credentials, send OTP ───────────────────
-export const sendBusHeadLoginOtpService = async ({ phone, password }) => {
-  if (!phone || !password) throw { status: 400, message: "Mobile number and password are required" };
+export const sendBusHeadLoginOtpService = async ({
+  phone,
+  password,
+  universityId,
+}) => {
+  if (!phone || !password) {
+    throw {
+      status: 400,
+      message: "Mobile number and password are required",
+    };
+  }
 
   const variants = phoneVariants(phone);
+
   const busHead = await prisma.busHead.findFirst({
-    where: { phone: { in: variants } },
+    where: {
+      phone: { in: variants },
+    },
     include: {
-      school: { select: { id: true, name: true, code: true } },
-      university: { select: { id: true, name: true, code: true, isDeactivated: true } },
+      school: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      },
+      university: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          isDeactivated: true,
+        },
+      },
     },
   });
 
-  if (!busHead) throw { status: 401, message: "Invalid credentials" };
+  if (!busHead) {
+    throw {
+      status: 401,
+      message: "Invalid credentials",
+    };
+  }
+
+  // ── Foundation/University-specific app validation ──
+  // Android foundation app sends universityId.
+  // Bus Head can be SINGLE_SCHOOL or ALL_SCHOOLS,
+  // as long as they belong to this foundation.
+  if (universityId && busHead.universityId !== universityId) {
+    throw {
+      status: 403,
+      message: "You are not authorized to login to this foundation",
+    };
+  }
 
   if (!busHead.isActive) {
-    throw { status: 403, message: "Your account is inactive. Contact your administrator." };
+    throw {
+      status: 403,
+      message: "Your account is inactive. Contact your administrator.",
+    };
   }
+
   if (busHead.university?.isDeactivated) {
-    throw { status: 403, message: "This account no longer exists. Contact support@eduabaccotech.com" };
+    throw {
+      status: 403,
+      message:
+        "This account no longer exists. Contact support@eduabaccotech.com",
+    };
   }
 
   const valid = await bcrypt.compare(password, busHead.password);
-  if (!valid) throw { status: 401, message: "Invalid credentials" };
+
+  if (!valid) {
+    throw {
+      status: 401,
+      message: "Invalid credentials",
+    };
+  }
 
   const token = generateToken({
     id: busHead.id,
@@ -154,8 +232,7 @@ export const sendBusHeadLoginOtpService = async ({ phone, password }) => {
   const normalizedPhone = normalizePhone(busHead.phone);
   const otp = generateOtp();
 
-  // Store the ready-to-use login payload, keyed by phone + OTP — same pattern
-  // used for staff/student/parent/superAdmin login-with-otp.
+  // Store the ready-to-use login payload, keyed by phone + OTP
   await prisma.loginOtp.create({
     data: {
       identifier: normalizedPhone,
@@ -165,10 +242,12 @@ export const sendBusHeadLoginOtpService = async ({ phone, password }) => {
     },
   });
 
-  await sendSmsOtp({ phone: normalizedPhone, otp });
+  await sendSmsOtp({
+    phone: normalizedPhone,
+    otp,
+  });
 
-  // Bump lastLoginAt only once OTP is actually verified (see step 2) —
-  // not here, since credentials alone haven't completed login yet.
+  // lastLoginAt is updated only after OTP verification
 
   return {
     otpRequired: true,
@@ -177,35 +256,88 @@ export const sendBusHeadLoginOtpService = async ({ phone, password }) => {
 };
 
 // ── BusHead Login — STEP 2: verify OTP, return token + user ────────────────
-export const verifyBusHeadLoginOtpService = async ({ phone, otp }) => {
-  if (!phone || !otp) throw { status: 400, message: "Mobile number and OTP are required" };
+export const verifyBusHeadLoginOtpService = async ({
+  phone,
+  otp,
+  universityId,
+}) => {
+  if (!phone || !otp) {
+    throw {
+      status: 400,
+      message: "Mobile number and OTP are required",
+    };
+  }
 
   const normalizedPhone = normalizePhone(phone);
   const variants = [normalizedPhone, ...phoneVariants(phone)];
 
   let record = null;
+
   for (const v of variants) {
-    record = await prisma.loginOtp.findFirst({ where: { identifier: v, otp } });
+    record = await prisma.loginOtp.findFirst({
+      where: {
+        identifier: v,
+        otp,
+      },
+    });
+
     if (record) break;
   }
 
-  if (!record) throw { status: 400, message: "Invalid OTP" };
-  if (record.expiresAt < new Date()) throw { status: 400, message: "OTP expired" };
+  if (!record) {
+    throw {
+      status: 400,
+      message: "Invalid OTP",
+    };
+  }
+
+  if (record.expiresAt < new Date()) {
+    throw {
+      status: 400,
+      message: "OTP expired",
+    };
+  }
 
   const loginData = JSON.parse(record.loginData);
 
-  await prisma.loginOtp.delete({ where: { id: record.id } });
+  // ── Foundation/University-specific app validation ──
+  // Web/other callers that do not provide universityId remain unchanged.
+  if (universityId) {
+    const loggedInUniversityId =
+      loginData?.user?.university?.id || loginData?.user?.universityId;
 
-  await prisma.busHead.update({
-    where: { id: loginData.user.id },
-    data: { lastLoginAt: new Date() },
+    if (loggedInUniversityId !== universityId) {
+      throw {
+        status: 403,
+        message: "You are not authorized to login to this foundation",
+      };
+    }
+  }
+
+  await prisma.loginOtp.delete({
+    where: {
+      id: record.id,
+    },
   });
 
-  return loginData; // { token, user }
+  await prisma.busHead.update({
+    where: {
+      id: loginData.user.id,
+    },
+    data: {
+      lastLoginAt: new Date(),
+    },
+  });
+
+  return loginData;
 };
 
 // ── Live vehicle data scoped to the logged-in BusHead ──────────────────────
-export const getBusHeadLiveVehiclesService = async ({ schoolId, universityId, accessType }) => {
+export const getBusHeadLiveVehiclesService = async ({
+  schoolId,
+  universityId,
+  accessType,
+}) => {
   const schoolWhere =
     accessType === "ALL_SCHOOLS"
       ? { universityId }

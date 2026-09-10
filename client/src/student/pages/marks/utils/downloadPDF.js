@@ -23,8 +23,8 @@ function buildAddress(enrollment) {
 
 function buildContact(enrollment) {
   const parts = [
-    enrollment?.schoolPhone  ? `Ph: ${enrollment.schoolPhone}`    : null,
-    enrollment?.schoolEmail  ? `Email: ${enrollment.schoolEmail}` : null,
+    enrollment?.schoolPhone ? `Ph: ${enrollment.schoolPhone}` : null,
+    enrollment?.schoolEmail ? `Email: ${enrollment.schoolEmail}` : null,
   ].filter(Boolean);
   return parts.join("  ·  ");
 }
@@ -87,7 +87,7 @@ export const PDF_THEMES = {
 
 const PDF_API_BASE =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
-  "http://localhost:5000";
+  "http://localhost:5001";
 
 async function fetchAsDataUrl(fetchUrl, timeoutMs) {
   const controller = new AbortController();
@@ -121,7 +121,8 @@ function loadHtml2Pdf() {
   return new Promise((resolve, reject) => {
     if (window.html2pdf) return resolve(window.html2pdf);
     const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    script.src =
+      "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
     script.crossOrigin = "anonymous";
     script.onload = () => resolve(window.html2pdf);
     script.onerror = () => reject(new Error("Failed to load html2pdf library"));
@@ -143,17 +144,34 @@ function buildProgressChartSVG(subjectResults, palette, isCombined) {
     const totalWidth = rows.length * pairW + (rows.length - 1) * groupGap;
     const startX = Math.max(8, (W - totalWidth) / 2);
 
-    const bars = rows.map((s, i) => {
-      const subPct  = s.subExamMax ? Math.max(0, Math.min(100, Math.round(((s.subExamObtained || 0) / s.subExamMax) * 100))) : 0;
-      const mainPct = s.mainMax    ? Math.max(0, Math.min(100, Math.round(((s.mainObtained    || 0) / s.mainMax)    * 100))) : 0;
-      const gx = startX + i * (pairW + groupGap);
-      const mainH = (mainPct / 100) * maxBarH;
-      const subH  = (subPct  / 100) * maxBarH;
-      const mainY = padTop + (maxBarH - mainH);
-      const subY  = padTop + (maxBarH - subH);
-      const label = String(s.subjectCode || s.subjectName || "").slice(0, 9);
+    const bars = rows
+      .map((s, i) => {
+        const subPct = s.subExamMax
+          ? Math.max(
+              0,
+              Math.min(
+                100,
+                Math.round(((s.subExamObtained || 0) / s.subExamMax) * 100),
+              ),
+            )
+          : 0;
+        const mainPct = s.mainMax
+          ? Math.max(
+              0,
+              Math.min(
+                100,
+                Math.round(((s.mainObtained || 0) / s.mainMax) * 100),
+              ),
+            )
+          : 0;
+        const gx = startX + i * (pairW + groupGap);
+        const mainH = (mainPct / 100) * maxBarH;
+        const subH = (subPct / 100) * maxBarH;
+        const mainY = padTop + (maxBarH - mainH);
+        const subY = padTop + (maxBarH - subH);
+        const label = String(s.subjectCode || s.subjectName || "").slice(0, 9);
 
-      return `
+        return `
         <g>
           <rect x="${gx}" y="${mainY}" width="${barW}" height="${Math.max(mainH, 2)}" rx="2.5" fill="${palette.light}" />
           <text x="${gx + barW / 2}" y="${mainY - 3}" font-size="6" font-weight="700" text-anchor="middle" fill="${palette.dark}">${mainPct}%</text>
@@ -161,7 +179,8 @@ function buildProgressChartSVG(subjectResults, palette, isCombined) {
           <text x="${gx + barW + barGap + barW / 2}" y="${subY - 3}" font-size="6" font-weight="700" text-anchor="middle" fill="${palette.dark}">${subPct}%</text>
           <text x="${gx + pairW / 2}" y="${H - padBottom + 12}" font-size="6.3" font-weight="600" text-anchor="middle" fill="${palette.mid}">${label}</text>
         </g>`;
-    }).join("");
+      })
+      .join("");
 
     const legend = `
       <g>
@@ -190,20 +209,22 @@ function buildProgressChartSVG(subjectResults, palette, isCombined) {
   const totalWidth = singleRows.length * barW + (singleRows.length + 1) * gap;
   const startX = Math.max(gap, (W - totalWidth) / 2 + gap);
 
-  const bars = singleRows.map((s, i) => {
-    const pct = Math.max(0, Math.min(100, s.percentage));
-    const barH = (pct / 100) * maxBarH;
-    const x = startX + i * (barW + gap);
-    const y = padTop + (maxBarH - barH);
-    const label = String(s.subjectCode || s.subjectName || "").slice(0, 8);
-    const barColor = pct >= 50 ? palette.light : palette.fail;
-    return `
+  const bars = singleRows
+    .map((s, i) => {
+      const pct = Math.max(0, Math.min(100, s.percentage));
+      const barH = (pct / 100) * maxBarH;
+      const x = startX + i * (barW + gap);
+      const y = padTop + (maxBarH - barH);
+      const label = String(s.subjectCode || s.subjectName || "").slice(0, 8);
+      const barColor = pct >= 50 ? palette.light : palette.fail;
+      return `
       <g>
         <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(barH, 2)}" rx="3" fill="${barColor}" opacity="0.92" />
         <text x="${x + barW / 2}" y="${y - 4}" font-size="7" font-weight="700" text-anchor="middle" fill="${palette.dark}">${pct}%</text>
         <text x="${x + barW / 2}" y="${H - padBottom + 12}" font-size="6.3" font-weight="600" text-anchor="middle" fill="${palette.mid}">${label}</text>
       </g>`;
-  }).join("");
+    })
+    .join("");
 
   return `
     <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg">
@@ -221,7 +242,9 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
     html2pdf = await loadHtml2Pdf();
   } catch (err) {
     console.error(err);
-    alert("Could not load PDF generation library. Please check your internet connection.");
+    alert(
+      "Could not load PDF generation library. Please check your internet connection.",
+    );
     return;
   }
 
@@ -229,11 +252,11 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
 
   const logoDataUrl = await toDataUrl(enrollment?.schoolLogoUrl);
 
-  const schoolName    = (enrollment?.schoolName   ?? "SCHOOL NAME").toUpperCase();
-  const schoolAddr    = buildAddress(enrollment);
+  const schoolName = (enrollment?.schoolName ?? "SCHOOL NAME").toUpperCase();
+  const schoolAddr = buildAddress(enrollment);
   const schoolContact = buildContact(enrollment);
 
-  const className    = enrollment?.className    ?? "—";
+  const className = enrollment?.className ?? "—";
   const academicYear = enrollment?.academicYear ?? "—";
   const examName     = exam?.name               ?? "Examination";
   const termName     = exam?.term?.name         ?? "";
@@ -242,14 +265,21 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
   const rollNo        = student?.rollNumber      ?? "—";
   const dob          = student?.dateOfBirth
     ? new Date(student.dateOfBirth).toLocaleDateString("en-IN", {
-        day: "2-digit", month: "2-digit", year: "numeric",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
       })
     : "—";
-  const gender       = student?.gender ?? "—";
-  const today        = new Date().toLocaleDateString("en-IN", {
-    day: "2-digit", month: "long", year: "numeric",
+  const gender = student?.gender ?? "—";
+  const today = new Date().toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
   });
-  const examTitle    = [termName, examName].filter(Boolean).join(" — ").toUpperCase();
+  const examTitle = [termName, examName]
+    .filter(Boolean)
+    .join(" — ")
+    .toUpperCase();
   const overallResult = summary?.hasFail ? "FAIL" : "PASS";
 
   const palette = PDF_THEMES[themeKey] || PDF_THEMES.default;
@@ -258,74 +288,130 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
   const isCombined = (subjectResults ?? []).some((s) => s.isCombined);
 
   const subjectRows = isCombined
-    ? (subjectResults ?? []).map((s, i) => {
-        const absent = s.isAbsent;
-        const bg     = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
-        return `
-      <tr style="background:${bg}; ${absent ? "color:" + palette.textLight + "; font-style:italic;" : ""}">
+    ? (subjectResults ?? [])
+        .map((s, i) => {
+          const absent = s.isAbsent;
+          const bg = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
+          return `
+      <tr style="background:${bg}; ${
+            absent ? "color:" + palette.textLight + "; font-style:italic;" : ""
+          }">
         <td class="tc" style="color: ${palette.mid};">${i + 1}</td>
-        <td class="tl" style="font-weight:600; color: ${palette.dark};">${s.subjectName}${s.subjectCode ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>` : ""}</td>
-        <td class="tc">${absent ? "AB" : (s.mainObtained ?? "—")}/${s.mainMax ?? "—"}</td>
+        <td class="tl" style="font-weight:600; color: ${palette.dark};">${
+            s.subjectName
+          }${
+            s.subjectCode
+              ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>`
+              : ""
+          }</td>
+        <td class="tc">${absent ? "AB" : s.mainObtained ?? "—"}/${
+            s.mainMax ?? "—"
+          }</td>
         <td class="tc">${s.subExamObtained ?? "—"}/${s.subExamMax ?? "—"}</td>
-        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${s.totalObtained ?? "—"}</td>
-        <td class="tc fw" style="color: ${palette.dark};">${absent ? "—" : (s.grade ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (s.percentage != null ? `${s.percentage}%` : "—")}</td>
+        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${
+            s.totalObtained ?? "—"
+          }</td>
+        <td class="tc fw" style="color: ${palette.dark};">${
+            absent ? "—" : s.grade ?? "—"
+          }</td>
+        <td class="tc">${
+          absent ? "—" : s.percentage != null ? `${s.percentage}%` : "—"
+        }</td>
       </tr>`;
-      }).join("")
+        })
+        .join("")
     : isFA
-    ? (subjectResults ?? []).map((s, i) => {
-        const absent = s.isAbsent;
-        const bg     = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
-        const comp   = s.components || {};
-        return `
-      <tr style="background:${bg}; ${absent ? "color:" + palette.textLight + "; font-style:italic;" : ""}">
+    ? (subjectResults ?? [])
+        .map((s, i) => {
+          const absent = s.isAbsent;
+          const bg = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
+          const comp = s.components || {};
+          return `
+      <tr style="background:${bg}; ${
+            absent ? "color:" + palette.textLight + "; font-style:italic;" : ""
+          }">
         <td class="tc" style="color: ${palette.mid};">${i + 1}</td>
-        <td class="tl" style="font-weight:600; color: ${palette.dark};">${s.subjectName}${s.subjectCode ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>` : ""}</td>
-        <td class="tc">${absent ? "—" : (comp.rr ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (comp.cw ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (comp.pw ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (comp.st ?? "—")}</td>
-        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${absent ? "AB" : (s.marksObtained ?? "—")}</td>
-        <td class="tc fw" style="color: ${palette.dark};">${absent ? "—" : (s.grade ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (s.percentage != null ? `${s.percentage}%` : "—")}</td>
+        <td class="tl" style="font-weight:600; color: ${palette.dark};">${
+            s.subjectName
+          }${
+            s.subjectCode
+              ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>`
+              : ""
+          }</td>
+        <td class="tc">${absent ? "—" : comp.rr ?? "—"}</td>
+        <td class="tc">${absent ? "—" : comp.cw ?? "—"}</td>
+        <td class="tc">${absent ? "—" : comp.pw ?? "—"}</td>
+        <td class="tc">${absent ? "—" : comp.st ?? "—"}</td>
+        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${
+            absent ? "AB" : s.marksObtained ?? "—"
+          }</td>
+        <td class="tc fw" style="color: ${palette.dark};">${
+            absent ? "—" : s.grade ?? "—"
+          }</td>
+        <td class="tc">${
+          absent ? "—" : s.percentage != null ? `${s.percentage}%` : "—"
+        }</td>
       </tr>`;
-      }).join("")
-    : (subjectResults ?? []).map((s, i) => {
-        const absent  = s.isAbsent;
-        const bg      = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
-        return `
-      <tr style="background:${bg}; ${absent ? "color:" + palette.textLight + "; font-style:italic;" : ""}">
+        })
+        .join("")
+    : (subjectResults ?? [])
+        .map((s, i) => {
+          const absent = s.isAbsent;
+          const bg = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
+          return `
+      <tr style="background:${bg}; ${
+            absent ? "color:" + palette.textLight + "; font-style:italic;" : ""
+          }">
         <td class="tc" style="color: ${palette.mid};">${i + 1}</td>
-        <td class="tl" style="font-weight:600; color: ${palette.dark};">${s.subjectName}${s.subjectCode ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>` : ""}</td>
+        <td class="tl" style="font-weight:600; color: ${palette.dark};">${
+            s.subjectName
+          }${
+            s.subjectCode
+              ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>`
+              : ""
+          }</td>
         <td class="tc">${s.maxMarks}</td>
         <td class="tc">${s.passingMarks ?? "—"}</td>
-        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${absent ? "AB" : (s.marksObtained ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (s.percentage != null ? `${s.percentage}%` : "—")}</td>
-        <td class="tc fw" style="color: ${palette.dark};">${absent ? "—" : (s.grade ?? "—")}</td>
-        <td class="tc fw" style="color: ${s.resultStatus === 'fail' ? palette.fail : palette.pass};">${rl(s.resultStatus)}</td>
+        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${
+            absent ? "AB" : s.marksObtained ?? "—"
+          }</td>
+        <td class="tc">${
+          absent ? "—" : s.percentage != null ? `${s.percentage}%` : "—"
+        }</td>
+        <td class="tc fw" style="color: ${palette.dark};">${
+            absent ? "—" : s.grade ?? "—"
+          }</td>
+        <td class="tc fw" style="color: ${
+          s.resultStatus === "fail" ? palette.fail : palette.pass
+        };">${rl(s.resultStatus)}</td>
       </tr>`;
-      }).join("");
+        })
+        .join("");
 
-  const gradeRows = GRADE_SCALE.map(g => `
+  const gradeRows = GRADE_SCALE.map(
+    (g) => `
     <tr>
       <td class="tc fw" style="color: ${palette.dark};">${g.grade}</td>
       <td class="tc" style="color: ${palette.mid};">${g.min}–${g.max}%</td>
       <td class="tl" style="color: ${palette.mid};">${g.label}</td>
-    </tr>`).join("");
+    </tr>`,
+  ).join("");
 
   const FA_LEGEND = [
     { abbr: "R&R", label: "Read and reflection" },
-    { abbr: "CW",  label: "Class Work Performance" },
-    { abbr: "PW",  label: "Project Work Performance" },
-    { abbr: "ST",  label: "Slip Test (FA 1 Exams Performance)" },
+    { abbr: "CW", label: "Class Work Performance" },
+    { abbr: "PW", label: "Project Work Performance" },
+    { abbr: "ST", label: "Slip Test (FA 1 Exams Performance)" },
     { abbr: "TOT", label: "Total" },
     { abbr: "GRD", label: "Grade" },
   ];
-  const faLegendRows = FA_LEGEND.map(g => `
+  const faLegendRows = FA_LEGEND.map(
+    (g) => `
     <tr>
       <td class="tc fw" style="color: ${palette.dark}; width:34px;">${g.abbr}</td>
       <td class="tl" style="color: ${palette.mid};">${g.label}</td>
-    </tr>`).join("");
+    </tr>`,
+  ).join("");
 
   const subjectTableHead = isCombined
     ? `
@@ -370,7 +456,9 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
         <td class="tl">Grand Total</td>
         <td class="tc">—</td>
         <td class="tc">—</td>
-        <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}/${summary?.totalMax ?? "—"}</td>
+        <td class="tc" style="font-size:9.5pt;">${
+          summary?.totalObtained ?? "—"
+        }/${summary?.totalMax ?? "—"}</td>
         <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
         <td class="tc">${summary?.percentage ?? "—"}%</td>
       </tr>`
@@ -383,7 +471,9 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
         <td class="tc">—</td>
         <td class="tc">—</td>
         <td class="tc">—</td>
-        <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}</td>
+        <td class="tc" style="font-size:9.5pt;">${
+          summary?.totalObtained ?? "—"
+        }</td>
         <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
         <td class="tc">${summary?.percentage ?? "—"}%</td>
       </tr>`
@@ -393,10 +483,14 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
         <td class="tl">Grand Total</td>
         <td class="tc">${summary?.totalMax ?? "—"}</td>
         <td class="tc">—</td>
-        <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}</td>
+        <td class="tc" style="font-size:9.5pt;">${
+          summary?.totalObtained ?? "—"
+        }</td>
         <td class="tc">${summary?.percentage ?? "—"}%</td>
         <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
-        <td class="tc" style="font-size:8pt; color:${summary?.hasFail ? palette.fail : palette.pass} !important;">${overallResult}</td>
+        <td class="tc" style="font-size:8pt; color:${
+          summary?.hasFail ? palette.fail : palette.pass
+        } !important;">${overallResult}</td>
       </tr>`;
 
   // ── Dark section-header style (matches Attendance / Remarks bars) ──
@@ -655,13 +749,16 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
     filename: `MarkSheet_${studentName.replace(/\s+/g, "_")}_${examName.replace(/\s+/g, "_")}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
   };
 
   try {
     await html2pdf().set(options).from(element).save();
   } catch (error) {
-    console.error("Error creating report card PDF file streaming download", error);
+    console.error(
+      "Error creating report card PDF file streaming download",
+      error,
+    );
     alert("An error occurred during local conversion operation.");
   }
 }
