@@ -1,6 +1,6 @@
 {
-  "appId": "com.abacco.schoolapp",
-  "appName": "Abacco School App",
+  "appId": "com.fazeelah.edu",
+  "appName": "FAZEELAH EMS",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

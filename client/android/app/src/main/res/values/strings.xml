@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Abacco School App</string>
-    <string name="title_activity_main">Abacco School App</string>
-    <string name="package_name">com.abacco.schoolapp</string>
-    <string name="custom_url_scheme">com.abacco.schoolapp</string>
+    <string name="app_name">FAZEELAH EMS</string>
+    <string name="title_activity_main">FAZEELAH EMS</string>
+    <string name="package_name">com.fazeelah.edu</string>
+    <string name="custom_url_scheme">com.fazeelah.edu</string>
 </resources>

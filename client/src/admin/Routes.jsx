@@ -40,6 +40,7 @@ import ScriptViewRequests from "./pages/ReEvaluation/ScriptViewRequests";
 import CertificatesDashboard from "./pages/certificates/CertificatesDashboard.jsx";
 import CertificateGenerate from "./pages/certificates/CertificateGenerate.jsx";
 import CertificateHistory from "./pages/certificates/CertificateHistory.jsx";
+import BiometricManagement from "../superAdmin/pages/Biometric/BiometricManagement.jsx";
 function AdminRoutes() {
   return (
     <PageLayout>
@@ -49,6 +50,7 @@ function AdminRoutes() {
 
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="biometric" element={<BiometricManagement />} />
         {/* Students */}
         <Route path="students" element={<StudentsList />} />
         <Route path="students/add" element={<AddStudents />} />

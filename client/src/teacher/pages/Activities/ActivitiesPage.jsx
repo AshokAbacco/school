@@ -1,57 +1,106 @@
 // client/src/teacher/pages/Activities/ActivitiesPage.jsx
 // Strict Stormy Morning palette — zero out-of-system colors
 
-import React, { useState, useEffect, useCallback ,useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Trophy, Users, Star, Plus, Trash2, Edit2, X,
-  Loader2, CheckCircle, AlertCircle, Search,
-  ArrowLeft, Swords, Music, BookOpen,
-  ChevronRight, Dumbbell, Brain, RefreshCw,
+  Trophy,
+  Users,
+  Star,
+  Plus,
+  Trash2,
+  Edit2,
+  X,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  Search,
+  ArrowLeft,
+  Swords,
+  Music,
+  BookOpen,
+  ChevronRight,
+  Dumbbell,
+  Brain,
+  RefreshCw,
 } from "lucide-react";
 import { getToken } from "../../../auth/storage.js";
 
 /* ── Design tokens (Stormy Morning — single source of truth) ── */
 const C = {
-  slate: "#6A89A7", mist: "#BDDDFC", sky: "#88BDF2", deep: "#384959",
+  slate: "#6A89A7",
+  mist: "#BDDDFC",
+  sky: "#88BDF2",
+  deep: "#384959",
   deepDark: "#243340",
-  bg: "#EDF3FA", white: "#FFFFFF", border: "#C8DCF0", borderLight: "#DDE9F5",
-  text: "#243340", textLight: "#6A89A7",
+  bg: "#EDF3FA",
+  white: "#FFFFFF",
+  border: "#C8DCF0",
+  borderLight: "#DDE9F5",
+  text: "#243340",
+  textLight: "#6A89A7",
 };
 
-const API = `${import.meta.env.VITE_API_URL ?? "http://localhost:5000"}/api/teacher/activities`;
+const API = `${
+  import.meta.env.VITE_API_URL ?? "http://localhost:5001"
+}/api/teacher/activities`;
 
 /* Team color dots — Stormy Morning variants only */
-const TEAM_COLORS = [C.sky, C.slate, C.deep, `${C.sky}99`, `${C.slate}99`, C.mist, `${C.deep}99`, C.border];
+const TEAM_COLORS = [
+  C.sky,
+  C.slate,
+  C.deep,
+  `${C.sky}99`,
+  `${C.slate}99`,
+  C.mist,
+  `${C.deep}99`,
+  C.border,
+];
 
 const EVENT_TYPE_META = {
-  COMPETITION:   { label:"Competition",   Icon:Swords   },
-  CULTURAL:      { label:"Cultural",      Icon:Music    },
-  PARTICIPATION: { label:"Participation", Icon:Star     },
-  CEREMONY:      { label:"Ceremony",      Icon:Trophy   },
+  COMPETITION: { label: "Competition", Icon: Swords },
+  CULTURAL: { label: "Cultural", Icon: Music },
+  PARTICIPATION: { label: "Participation", Icon: Star },
+  CEREMONY: { label: "Ceremony", Icon: Trophy },
 };
 
 const CATEGORY_META = {
-  SPORTS:   { label:"Sports",   Icon:Dumbbell },
-  CULTURAL: { label:"Cultural", Icon:Music    },
-  ACADEMIC: { label:"Academic", Icon:Brain    },
-  OTHER:    { label:"Other",    Icon:Star     },
+  SPORTS: { label: "Sports", Icon: Dumbbell },
+  CULTURAL: { label: "Cultural", Icon: Music },
+  ACADEMIC: { label: "Academic", Icon: Brain },
+  OTHER: { label: "Other", Icon: Star },
 };
 
 const RESULT_RANKS = [
-  { value:"WINNER",      label:"Winner",      icon:"🥇" },
-  { value:"RUNNER_UP",   label:"Runner Up",   icon:"🥈" },
-  { value:"THIRD_PLACE", label:"Third Place", icon:"🥉" },
+  { value: "WINNER", label: "Winner", icon: "🥇" },
+  { value: "RUNNER_UP", label: "Runner Up", icon: "🥈" },
+  { value: "THIRD_PLACE", label: "Third Place", icon: "🥉" },
 ];
 
 const apiFetch = async (url, opts = {}) => {
-  const res  = await fetch(url, { headers:{ "Content-Type":"application/json", Authorization:`Bearer ${getToken()}` }, ...opts });
+  const res = await fetch(url, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`,
+    },
+    ...opts,
+  });
   const json = await res.json();
   if (!json.success) throw new Error(json.message || `HTTP ${res.status}`);
   return json;
 };
 
 function Pulse({ w = "100%", h = 13, r = 8 }) {
-  return <div className="animate-pulse" style={{ width:w, height:h, borderRadius:r, background:`${C.mist}55` }}/>;
+  return (
+    <div
+      className="animate-pulse"
+      style={{
+        width: w,
+        height: h,
+        borderRadius: r,
+        background: `${C.mist}55`,
+      }}
+    />
+  );
 }
 
 function useToast() {
@@ -60,18 +109,50 @@ function useToast() {
 
   const push = useCallback((msg, type = "success") => {
     const id = ++counterRef.current;
-    setToasts(p => [...p, { id, msg, type }]);
-    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 3200);
+    setToasts((p) => [...p, { id, msg, type }]);
+    setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 3200);
   }, []);
 
   return { toasts, push };
 }
 function Toast({ toasts }) {
   return (
-    <div style={{ position:"fixed", top:20, right:20, zIndex:1100, display:"flex", flexDirection:"column", gap:8, pointerEvents:"none" }}>
-      {toasts.map(t => (
-        <div key={t.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 16px", borderRadius:12, fontSize:13, fontWeight:600, fontFamily:"'Inter', sans-serif", boxShadow:"0 4px 20px rgba(56,73,89,0.18)", background: t.type === "success" ? `${C.sky}18` : `${C.mist}55`, border:`1.5px solid ${t.type === "success" ? C.sky : C.border}`, color:C.deep }}>
-          {t.type === "success" ? <CheckCircle size={14} color={C.sky}/> : <AlertCircle size={14} color={C.slate}/>} {t.msg}
+    <div
+      style={{
+        position: "fixed",
+        top: 20,
+        right: 20,
+        zIndex: 1100,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        pointerEvents: "none",
+      }}
+    >
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 16px",
+            borderRadius: 12,
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: "'Inter', sans-serif",
+            boxShadow: "0 4px 20px rgba(56,73,89,0.18)",
+            background: t.type === "success" ? `${C.sky}18` : `${C.mist}55`,
+            border: `1.5px solid ${t.type === "success" ? C.sky : C.border}`,
+            color: C.deep,
+          }}
+        >
+          {t.type === "success" ? (
+            <CheckCircle size={14} color={C.sky} />
+          ) : (
+            <AlertCircle size={14} color={C.slate} />
+          )}{" "}
+          {t.msg}
         </div>
       ))}
     </div>
@@ -81,48 +162,198 @@ function Toast({ toasts }) {
 /* ── Modal — Curriculum-style ── */
 function Modal({ title, subtitle, icon: Icon, onClose, children, wide }) {
   return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(36,51,64,0.45)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:16 }} onClick={onClose}>
-      <div style={{ background:C.white, borderRadius:20, border:`1.5px solid ${C.borderLight}`, boxShadow:"0 24px 64px rgba(56,73,89,0.22)", width:"100%", maxWidth: wide ? 680 : 480, maxHeight:"90vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding:"18px 22px", borderBottom:`1.5px solid ${C.borderLight}`, display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, background:C.white, zIndex:10, borderRadius:"20px 20px 0 0" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(36,51,64,0.45)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: C.white,
+          borderRadius: 20,
+          border: `1.5px solid ${C.borderLight}`,
+          boxShadow: "0 24px 64px rgba(56,73,89,0.22)",
+          width: "100%",
+          maxWidth: wide ? 680 : 480,
+          maxHeight: "90vh",
+          overflowY: "auto",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            padding: "18px 22px",
+            borderBottom: `1.5px solid ${C.borderLight}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            position: "sticky",
+            top: 0,
+            background: C.white,
+            zIndex: 10,
+            borderRadius: "20px 20px 0 0",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {Icon && (
-              <div style={{ width:34, height:34, borderRadius:10, background:`${C.sky}22`, border:`1.5px solid ${C.sky}33`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <Icon size={15} color={C.sky}/>
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
+                  background: `${C.sky}22`,
+                  border: `1.5px solid ${C.sky}33`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon size={15} color={C.sky} />
               </div>
             )}
             <div>
-              <p style={{ margin:0, fontWeight:800, fontSize:14, color:C.text, fontFamily:"'Inter', sans-serif" }}>{title}</p>
-              {subtitle && <p style={{ margin:0, fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>{subtitle}</p>}
+              <p
+                style={{
+                  margin: 0,
+                  fontWeight: 800,
+                  fontSize: 14,
+                  color: C.text,
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                {title}
+              </p>
+              {subtitle && (
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 11,
+                    color: C.textLight,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {subtitle}
+                </p>
+              )}
             </div>
           </div>
-          <button onClick={onClose} style={{ width:28, height:28, borderRadius:8, border:`1px solid ${C.border}`, background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:C.textLight, fontSize:16, fontWeight:700, flexShrink:0 }}>×</button>
+          <button
+            onClick={onClose}
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              border: `1px solid ${C.border}`,
+              background: C.bg,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: C.textLight,
+              fontSize: 16,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            ×
+          </button>
         </div>
-        <div style={{ padding:"20px 22px" }}>{children}</div>
+        <div style={{ padding: "20px 22px" }}>{children}</div>
       </div>
     </div>
   );
 }
 
 const Label = ({ children }) => (
-  <label style={{ display:"block", fontSize:12, fontWeight:600, color:C.text, marginBottom:6, fontFamily:"'Inter', sans-serif" }}>{children}</label>
+  <label
+    style={{
+      display: "block",
+      fontSize: 12,
+      fontWeight: 600,
+      color: C.text,
+      marginBottom: 6,
+      fontFamily: "'Inter', sans-serif",
+    }}
+  >
+    {children}
+  </label>
 );
 const Input = (p) => (
-  <input style={{ width:"100%", border:`1.5px solid ${C.border}`, borderRadius:12, padding:"10px 14px", fontSize:13, fontWeight:600, color:C.text, background:C.bg, outline:"none", boxSizing:"border-box", fontFamily:"'Inter', sans-serif" }}
-    onFocus={e => (e.target.style.borderColor = C.sky)} onBlur={e => (e.target.style.borderColor = C.border)} {...p}/>
+  <input
+    style={{
+      width: "100%",
+      border: `1.5px solid ${C.border}`,
+      borderRadius: 12,
+      padding: "10px 14px",
+      fontSize: 13,
+      fontWeight: 600,
+      color: C.text,
+      background: C.bg,
+      outline: "none",
+      boxSizing: "border-box",
+      fontFamily: "'Inter', sans-serif",
+    }}
+    onFocus={(e) => (e.target.style.borderColor = C.sky)}
+    onBlur={(e) => (e.target.style.borderColor = C.border)}
+    {...p}
+  />
 );
 
 function PrimaryBtn({ children, onClick, loading, disabled, small }) {
   return (
-    <button onClick={onClick} disabled={loading || disabled}
-      style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding: small ? "7px 14px" : "9px 20px", borderRadius:12, border:"none", background:`linear-gradient(135deg, ${C.slate}, ${C.deep})`, color:"#fff", fontSize: small ? 12 : 13, fontWeight:700, cursor:(loading||disabled)?"not-allowed":"pointer", opacity:(loading||disabled)?0.65:1, flexShrink:0, fontFamily:"'Inter', sans-serif" }}>
-      {loading ? <Loader2 size={12} className="animate-spin"/> : children}
+    <button
+      onClick={onClick}
+      disabled={loading || disabled}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        padding: small ? "7px 14px" : "9px 20px",
+        borderRadius: 12,
+        border: "none",
+        background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
+        color: "#fff",
+        fontSize: small ? 12 : 13,
+        fontWeight: 700,
+        cursor: loading || disabled ? "not-allowed" : "pointer",
+        opacity: loading || disabled ? 0.65 : 1,
+        flexShrink: 0,
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
+      {loading ? <Loader2 size={12} className="animate-spin" /> : children}
     </button>
   );
 }
 function OutlineBtn({ children, onClick, small, danger }) {
   return (
-    <button onClick={onClick}
-      style={{ display:"flex", alignItems:"center", gap:6, padding: small ? "7px 14px" : "9px 18px", borderRadius:12, border: danger ? `1.5px solid ${C.slate}55` : `1.5px solid ${C.border}`, background: danger ? `${C.slate}10` : C.white, color: danger ? C.slate : C.textLight, fontSize: small ? 12 : 13, fontWeight:600, cursor:"pointer", fontFamily:"'Inter', sans-serif" }}>
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: small ? "7px 14px" : "9px 18px",
+        borderRadius: 12,
+        border: danger ? `1.5px solid ${C.slate}55` : `1.5px solid ${C.border}`,
+        background: danger ? `${C.slate}10` : C.white,
+        color: danger ? C.slate : C.textLight,
+        fontSize: small ? 12 : 13,
+        fontWeight: 600,
+        cursor: "pointer",
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
       {children}
     </button>
   );
@@ -131,48 +362,192 @@ function OutlineBtn({ children, onClick, small, danger }) {
 /* Single reusable Stormy Morning badge */
 function Chip({ children, muted, icon: Icon }) {
   return (
-    <span style={{ fontSize:11, padding:"3px 9px", borderRadius:8, fontWeight:600, display:"inline-flex", alignItems:"center", gap:4, background: muted ? `${C.mist}55` : `${C.sky}18`, color: muted ? C.slate : C.deep, fontFamily:"'Inter', sans-serif" }}>
-      {Icon && <Icon size={10}/>}{children}
+    <span
+      style={{
+        fontSize: 11,
+        padding: "3px 9px",
+        borderRadius: 8,
+        fontWeight: 600,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        background: muted ? `${C.mist}55` : `${C.sky}18`,
+        color: muted ? C.slate : C.deep,
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
+      {Icon && <Icon size={10} />}
+      {children}
     </span>
   );
 }
 
 function StudentPicker({ students, selected, onToggle, infoText }) {
   const [q, setQ] = useState("");
-  const list = students.filter(s => s?.name?.toLowerCase().includes(q.toLowerCase()));
+  const list = students.filter((s) =>
+    s?.name?.toLowerCase().includes(q.toLowerCase()),
+  );
   return (
     <div>
-      <div style={{ position:"relative", marginBottom:8 }}>
-        <Search size={13} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:C.textLight }}/>
-        <input style={{ width:"100%", paddingLeft:34, paddingRight:12, paddingTop:9, paddingBottom:9, borderRadius:10, border:`1.5px solid ${C.border}`, background:C.bg, fontSize:13, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"'Inter', sans-serif" }}
-          placeholder="Search student…" value={q} onChange={e => setQ(e.target.value)}
-          onFocus={e => (e.target.style.borderColor = C.sky)} onBlur={e => (e.target.style.borderColor = C.border)}/>
+      <div style={{ position: "relative", marginBottom: 8 }}>
+        <Search
+          size={13}
+          style={{
+            position: "absolute",
+            left: 12,
+            top: "50%",
+            transform: "translateY(-50%)",
+            color: C.textLight,
+          }}
+        />
+        <input
+          style={{
+            width: "100%",
+            paddingLeft: 34,
+            paddingRight: 12,
+            paddingTop: 9,
+            paddingBottom: 9,
+            borderRadius: 10,
+            border: `1.5px solid ${C.border}`,
+            background: C.bg,
+            fontSize: 13,
+            color: C.text,
+            outline: "none",
+            boxSizing: "border-box",
+            fontFamily: "'Inter', sans-serif",
+          }}
+          placeholder="Search student…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onFocus={(e) => (e.target.style.borderColor = C.sky)}
+          onBlur={(e) => (e.target.style.borderColor = C.border)}
+        />
       </div>
       {infoText && (
-        <div style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"10px 14px", borderRadius:10, background:`${C.sky}12`, border:`1px solid ${C.borderLight}`, marginBottom:8 }}>
-          <Users size={13} color={C.sky} style={{ marginTop:1, flexShrink:0 }}/>
-          <p style={{ margin:0, fontSize:12, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>{infoText}</p>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+            padding: "10px 14px",
+            borderRadius: 10,
+            background: `${C.sky}12`,
+            border: `1px solid ${C.borderLight}`,
+            marginBottom: 8,
+          }}
+        >
+          <Users
+            size={13}
+            color={C.sky}
+            style={{ marginTop: 1, flexShrink: 0 }}
+          />
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12,
+              color: C.textLight,
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            {infoText}
+          </p>
         </div>
       )}
-      <div style={{ borderRadius:10, overflow:"hidden", maxHeight:220, overflowY:"auto", border:`1.5px solid ${C.borderLight}` }}>
-        {list.length === 0
-          ? <p style={{ textAlign:"center", padding:"24px 0", fontSize:12, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>No students found</p>
-          : list.map(s => {
-              const sel = selected.includes(s.id);
-              return (
-                <div key={s.id} onClick={() => onToggle(s.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", cursor:"pointer", borderBottom:`1px solid ${C.bg}`, background: sel ? `${C.sky}12` : C.white }}>
-                  <div style={{ width:20, height:20, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background: sel ? C.deep : C.mist }}>
-                    {sel && <CheckCircle size={12} color={C.white}/>}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <p style={{ margin:0, fontSize:13, fontWeight:600, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontFamily:"'Inter', sans-serif" }}>{s.name}</p>
-                    {s.classSection && <p style={{ margin:0, fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>{s.classSection.name}</p>}
-                  </div>
+      <div
+        style={{
+          borderRadius: 10,
+          overflow: "hidden",
+          maxHeight: 220,
+          overflowY: "auto",
+          border: `1.5px solid ${C.borderLight}`,
+        }}
+      >
+        {list.length === 0 ? (
+          <p
+            style={{
+              textAlign: "center",
+              padding: "24px 0",
+              fontSize: 12,
+              color: C.textLight,
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            No students found
+          </p>
+        ) : (
+          list.map((s) => {
+            const sel = selected.includes(s.id);
+            return (
+              <div
+                key={s.id}
+                onClick={() => onToggle(s.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 14px",
+                  cursor: "pointer",
+                  borderBottom: `1px solid ${C.bg}`,
+                  background: sel ? `${C.sky}12` : C.white,
+                }}
+              >
+                <div
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 6,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    background: sel ? C.deep : C.mist,
+                  }}
+                >
+                  {sel && <CheckCircle size={12} color={C.white} />}
                 </div>
-              );
-            })}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: C.text,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    {s.name}
+                  </p>
+                  {s.classSection && (
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 11,
+                        color: C.textLight,
+                        fontFamily: "'Inter', sans-serif",
+                      }}
+                    >
+                      {s.classSection.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
-      <p style={{ fontSize:11, color:C.textLight, marginTop:6, fontFamily:"'Inter', sans-serif" }}>{selected.length} selected</p>
+      <p
+        style={{
+          fontSize: 11,
+          color: C.textLight,
+          marginTop: 6,
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        {selected.length} selected
+      </p>
     </div>
   );
 }
@@ -184,7 +559,7 @@ function InlineTeamManager({ event, enrolledStudents, pushToast, onRefresh }) {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState("list");
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name:"", studentIds:[] });
+  const [form, setForm] = useState({ name: "", studentIds: [] });
   const [saving, setSaving] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
 
@@ -194,40 +569,84 @@ function InlineTeamManager({ event, enrolledStudents, pushToast, onRefresh }) {
       const r = await apiFetch(`${API}/events/${event.id}/teams`);
       setTeams(r.data);
       if (r.meta) setMeta(r.meta);
-    } catch(e) { pushToast(e.message, "error"); }
-    finally { setLoading(false); }
+    } catch (e) {
+      pushToast(e.message, "error");
+    } finally {
+      setLoading(false);
+    }
   }, [event.id]);
 
-  useEffect(() => { load(); setMode("list"); }, [load]);
+  useEffect(() => {
+    load();
+    setMode("list");
+  }, [load]);
 
   const maxTeams = meta.maxTeamsPerClass ?? null;
-  const assignedIds = teams.flatMap(t => t.members.map(m => m.student.id));
-  const editingMemberIds = editing ? (teams.find(t => t.id === editing.id)?.members.map(m => m.student.id) ?? []) : [];
-  const available = enrolledStudents.filter(s => s && (!assignedIds.includes(s.id) || editingMemberIds.includes(s.id)));
-  const unassigned = enrolledStudents.filter(s => s && !assignedIds.includes(s.id)).length;
+  const assignedIds = teams.flatMap((t) => t.members.map((m) => m.student.id));
+  const editingMemberIds = editing
+    ? teams
+        .find((t) => t.id === editing.id)
+        ?.members.map((m) => m.student.id) ?? []
+    : [];
+  const available = enrolledStudents.filter(
+    (s) =>
+      s && (!assignedIds.includes(s.id) || editingMemberIds.includes(s.id)),
+  );
+  const unassigned = enrolledStudents.filter(
+    (s) => s && !assignedIds.includes(s.id),
+  ).length;
 
-  const openCreate = () => { setEditing(null); setForm({ name:"", studentIds:[] }); setMode("create"); };
-  const openEdit = t => { setEditing(t); setForm({ name:t.name, studentIds:t.members.map(m => m.student.id) }); setMode("edit"); };
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ name: "", studentIds: [] });
+    setMode("create");
+  };
+  const openEdit = (t) => {
+    setEditing(t);
+    setForm({ name: t.name, studentIds: t.members.map((m) => m.student.id) });
+    setMode("edit");
+  };
   const getTeamResult = (team) => team.results?.[0]?.resultType ?? null;
 
   const setResult = async (teamId, result) => {
     try {
-      await apiFetch(`${API}/events/${event.id}/teams/${teamId}/result`, { method:"PUT", body:JSON.stringify({ result }) });
-      pushToast(result ? `Marked as ${result.replace(/_/g," ")}!` : "Result cleared");
+      await apiFetch(`${API}/events/${event.id}/teams/${teamId}/result`, {
+        method: "PUT",
+        body: JSON.stringify({ result }),
+      });
+      pushToast(
+        result ? `Marked as ${result.replace(/_/g, " ")}!` : "Result cleared",
+      );
       load();
-    } catch(e) { pushToast(e.message, "error"); }
+    } catch (e) {
+      pushToast(e.message, "error");
+    }
   };
 
   const markRemainingParticipated = async () => {
-    const unresolved = teams.filter(t => !getTeamResult(t));
+    const unresolved = teams.filter((t) => !getTeamResult(t));
     if (unresolved.length === 0) return;
     setBulkSaving(true);
     try {
-      await Promise.all(unresolved.map(t => apiFetch(`${API}/events/${event.id}/teams/${t.id}/result`, { method:"PUT", body:JSON.stringify({ result:"PARTICIPATED" }) })));
-      pushToast(`${unresolved.length} team${unresolved.length !== 1 ? "s" : ""} marked as Participated!`);
+      await Promise.all(
+        unresolved.map((t) =>
+          apiFetch(`${API}/events/${event.id}/teams/${t.id}/result`, {
+            method: "PUT",
+            body: JSON.stringify({ result: "PARTICIPATED" }),
+          }),
+        ),
+      );
+      pushToast(
+        `${unresolved.length} team${
+          unresolved.length !== 1 ? "s" : ""
+        } marked as Participated!`,
+      );
       load();
-    } catch(e) { pushToast(e.message, "error"); }
-    finally { setBulkSaving(false); }
+    } catch (e) {
+      pushToast(e.message, "error");
+    } finally {
+      setBulkSaving(false);
+    }
   };
 
   const save = async () => {
@@ -235,170 +654,641 @@ function InlineTeamManager({ event, enrolledStudents, pushToast, onRefresh }) {
     setSaving(true);
     try {
       mode === "create"
-        ? await apiFetch(`${API}/events/${event.id}/teams`, { method:"POST", body:JSON.stringify({ name:form.name, studentIds:form.studentIds }) })
-        : await apiFetch(`${API}/events/${event.id}/teams/${editing.id}`, { method:"PUT", body:JSON.stringify({ name:form.name, studentIds:form.studentIds }) });
+        ? await apiFetch(`${API}/events/${event.id}/teams`, {
+            method: "POST",
+            body: JSON.stringify({
+              name: form.name,
+              studentIds: form.studentIds,
+            }),
+          })
+        : await apiFetch(`${API}/events/${event.id}/teams/${editing.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              name: form.name,
+              studentIds: form.studentIds,
+            }),
+          });
       pushToast(mode === "create" ? "Team created!" : "Team updated!");
-      await load(); onRefresh(); setMode("list");
-    } catch(e) { pushToast(e.message, "error"); }
-    finally { setSaving(false); }
+      await load();
+      onRefresh();
+      setMode("list");
+    } catch (e) {
+      pushToast(e.message, "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const del = async (id) => {
     if (!window.confirm("Delete this team?")) return;
-    try { await apiFetch(`${API}/events/${event.id}/teams/${id}`, { method:"DELETE" }); pushToast("Team deleted"); load(); onRefresh(); }
-    catch(e) { pushToast(e.message, "error"); }
+    try {
+      await apiFetch(`${API}/events/${event.id}/teams/${id}`, {
+        method: "DELETE",
+      });
+      pushToast("Team deleted");
+      load();
+      onRefresh();
+    } catch (e) {
+      pushToast(e.message, "error");
+    }
   };
 
   return (
-    <div style={{ borderRadius:18, overflow:"hidden", border:`1.5px solid ${C.borderLight}`, background:C.white, boxShadow:"0 2px 16px rgba(56,73,89,0.06)" }}>
-      <div style={{ padding:"14px 18px", borderBottom:`1.5px solid ${C.borderLight}`, display:"flex", alignItems:"center", justifyContent:"space-between", background:`linear-gradient(90deg, ${C.bg}, ${C.white})` }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:34, height:34, borderRadius:10, background:`${C.sky}22`, border:`1.5px solid ${C.sky}33`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <Users size={15} color={C.sky}/>
+    <div
+      style={{
+        borderRadius: 18,
+        overflow: "hidden",
+        border: `1.5px solid ${C.borderLight}`,
+        background: C.white,
+        boxShadow: "0 2px 16px rgba(56,73,89,0.06)",
+      }}
+    >
+      <div
+        style={{
+          padding: "14px 18px",
+          borderBottom: `1.5px solid ${C.borderLight}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: `linear-gradient(90deg, ${C.bg}, ${C.white})`,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              background: `${C.sky}22`,
+              border: `1.5px solid ${C.sky}33`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Users size={15} color={C.sky} />
           </div>
           <div>
             {mode === "list" ? (
               <>
-                <p style={{ margin:0, fontSize:14, fontWeight:700, color:C.text, fontFamily:"'Inter', sans-serif" }}>Teams — {event.name}</p>
-                <p style={{ margin:0, fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>
-                  {teams.length} team{teams.length !== 1 ? "s" : ""} · {unassigned} unassigned
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: C.text,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  Teams — {event.name}
+                </p>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 11,
+                    color: C.textLight,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {teams.length} team{teams.length !== 1 ? "s" : ""} ·{" "}
+                  {unassigned} unassigned
                   {maxTeams && <span> · max {maxTeams}/class</span>}
                 </p>
               </>
             ) : (
-              <button onClick={() => setMode("list")} style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, fontWeight:600, color:C.textLight, cursor:"pointer", background:"none", border:"none", padding:0, fontFamily:"'Inter', sans-serif" }}>
-                <ArrowLeft size={14}/> {mode === "create" ? "New Team" : "Edit Team"}
+              <button
+                onClick={() => setMode("list")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: C.textLight,
+                  cursor: "pointer",
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                <ArrowLeft size={14} />{" "}
+                {mode === "create" ? "New Team" : "Edit Team"}
               </button>
             )}
           </div>
         </div>
         {mode === "list" && (
-          <button onClick={openCreate} disabled={enrolledStudents.length === 0}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:12, border:"none", background:`linear-gradient(135deg, ${C.slate}, ${C.deep})`, color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Inter', sans-serif", opacity: enrolledStudents.length === 0 ? 0.5 : 1 }}>
-            <Plus size={12}/> New Team
+          <button
+            onClick={openCreate}
+            disabled={enrolledStudents.length === 0}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "7px 14px",
+              borderRadius: 12,
+              border: "none",
+              background: `linear-gradient(135deg, ${C.slate}, ${C.deep})`,
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "'Inter', sans-serif",
+              opacity: enrolledStudents.length === 0 ? 0.5 : 1,
+            }}
+          >
+            <Plus size={12} /> New Team
           </button>
         )}
       </div>
 
-      <div style={{ padding:18 }}>
+      <div style={{ padding: 18 }}>
         {loading ? (
-          <div style={{ display:"flex", justifyContent:"center", padding:"40px 0" }}><Loader2 size={24} color={C.sky} className="animate-spin"/></div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              padding: "40px 0",
+            }}
+          >
+            <Loader2 size={24} color={C.sky} className="animate-spin" />
+          </div>
         ) : mode === "list" ? (
           <>
             {enrolledStudents.length === 0 && (
-              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderRadius:10, background:`${C.mist}55`, border:`1.5px solid ${C.border}`, marginBottom:12 }}>
-                <AlertCircle size={13} color={C.slate}/>
-                <p style={{ margin:0, fontSize:12, fontWeight:600, color:C.deep, fontFamily:"'Inter', sans-serif" }}>No students enrolled in this activity yet.</p>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  background: `${C.mist}55`,
+                  border: `1.5px solid ${C.border}`,
+                  marginBottom: 12,
+                }}
+              >
+                <AlertCircle size={13} color={C.slate} />
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: C.deep,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  No students enrolled in this activity yet.
+                </p>
               </div>
             )}
             {enrolledStudents.length > 0 && unassigned > 0 && (
-              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderRadius:10, background:`${C.sky}10`, border:`1.5px solid ${C.borderLight}`, marginBottom:12 }}>
-                <AlertCircle size={13} color={C.sky}/>
-                <p style={{ margin:0, fontSize:12, fontWeight:600, color:C.deep, fontFamily:"'Inter', sans-serif" }}>{unassigned} student{unassigned !== 1 ? "s" : ""} not yet assigned to a team</p>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  background: `${C.sky}10`,
+                  border: `1.5px solid ${C.borderLight}`,
+                  marginBottom: 12,
+                }}
+              >
+                <AlertCircle size={13} color={C.sky} />
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: C.deep,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {unassigned} student{unassigned !== 1 ? "s" : ""} not yet
+                  assigned to a team
+                </p>
               </div>
             )}
 
             {teams.length === 0 ? (
-              <div style={{ textAlign:"center", padding:"40px 0" }}>
-                <div style={{ width:50, height:50, borderRadius:16, background:`${C.sky}18`, border:`1px solid ${C.sky}33`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 12px" }}>
-                  <Users size={22} color={C.sky} strokeWidth={1.5}/>
+              <div style={{ textAlign: "center", padding: "40px 0" }}>
+                <div
+                  style={{
+                    width: 50,
+                    height: 50,
+                    borderRadius: 16,
+                    background: `${C.sky}18`,
+                    border: `1px solid ${C.sky}33`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 12px",
+                  }}
+                >
+                  <Users size={22} color={C.sky} strokeWidth={1.5} />
                 </div>
-                <p style={{ margin:0, fontWeight:700, fontSize:14, color:C.text, fontFamily:"'Inter', sans-serif" }}>No teams yet</p>
-                <p style={{ margin:"4px 0 0", fontSize:12, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>Click New Team to start organising</p>
+                <p
+                  style={{
+                    margin: 0,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    color: C.text,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  No teams yet
+                </p>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: 12,
+                    color: C.textLight,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  Click New Team to start organising
+                </p>
               </div>
-            ) : (() => {
-              const anyRanked = teams.some(t => getTeamResult(t) && getTeamResult(t) !== "PARTICIPATED");
-              const unresolvedCnt = teams.filter(t => !getTeamResult(t)).length;
-              const allDone = unresolvedCnt === 0;
-              return (
-                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                  {teams.map((team, ti) => {
-                    const currentResult  = getTeamResult(team);
-                    const isParticipated = currentResult === "PARTICIPATED";
-                    const isRanked       = currentResult && !isParticipated;
-                    return (
-                      <div key={team.id} style={{ borderRadius:13, padding:14, border:`1.5px solid ${isRanked || isParticipated ? C.sky : C.borderLight}`, background: isRanked || isParticipated ? `${C.sky}08` : `${C.bg}88` }}>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                            <div style={{ width:10, height:10, borderRadius:"50%", background:TEAM_COLORS[ti % TEAM_COLORS.length] }}/>
-                            <p style={{ margin:0, fontWeight:700, fontSize:13, color:C.text, fontFamily:"'Inter', sans-serif" }}>{team.name}</p>
-                            <Chip muted>{team.members.length} members</Chip>
-                            {isParticipated && <Chip>🎖️ Participated</Chip>}
-                            {isRanked && (() => { const r = RESULT_RANKS.find(x => x.value === currentResult); return r ? <Chip>{r.icon} {r.label}</Chip> : null; })()}
+            ) : (
+              (() => {
+                const anyRanked = teams.some(
+                  (t) =>
+                    getTeamResult(t) && getTeamResult(t) !== "PARTICIPATED",
+                );
+                const unresolvedCnt = teams.filter(
+                  (t) => !getTeamResult(t),
+                ).length;
+                const allDone = unresolvedCnt === 0;
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
+                    {teams.map((team, ti) => {
+                      const currentResult = getTeamResult(team);
+                      const isParticipated = currentResult === "PARTICIPATED";
+                      const isRanked = currentResult && !isParticipated;
+                      return (
+                        <div
+                          key={team.id}
+                          style={{
+                            borderRadius: 13,
+                            padding: 14,
+                            border: `1.5px solid ${
+                              isRanked || isParticipated ? C.sky : C.borderLight
+                            }`,
+                            background:
+                              isRanked || isParticipated
+                                ? `${C.sky}08`
+                                : `${C.bg}88`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              marginBottom: 10,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: "50%",
+                                  background:
+                                    TEAM_COLORS[ti % TEAM_COLORS.length],
+                                }}
+                              />
+                              <p
+                                style={{
+                                  margin: 0,
+                                  fontWeight: 700,
+                                  fontSize: 13,
+                                  color: C.text,
+                                  fontFamily: "'Inter', sans-serif",
+                                }}
+                              >
+                                {team.name}
+                              </p>
+                              <Chip muted>{team.members.length} members</Chip>
+                              {isParticipated && <Chip>🎖️ Participated</Chip>}
+                              {isRanked &&
+                                (() => {
+                                  const r = RESULT_RANKS.find(
+                                    (x) => x.value === currentResult,
+                                  );
+                                  return r ? (
+                                    <Chip>
+                                      {r.icon} {r.label}
+                                    </Chip>
+                                  ) : null;
+                                })()}
+                            </div>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <OutlineBtn small onClick={() => openEdit(team)}>
+                                <Edit2 size={11} /> Edit
+                              </OutlineBtn>
+                              <OutlineBtn
+                                small
+                                danger
+                                onClick={() => del(team.id)}
+                              >
+                                <Trash2 size={11} />
+                              </OutlineBtn>
+                            </div>
                           </div>
-                          <div style={{ display:"flex", gap:6 }}>
-                            <OutlineBtn small onClick={() => openEdit(team)}><Edit2 size={11}/> Edit</OutlineBtn>
-                            <OutlineBtn small danger onClick={() => del(team.id)}><Trash2 size={11}/></OutlineBtn>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 6,
+                              marginBottom: 10,
+                            }}
+                          >
+                            {team.members.map((m) => (
+                              <span
+                                key={m.student.id}
+                                style={{
+                                  fontSize: 12,
+                                  padding: "4px 10px",
+                                  borderRadius: 8,
+                                  background: `${C.sky}18`,
+                                  color: C.deep,
+                                  fontWeight: 500,
+                                  fontFamily: "'Inter', sans-serif",
+                                }}
+                              >
+                                {m.student.name}
+                              </span>
+                            ))}
+                            {team.members.length === 0 && (
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontStyle: "italic",
+                                  color: C.textLight,
+                                  fontFamily: "'Inter', sans-serif",
+                                }}
+                              >
+                                No members yet
+                              </span>
+                            )}
                           </div>
-                        </div>
 
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
-                          {team.members.map(m => (
-                            <span key={m.student.id} style={{ fontSize:12, padding:"4px 10px", borderRadius:8, background:`${C.sky}18`, color:C.deep, fontWeight:500, fontFamily:"'Inter', sans-serif" }}>{m.student.name}</span>
-                          ))}
-                          {team.members.length === 0 && <span style={{ fontSize:12, fontStyle:"italic", color:C.textLight, fontFamily:"'Inter', sans-serif" }}>No members yet</span>}
-                        </div>
-
-                        <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:6, paddingTop:10, borderTop:`1px solid ${C.borderLight}` }}>
-                          <p style={{ fontSize:11, fontWeight:700, color:C.textLight, margin:"0 4px 0 0", fontFamily:"'Inter', sans-serif" }}>Quick Result:</p>
-                          {RESULT_RANKS.map(r => {
-                            const active = currentResult === r.value;
-                            return (
-                              <button key={r.value} onClick={() => setResult(team.id, active ? null : r.value)}
-                                style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:700, padding:"5px 12px", borderRadius:20, cursor:"pointer", border:`1.5px solid ${active ? C.deep : C.border}`, background: active ? C.deep : `${C.sky}18`, color: active ? "#fff" : C.deep, fontFamily:"'Inter', sans-serif" }}>
-                                {r.icon} {r.label} {active && "✓"}
-                              </button>
-                            );
-                          })}
-                          <button onClick={() => setResult(team.id, isParticipated ? null : "PARTICIPATED")}
-                            style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:700, padding:"5px 12px", borderRadius:20, cursor:"pointer", border:`1.5px solid ${C.sky}`, background: isParticipated ? C.sky : `${C.sky}18`, color: isParticipated ? "#fff" : C.deep, fontFamily:"'Inter', sans-serif" }}>
-                            🎖️ Participated {isParticipated && "✓"}
-                          </button>
-                          {currentResult && (
-                            <button onClick={() => setResult(team.id, null)}
-                              style={{ fontSize:12, fontWeight:600, padding:"5px 12px", borderRadius:20, cursor:"pointer", background:`${C.mist}55`, color:C.slate, border:`1.5px solid ${C.border}`, fontFamily:"'Inter', sans-serif" }}>
-                              ✕ Clear
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              alignItems: "center",
+                              gap: 6,
+                              paddingTop: 10,
+                              borderTop: `1px solid ${C.borderLight}`,
+                            }}
+                          >
+                            <p
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: C.textLight,
+                                margin: "0 4px 0 0",
+                                fontFamily: "'Inter', sans-serif",
+                              }}
+                            >
+                              Quick Result:
+                            </p>
+                            {RESULT_RANKS.map((r) => {
+                              const active = currentResult === r.value;
+                              return (
+                                <button
+                                  key={r.value}
+                                  onClick={() =>
+                                    setResult(team.id, active ? null : r.value)
+                                  }
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 5,
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    padding: "5px 12px",
+                                    borderRadius: 20,
+                                    cursor: "pointer",
+                                    border: `1.5px solid ${
+                                      active ? C.deep : C.border
+                                    }`,
+                                    background: active ? C.deep : `${C.sky}18`,
+                                    color: active ? "#fff" : C.deep,
+                                    fontFamily: "'Inter', sans-serif",
+                                  }}
+                                >
+                                  {r.icon} {r.label} {active && "✓"}
+                                </button>
+                              );
+                            })}
+                            <button
+                              onClick={() =>
+                                setResult(
+                                  team.id,
+                                  isParticipated ? null : "PARTICIPATED",
+                                )
+                              }
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 5,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                padding: "5px 12px",
+                                borderRadius: 20,
+                                cursor: "pointer",
+                                border: `1.5px solid ${C.sky}`,
+                                background: isParticipated
+                                  ? C.sky
+                                  : `${C.sky}18`,
+                                color: isParticipated ? "#fff" : C.deep,
+                                fontFamily: "'Inter', sans-serif",
+                              }}
+                            >
+                              🎖️ Participated {isParticipated && "✓"}
                             </button>
-                          )}
+                            {currentResult && (
+                              <button
+                                onClick={() => setResult(team.id, null)}
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  padding: "5px 12px",
+                                  borderRadius: 20,
+                                  cursor: "pointer",
+                                  background: `${C.mist}55`,
+                                  color: C.slate,
+                                  border: `1.5px solid ${C.border}`,
+                                  fontFamily: "'Inter', sans-serif",
+                                }}
+                              >
+                                ✕ Clear
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
 
-                  {anyRanked && !allDone && (
-                    <div style={{ borderRadius:13, padding:"14px 16px", border:`1.5px dashed ${C.sky}`, background:`${C.sky}08`, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
-                      <div>
-                        <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.text, fontFamily:"'Inter', sans-serif" }}>{unresolvedCnt} team{unresolvedCnt !== 1 ? "s" : ""} without a result</p>
-                        <p style={{ margin:"2px 0 0", fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>Mark them all as Participated in one click</p>
+                    {anyRanked && !allDone && (
+                      <div
+                        style={{
+                          borderRadius: 13,
+                          padding: "14px 16px",
+                          border: `1.5px dashed ${C.sky}`,
+                          background: `${C.sky}08`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div>
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: 13,
+                              fontWeight: 700,
+                              color: C.text,
+                              fontFamily: "'Inter', sans-serif",
+                            }}
+                          >
+                            {unresolvedCnt} team{unresolvedCnt !== 1 ? "s" : ""}{" "}
+                            without a result
+                          </p>
+                          <p
+                            style={{
+                              margin: "2px 0 0",
+                              fontSize: 11,
+                              color: C.textLight,
+                              fontFamily: "'Inter', sans-serif",
+                            }}
+                          >
+                            Mark them all as Participated in one click
+                          </p>
+                        </div>
+                        <button
+                          onClick={markRemainingParticipated}
+                          disabled={bulkSaving}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 7,
+                            fontSize: 13,
+                            fontWeight: 700,
+                            padding: "9px 18px",
+                            borderRadius: 12,
+                            cursor: bulkSaving ? "not-allowed" : "pointer",
+                            border: `1.5px solid ${C.sky}`,
+                            background: C.sky,
+                            color: "#fff",
+                            opacity: bulkSaving ? 0.65 : 1,
+                            fontFamily: "'Inter', sans-serif",
+                          }}
+                        >
+                          {bulkSaving ? (
+                            <>
+                              <Loader2 size={13} className="animate-spin" />{" "}
+                              Saving…
+                            </>
+                          ) : (
+                            <>🎖️ Mark {unresolvedCnt} as Participated</>
+                          )}
+                        </button>
                       </div>
-                      <button onClick={markRemainingParticipated} disabled={bulkSaving}
-                        style={{ display:"flex", alignItems:"center", gap:7, fontSize:13, fontWeight:700, padding:"9px 18px", borderRadius:12, cursor: bulkSaving ? "not-allowed" : "pointer", border:`1.5px solid ${C.sky}`, background:C.sky, color:"#fff", opacity: bulkSaving ? 0.65 : 1, fontFamily:"'Inter', sans-serif" }}>
-                        {bulkSaving ? <><Loader2 size={13} className="animate-spin"/> Saving…</> : <>🎖️ Mark {unresolvedCnt} as Participated</>}
-                      </button>
-                    </div>
-                  )}
+                    )}
 
-                  {allDone && teams.length > 0 && (
-                    <div style={{ borderRadius:13, padding:"12px 16px", border:`1.5px solid ${C.sky}`, background:`${C.sky}10`, display:"flex", alignItems:"center", gap:10 }}>
-                      <CheckCircle size={16} color={C.sky}/>
-                      <p style={{ margin:0, fontSize:13, fontWeight:600, color:C.deep, fontFamily:"'Inter', sans-serif" }}>All {teams.length} teams have results recorded.</p>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+                    {allDone && teams.length > 0 && (
+                      <div
+                        style={{
+                          borderRadius: 13,
+                          padding: "12px 16px",
+                          border: `1.5px solid ${C.sky}`,
+                          background: `${C.sky}10`,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        <CheckCircle size={16} color={C.sky} />
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: C.deep,
+                            fontFamily: "'Inter', sans-serif",
+                          }}
+                        >
+                          All {teams.length} teams have results recorded.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
+            )}
           </>
         ) : (
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            <div><Label>Team Name *</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name:e.target.value }))} placeholder="e.g. Team Alpha"/></div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <Label>Team Name *</Label>
+              <Input
+                value={form.name}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, name: e.target.value }))
+                }
+                placeholder="e.g. Team Alpha"
+              />
+            </div>
             <div>
               <Label>Select Students</Label>
-              <StudentPicker students={available} selected={form.studentIds}
-                onToggle={id => setForm(p => ({ ...p, studentIds: p.studentIds.includes(id) ? p.studentIds.filter(x => x !== id) : [...p.studentIds, id] }))}
-                infoText={`Only enrolled students. ${available.length} available.`}/>
+              <StudentPicker
+                students={available}
+                selected={form.studentIds}
+                onToggle={(id) =>
+                  setForm((p) => ({
+                    ...p,
+                    studentIds: p.studentIds.includes(id)
+                      ? p.studentIds.filter((x) => x !== id)
+                      : [...p.studentIds, id],
+                  }))
+                }
+                infoText={`Only enrolled students. ${available.length} available.`}
+              />
             </div>
-            <div style={{ display:"flex", gap:10, paddingTop:4, borderTop:`1.5px solid ${C.borderLight}` }}>
-              <PrimaryBtn onClick={save} loading={saving}><CheckCircle size={13}/> {mode === "create" ? "Create Team" : "Save Changes"}</PrimaryBtn>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                paddingTop: 4,
+                borderTop: `1.5px solid ${C.borderLight}`,
+              }}
+            >
+              <PrimaryBtn onClick={save} loading={saving}>
+                <CheckCircle size={13} />{" "}
+                {mode === "create" ? "Create Team" : "Save Changes"}
+              </PrimaryBtn>
               <OutlineBtn onClick={() => setMode("list")}>Cancel</OutlineBtn>
             </div>
           </div>
@@ -409,7 +1299,15 @@ function InlineTeamManager({ event, enrolledStudents, pushToast, onRefresh }) {
 }
 
 /* ══ TEAMS TAB ══ */
-function TeamsTab({ activity, events: initialEvents, enrolledStudents, selEvent, setSelEvent, pushToast, onRefresh }) {
+function TeamsTab({
+  activity,
+  events: initialEvents,
+  enrolledStudents,
+  selEvent,
+  setSelEvent,
+  pushToast,
+  onRefresh,
+}) {
   const [events, setEvents] = useState(initialEvents);
   const [initializing, setInitializing] = useState(false);
   const [initialized, setInitialized] = useState(initialEvents.length > 0);
@@ -419,62 +1317,226 @@ function TeamsTab({ activity, events: initialEvents, enrolledStudents, selEvent,
     const init = async () => {
       setInitializing(true);
       try {
-        const res = await apiFetch(`${API}/${activity.id}/ensure-event`, { method:"POST" });
+        const res = await apiFetch(`${API}/${activity.id}/ensure-event`, {
+          method: "POST",
+        });
         const ev = res.data;
-        setEvents([ev]); setSelEvent(ev);
+        setEvents([ev]);
+        setSelEvent(ev);
         if (res.created) pushToast("Default event created for team management");
-      } catch(e) { pushToast(e.message, "error"); }
-      finally { setInitializing(false); setInitialized(true); }
+      } catch (e) {
+        pushToast(e.message, "error");
+      } finally {
+        setInitializing(false);
+        setInitialized(true);
+      }
     };
     init();
   }, []);
 
   useEffect(() => {
-    if (initialEvents.length > 0) { setEvents(initialEvents); if (!selEvent) setSelEvent(initialEvents[0]); setInitialized(true); }
+    if (initialEvents.length > 0) {
+      setEvents(initialEvents);
+      if (!selEvent) setSelEvent(initialEvents[0]);
+      setInitialized(true);
+    }
   }, [initialEvents]);
 
-  if (initializing) return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", gap:12 }}>
-      <Loader2 size={28} color={C.sky} className="animate-spin"/>
-      <p style={{ fontSize:13, fontWeight:500, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>Setting up team management…</p>
-    </div>
-  );
+  if (initializing)
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "60px 0",
+          gap: 12,
+        }}
+      >
+        <Loader2 size={28} color={C.sky} className="animate-spin" />
+        <p
+          style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: C.textLight,
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          Setting up team management…
+        </p>
+      </div>
+    );
 
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:20 }} className="acts-lg-grid">
+    <div
+      style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20 }}
+      className="acts-lg-grid"
+    >
       <style>{`@media(min-width:1024px){.acts-lg-grid{grid-template-columns:1fr 2fr !important;}}`}</style>
       <div>
-        <p style={{ fontSize:11, fontWeight:700, color:C.textLight, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:10, fontFamily:"'Inter', sans-serif" }}>Event / Session</p>
-        <div style={{ display:"flex", alignItems:"flex-start", gap:8, padding:"10px 14px", borderRadius:10, background:`${C.sky}10`, border:`1px solid ${C.borderLight}`, marginBottom:12 }}>
-          <AlertCircle size={13} color={C.sky} style={{ marginTop:1, flexShrink:0 }}/>
-          <p style={{ margin:0, fontSize:12, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>Teams are organised per event. A <strong style={{ color:C.text }}>General</strong> event is auto-created for everyday practice teams.</p>
+        <p
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: C.textLight,
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            marginBottom: 10,
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          Event / Session
+        </p>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+            padding: "10px 14px",
+            borderRadius: 10,
+            background: `${C.sky}10`,
+            border: `1px solid ${C.borderLight}`,
+            marginBottom: 12,
+          }}
+        >
+          <AlertCircle
+            size={13}
+            color={C.sky}
+            style={{ marginTop: 1, flexShrink: 0 }}
+          />
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12,
+              color: C.textLight,
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            Teams are organised per event. A{" "}
+            <strong style={{ color: C.text }}>General</strong> event is
+            auto-created for everyday practice teams.
+          </p>
         </div>
-        {events.map(ev => {
+        {events.map((ev) => {
           const active = selEvent?.id === ev.id;
           return (
-            <div key={ev.id} onClick={() => setSelEvent(ev)}
-              style={{ borderRadius:13, padding:14, marginBottom:8, cursor:"pointer", background: active ? C.deep : C.white, border:`1.5px solid ${active ? C.deep : C.borderLight}`, boxShadow: active ? "0 4px 12px rgba(56,73,89,0.15)" : "none" }}>
-              <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:6, display:"inline-block", marginBottom:6, background: active ? "rgba(255,255,255,0.15)" : `${C.sky}18`, color: active ? C.mist : C.deep, fontFamily:"'Inter', sans-serif" }}>
+            <div
+              key={ev.id}
+              onClick={() => setSelEvent(ev)}
+              style={{
+                borderRadius: 13,
+                padding: 14,
+                marginBottom: 8,
+                cursor: "pointer",
+                background: active ? C.deep : C.white,
+                border: `1.5px solid ${active ? C.deep : C.borderLight}`,
+                boxShadow: active ? "0 4px 12px rgba(56,73,89,0.15)" : "none",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "2px 8px",
+                  borderRadius: 6,
+                  display: "inline-block",
+                  marginBottom: 6,
+                  background: active ? "rgba(255,255,255,0.15)" : `${C.sky}18`,
+                  color: active ? C.mist : C.deep,
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
                 {EVENT_TYPE_META[ev.eventType]?.label ?? "Event"}
               </span>
-              <p style={{ margin:0, fontWeight:700, fontSize:13, color: active ? C.white : C.text, fontFamily:"'Inter', sans-serif" }}>{ev.name}</p>
-              {ev.eventDate && <p style={{ margin:"3px 0 0", fontSize:11, color: active ? C.mist : C.textLight, fontFamily:"'Inter', sans-serif" }}>{new Date(ev.eventDate).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}</p>}
-              <p style={{ margin:"6px 0 0", fontSize:11, fontWeight:600, color: active ? C.mist : C.textLight, fontFamily:"'Inter', sans-serif" }}>{ev._count?.teams ?? 0} team{ev._count?.teams !== 1 ? "s" : ""}</p>
+              <p
+                style={{
+                  margin: 0,
+                  fontWeight: 700,
+                  fontSize: 13,
+                  color: active ? C.white : C.text,
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                {ev.name}
+              </p>
+              {ev.eventDate && (
+                <p
+                  style={{
+                    margin: "3px 0 0",
+                    fontSize: 11,
+                    color: active ? C.mist : C.textLight,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {new Date(ev.eventDate).toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </p>
+              )}
+              <p
+                style={{
+                  margin: "6px 0 0",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: active ? C.mist : C.textLight,
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                {ev._count?.teams ?? 0} team{ev._count?.teams !== 1 ? "s" : ""}
+              </p>
             </div>
           );
         })}
       </div>
       <div>
-        {selEvent
-          ? <InlineTeamManager event={selEvent} enrolledStudents={enrolledStudents} pushToast={pushToast} onRefresh={onRefresh}/>
-          : (
-            <div style={{ borderRadius:18, padding:40, textAlign:"center", background:C.white, border:`1.5px dashed ${C.borderLight}` }}>
-              <div style={{ width:50, height:50, borderRadius:16, background:`${C.sky}18`, border:`1px solid ${C.sky}33`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 12px" }}>
-                <Users size={22} color={C.sky} strokeWidth={1.5}/>
-              </div>
-              <p style={{ margin:0, fontSize:13, fontWeight:600, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>Select an event to manage teams</p>
+        {selEvent ? (
+          <InlineTeamManager
+            event={selEvent}
+            enrolledStudents={enrolledStudents}
+            pushToast={pushToast}
+            onRefresh={onRefresh}
+          />
+        ) : (
+          <div
+            style={{
+              borderRadius: 18,
+              padding: 40,
+              textAlign: "center",
+              background: C.white,
+              border: `1.5px dashed ${C.borderLight}`,
+            }}
+          >
+            <div
+              style={{
+                width: 50,
+                height: 50,
+                borderRadius: 16,
+                background: `${C.sky}18`,
+                border: `1px solid ${C.sky}33`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 12px",
+              }}
+            >
+              <Users size={22} color={C.sky} strokeWidth={1.5} />
             </div>
-          )}
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                fontWeight: 600,
+                color: C.textLight,
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              Select an event to manage teams
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -482,7 +1544,9 @@ function TeamsTab({ activity, events: initialEvents, enrolledStudents, selEvent,
 
 /* ══ ACTIVITY DETAIL VIEW ══ */
 function ActivityDetailView({ activity, onBack, pushToast }) {
-  const [subTab, setSubTab] = useState(activity.participationType === "TEAM" ? "teams" : "students");
+  const [subTab, setSubTab] = useState(
+    activity.participationType === "TEAM" ? "teams" : "students",
+  );
   const [enrolled, setEnrolled] = useState([]);
   const [events, setEvents] = useState([]);
   const [selEvent, setSelEvent] = useState(null);
@@ -496,103 +1560,410 @@ function ActivityDetailView({ activity, onBack, pushToast }) {
         apiFetch(`${API}/${activity.id}/enrollments`),
         apiFetch(`${API}/events?activityId=${activity.id}`),
       ]);
-      setEnrolled(enr.data); setEvents(evts.data);
+      setEnrolled(enr.data);
+      setEvents(evts.data);
       if (evts.data.length > 0 && !selEvent) setSelEvent(evts.data[0]);
-    } catch(e) { pushToast(e.message, "error"); }
-    finally { setLoading(false); }
+    } catch (e) {
+      pushToast(e.message, "error");
+    } finally {
+      setLoading(false);
+    }
   }, [activity.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const enrolledStudents = enrolled.map(e => e.student).filter(Boolean);
+  const enrolledStudents = enrolled.map((e) => e.student).filter(Boolean);
   const catMeta = CATEGORY_META[activity.category] ?? CATEGORY_META.OTHER;
   const tabs = [
-    { key:"students", label:"Enrolled Students", count:enrolled.length },
-    ...(isTeam ? [{ key:"teams", label:"Teams by Event", count:events.length }] : []),
+    { key: "students", label: "Enrolled Students", count: enrolled.length },
+    ...(isTeam
+      ? [{ key: "teams", label: "Teams by Event", count: events.length }]
+      : []),
   ];
 
   return (
     <div>
-      <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, fontWeight:600, color:C.textLight, cursor:"pointer", background:"none", border:"none", padding:0, marginBottom:16, fontFamily:"'Inter', sans-serif" }}>
-        <ArrowLeft size={15}/> Back to Activities
+      <button
+        onClick={onBack}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 13,
+          fontWeight: 600,
+          color: C.textLight,
+          cursor: "pointer",
+          background: "none",
+          border: "none",
+          padding: 0,
+          marginBottom: 16,
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        <ArrowLeft size={15} /> Back to Activities
       </button>
 
-      <div style={{ borderRadius:18, overflow:"hidden", border:`1.5px solid ${C.borderLight}`, background:C.white, boxShadow:"0 2px 16px rgba(56,73,89,0.06)", marginBottom:20 }}>
-        <div style={{ padding:"14px 18px", borderBottom:`1.5px solid ${C.borderLight}`, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, background:`linear-gradient(90deg, ${C.bg}, ${C.white})` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:40, height:40, borderRadius:12, background:`linear-gradient(135deg, ${C.sky}, ${C.deep})`, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 4px 10px ${C.sky}44`, flexShrink:0 }}>
-              <catMeta.Icon size={17} color="#fff"/>
+      <div
+        style={{
+          borderRadius: 18,
+          overflow: "hidden",
+          border: `1.5px solid ${C.borderLight}`,
+          background: C.white,
+          boxShadow: "0 2px 16px rgba(56,73,89,0.06)",
+          marginBottom: 20,
+        }}
+      >
+        <div
+          style={{
+            padding: "14px 18px",
+            borderBottom: `1.5px solid ${C.borderLight}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+            background: `linear-gradient(90deg, ${C.bg}, ${C.white})`,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: `0 4px 10px ${C.sky}44`,
+                flexShrink: 0,
+              }}
+            >
+              <catMeta.Icon size={17} color="#fff" />
             </div>
             <div>
-              <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                <p style={{ margin:0, fontSize:15, fontWeight:800, color:C.text, fontFamily:"'Inter', sans-serif" }}>{activity.name}</p>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexWrap: "wrap",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 15,
+                    fontWeight: 800,
+                    color: C.text,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {activity.name}
+                </p>
                 <Chip>{catMeta.label}</Chip>
                 <Chip muted>{isTeam ? "Team" : "Individual"}</Chip>
-                <span style={{ fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>{activity.academicYear?.name}</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: C.textLight,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {activity.academicYear?.name}
+                </span>
               </div>
-              <p style={{ margin:"3px 0 0", fontSize:12, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>{enrolled.length} enrolled · {events.length} event{events.length !== 1 ? "s" : ""}</p>
+              <p
+                style={{
+                  margin: "3px 0 0",
+                  fontSize: 12,
+                  color: C.textLight,
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                {enrolled.length} enrolled · {events.length} event
+                {events.length !== 1 ? "s" : ""}
+              </p>
             </div>
           </div>
-          <div style={{ display:"flex", gap:10 }}>
-            {[{ label:"Enrolled", value:enrolled.length }, { label:"Events", value:events.length }].map(({ label, value }) => (
-              <div key={label} style={{ textAlign:"center", background:C.bg, borderRadius:12, padding:"10px 16px", border:`1.5px solid ${C.borderLight}` }}>
-                <p style={{ margin:0, fontSize:20, fontWeight:900, color:C.deep, fontFamily:"'Inter', sans-serif" }}>{value}</p>
-                <p style={{ margin:"2px 0 0", fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>{label}</p>
+          <div style={{ display: "flex", gap: 10 }}>
+            {[
+              { label: "Enrolled", value: enrolled.length },
+              { label: "Events", value: events.length },
+            ].map(({ label, value }) => (
+              <div
+                key={label}
+                style={{
+                  textAlign: "center",
+                  background: C.bg,
+                  borderRadius: 12,
+                  padding: "10px 16px",
+                  border: `1.5px solid ${C.borderLight}`,
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 20,
+                    fontWeight: 900,
+                    color: C.deep,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {value}
+                </p>
+                <p
+                  style={{
+                    margin: "2px 0 0",
+                    fontSize: 11,
+                    color: C.textLight,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {label}
+                </p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <div style={{ display:"inline-flex", padding:4, borderRadius:14, background:C.white, boxShadow:"0 2px 12px rgba(56,73,89,0.07)", marginBottom:24, border:`1.5px solid ${C.borderLight}` }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setSubTab(t.key)}
-            style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 16px", borderRadius:10, border:"none", cursor:"pointer", fontSize:13, fontWeight:700, background: subTab === t.key ? `linear-gradient(135deg, ${C.slate}, ${C.deep})` : "transparent", color: subTab === t.key ? "#fff" : C.textLight, fontFamily:"'Inter', sans-serif" }}>
+      <div
+        style={{
+          display: "inline-flex",
+          padding: 4,
+          borderRadius: 14,
+          background: C.white,
+          boxShadow: "0 2px 12px rgba(56,73,89,0.07)",
+          marginBottom: 24,
+          border: `1.5px solid ${C.borderLight}`,
+        }}
+      >
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setSubTab(t.key)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 16px",
+              borderRadius: 10,
+              border: "none",
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 700,
+              background:
+                subTab === t.key
+                  ? `linear-gradient(135deg, ${C.slate}, ${C.deep})`
+                  : "transparent",
+              color: subTab === t.key ? "#fff" : C.textLight,
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
             {t.label}
-            <span style={{ fontSize:11, padding:"1px 7px", borderRadius:20, fontWeight:700, background: subTab === t.key ? "rgba(255,255,255,0.2)" : C.mist, color: subTab === t.key ? "#fff" : C.textLight }}>{t.count}</span>
+            <span
+              style={{
+                fontSize: 11,
+                padding: "1px 7px",
+                borderRadius: 20,
+                fontWeight: 700,
+                background: subTab === t.key ? "rgba(255,255,255,0.2)" : C.mist,
+                color: subTab === t.key ? "#fff" : C.textLight,
+              }}
+            >
+              {t.count}
+            </span>
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div style={{ display:"flex", justifyContent:"center", padding:"60px 0" }}><Loader2 size={28} color={C.sky} className="animate-spin"/></div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            padding: "60px 0",
+          }}
+        >
+          <Loader2 size={28} color={C.sky} className="animate-spin" />
+        </div>
       ) : subTab === "students" ? (
         enrolled.length === 0 ? (
-          <div style={{ textAlign:"center", padding:"60px 20px", borderRadius:18, background:C.white, border:`1.5px solid ${C.borderLight}` }}>
-            <div style={{ width:56, height:56, borderRadius:18, background:`${C.sky}18`, border:`1px solid ${C.sky}33`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
-              <Users size={24} color={C.sky} strokeWidth={1.5}/>
+          <div
+            style={{
+              textAlign: "center",
+              padding: "60px 20px",
+              borderRadius: 18,
+              background: C.white,
+              border: `1.5px solid ${C.borderLight}`,
+            }}
+          >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 18,
+                background: `${C.sky}18`,
+                border: `1px solid ${C.sky}33`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 14px",
+              }}
+            >
+              <Users size={24} color={C.sky} strokeWidth={1.5} />
             </div>
-            <p style={{ margin:0, fontWeight:700, fontSize:14, color:C.text, fontFamily:"'Inter', sans-serif" }}>No students enrolled yet</p>
+            <p
+              style={{
+                margin: 0,
+                fontWeight: 700,
+                fontSize: 14,
+                color: C.text,
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              No students enrolled yet
+            </p>
           </div>
         ) : (
-          <div style={{ borderRadius:18, overflow:"hidden", border:`1.5px solid ${C.borderLight}`, background:C.white, boxShadow:"0 2px 16px rgba(56,73,89,0.06)" }}>
-            <div style={{ padding:"14px 18px", borderBottom:`1.5px solid ${C.borderLight}`, display:"flex", alignItems:"center", background:`linear-gradient(90deg, ${C.bg}, ${C.white})` }}>
-              <div style={{ width:34, height:34, borderRadius:10, background:`${C.sky}22`, border:`1.5px solid ${C.sky}33`, display:"flex", alignItems:"center", justifyContent:"center", marginRight:10 }}>
-                <Users size={15} color={C.sky}/>
+          <div
+            style={{
+              borderRadius: 18,
+              overflow: "hidden",
+              border: `1.5px solid ${C.borderLight}`,
+              background: C.white,
+              boxShadow: "0 2px 16px rgba(56,73,89,0.06)",
+            }}
+          >
+            <div
+              style={{
+                padding: "14px 18px",
+                borderBottom: `1.5px solid ${C.borderLight}`,
+                display: "flex",
+                alignItems: "center",
+                background: `linear-gradient(90deg, ${C.bg}, ${C.white})`,
+              }}
+            >
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
+                  background: `${C.sky}22`,
+                  border: `1.5px solid ${C.sky}33`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginRight: 10,
+                }}
+              >
+                <Users size={15} color={C.sky} />
               </div>
               <div>
-                <p style={{ margin:0, fontSize:14, fontWeight:700, color:C.text, fontFamily:"'Inter', sans-serif" }}>{enrolled.length} Enrolled Students</p>
-                {isTeam && <p style={{ margin:0, fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>Switch to Teams by Event to assign teams</p>}
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: C.text,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {enrolled.length} Enrolled Students
+                </p>
+                {isTeam && (
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 11,
+                      color: C.textLight,
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    Switch to Teams by Event to assign teams
+                  </p>
+                )}
               </div>
             </div>
             {enrolled.map((e, i) => (
-              <div key={e.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"12px 18px", borderBottom: i < enrolled.length - 1 ? `1px solid ${C.bg}` : "none" }}
-                onMouseEnter={ev => (ev.currentTarget.style.background = `${C.sky}08`)}
-                onMouseLeave={ev => (ev.currentTarget.style.background = "transparent")}>
-                <div style={{ width:36, height:36, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:14, background:C.mist, color:C.deep, flexShrink:0, fontFamily:"'Inter', sans-serif" }}>
+              <div
+                key={e.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  padding: "12px 18px",
+                  borderBottom:
+                    i < enrolled.length - 1 ? `1px solid ${C.bg}` : "none",
+                }}
+                onMouseEnter={(ev) =>
+                  (ev.currentTarget.style.background = `${C.sky}08`)
+                }
+                onMouseLeave={(ev) =>
+                  (ev.currentTarget.style.background = "transparent")
+                }
+              >
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    background: C.mist,
+                    color: C.deep,
+                    flexShrink: 0,
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
                   {e.student?.name?.[0] ?? "-"}
                 </div>
-                <div style={{ flex:1 }}>
-                  <p style={{ margin:0, fontWeight:600, fontSize:13, color:C.text, fontFamily:"'Inter', sans-serif" }}>{e.student?.name}</p>
-                  <p style={{ margin:0, fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>{e.academicYear?.name}</p>
+                <div style={{ flex: 1 }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontWeight: 600,
+                      fontSize: 13,
+                      color: C.text,
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    {e.student?.name}
+                  </p>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 11,
+                      color: C.textLight,
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    {e.academicYear?.name}
+                  </p>
                 </div>
-                <Chip><CheckCircle size={10} color={C.sky}/> Enrolled</Chip>
+                <Chip>
+                  <CheckCircle size={10} color={C.sky} /> Enrolled
+                </Chip>
               </div>
             ))}
           </div>
         )
       ) : (
-        <TeamsTab activity={activity} events={events} enrolledStudents={enrolledStudents} selEvent={selEvent} setSelEvent={setSelEvent} pushToast={pushToast} onRefresh={load}/>
+        <TeamsTab
+          activity={activity}
+          events={events}
+          enrolledStudents={enrolledStudents}
+          selEvent={selEvent}
+          setSelEvent={setSelEvent}
+          pushToast={pushToast}
+          onRefresh={load}
+        />
       )}
     </div>
   );
@@ -612,38 +1983,63 @@ export default function ActivitiesPage() {
   const didInitYear = React.useRef(false);
   const { toasts, push } = useToast();
 
-  const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const qs = filterYear ? `?academicYearId=${filterYear}` : "";
-      const [a, s, y] = await Promise.all([apiFetch(API + qs), apiFetch(`${API}/students`), apiFetch(`${API}/academic-years`)]);
-      setActivities(a.data); setStudents(s.data); setAcademicYears(y.data);
+      const [a, s, y] = await Promise.all([
+        apiFetch(API + qs),
+        apiFetch(`${API}/students`),
+        apiFetch(`${API}/academic-years`),
+      ]);
+      setActivities(a.data);
+      setStudents(s.data);
+      setAcademicYears(y.data);
       if (!didInitYear.current && y.data?.length > 0) {
         didInitYear.current = true;
-        const active = y.data.find(yr => yr.isActive);
+        const active = y.data.find((yr) => yr.isActive);
         if (active) setFilterYear(active.id);
       }
-    } catch(e) { push(e.message, "error"); }
-    finally { setLoading(false); }
+    } catch (e) {
+      push(e.message, "error");
+    } finally {
+      setLoading(false);
+    }
   }, [filterYear, refreshKey]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const filtActs = activities.filter(a => a.name.toLowerCase().includes(search.toLowerCase()));
+  const filtActs = activities.filter((a) =>
+    a.name.toLowerCase().includes(search.toLowerCase()),
+  );
 
   /* All stat cards use C.sky only — no per-card colors */
   const stats = [
-    { label:"Activities",      value:activities.length,                                                   Icon:BookOpen },
-    { label:"My Students",     value:students.length,                                                     Icon:Users    },
-    { label:"Team Activities", value:activities.filter(a => a.participationType === "TEAM").length,       Icon:Trophy   },
-    { label:"Individual",      value:activities.filter(a => a.participationType === "INDIVIDUAL").length, Icon:Star     },
+    { label: "Activities", value: activities.length, Icon: BookOpen },
+    { label: "My Students", value: students.length, Icon: Users },
+    {
+      label: "Team Activities",
+      value: activities.filter((a) => a.participationType === "TEAM").length,
+      Icon: Trophy,
+    },
+    {
+      label: "Individual",
+      value: activities.filter((a) => a.participationType === "INDIVIDUAL")
+        .length,
+      Icon: Star,
+    },
   ];
 
   return (
     <>
-      <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+      />
       <style>{`
         * { box-sizing: border-box; }
         @keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
@@ -654,30 +2050,102 @@ export default function ActivitiesPage() {
         @media (min-width: 768px)  { .acts-page { padding: 24px 28px; } }
         @media (min-width: 1024px) { .acts-page { padding: 28px 32px; } }
       `}</style>
-      <Toast toasts={toasts}/>
+      <Toast toasts={toasts} />
 
-      <div className="acts-page" style={{ minHeight:"100vh", background:C.bg, fontFamily:"'Inter', sans-serif", backgroundImage:`radial-gradient(circle at 15% 0%, ${C.mist}28 0%, transparent 50%)` }}>
-
+      <div
+        className="acts-page"
+        style={{
+          minHeight: "100vh",
+          background: C.bg,
+          fontFamily: "'Inter', sans-serif",
+          backgroundImage: `radial-gradient(circle at 15% 0%, ${C.mist}28 0%, transparent 50%)`,
+        }}
+      >
         {/* Header */}
-        <div style={{ marginBottom:24 }} className="fade-up">
-          <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+        <div style={{ marginBottom: 24 }} className="fade-up">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
             <div>
-              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:5 }}>
-                <div style={{ width:4, height:28, borderRadius:99, background:`linear-gradient(180deg, ${C.sky}, ${C.deep})`, flexShrink:0 }}/>
-                <h1 style={{ margin:0, fontSize:"clamp(18px,5vw,26px)", fontWeight:800, color:C.text, letterSpacing:"-0.5px" }}>
-                  {view === "detail" && selActivity ? selActivity.name : "Activities"}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 5,
+                }}
+              >
+                <div
+                  style={{
+                    width: 4,
+                    height: 28,
+                    borderRadius: 99,
+                    background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`,
+                    flexShrink: 0,
+                  }}
+                />
+                <h1
+                  style={{
+                    margin: 0,
+                    fontSize: "clamp(18px,5vw,26px)",
+                    fontWeight: 800,
+                    color: C.text,
+                    letterSpacing: "-0.5px",
+                  }}
+                >
+                  {view === "detail" && selActivity
+                    ? selActivity.name
+                    : "Activities"}
                 </h1>
               </div>
-              <p style={{ margin:0, paddingLeft:14, fontSize:12, color:C.textLight, fontWeight:500 }}>
-                {view === "detail" && selActivity ? selActivity.description || "Activity detail" : `${activities.length} activit${activities.length !== 1 ? "ies" : "y"}`}
+              <p
+                style={{
+                  margin: 0,
+                  paddingLeft: 14,
+                  fontSize: 12,
+                  color: C.textLight,
+                  fontWeight: 500,
+                }}
+              >
+                {view === "detail" && selActivity
+                  ? selActivity.description || "Activity detail"
+                  : `${activities.length} activit${
+                      activities.length !== 1 ? "ies" : "y"
+                    }`}
               </p>
             </div>
             {view === "list" && (
-              <button onClick={refresh}
-                style={{ width:40, height:40, borderRadius:12, border:`1.5px solid ${C.borderLight}`, background:C.white, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:C.textLight }}
-                onMouseEnter={e => (e.currentTarget.style.background = `${C.mist}55`)}
-                onMouseLeave={e => (e.currentTarget.style.background = C.white)}>
-                <RefreshCw size={14} className={loading ? "animate-spin" : ""}/>
+              <button
+                onClick={refresh}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  border: `1.5px solid ${C.borderLight}`,
+                  background: C.white,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  color: C.textLight,
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = `${C.mist}55`)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = C.white)
+                }
+              >
+                <RefreshCw
+                  size={14}
+                  className={loading ? "animate-spin" : ""}
+                />
               </button>
             )}
           </div>
@@ -685,113 +2153,494 @@ export default function ActivitiesPage() {
 
         {view === "detail" && selActivity ? (
           <div className="fade-up">
-            <ActivityDetailView activity={selActivity} onBack={() => { setView("list"); setSelActivity(null); load(); }} pushToast={push}/>
+            <ActivityDetailView
+              activity={selActivity}
+              onBack={() => {
+                setView("list");
+                setSelActivity(null);
+                load();
+              }}
+              pushToast={push}
+            />
           </div>
         ) : (
           <>
             {/* Stats — uniform Stormy Morning */}
-            <div className="fade-up" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:14, marginBottom:24 }}>
+            <div
+              className="fade-up"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 14,
+                marginBottom: 24,
+              }}
+            >
               {stats.map(({ label, value, Icon }) => (
-                <div key={label} style={{ borderRadius:16, padding:"18px 20px", background:C.white, borderLeft:`4px solid ${C.sky}`, boxShadow:"0 2px 12px rgba(56,73,89,0.07)" }}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <div
+                  key={label}
+                  style={{
+                    borderRadius: 16,
+                    padding: "18px 20px",
+                    background: C.white,
+                    borderLeft: `4px solid ${C.sky}`,
+                    boxShadow: "0 2px 12px rgba(56,73,89,0.07)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
                     <div>
-                      <p style={{ margin:0, fontSize:11, fontWeight:700, color:C.textLight, textTransform:"uppercase", letterSpacing:"0.05em", fontFamily:"'Inter', sans-serif" }}>{label}</p>
-                      <p style={{ margin:"6px 0 0", fontSize:28, fontWeight:900, color:C.deep, fontFamily:"'Inter', sans-serif" }}>{loading ? "—" : value}</p>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: C.textLight,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          fontFamily: "'Inter', sans-serif",
+                        }}
+                      >
+                        {label}
+                      </p>
+                      <p
+                        style={{
+                          margin: "6px 0 0",
+                          fontSize: 28,
+                          fontWeight: 900,
+                          color: C.deep,
+                          fontFamily: "'Inter', sans-serif",
+                        }}
+                      >
+                        {loading ? "—" : value}
+                      </p>
                     </div>
-                    <Icon size={34} color={C.sky} style={{ opacity:0.18 }}/>
+                    <Icon size={34} color={C.sky} style={{ opacity: 0.18 }} />
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Filter bar */}
-            <div className="fade-up" style={{ borderRadius:18, padding:"14px 18px", marginBottom:20, background:C.white, border:`1.5px solid ${C.borderLight}`, boxShadow:"0 2px 12px rgba(56,73,89,0.06)", display:"flex", flexWrap:"wrap", gap:10, alignItems:"center" }}>
-              <div style={{ position:"relative", flex:1, minWidth:200 }}>
-                <Search size={14} style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:C.textLight }}/>
-                <input style={{ width:"100%", paddingLeft:36, paddingRight:12, paddingTop:9, paddingBottom:9, borderRadius:11, border:`1.5px solid ${C.border}`, background:C.bg, fontSize:13, color:C.text, outline:"none", boxSizing:"border-box", fontFamily:"'Inter', sans-serif" }}
-                  placeholder="Search activities…" value={search} onChange={e => setSearch(e.target.value)}
-                  onFocus={ev => (ev.target.style.borderColor = C.sky)} onBlur={ev => (ev.target.style.borderColor = C.border)}/>
+            <div
+              className="fade-up"
+              style={{
+                borderRadius: 18,
+                padding: "14px 18px",
+                marginBottom: 20,
+                background: C.white,
+                border: `1.5px solid ${C.borderLight}`,
+                boxShadow: "0 2px 12px rgba(56,73,89,0.06)",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 10,
+                alignItems: "center",
+              }}
+            >
+              <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+                <Search
+                  size={14}
+                  style={{
+                    position: "absolute",
+                    left: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: C.textLight,
+                  }}
+                />
+                <input
+                  style={{
+                    width: "100%",
+                    paddingLeft: 36,
+                    paddingRight: 12,
+                    paddingTop: 9,
+                    paddingBottom: 9,
+                    borderRadius: 11,
+                    border: `1.5px solid ${C.border}`,
+                    background: C.bg,
+                    fontSize: 13,
+                    color: C.text,
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                  placeholder="Search activities…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onFocus={(ev) => (ev.target.style.borderColor = C.sky)}
+                  onBlur={(ev) => (ev.target.style.borderColor = C.border)}
+                />
               </div>
-              <select style={{ padding:"9px 14px", borderRadius:11, border:`1.5px solid ${C.border}`, background:C.bg, fontSize:13, color:C.text, outline:"none", fontFamily:"'Inter', sans-serif" }}
-                value={filterYear} onChange={e => setFilterYear(e.target.value)}
-                onFocus={ev => (ev.target.style.borderColor = C.sky)} onBlur={ev => (ev.target.style.borderColor = C.border)}>
+              <select
+                style={{
+                  padding: "9px 14px",
+                  borderRadius: 11,
+                  border: `1.5px solid ${C.border}`,
+                  background: C.bg,
+                  fontSize: 13,
+                  color: C.text,
+                  outline: "none",
+                  fontFamily: "'Inter', sans-serif",
+                }}
+                value={filterYear}
+                onChange={(e) => setFilterYear(e.target.value)}
+                onFocus={(ev) => (ev.target.style.borderColor = C.sky)}
+                onBlur={(ev) => (ev.target.style.borderColor = C.border)}
+              >
                 <option value="">All Years</option>
-                {academicYears.map(y => <option key={y.id} value={y.id}>{y.name}{y.isActive ? " (Active)" : ""}</option>)}
+                {academicYears.map((y) => (
+                  <option key={y.id} value={y.id}>
+                    {y.name}
+                    {y.isActive ? " (Active)" : ""}
+                  </option>
+                ))}
               </select>
             </div>
 
             {/* Activity grid */}
-            <div className="fade-up" style={{ background:C.white, borderRadius:18, border:`1.5px solid ${C.borderLight}`, boxShadow:"0 2px 16px rgba(56,73,89,0.06)", overflow:"hidden" }}>
-              <div style={{ padding:"14px 18px", borderBottom:`1.5px solid ${C.borderLight}`, display:"flex", alignItems:"center", background:`linear-gradient(90deg, ${C.bg}, ${C.white})` }}>
-                <div style={{ width:40, height:40, borderRadius:12, background:`linear-gradient(135deg, ${C.sky}, ${C.deep})`, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 4px 10px ${C.sky}44`, flexShrink:0, marginRight:10 }}>
-                  <BookOpen size={17} color="#fff" strokeWidth={2}/>
+            <div
+              className="fade-up"
+              style={{
+                background: C.white,
+                borderRadius: 18,
+                border: `1.5px solid ${C.borderLight}`,
+                boxShadow: "0 2px 16px rgba(56,73,89,0.06)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  padding: "14px 18px",
+                  borderBottom: `1.5px solid ${C.borderLight}`,
+                  display: "flex",
+                  alignItems: "center",
+                  background: `linear-gradient(90deg, ${C.bg}, ${C.white})`,
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: `0 4px 10px ${C.sky}44`,
+                    flexShrink: 0,
+                    marginRight: 10,
+                  }}
+                >
+                  <BookOpen size={17} color="#fff" strokeWidth={2} />
                 </div>
                 <div>
-                  <p style={{ margin:0, fontSize:14, fontWeight:700, color:C.text, fontFamily:"'Inter', sans-serif" }}>All Activities</p>
-                  <p style={{ margin:0, fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>{filtActs.length} activit{filtActs.length !== 1 ? "ies" : "y"} total</p>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: C.text,
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    All Activities
+                  </p>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 11,
+                      color: C.textLight,
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    {filtActs.length} activit
+                    {filtActs.length !== 1 ? "ies" : "y"} total
+                  </p>
                 </div>
               </div>
 
-              <div style={{ padding:18 }}>
+              <div style={{ padding: 18 }}>
                 {loading ? (
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))", gap:16 }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(240px, 1fr))",
+                      gap: 16,
+                    }}
+                  >
                     {[...Array(6)].map((_, i) => (
-                      <div key={i} style={{ borderRadius:13, border:`1.5px solid ${C.borderLight}`, padding:18, display:"flex", flexDirection:"column", gap:10 }}>
-                        <div style={{ display:"flex", gap:12, marginBottom:4 }}>
-                          <Pulse w={40} h={40} r={12}/>
-                          <div style={{ flex:1, display:"flex", flexDirection:"column", gap:8 }}><Pulse w="65%" h={14}/><Pulse w="45%" h={10}/></div>
+                      <div
+                        key={i}
+                        style={{
+                          borderRadius: 13,
+                          border: `1.5px solid ${C.borderLight}`,
+                          padding: 18,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 10,
+                        }}
+                      >
+                        <div
+                          style={{ display: "flex", gap: 12, marginBottom: 4 }}
+                        >
+                          <Pulse w={40} h={40} r={12} />
+                          <div
+                            style={{
+                              flex: 1,
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 8,
+                            }}
+                          >
+                            <Pulse w="65%" h={14} />
+                            <Pulse w="45%" h={10} />
+                          </div>
                         </div>
-                        <Pulse h={11} w="80%"/>
-                        <div style={{ paddingTop:14, borderTop:`1px solid ${C.borderLight}`, display:"flex", gap:10 }}><Pulse h={14} w="35%"/><Pulse h={14} w="35%"/></div>
+                        <Pulse h={11} w="80%" />
+                        <div
+                          style={{
+                            paddingTop: 14,
+                            borderTop: `1px solid ${C.borderLight}`,
+                            display: "flex",
+                            gap: 10,
+                          }}
+                        >
+                          <Pulse h={14} w="35%" />
+                          <Pulse h={14} w="35%" />
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : filtActs.length === 0 ? (
-                  <div style={{ padding:"50px 0", display:"flex", flexDirection:"column", alignItems:"center", gap:12 }}>
-                    <div style={{ width:60, height:60, borderRadius:18, background:`${C.sky}18`, border:`1px solid ${C.sky}33`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      <BookOpen size={26} color={C.sky} strokeWidth={1.5}/>
+                  <div
+                    style={{
+                      padding: "50px 0",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 60,
+                        height: 60,
+                        borderRadius: 18,
+                        background: `${C.sky}18`,
+                        border: `1px solid ${C.sky}33`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <BookOpen size={26} color={C.sky} strokeWidth={1.5} />
                     </div>
-                    <p style={{ margin:0, fontWeight:700, fontSize:13, color:C.text, fontFamily:"'Inter', sans-serif" }}>No activities found</p>
-                    <p style={{ margin:0, fontSize:12, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>Try adjusting your search or year filter</p>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontWeight: 700,
+                        fontSize: 13,
+                        color: C.text,
+                        fontFamily: "'Inter', sans-serif",
+                      }}
+                    >
+                      No activities found
+                    </p>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 12,
+                        color: C.textLight,
+                        fontFamily: "'Inter', sans-serif",
+                      }}
+                    >
+                      Try adjusting your search or year filter
+                    </p>
                   </div>
                 ) : (
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))", gap:16 }}>
-                    {filtActs.map(act => {
-                      const catMeta = CATEGORY_META[act.category] ?? CATEGORY_META.OTHER;
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(240px, 1fr))",
+                      gap: 16,
+                    }}
+                  >
+                    {filtActs.map((act) => {
+                      const catMeta =
+                        CATEGORY_META[act.category] ?? CATEGORY_META.OTHER;
                       return (
-                        <div key={act.id} className="act-card" onClick={() => { setSelActivity(act); setView("detail"); }}
-                          style={{ borderRadius:13, padding:18, cursor:"pointer", transition:"all 0.2s", background:C.bg, border:`1.5px solid ${C.borderLight}` }}>
-                          <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:10 }}>
-                            <div style={{ flex:1, minWidth:0 }}>
-                              <h3 style={{ margin:0, fontWeight:700, fontSize:14, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontFamily:"'Inter', sans-serif" }}>{act.name}</h3>
-                              <p style={{ margin:"3px 0 0", fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>{act.academicYear?.name}</p>
+                        <div
+                          key={act.id}
+                          className="act-card"
+                          onClick={() => {
+                            setSelActivity(act);
+                            setView("detail");
+                          }}
+                          style={{
+                            borderRadius: 13,
+                            padding: 18,
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                            background: C.bg,
+                            border: `1.5px solid ${C.borderLight}`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              justifyContent: "space-between",
+                              marginBottom: 10,
+                            }}
+                          >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <h3
+                                style={{
+                                  margin: 0,
+                                  fontWeight: 700,
+                                  fontSize: 14,
+                                  color: C.text,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                  fontFamily: "'Inter', sans-serif",
+                                }}
+                              >
+                                {act.name}
+                              </h3>
+                              <p
+                                style={{
+                                  margin: "3px 0 0",
+                                  fontSize: 11,
+                                  color: C.textLight,
+                                  fontFamily: "'Inter', sans-serif",
+                                }}
+                              >
+                                {act.academicYear?.name}
+                              </p>
                             </div>
-                            <ChevronRight size={16} color={C.textLight} style={{ flexShrink:0, marginTop:2 }}/>
+                            <ChevronRight
+                              size={16}
+                              color={C.textLight}
+                              style={{ flexShrink: 0, marginTop: 2 }}
+                            />
                           </div>
-                          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 6,
+                              marginBottom: 14,
+                            }}
+                          >
                             {/* Category — sky tint */}
                             <Chip icon={catMeta.Icon}>{catMeta.label}</Chip>
                             {/* Participation type — mist tint */}
-                            <Chip muted>{act.participationType === "TEAM" ? "Team" : "Individual"}</Chip>
-                            {act.activityClasses?.map(ac => (
-                              <span key={ac.classSection.id} style={{ fontSize:11, padding:"3px 7px", borderRadius:6, background:`${C.sky}15`, color:C.sky, fontWeight:500, fontFamily:"'Inter', sans-serif" }}>
+                            <Chip muted>
+                              {act.participationType === "TEAM"
+                                ? "Team"
+                                : "Individual"}
+                            </Chip>
+                            {act.activityClasses?.map((ac) => (
+                              <span
+                                key={ac.classSection.id}
+                                style={{
+                                  fontSize: 11,
+                                  padding: "3px 7px",
+                                  borderRadius: 6,
+                                  background: `${C.sky}15`,
+                                  color: C.sky,
+                                  fontWeight: 500,
+                                  fontFamily: "'Inter', sans-serif",
+                                }}
+                              >
                                 {ac.classSection.name}
                               </span>
                             ))}
                           </div>
-                          <div style={{ display:"flex", gap:16, paddingTop:12, borderTop:`1px solid ${C.borderLight}` }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 16,
+                              paddingTop: 12,
+                              borderTop: `1px solid ${C.borderLight}`,
+                            }}
+                          >
                             <div>
-                              <p style={{ margin:0, fontSize:16, fontWeight:800, color:C.text, fontFamily:"'Inter', sans-serif" }}>{act._count?.enrollments ?? 0}</p>
-                              <p style={{ margin:0, fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>Enrolled</p>
+                              <p
+                                style={{
+                                  margin: 0,
+                                  fontSize: 16,
+                                  fontWeight: 800,
+                                  color: C.text,
+                                  fontFamily: "'Inter', sans-serif",
+                                }}
+                              >
+                                {act._count?.enrollments ?? 0}
+                              </p>
+                              <p
+                                style={{
+                                  margin: 0,
+                                  fontSize: 11,
+                                  color: C.textLight,
+                                  fontFamily: "'Inter', sans-serif",
+                                }}
+                              >
+                                Enrolled
+                              </p>
                             </div>
                             <div>
-                              <p style={{ margin:0, fontSize:16, fontWeight:800, color:C.text, fontFamily:"'Inter', sans-serif" }}>{act._count?.events ?? 0}</p>
-                              <p style={{ margin:0, fontSize:11, color:C.textLight, fontFamily:"'Inter', sans-serif" }}>Events</p>
+                              <p
+                                style={{
+                                  margin: 0,
+                                  fontSize: 16,
+                                  fontWeight: 800,
+                                  color: C.text,
+                                  fontFamily: "'Inter', sans-serif",
+                                }}
+                              >
+                                {act._count?.events ?? 0}
+                              </p>
+                              <p
+                                style={{
+                                  margin: 0,
+                                  fontSize: 11,
+                                  color: C.textLight,
+                                  fontFamily: "'Inter', sans-serif",
+                                }}
+                              >
+                                Events
+                              </p>
                             </div>
                             {act.participationType === "TEAM" && (
-                              <div style={{ marginLeft:"auto", display:"flex", alignItems:"flex-end" }}>
-                                <span style={{ fontSize:11, fontWeight:600, padding:"4px 10px", borderRadius:8, background:C.mist, color:C.deep, display:"flex", alignItems:"center", gap:4, fontFamily:"'Inter', sans-serif" }}>
-                                  <Users size={10}/> Manage Teams →
+                              <div
+                                style={{
+                                  marginLeft: "auto",
+                                  display: "flex",
+                                  alignItems: "flex-end",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    padding: "4px 10px",
+                                    borderRadius: 8,
+                                    background: C.mist,
+                                    color: C.deep,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    fontFamily: "'Inter', sans-serif",
+                                  }}
+                                >
+                                  <Users size={10} /> Manage Teams →
                                 </span>
                               </div>
                             )}

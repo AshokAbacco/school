@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { getToken } from "../../../auth/storage.js";
 
-const API_BASE = `${import.meta.env.VITE_API_URL ?? "http://localhost:5000"}`;
+const API_BASE = `${import.meta.env.VITE_API_URL ?? "http://localhost:5001"}`;
 
 // ── Design tokens — matches the OnlineClassesPage palette ──────
 const C = {
@@ -43,13 +43,55 @@ const C = {
 };
 
 const CATEGORIES = [
-  { value: "ACADEMIC", label: "Academic", icon: GraduationCap, color: "#1D4ED8", bg: "#EFF6FF" },
-  { value: "SPORTS", label: "Sports", icon: Trophy, color: "#EA580C", bg: "#FFF7ED" },
-  { value: "CULTURAL", label: "Cultural", icon: Users, color: "#9333EA", bg: "#FDF4FF" },
-  { value: "ATTENDANCE", label: "Attendance", icon: CheckCircle2, color: "#16A34A", bg: "#F0FDF4" },
-  { value: "DISCIPLINE", label: "Discipline", icon: Shield, color: "#475569", bg: "#F8FAFC" },
-  { value: "LEADERSHIP", label: "Leadership", icon: Star, color: "#B45309", bg: "#FFFBEB" },
-  { value: "SPECIAL", label: "Special", icon: Medal, color: "#7C3AED", bg: "#F5F3FF" },
+  {
+    value: "ACADEMIC",
+    label: "Academic",
+    icon: GraduationCap,
+    color: "#1D4ED8",
+    bg: "#EFF6FF",
+  },
+  {
+    value: "SPORTS",
+    label: "Sports",
+    icon: Trophy,
+    color: "#EA580C",
+    bg: "#FFF7ED",
+  },
+  {
+    value: "CULTURAL",
+    label: "Cultural",
+    icon: Users,
+    color: "#9333EA",
+    bg: "#FDF4FF",
+  },
+  {
+    value: "ATTENDANCE",
+    label: "Attendance",
+    icon: CheckCircle2,
+    color: "#16A34A",
+    bg: "#F0FDF4",
+  },
+  {
+    value: "DISCIPLINE",
+    label: "Discipline",
+    icon: Shield,
+    color: "#475569",
+    bg: "#F8FAFC",
+  },
+  {
+    value: "LEADERSHIP",
+    label: "Leadership",
+    icon: Star,
+    color: "#B45309",
+    bg: "#FFFBEB",
+  },
+  {
+    value: "SPECIAL",
+    label: "Special",
+    icon: Medal,
+    color: "#7C3AED",
+    bg: "#F5F3FF",
+  },
 ];
 const CAT_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.value, c]));
 
@@ -59,13 +101,22 @@ function Pulse({ w = "100%", h = 13, r = 8 }) {
   return (
     <div
       className="animate-pulse"
-      style={{ width: w, height: h, borderRadius: r, background: `${C.mist}55` }}
+      style={{
+        width: w,
+        height: h,
+        borderRadius: r,
+        background: `${C.mist}55`,
+      }}
     />
   );
 }
 
 function categoryBadge(category) {
-  const cat = CAT_MAP[category] || { label: category, color: C.textLight, bg: C.bg };
+  const cat = CAT_MAP[category] || {
+    label: category,
+    color: C.textLight,
+    bg: C.bg,
+  };
   return (
     <span
       style={{
@@ -126,7 +177,9 @@ function SkeletonCard() {
     >
       <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
         <Pulse w={44} h={44} r={12} />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div
+          style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}
+        >
           <Pulse w="60%" h={13} />
           <Pulse w="40%" h={10} />
         </div>
@@ -143,7 +196,13 @@ function MetaRow({ icon, label }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       {icon}
-      <span style={{ fontSize: 11, color: C.textLight, fontFamily: "'Inter', sans-serif" }}>
+      <span
+        style={{
+          fontSize: 11,
+          color: C.textLight,
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
         {label}
       </span>
     </div>
@@ -268,9 +327,15 @@ function ViewModal({ cert, onClose }) {
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {categoryBadge(cert.category)}
         </div>
-        <MetaRow icon={<Calendar size={12} color={C.slate} />} label={fmtDate(cert.issuedDate)} />
+        <MetaRow
+          icon={<Calendar size={12} color={C.slate} />}
+          label={fmtDate(cert.issuedDate)}
+        />
         {cert.academicYear && (
-          <MetaRow icon={<Award size={12} color={C.slate} />} label={cert.academicYear} />
+          <MetaRow
+            icon={<Award size={12} color={C.slate} />}
+            label={cert.academicYear}
+          />
         )}
       </div>
 
@@ -305,7 +370,12 @@ function ViewModal({ cert, onClose }) {
             <object
               data={cert.fileUrl}
               type="application/pdf"
-              style={{ width: "100%", height: "50vh", borderRadius: 10, border: "none" }}
+              style={{
+                width: "100%",
+                height: "50vh",
+                borderRadius: 10,
+                border: "none",
+              }}
             >
               <iframe
                 src={`${cert.fileUrl}#toolbar=1&view=FitH`}
@@ -324,7 +394,14 @@ function ViewModal({ cert, onClose }) {
             }}
           >
             <FileText size={32} color={C.slate} style={{ marginBottom: 10 }} />
-            <p style={{ fontSize: 13, color: C.text, fontWeight: 600, margin: 0 }}>
+            <p
+              style={{
+                fontSize: 13,
+                color: C.text,
+                fontWeight: 600,
+                margin: 0,
+              }}
+            >
               Preview unavailable
             </p>
           </div>
@@ -414,8 +491,23 @@ function CertCard({ cert, onView }) {
       }}
     >
       {/* Top row */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
           <div
             style={{
               width: 42,
@@ -445,12 +537,26 @@ function CertCard({ cert, onView }) {
             >
               {cert.title || "Certificate"}
             </p>
-            <p style={{ margin: "2px 0 0", fontSize: 11, color: C.textLight, fontFamily: "'Inter', sans-serif" }}>
+            <p
+              style={{
+                margin: "2px 0 0",
+                fontSize: 11,
+                color: C.textLight,
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
               {cert.academicYear || "—"}
             </p>
           </div>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 4,
+          }}
+        >
           {categoryBadge(cert.category)}
           {fileTypeBadge(isImage)}
         </div>
@@ -458,7 +564,10 @@ function CertCard({ cert, onView }) {
 
       {/* Meta rows */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <MetaRow icon={<Calendar size={12} color={C.slate} />} label={fmtDate(cert.issuedDate)} />
+        <MetaRow
+          icon={<Calendar size={12} color={C.slate} />}
+          label={fmtDate(cert.issuedDate)}
+        />
         {cert.description && (
           <p
             style={{
@@ -580,7 +689,10 @@ export default function StudentCertificatesPage() {
 
   return (
     <>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+      />
       <style>{`
         * { box-sizing: border-box; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
@@ -592,17 +704,46 @@ export default function StudentCertificatesPage() {
         .filter-btn { transition: all 0.15s; }
       `}</style>
 
-      <div style={{ padding: "clamp(16px, 3vw, 28px) clamp(16px, 3vw, 32px)", minHeight: "100vh", background: C.bg, fontFamily: "'Inter', sans-serif" }}>
-
+      <div
+        style={{
+          padding: "clamp(16px, 3vw, 28px) clamp(16px, 3vw, 32px)",
+          minHeight: "100vh",
+          background: C.bg,
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
         {/* ── Header ── */}
         <div style={{ marginBottom: 24 }} className="fade-up">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 4, height: 28, borderRadius: 99, background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`, flexShrink: 0 }} />
+            <div
+              style={{
+                width: 4,
+                height: 28,
+                borderRadius: 99,
+                background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`,
+                flexShrink: 0,
+              }}
+            />
             <div>
-              <h1 style={{ margin: 0, fontSize: "clamp(18px, 5vw, 26px)", fontWeight: 800, color: C.text, letterSpacing: "-0.5px" }}>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: "clamp(18px, 5vw, 26px)",
+                  fontWeight: 800,
+                  color: C.text,
+                  letterSpacing: "-0.5px",
+                }}
+              >
                 My Certificates
               </h1>
-              <p style={{ margin: 0, fontSize: 12, color: C.textLight, fontWeight: 500 }}>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 12,
+                  color: C.textLight,
+                  fontWeight: 500,
+                }}
+              >
                 Your achievements and recognitions
               </p>
             </div>
@@ -610,13 +751,28 @@ export default function StudentCertificatesPage() {
 
           {/* Stat pills */}
           {!loading && certs.length > 0 && (
-            <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-              <div style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "6px 12px", borderRadius: 10,
-                background: C.white, border: `1px solid ${C.border}`,
-                fontSize: 12, color: C.deep, fontWeight: 600,
-              }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                marginTop: 14,
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  borderRadius: 10,
+                  background: C.white,
+                  border: `1px solid ${C.border}`,
+                  fontSize: 12,
+                  color: C.deep,
+                  fontWeight: 600,
+                }}
+              >
                 <Award size={13} color={C.slate} />
                 {certs.length} total
               </div>
@@ -626,32 +782,74 @@ export default function StudentCertificatesPage() {
 
         {/* ── Error ── */}
         {error && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 12, background: "#fee8e8", border: "1px solid #f5b0b0", marginBottom: 16, fontSize: 13, color: "#8b1c1c" }}>
-            <AlertCircle size={14} /><span>{error}</span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "12px 14px",
+              borderRadius: 12,
+              background: "#fee8e8",
+              border: "1px solid #f5b0b0",
+              marginBottom: 16,
+              fontSize: 13,
+              color: "#8b1c1c",
+            }}
+          >
+            <AlertCircle size={14} />
+            <span>{error}</span>
           </div>
         )}
 
         {/* ── Search & Filters ── */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 20, flexDirection: "column" }} className="fade-up">
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            marginBottom: 20,
+            flexDirection: "column",
+          }}
+          className="fade-up"
+        >
           {/* Search Input */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8,
-            background: C.white, border: `1.5px solid ${C.border}`,
-            borderRadius: 12, padding: "0 14px", height: 40,
-          }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: C.white,
+              border: `1.5px solid ${C.border}`,
+              borderRadius: 12,
+              padding: "0 14px",
+              height: 40,
+            }}
+          >
             <Search size={14} color={C.textLight} />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by title or year..."
               style={{
-                border: "none", outline: "none", background: "transparent",
-                fontSize: 13, color: C.text, width: "100%",
+                border: "none",
+                outline: "none",
+                background: "transparent",
+                fontSize: 13,
+                color: C.text,
+                width: "100%",
                 fontFamily: "'Inter', sans-serif",
               }}
             />
             {search && (
-              <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
+              <button
+                onClick={() => setSearch("")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                  display: "flex",
+                }}
+              >
                 <X size={14} color={C.textLight} />
               </button>
             )}
@@ -663,11 +861,17 @@ export default function StudentCertificatesPage() {
               className="filter-btn"
               onClick={() => setCatFilter("ALL")}
               style={{
-                padding: "6px 14px", borderRadius: 99, fontSize: 12, fontWeight: 600,
-                border: `1.5px solid ${catFilter === "ALL" ? C.deep : C.border}`,
+                padding: "6px 14px",
+                borderRadius: 99,
+                fontSize: 12,
+                fontWeight: 600,
+                border: `1.5px solid ${
+                  catFilter === "ALL" ? C.deep : C.border
+                }`,
                 background: catFilter === "ALL" ? C.deep : C.white,
                 color: catFilter === "ALL" ? "#fff" : C.textLight,
-                cursor: "pointer", fontFamily: "'Inter', sans-serif",
+                cursor: "pointer",
+                fontFamily: "'Inter', sans-serif",
               }}
             >
               All
@@ -680,11 +884,15 @@ export default function StudentCertificatesPage() {
                   className="filter-btn"
                   onClick={() => setCatFilter(cat.value)}
                   style={{
-                    padding: "6px 14px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+                    padding: "6px 14px",
+                    borderRadius: 99,
+                    fontSize: 12,
+                    fontWeight: 600,
                     border: `1.5px solid ${active ? C.deep : C.border}`,
                     background: active ? C.deep : C.white,
                     color: active ? "#fff" : C.textLight,
-                    cursor: "pointer", fontFamily: "'Inter', sans-serif",
+                    cursor: "pointer",
+                    fontFamily: "'Inter', sans-serif",
                   }}
                 >
                   {cat.label}
@@ -697,16 +905,47 @@ export default function StudentCertificatesPage() {
         {/* ── Loading skeletons ── */}
         {loading ? (
           <div className="cert-grid">
-            {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
+            {[1, 2, 3].map((i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 0", gap: 12 }}>
-            <div style={{ width: 60, height: 60, borderRadius: 18, background: `${C.mist}55`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              padding: "60px 0",
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: 18,
+                background: `${C.mist}55`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <Inbox size={26} color={C.slate} />
             </div>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.deep }}>No certificates found</p>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 14,
+                fontWeight: 700,
+                color: C.deep,
+              }}
+            >
+              No certificates found
+            </p>
             <p style={{ margin: 0, fontSize: 12, color: C.textLight }}>
-              {search || catFilter !== "ALL" ? "Try adjusting your filters" : "Your achievements will appear here"}
+              {search || catFilter !== "ALL"
+                ? "Try adjusting your filters"
+                : "Your achievements will appear here"}
             </p>
           </div>
         ) : (

@@ -4,11 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
+  "dev": "vite",
+  "build": "vite build",
+  "lint": "eslint .",
+  "preview": "vite preview",
+
+  "build:waseela": "node scripts/build-foundation.js waseela",
+  "build:fazeelah": "node scripts/build-foundation.js fazeelah",
+  "build:abacco": "node scripts/build-foundation.js abacco"
+},
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
     "@capacitor/android": "^8.3.1",

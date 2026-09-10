@@ -3,12 +3,17 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  ChevronDown, AlertCircle, FileText,
-  EyeOff, Loader2, Download, Lock,
+  ChevronDown,
+  AlertCircle,
+  FileText,
+  EyeOff,
+  Loader2,
+  Download,
+  Lock,
 } from "lucide-react";
 
-import { getToken }        from "../../../auth/storage.js";
-import { useSchoolLogo }   from "../../../hooks/useSchoolLogo.js";
+import { getToken } from "../../../auth/storage.js";
+import { useSchoolLogo } from "../../../hooks/useSchoolLogo.js";
 import { C, FONT, GLOBAL_CSS } from "./tokens.js";
 import SummaryCards from "./components/SummaryCards.jsx";
 import SubjectTable from "./components/SubjectTable.jsx";
@@ -16,7 +21,7 @@ import PerformanceInsights from "./components/PerformanceInsights.jsx";
 import ThemeModal from "./components/ThemeModal.jsx";
 import { downloadReportPDF } from "./utils/downloadPDF.js";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5001";
 
 async function apiFetch(path) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -33,7 +38,7 @@ async function apiFetch(path) {
 
 function useWindowWidth() {
   const [w, setW] = useState(
-    typeof window !== "undefined" ? window.innerWidth : 1024
+    typeof window !== "undefined" ? window.innerWidth : 1024,
   );
   useEffect(() => {
     const handle = () => setW(window.innerWidth);
@@ -46,47 +51,119 @@ function useWindowWidth() {
 /* ── Not published state ── */
 function NotPublished({ isMobile }) {
   return (
-    <div className="mrk-card" style={{
-      padding: isMobile ? "40px 20px" : "60px 32px",
-      textAlign: "center",
-      animation: "fadeUp 0.4s ease",
-    }}>
-      <div style={{
-        width: 68, height: 68, borderRadius: "50%",
-        background: `linear-gradient(135deg, rgba(189,221,252,0.45), rgba(136,189,242,0.22))`,
-        border: `2px dashed rgba(136,189,242,0.50)`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        margin: "0 auto 18px",
-      }}>
+    <div
+      className="mrk-card"
+      style={{
+        padding: isMobile ? "40px 20px" : "60px 32px",
+        textAlign: "center",
+        animation: "fadeUp 0.4s ease",
+      }}
+    >
+      <div
+        style={{
+          width: 68,
+          height: 68,
+          borderRadius: "50%",
+          background: `linear-gradient(135deg, rgba(189,221,252,0.45), rgba(136,189,242,0.22))`,
+          border: `2px dashed rgba(136,189,242,0.50)`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          margin: "0 auto 18px",
+        }}
+      >
         <EyeOff size={26} color={C.mid} />
       </div>
-      <h2 style={{ fontSize: isMobile ? 16 : 18, fontWeight: 800, color: C.dark, margin: "0 0 8px", fontFamily: FONT.sans }}>
+      <h2
+        style={{
+          fontSize: isMobile ? 16 : 18,
+          fontWeight: 800,
+          color: C.dark,
+          margin: "0 0 8px",
+          fontFamily: FONT.sans,
+        }}
+      >
         Results Not Published Yet
       </h2>
-      <p style={{ fontSize: 13, color: C.mid, maxWidth: 360, margin: "0 auto 22px", lineHeight: 1.65, fontWeight: 500 }}>
-        Marks have not been released for this exam yet. Check back once your teacher publishes the results.
+      <p
+        style={{
+          fontSize: 13,
+          color: C.mid,
+          maxWidth: 360,
+          margin: "0 auto 22px",
+          lineHeight: 1.65,
+          fontWeight: 500,
+        }}
+      >
+        Marks have not been released for this exam yet. Check back once your
+        teacher publishes the results.
       </p>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, maxWidth: 260, margin: "0 auto 18px" }}>
-        <div style={{ flex: 1, height: 1, background: "rgba(136,189,242,0.28)" }} />
-        <span style={{ fontSize: 9, color: C.mid, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          maxWidth: 260,
+          margin: "0 auto 18px",
+        }}
+      >
+        <div
+          style={{ flex: 1, height: 1, background: "rgba(136,189,242,0.28)" }}
+        />
+        <span
+          style={{
+            fontSize: 9,
+            color: C.mid,
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+          }}
+        >
           What to Expect
         </span>
-        <div style={{ flex: 1, height: 1, background: "rgba(136,189,242,0.28)" }} />
+        <div
+          style={{ flex: 1, height: 1, background: "rgba(136,189,242,0.28)" }}
+        />
       </div>
-      <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", maxWidth: 460, margin: "0 auto" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          justifyContent: "center",
+          flexWrap: "wrap",
+          maxWidth: 460,
+          margin: "0 auto",
+        }}
+      >
         {[
           { icon: "📋", text: "Subject-wise marks" },
           { icon: "📊", text: "Grade & percentage" },
           { icon: "🏆", text: "Class rank" },
           { icon: "📄", text: "PDF report card" },
         ].map(({ icon, text }) => (
-          <div key={text} style={{
-            display: "flex", alignItems: "center", gap: 7,
-            background: "rgba(237,243,250,0.80)", borderRadius: 10, padding: "8px 14px",
-            border: `1.5px solid rgba(136,189,242,0.22)`,
-          }}>
+          <div
+            key={text}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              background: "rgba(237,243,250,0.80)",
+              borderRadius: 10,
+              padding: "8px 14px",
+              border: `1.5px solid rgba(136,189,242,0.22)`,
+            }}
+          >
             <span style={{ fontSize: 14 }}>{icon}</span>
-            <span style={{ fontSize: 11, color: C.mid, fontWeight: 600, fontFamily: FONT.sans }}>{text}</span>
+            <span
+              style={{
+                fontSize: 11,
+                color: C.mid,
+                fontWeight: 600,
+                fontFamily: FONT.sans,
+              }}
+            >
+              {text}
+            </span>
           </div>
         ))}
       </div>
@@ -98,18 +175,39 @@ function NotPublished({ isMobile }) {
 function ErrorBanner({ message }) {
   if (!message) return null;
   return (
-    <div style={{
-      background: "rgba(239,68,68,0.08)", border: "1.5px solid rgba(239,68,68,0.28)",
-      borderRadius: 13, padding: "13px 16px", marginBottom: 16,
-      display: "flex", gap: 10, alignItems: "flex-start",
-      animation: "fadeUp 0.3s ease",
-    }}>
-      <AlertCircle size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: 1 }} />
+    <div
+      style={{
+        background: "rgba(239,68,68,0.08)",
+        border: "1.5px solid rgba(239,68,68,0.28)",
+        borderRadius: 13,
+        padding: "13px 16px",
+        marginBottom: 16,
+        display: "flex",
+        gap: 10,
+        alignItems: "flex-start",
+        animation: "fadeUp 0.3s ease",
+      }}
+    >
+      <AlertCircle
+        size={16}
+        color="#ef4444"
+        style={{ flexShrink: 0, marginTop: 1 }}
+      />
       <div>
-        <p style={{ color: "#b91c1c", fontWeight: 700, fontSize: 13, margin: 0, fontFamily: FONT.sans }}>
+        <p
+          style={{
+            color: "#b91c1c",
+            fontWeight: 700,
+            fontSize: 13,
+            margin: 0,
+            fontFamily: FONT.sans,
+          }}
+        >
           Unable to load results
         </p>
-        <p style={{ color: "#ef4444", fontSize: 12, margin: "3px 0 0" }}>{message}</p>
+        <p style={{ color: "#ef4444", fontSize: 12, margin: "3px 0 0" }}>
+          {message}
+        </p>
       </div>
     </div>
   );
@@ -120,10 +218,15 @@ function SchoolLogo({ src, alt, size }) {
   const [failed, setFailed] = useState(false);
   if (!src || failed) {
     return (
-      <div style={{
-        width: 4, height: size === "sm" ? 26 : 32, borderRadius: 99, flexShrink: 0,
-        background: `linear-gradient(180deg, ${C.light} 0%, ${C.dark} 100%)`,
-      }} />
+      <div
+        style={{
+          width: 4,
+          height: size === "sm" ? 26 : 32,
+          borderRadius: 99,
+          flexShrink: 0,
+          background: `linear-gradient(180deg, ${C.light} 0%, ${C.dark} 100%)`,
+        }}
+      />
     );
   }
   const dim = size === "sm" ? 38 : 46;
@@ -133,8 +236,12 @@ function SchoolLogo({ src, alt, size }) {
       alt={alt || "School logo"}
       onError={() => setFailed(true)}
       style={{
-        width: dim, height: dim, borderRadius: 12, flexShrink: 0,
-        objectFit: "cover", background: C.white,
+        width: dim,
+        height: dim,
+        borderRadius: 12,
+        flexShrink: 0,
+        objectFit: "cover",
+        background: C.white,
         border: `1.5px solid ${C.border}`,
         boxShadow: "0 1px 4px rgba(56,73,89,0.10)",
       }}
@@ -152,27 +259,47 @@ function PageHeader({ loading, enrollment, isMobile, logoUrl }) {
       />
       <div>
         {enrollment?.schoolName && (
-          <p style={{
-            margin: 0, fontSize: isMobile ? 10 : 11.5, fontWeight: 800,
-            color: C.mid, letterSpacing: "0.04em", textTransform: "uppercase",
-            fontFamily: FONT.sans,
-          }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: isMobile ? 10 : 11.5,
+              fontWeight: 800,
+              color: C.mid,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              fontFamily: FONT.sans,
+            }}
+          >
             {enrollment.schoolName}
           </p>
         )}
-        <h1 style={{
-          margin: 0,
-          fontSize: isMobile ? "clamp(17px,5vw,20px)" : "clamp(20px,3vw,26px)",
-          fontWeight: 800, color: C.dark, letterSpacing: "-0.5px",
-          fontFamily: FONT.sans,
-        }}>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: isMobile
+              ? "clamp(17px,5vw,20px)"
+              : "clamp(20px,3vw,26px)",
+            fontWeight: 800,
+            color: C.dark,
+            letterSpacing: "-0.5px",
+            fontFamily: FONT.sans,
+          }}
+        >
           Marks &amp; Report Card
         </h1>
-        <p style={{ margin: "3px 0 0", fontSize: 11, color: C.textLight, fontWeight: 500 }}>
-          {loading ? "Loading enrollment…"
+        <p
+          style={{
+            margin: "3px 0 0",
+            fontSize: 11,
+            color: C.textLight,
+            fontWeight: 500,
+          }}
+        >
+          {loading
+            ? "Loading enrollment…"
             : enrollment
-              ? `${enrollment.className} · ${enrollment.admissionNumber} · ${enrollment.academicYearName}`
-              : "No active enrollment"}
+            ? `${enrollment.className} · ${enrollment.admissionNumber} · ${enrollment.academicYearName}`
+            : "No active enrollment"}
         </p>
       </div>
     </div>
@@ -205,7 +332,8 @@ export default function Marks() {
 
   useEffect(() => {
     (async () => {
-      setLoadingGroups(true); setErrorGroups(null);
+      setLoadingGroups(true);
+      setErrorGroups(null);
       try {
         const data = await apiFetch("/marks/exam-groups");
         const groups = data.examGroups ?? [];
@@ -224,52 +352,73 @@ export default function Marks() {
               : groups[groups.length - 1];
           setSelectedId(defaultGroup.id);
         }
-      } catch (e) { setErrorGroups(e.message); }
-      finally { setLoadingGroups(false); }
+      } catch (e) {
+        setErrorGroups(e.message);
+      } finally {
+        setLoadingGroups(false);
+      }
     })();
   }, []);
 
   useEffect(() => {
     if (!selectedId) return;
     (async () => {
-      setLoadingReport(true); setErrorReport(null);
-      setReportData(null); setNotPublished(false);
+      setLoadingReport(true);
+      setErrorReport(null);
+      setReportData(null);
+      setNotPublished(false);
       try {
         const data = await apiFetch(`/marks/report/${selectedId}`);
         setReportData(data);
       } catch (e) {
-        if (e.message?.toLowerCase().includes("not") && e.message?.toLowerCase().includes("publish"))
+        if (
+          e.message?.toLowerCase().includes("not") &&
+          e.message?.toLowerCase().includes("publish")
+        )
           setNotPublished(true);
         else setErrorReport(e.message);
-      } finally { setLoadingReport(false); }
+      } finally {
+        setLoadingReport(false);
+      }
     })();
   }, [selectedId]);
 
   const selectedGroup = examGroups.find((g) => g.id === selectedId);
   const showReport = !loadingReport && !!reportData;
 
-  const handleDownload = useCallback((themeKey = "default") => {
-    if (!reportData) return;
-    setPdfLoading(true);
-    const enriched = {
-      ...reportData,
-      enrollment: {
-        ...reportData.enrollment,
-        schoolName:    reportData?.enrollment?.schoolName    ?? enrollment?.schoolName    ?? "School",
-        schoolLogoUrl: sidebarLogoUrl ?? reportData?.enrollment?.schoolLogoUrl ?? enrollment?.schoolLogoUrl ?? null,
-      },
-    };
-    try { downloadReportPDF(enriched, themeKey); }
-    finally {
-      setTimeout(() => {
-        setPdfLoading(false);
-        setThemeModalOpen(false);
-      }, 600);
-    }
-  }, [reportData, enrollment, sidebarLogoUrl]);
+  const handleDownload = useCallback(
+    (themeKey = "default") => {
+      if (!reportData) return;
+      setPdfLoading(true);
+      const enriched = {
+        ...reportData,
+        enrollment: {
+          ...reportData.enrollment,
+          schoolName:
+            reportData?.enrollment?.schoolName ??
+            enrollment?.schoolName ??
+            "School",
+          schoolLogoUrl:
+            sidebarLogoUrl ??
+            reportData?.enrollment?.schoolLogoUrl ??
+            enrollment?.schoolLogoUrl ??
+            null,
+        },
+      };
+      try {
+        downloadReportPDF(enriched, themeKey);
+      } finally {
+        setTimeout(() => {
+          setPdfLoading(false);
+          setThemeModalOpen(false);
+        }, 600);
+      }
+    },
+    [reportData, enrollment, sidebarLogoUrl],
+  );
 
   // ✅ FIX: Split groups so the dropdown is grouped and clearly labelled
-  const publishedGroups   = examGroups.filter((g) => g.isPublished);
+  const publishedGroups = examGroups.filter((g) => g.isPublished);
   const unpublishedGroups = examGroups.filter((g) => !g.isPublished);
 
   return (
@@ -277,24 +426,39 @@ export default function Marks() {
       <style>{GLOBAL_CSS}</style>
 
       <div className="mrk-page">
-
         {/* ─── HEADER ROW ─── */}
-        <div className="anim-1" style={{
-          display: "flex",
-          alignItems: isMobile ? "flex-start" : "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap", gap: 12,
-          marginBottom: isMobile ? 14 : 20,
-        }}>
-          <PageHeader loading={loadingGroups} enrollment={enrollment} isMobile={isMobile} logoUrl={sidebarLogoUrl} />
+        <div
+          className="anim-1"
+          style={{
+            display: "flex",
+            alignItems: isMobile ? "flex-start" : "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+            marginBottom: isMobile ? 14 : 20,
+          }}
+        >
+          <PageHeader
+            loading={loadingGroups}
+            enrollment={enrollment}
+            isMobile={isMobile}
+            logoUrl={sidebarLogoUrl}
+          />
 
           {/* Controls */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
-            width: isMobile ? "100%" : "auto",
-          }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
+              width: isMobile ? "100%" : "auto",
+            }}
+          >
             {!loadingGroups && examGroups.length > 0 && (
-              <div style={{ position: "relative", flex: isMobile ? "1" : "unset" }}>
+              <div
+                style={{ position: "relative", flex: isMobile ? "1" : "unset" }}
+              >
                 {/* ✅ FIX: Use <optgroup> to separate published from pending exams.
                     Students can instantly see which exams have results ready. */}
                 <select
@@ -307,7 +471,8 @@ export default function Marks() {
                     <optgroup label="Results Available">
                       {publishedGroups.map((g) => (
                         <option key={g.id} value={g.id}>
-                          {g.term ? `${g.term.name}: ` : ""}{g.name}
+                          {g.term ? `${g.term.name}: ` : ""}
+                          {g.name}
                         </option>
                       ))}
                     </optgroup>
@@ -317,16 +482,24 @@ export default function Marks() {
                     <optgroup label="Not Yet Published">
                       {unpublishedGroups.map((g) => (
                         <option key={g.id} value={g.id}>
-                          {g.term ? `${g.term.name}: ` : ""}{g.name} (Pending)
+                          {g.term ? `${g.term.name}: ` : ""}
+                          {g.name} (Pending)
                         </option>
                       ))}
                     </optgroup>
                   )}
                 </select>
-                <ChevronDown size={13} color={C.textLight} style={{
-                  position: "absolute", right: 11, top: "50%",
-                  transform: "translateY(-50%)", pointerEvents: "none",
-                }} />
+                <ChevronDown
+                  size={13}
+                  color={C.textLight}
+                  style={{
+                    position: "absolute",
+                    right: 11,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    pointerEvents: "none",
+                  }}
+                />
               </div>
             )}
 
@@ -337,9 +510,14 @@ export default function Marks() {
                 disabled={pdfLoading}
                 style={{ flex: isMobile ? "1" : "unset" }}
               >
-                {pdfLoading
-                  ? <Loader2 size={13} style={{ animation: "spin 0.9s linear infinite" }} />
-                  : <Download size={13} />}
+                {pdfLoading ? (
+                  <Loader2
+                    size={13}
+                    style={{ animation: "spin 0.9s linear infinite" }}
+                  />
+                ) : (
+                  <Download size={13} />
+                )}
                 {pdfLoading ? "Preparing…" : "Download PDF"}
               </button>
             )}
@@ -352,12 +530,27 @@ export default function Marks() {
 
         {/* ─── NO EXAMS ─── */}
         {!loadingGroups && examGroups.length === 0 && !errorGroups && (
-          <div className="mrk-card" style={{
-            padding: isMobile ? "40px 20px" : "56px 24px",
-            textAlign: "center",
-          }}>
-            <FileText size={44} color="rgba(136,189,242,0.35)" style={{ margin: "0 auto 14px", display: "block" }} />
-            <p style={{ color: C.dark, fontWeight: 700, fontSize: 16, margin: "0 0 6px", fontFamily: FONT.sans }}>
+          <div
+            className="mrk-card"
+            style={{
+              padding: isMobile ? "40px 20px" : "56px 24px",
+              textAlign: "center",
+            }}
+          >
+            <FileText
+              size={44}
+              color="rgba(136,189,242,0.35)"
+              style={{ margin: "0 auto 14px", display: "block" }}
+            />
+            <p
+              style={{
+                color: C.dark,
+                fontWeight: 700,
+                fontSize: 16,
+                margin: "0 0 6px",
+                fontFamily: FONT.sans,
+              }}
+            >
               No Exams Available
             </p>
             <p style={{ color: C.mid, fontSize: 13, margin: 0 }}>
@@ -372,7 +565,6 @@ export default function Marks() {
         {/* ─── MAIN REPORT ─── */}
         {(loadingReport || showReport) && (
           <div style={{ animation: showReport ? "fadeUp 0.4s ease" : "none" }}>
-
             <SummaryCards
               summary={reportData?.summary}
               loading={loadingReport}
@@ -381,12 +573,14 @@ export default function Marks() {
             />
 
             {/* Table + Insights side by side on desktop */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: isMobile || isTablet ? "1fr" : "1fr 284px",
-              gap: isMobile ? 12 : 18,
-              alignItems: "start",
-            }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile || isTablet ? "1fr" : "1fr 284px",
+                gap: isMobile ? 12 : 18,
+                alignItems: "start",
+              }}
+            >
               <SubjectTable
                 subjects={reportData?.subjectResults}
                 summary={reportData?.summary}
@@ -404,28 +598,49 @@ export default function Marks() {
 
             {/* ─── Footer download bar ─── */}
             {showReport && (
-              <div className="mrk-card" style={{
-                marginTop: isMobile ? 12 : 18,
-                padding: isMobile ? "14px 16px" : "16px 22px",
-                display: "flex",
-                alignItems: isMobile ? "flex-start" : "center",
-                justifyContent: "space-between",
-                flexDirection: isMobile ? "column" : "row",
-                gap: 12,
-                animation: "fadeUp 0.5s ease",
-              }}>
+              <div
+                className="mrk-card"
+                style={{
+                  marginTop: isMobile ? 12 : 18,
+                  padding: isMobile ? "14px 16px" : "16px 22px",
+                  display: "flex",
+                  alignItems: isMobile ? "flex-start" : "center",
+                  justifyContent: "space-between",
+                  flexDirection: isMobile ? "column" : "row",
+                  gap: 12,
+                  animation: "fadeUp 0.5s ease",
+                }}
+              >
                 <div>
-                  <p style={{
-                    margin: 0, fontWeight: 700, color: C.dark,
-                    fontSize: isMobile ? 13 : 14, fontFamily: FONT.sans,
-                  }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontWeight: 700,
+                      color: C.dark,
+                      fontSize: isMobile ? 13 : 14,
+                      fontFamily: FONT.sans,
+                    }}
+                  >
                     {reportData?.exam?.name}
-                    {reportData?.exam?.term ? ` — ${reportData.exam.term.name}` : ""}
+                    {reportData?.exam?.term
+                      ? ` — ${reportData.exam.term.name}`
+                      : ""}
                   </p>
-                  <p style={{ margin: "3px 0 0", color: C.textLight, fontSize: 11, fontWeight: 500 }}>
+                  <p
+                    style={{
+                      margin: "3px 0 0",
+                      color: C.textLight,
+                      fontSize: 11,
+                      fontWeight: 500,
+                    }}
+                  >
                     {reportData?.enrollment?.className}
-                    {reportData?.student?.rollNumber ? ` · Roll No: ${reportData.student.rollNumber}` : ""}
-                    {reportData?.enrollment?.academicYear ? ` · ${reportData.enrollment.academicYear}` : ""}
+                    {reportData?.student?.rollNumber
+                      ? ` · Roll No: ${reportData.student.rollNumber}`
+                      : ""}
+                    {reportData?.enrollment?.academicYear
+                      ? ` · ${reportData.enrollment.academicYear}`
+                      : ""}
                   </p>
                 </div>
                 <button
@@ -433,20 +648,27 @@ export default function Marks() {
                   onClick={() => setThemeModalOpen(true)}
                   disabled={pdfLoading}
                   style={{
-                    padding: "10px 22px", fontSize: 13,
+                    padding: "10px 22px",
+                    fontSize: 13,
                     width: isMobile ? "100%" : "auto",
                   }}
                 >
+                  {pdfLoading ? (
+                    <Loader2
+                      size={14}
+                      style={{ animation: "spin 0.9s linear infinite" }}
+                    />
+                  ) : (
+                    <Download size={14} />
+                  )}
                   {pdfLoading
-                    ? <Loader2 size={14} style={{ animation: "spin 0.9s linear infinite" }} />
-                    : <Download size={14} />}
-                  {pdfLoading ? "Preparing PDF…" : "Print / Download Report Card"}
+                    ? "Preparing PDF…"
+                    : "Print / Download Report Card"}
                 </button>
               </div>
             )}
           </div>
         )}
-
       </div>
 
       <ThemeModal
