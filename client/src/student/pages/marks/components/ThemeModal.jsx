@@ -1,84 +1,88 @@
 // client/src/student/pages/marks/components/ThemeModal.jsx
-// Small confirm-before-download modal — lets the user pick a PDF colour
-// theme (Default + Yellow + Blue + Red) before the report card downloads.
-// Shared by the student Marks page and the admin StudentReportModal.
+// Confirm-before-download modal — lets the user pick a PDF colour theme
+// (Default + Yellow + Blue + Red) and optionally enter a month-wise
+// attendance table and remarks before the report card downloads. Shared by
+// the student Marks page and the admin StudentReportModal.
 //
 // Props
-//   open, onClose, loading          — same as before
-//   onConfirm(themeKey, sections)   — Download PDF. `sections` is a new 2nd
-//                                     argument; old callers can ignore it.
-//   onPreview(themeKey, sections)   — optional. When passed, a "Preview"
-//                                     button is shown next to Download.
-//   previewLoading                  — optional spinner state for Preview.
-//   showSectionOptions              — optional. When true, shows the
-//                                     "Include in report card" toggles.
-//
-// sections = { showProgressChart: boolean, showRemarks: boolean }
+//   open, onClose, loading
+//   onConfirm(themeKey, attendanceRows, remarks, sections)
+//       Same first 3 arguments as before, so existing callers keep working.
+//       `sections` = { showProgressChart, showAttendance, showRemarks }
+//   onPreview(themeKey, attendanceRows, remarks, sections)   — optional;
+//       shows a "Preview" button when passed.
+//   previewLoading       — optional spinner state for Preview.
+//   showSectionOptions   — optional; when true the Progress Report,
+//       Attendance and Remarks sections get on/off switches.
+//   theme / onThemeChange, sections / onSectionsChange — optional; pass
+//       these to control the theme and switches from the parent (the admin
+//       Print Preview toolbar uses this to stay in sync).
 
 import { useState } from "react";
-import { X, Download, Loader2, Check, Eye } from "lucide-react";
+import {
+  X,
+  Download,
+  Loader2,
+  Check,
+  Plus,
+  Trash2,
+  CalendarDays,
+  MessageSquare,
+  Eye,
+  BarChart3,
+} from "lucide-react";
 import { PDF_THEMES, DEFAULT_SECTION_OPTIONS } from "../utils/downloadPDF.js";
 import { C, FONT } from "../tokens.js";
 
 const THEME_LIST = Object.values(PDF_THEMES);
+let rowIdSeq = 0;
+const newRow = () => ({ id: ++rowIdSeq, month: "", total: "", present: "" });
 
-const SECTION_TOGGLES = [
-  {
-    key: "showProgressChart",
-    label: "Marks-wise Progress Report",
-    hint: "Bar chart of each subject's percentage",
-  },
-  {
-    key: "showRemarks",
-    label: "Remarks",
-    hint: "Subject remarks + space for teacher's remarks",
-  },
-];
+const sectionTitleStyle = {
+  margin: 0,
+  fontSize: 11,
+  fontWeight: 800,
+  color: C.dark,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+};
 
-function ToggleRow({ checked, onChange, label, hint, accent }) {
+/* Section heading that doubles as an on/off switch when `toggle` is set */
+function SectionTitle({
+  icon: Icon,
+  label,
+  toggle,
+  checked,
+  onToggle,
+  accent,
+}) {
+  if (!toggle) {
+    return (
+      <p style={sectionTitleStyle}>
+        {Icon && <Icon size={13} />} {label}
+      </p>
+    );
+  }
   return (
     <label
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "9px 12px",
-        borderRadius: 12,
-        border: `1.5px solid ${checked ? accent : C.border}`,
-        background: checked ? `${accent}10` : C.white,
-        cursor: "pointer",
-        transition: "all .15s",
-      }}
+      style={{ ...sectionTitleStyle, cursor: "pointer", userSelect: "none" }}
     >
       <input
         type="checkbox"
         checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
+        onChange={(e) => onToggle(e.target.checked)}
         style={{
-          width: 16,
-          height: 16,
+          width: 15,
+          height: 15,
+          margin: 0,
           accentColor: accent,
           cursor: "pointer",
-          flexShrink: 0,
         }}
       />
-      <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: C.dark }}>
-          {label}
-        </span>
-        {hint && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 500,
-              color: C.textLight,
-              marginTop: 1,
-            }}
-          >
-            {hint}
-          </span>
-        )}
-      </span>
+      {Icon && <Icon size={13} />} {label}
     </label>
   );
 }
@@ -91,15 +95,71 @@ export default function ThemeModal({
   onPreview,
   previewLoading = false,
   showSectionOptions = false,
+  theme,
+  onThemeChange,
+  sections,
+  onSectionsChange,
 }) {
-  const [selected, setSelected] = useState("default");
-  const [sections, setSections] = useState({ ...DEFAULT_SECTION_OPTIONS });
+  const [innerTheme, setInnerTheme] = useState("default");
+  const [innerSections, setInnerSections] = useState({
+    ...DEFAULT_SECTION_OPTIONS,
+  });
+  const [attendance, setAttendance] = useState([]);
+  const [remarks, setRemarks] = useState("");
   if (!open) return null;
 
-  const activeSwatch = (PDF_THEMES[selected] || PDF_THEMES.default).swatch;
+  // Controlled when the parent passes theme / sections, otherwise internal
+  const selected = theme ?? innerTheme;
+  const setSelected = (k) =>
+    onThemeChange ? onThemeChange(k) : setInnerTheme(k);
+  const sec = sections ?? innerSections;
+  const setSection = (key, value) => {
+    const next = { ...sec, [key]: value };
+    if (onSectionsChange) onSectionsChange(next);
+    else setInnerSections(next);
+  };
+
+  const accent = (PDF_THEMES[selected] || PDF_THEMES.default).swatch;
   const busy = loading || previewLoading;
-  const setSection = (key, value) =>
-    setSections((prev) => ({ ...prev, [key]: value }));
+
+  // Without the switches every section behaves exactly as it always did
+  const showChart = showSectionOptions ? !!sec.showProgressChart : true;
+  const showAttendance = showSectionOptions ? !!sec.showAttendance : true;
+  const showRemarks = showSectionOptions ? !!sec.showRemarks : true;
+
+  const addRow = () => setAttendance((rows) => [...rows, newRow()]);
+  const removeRow = (id) =>
+    setAttendance((rows) => rows.filter((r) => r.id !== id));
+  const updateRow = (id, key, value) =>
+    setAttendance((rows) =>
+      rows.map((r) => (r.id === id ? { ...r, [key]: value } : r)),
+    );
+
+  const collect = () => {
+    const cleanRows = showAttendance
+      ? attendance
+          .filter((r) => r.month.trim() !== "")
+          .map((r) => ({
+            month: r.month.trim(),
+            total: r.total,
+            present: r.present,
+          }))
+      : [];
+    const sectionFlags = {
+      showProgressChart: showChart,
+      showAttendance,
+      showRemarks,
+    };
+    return [
+      selected,
+      cleanRows,
+      showRemarks ? remarks.trim() : "",
+      sectionFlags,
+    ];
+  };
+
+  const handleConfirm = () => onConfirm(...collect());
+  const handlePreview = () => onPreview?.(...collect());
 
   return (
     <div
@@ -113,21 +173,22 @@ export default function ThemeModal({
         alignItems: "center",
         justifyContent: "center",
         padding: 16,
+        overflowY: "auto",
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
-          maxWidth: 400,
-          maxHeight: "calc(100vh - 32px)",
-          overflowY: "auto",
+          maxWidth: 460,
           background: C.white,
           borderRadius: 18,
           border: `1.5px solid ${C.border}`,
           boxShadow: "0 24px 60px rgba(15,23,42,0.30)",
           padding: 20,
           fontFamily: FONT.sans,
+          maxHeight: "90vh",
+          overflowY: "auto",
         }}
       >
         <div
@@ -141,7 +202,7 @@ export default function ThemeModal({
           <p
             style={{ margin: 0, fontSize: 15, fontWeight: 800, color: C.dark }}
           >
-            {onPreview ? "Report card options" : "Choose a PDF theme"}
+            Prepare Report Card PDF
           </p>
           <button
             onClick={onClose}
@@ -166,27 +227,19 @@ export default function ThemeModal({
             fontWeight: 500,
           }}
         >
-          {onPreview
-            ? "Pick a colour theme, then preview or download the report card."
-            : "Pick a colour theme for the downloaded report card."}
+          {showSectionOptions
+            ? "Pick a colour theme and choose which sections to include."
+            : "Pick a colour theme, and optionally add monthly attendance."}
         </p>
 
-        <p
-          style={{
-            margin: "0 0 8px",
-            fontSize: 12,
-            fontWeight: 700,
-            color: C.mid,
-          }}
-        >
-          Theme
-        </p>
+        {/* ── Theme ── */}
+        <p style={{ ...sectionTitleStyle, marginBottom: 8 }}>Colour Theme</p>
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(2, 1fr)",
             gap: 10,
-            marginBottom: 18,
+            marginBottom: 20,
           }}
         >
           {THEME_LIST.map((t) => {
@@ -232,33 +285,286 @@ export default function ThemeModal({
           })}
         </div>
 
+        {/* ── Marks-wise Progress Report (switch only) ── */}
         {showSectionOptions && (
           <div style={{ marginBottom: 20 }}>
+            <SectionTitle
+              icon={BarChart3}
+              label="Marks-wise Progress Report"
+              toggle
+              checked={showChart}
+              onToggle={(v) => setSection("showProgressChart", v)}
+              accent={accent}
+            />
             <p
               style={{
-                margin: "0 0 8px",
-                fontSize: 12,
-                fontWeight: 700,
-                color: C.mid,
+                margin: "4px 0 0 21px",
+                fontSize: 11.5,
+                color: C.textLight,
               }}
             >
-              Include in report card
+              {showChart
+                ? "Bar chart of each subject's percentage."
+                : "The progress chart will be left out of the report card."}
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {SECTION_TOGGLES.map((t) => (
-                <ToggleRow
-                  key={t.key}
-                  checked={!!sections[t.key]}
-                  onChange={(v) => setSection(t.key, v)}
-                  label={t.label}
-                  hint={t.hint}
-                  accent={activeSwatch}
-                />
-              ))}
-            </div>
           </div>
         )}
 
+        {/* ── Attendance ── */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 8,
+          }}
+        >
+          <SectionTitle
+            icon={CalendarDays}
+            label={
+              showSectionOptions ? "Attendance Report" : "Attendance (Optional)"
+            }
+            toggle={showSectionOptions}
+            checked={showAttendance}
+            onToggle={(v) => setSection("showAttendance", v)}
+            accent={accent}
+          />
+          {showAttendance && (
+            <button
+              onClick={addRow}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                background: C.bg,
+                border: `1.5px solid ${C.border}`,
+                borderRadius: 8,
+                padding: "4px 9px",
+                fontSize: 11,
+                fontWeight: 700,
+                color: C.dark,
+                cursor: "pointer",
+                fontFamily: FONT.sans,
+              }}
+            >
+              <Plus size={12} /> Add Month
+            </button>
+          )}
+        </div>
+
+        {!showAttendance ? (
+          <p
+            style={{
+              margin: "0 0 20px",
+              fontSize: 11.5,
+              color: C.textLight,
+              fontStyle: "italic",
+            }}
+          >
+            The Attendance Report will be left out of the report card.
+          </p>
+        ) : attendance.length === 0 ? (
+          <p
+            style={{
+              margin: "0 0 20px",
+              fontSize: 11.5,
+              color: C.textLight,
+              fontStyle: "italic",
+            }}
+          >
+            No months added — the PDF will skip the Attendance Report section.
+          </p>
+        ) : (
+          <div
+            style={{
+              marginBottom: 20,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 74px 74px 26px",
+                gap: 6,
+                padding: "0 2px",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 9.5,
+                  fontWeight: 800,
+                  color: C.textLight,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Month
+              </span>
+              <span
+                style={{
+                  fontSize: 9.5,
+                  fontWeight: 800,
+                  color: C.textLight,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  textAlign: "center",
+                }}
+              >
+                Total
+              </span>
+              <span
+                style={{
+                  fontSize: 9.5,
+                  fontWeight: 800,
+                  color: C.textLight,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  textAlign: "center",
+                }}
+              >
+                Present
+              </span>
+              <span />
+            </div>
+            {attendance.map((row) => (
+              <div
+                key={row.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 74px 74px 26px",
+                  gap: 6,
+                  alignItems: "center",
+                }}
+              >
+                <input
+                  value={row.month}
+                  onChange={(e) => updateRow(row.id, "month", e.target.value)}
+                  placeholder="e.g. June"
+                  style={{
+                    padding: "7px 9px",
+                    borderRadius: 8,
+                    border: `1.5px solid ${C.border}`,
+                    fontSize: 12.5,
+                    color: C.dark,
+                    outline: "none",
+                    fontFamily: FONT.sans,
+                  }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  value={row.total}
+                  onChange={(e) => updateRow(row.id, "total", e.target.value)}
+                  placeholder="30"
+                  style={{
+                    padding: "7px 6px",
+                    borderRadius: 8,
+                    border: `1.5px solid ${C.border}`,
+                    fontSize: 12.5,
+                    color: C.dark,
+                    outline: "none",
+                    textAlign: "center",
+                    fontFamily: FONT.sans,
+                  }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  value={row.present}
+                  onChange={(e) => updateRow(row.id, "present", e.target.value)}
+                  placeholder="28"
+                  style={{
+                    padding: "7px 6px",
+                    borderRadius: 8,
+                    border: `1.5px solid ${C.border}`,
+                    fontSize: 12.5,
+                    color: C.dark,
+                    outline: "none",
+                    textAlign: "center",
+                    fontFamily: FONT.sans,
+                  }}
+                />
+                <button
+                  onClick={() => removeRow(row.id)}
+                  aria-label="Remove month"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: C.red,
+                    padding: 4,
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Remarks ── */}
+        <div style={{ marginBottom: 8 }}>
+          <SectionTitle
+            icon={MessageSquare}
+            label={showSectionOptions ? "Remarks" : "Remarks (Optional)"}
+            toggle={showSectionOptions}
+            checked={showRemarks}
+            onToggle={(v) => setSection("showRemarks", v)}
+            accent={accent}
+          />
+        </div>
+        {showRemarks ? (
+          <>
+            <textarea
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="e.g. Good progress this term…"
+              rows={3}
+              style={{
+                width: "100%",
+                resize: "vertical",
+                marginBottom: showSectionOptions ? 4 : 20,
+                padding: "9px 10px",
+                borderRadius: 10,
+                border: `1.5px solid ${C.border}`,
+                fontSize: 12.5,
+                color: C.dark,
+                outline: "none",
+                fontFamily: FONT.sans,
+                boxSizing: "border-box",
+              }}
+            />
+            {showSectionOptions && (
+              <p
+                style={{
+                  margin: "0 0 20px",
+                  fontSize: 11.5,
+                  color: C.textLight,
+                }}
+              >
+                Leave blank to print empty lines for handwritten remarks.
+              </p>
+            )}
+          </>
+        ) : (
+          <p
+            style={{
+              margin: "0 0 20px",
+              fontSize: 11.5,
+              color: C.textLight,
+              fontStyle: "italic",
+            }}
+          >
+            The Remarks section will be left out of the report card.
+          </p>
+        )}
+
+        {/* ── Actions ── */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button
             onClick={onClose}
@@ -280,7 +586,7 @@ export default function ThemeModal({
 
           {onPreview && (
             <button
-              onClick={() => onPreview(selected, sections)}
+              onClick={handlePreview}
               disabled={busy}
               style={{
                 flex: "1 1 100px",
@@ -313,7 +619,7 @@ export default function ThemeModal({
           )}
 
           <button
-            onClick={() => onConfirm(selected, sections)}
+            onClick={handleConfirm}
             disabled={busy}
             style={{
               flex: "1.4 1 130px",
