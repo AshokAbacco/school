@@ -5,8 +5,7 @@
 // straight from the Exams → Results table.
 //
 // "Print Preview" renders the exact PDF that Download produces (same theme,
-// same sections) and shows it inside the app, so admins can check the
-// printed look before downloading or printing.
+// sections, attendance and remarks) and shows it inside the app.
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
@@ -17,6 +16,7 @@ import {
   Eye,
   ExternalLink,
   Check,
+  SlidersHorizontal,
 } from "lucide-react";
 import { getToken } from "../../../../auth/storage.js";
 import { useSchoolLogo } from "../../../../hooks/useSchoolLogo.js";
@@ -49,16 +49,24 @@ function SchoolLogo({ src, alt }) {
   );
 }
 
+const SECTION_SWITCHES = [
+  { key: "showProgressChart", label: "Progress Report" },
+  { key: "showAttendance", label: "Attendance" },
+  { key: "showRemarks", label: "Remarks" },
+];
+
 /* ── Print Preview overlay ──────────────────────────────────────────────
-   Shows the generated PDF in an <iframe>. The theme and section toggles at
-   the top re-generate the preview, so what you see is what downloads. */
+   Shows the generated PDF in an <iframe>. Changing the theme or a section
+   switch re-generates it, so what you see is exactly what downloads. */
 function PrintPreview({
   url,
   loading,
   error,
-  themeKey,
+  theme,
   sections,
-  onChange,
+  onThemeChange,
+  onSectionsChange,
+  onEditDetails,
   onDownload,
   downloading,
   onClose,
@@ -72,7 +80,7 @@ function PrintPreview({
       onClick={(e) => e.stopPropagation()}
     >
       {/* toolbar */}
-      <div className="flex flex-wrap items-center gap-2.5 bg-[#243340] px-4 py-3 text-white sm:px-6">
+      <div className="flex flex-wrap items-center gap-2 bg-[#243340] px-4 py-3 text-white sm:px-6">
         <button
           onClick={onClose}
           className="flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-white/20"
@@ -89,7 +97,7 @@ function PrintPreview({
           aria-label="PDF theme"
         >
           {themes.map((t) => {
-            const active = t.key === themeKey;
+            const active = t.key === theme;
             return (
               <button
                 key={t.key}
@@ -97,7 +105,7 @@ function PrintPreview({
                 aria-checked={active}
                 title={t.name}
                 disabled={busy}
-                onClick={() => onChange(t.key, sections)}
+                onClick={() => onThemeChange(t.key)}
                 className="flex h-7 w-7 items-center justify-center rounded-full border-2 transition disabled:cursor-not-allowed"
                 style={{
                   background: t.swatch,
@@ -110,35 +118,32 @@ function PrintPreview({
           })}
         </div>
 
-        {/* optional sections */}
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-bold">
-          <input
-            type="checkbox"
-            checked={!!sections.showProgressChart}
-            disabled={busy}
-            onChange={(e) =>
-              onChange(themeKey, {
-                ...sections,
-                showProgressChart: e.target.checked,
-              })
-            }
-            className="h-3.5 w-3.5 cursor-pointer"
-          />
-          Progress Report
-        </label>
+        {/* section switches */}
+        {SECTION_SWITCHES.map((sw) => (
+          <label
+            key={sw.key}
+            className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-bold"
+          >
+            <input
+              type="checkbox"
+              checked={!!sections[sw.key]}
+              disabled={busy}
+              onChange={(e) =>
+                onSectionsChange({ ...sections, [sw.key]: e.target.checked })
+              }
+              className="h-3.5 w-3.5 cursor-pointer"
+            />
+            {sw.label}
+          </label>
+        ))}
 
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-bold">
-          <input
-            type="checkbox"
-            checked={!!sections.showRemarks}
-            disabled={busy}
-            onChange={(e) =>
-              onChange(themeKey, { ...sections, showRemarks: e.target.checked })
-            }
-            className="h-3.5 w-3.5 cursor-pointer"
-          />
-          Remarks
-        </label>
+        <button
+          onClick={onEditDetails}
+          disabled={busy}
+          className="flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-65"
+        >
+          <SlidersHorizontal size={13} /> Attendance &amp; Remarks
+        </button>
 
         {url && (
           <a
@@ -152,7 +157,7 @@ function PrintPreview({
         )}
 
         <button
-          onClick={() => onDownload(themeKey, sections)}
+          onClick={onDownload}
           disabled={busy}
           className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-[#243340] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-65"
         >
@@ -229,15 +234,18 @@ export default function StudentReportModal({
   const [pdfLoading, setPdfLoading] = useState(false);
   const [themeModalOpen, setThemeModalOpen] = useState(false);
 
+  // PDF settings — shared by the options popup, the preview and the download
+  const [pdfTheme, setPdfTheme] = useState("default");
+  const [pdfSections, setPdfSections] = useState({
+    ...DEFAULT_SECTION_OPTIONS,
+  });
+  const [pdfDetails, setPdfDetails] = useState({ attendance: [], remarks: "" });
+
   // Print Preview state
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
-  const [previewTheme, setPreviewTheme] = useState("default");
-  const [previewSections, setPreviewSections] = useState({
-    ...DEFAULT_SECTION_OPTIONS,
-  });
   const previewUrlRef = useRef(null);
   const previewReqRef = useRef(0);
 
@@ -303,7 +311,6 @@ export default function StudentReportModal({
       ...data,
       enrollment: {
         ...data.enrollment,
-        // ✅ Prefer the sidebar's logo source so the PDF matches the app exactly
         schoolLogoUrl:
           sidebarLogoUrl ?? data?.enrollment?.schoolLogoUrl ?? null,
       },
@@ -311,12 +318,22 @@ export default function StudentReportModal({
     [data, sidebarLogoUrl],
   );
 
+  const toPdfOptions = (sections, details) => ({
+    ...sections,
+    attendance: details.attendance,
+    remarks: details.remarks,
+  });
+
   const handleDownload = useCallback(
-    async (themeKey = "default", sections = DEFAULT_SECTION_OPTIONS) => {
+    async (themeKey, sections, details) => {
       if (!data) return;
       setPdfLoading(true);
       try {
-        await downloadReportPDF(buildPdfData(), themeKey, sections);
+        await downloadReportPDF(
+          buildPdfData(),
+          themeKey,
+          toPdfOptions(sections, details),
+        );
       } finally {
         setPdfLoading(false);
         setThemeModalOpen(false);
@@ -326,12 +343,10 @@ export default function StudentReportModal({
   );
 
   const handlePreview = useCallback(
-    async (themeKey = "default", sections = DEFAULT_SECTION_OPTIONS) => {
+    async (themeKey, sections, details) => {
       if (!data) return;
       const reqId = ++previewReqRef.current;
       setThemeModalOpen(false);
-      setPreviewTheme(themeKey);
-      setPreviewSections(sections);
       setPreviewOpen(true);
       setPreviewLoading(true);
       setPreviewError("");
@@ -339,9 +354,9 @@ export default function StudentReportModal({
         const url = await generateReportPDFBlobUrl(
           buildPdfData(),
           themeKey,
-          sections,
+          toPdfOptions(sections, details),
         );
-        // A newer preview request finished first — discard this one
+        // A newer preview request was started meanwhile — discard this one
         if (reqId !== previewReqRef.current) {
           URL.revokeObjectURL(url);
           return;
@@ -350,15 +365,35 @@ export default function StudentReportModal({
         previewUrlRef.current = url;
         setPreviewUrl(url);
       } catch (e) {
-        if (reqId === previewReqRef.current) {
+        if (reqId === previewReqRef.current)
           setPreviewError(e?.message || "Could not generate the preview.");
-        }
       } finally {
         if (reqId === previewReqRef.current) setPreviewLoading(false);
       }
     },
     [data, buildPdfData],
   );
+
+  // Called by the options popup: (themeKey, attendanceRows, remarks, sections)
+  const fromThemeModal =
+    (action) => (themeKey, attendance, remarks, sections) => {
+      const details = { attendance: attendance || [], remarks: remarks || "" };
+      const flags = { ...pdfSections, ...(sections || {}) };
+      setPdfTheme(themeKey);
+      setPdfSections(flags);
+      setPdfDetails(details);
+      action(themeKey, flags, details);
+    };
+
+  // Preview toolbar changes → update settings and re-render the preview
+  const changePreviewTheme = (themeKey) => {
+    setPdfTheme(themeKey);
+    handlePreview(themeKey, pdfSections, pdfDetails);
+  };
+  const changePreviewSections = (sections) => {
+    setPdfSections(sections);
+    handlePreview(pdfTheme, sections, pdfDetails);
+  };
 
   return (
     <div
@@ -414,7 +449,7 @@ export default function StudentReportModal({
           {data && (
             <div className="flex flex-shrink-0 items-center gap-2">
               <button
-                onClick={() => handlePreview(previewTheme, previewSections)}
+                onClick={() => handlePreview(pdfTheme, pdfSections, pdfDetails)}
                 disabled={pdfLoading || previewLoading}
                 className="flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-65"
               >
@@ -493,10 +528,12 @@ export default function StudentReportModal({
           url={previewUrl}
           loading={previewLoading}
           error={previewError}
-          themeKey={previewTheme}
-          sections={previewSections}
-          onChange={handlePreview}
-          onDownload={handleDownload}
+          theme={pdfTheme}
+          sections={pdfSections}
+          onThemeChange={changePreviewTheme}
+          onSectionsChange={changePreviewSections}
+          onEditDetails={() => setThemeModalOpen(true)}
+          onDownload={() => handleDownload(pdfTheme, pdfSections, pdfDetails)}
           downloading={pdfLoading}
           onClose={() => setPreviewOpen(false)}
         />
@@ -505,10 +542,14 @@ export default function StudentReportModal({
       <ThemeModal
         open={themeModalOpen}
         onClose={() => setThemeModalOpen(false)}
-        onConfirm={(themeKey, sections) => handleDownload(themeKey, sections)}
-        onPreview={(themeKey, sections) => handlePreview(themeKey, sections)}
+        onConfirm={fromThemeModal(handleDownload)}
+        onPreview={fromThemeModal(handlePreview)}
         previewLoading={previewLoading}
         showSectionOptions
+        theme={pdfTheme}
+        onThemeChange={setPdfTheme}
+        sections={pdfSections}
+        onSectionsChange={setPdfSections}
         loading={pdfLoading}
       />
     </div>
