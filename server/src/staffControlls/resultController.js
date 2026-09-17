@@ -3,8 +3,9 @@ import { prisma } from "../config/db.js";
 import ExcelJS from "exceljs";
 import { generateSignedUrl } from "../lib/r2.js";
 
-const ok  = (res, data)         => res.json({ success: true, ...data });
-const err = (res, msg, s = 400) => res.status(s).json({ success: false, message: msg });
+const ok = (res, data) => res.json({ success: true, ...data });
+const err = (res, msg, s = 400) =>
+  res.status(s).json({ success: false, message: msg });
 
 function getGrade(pct) {
   if (pct >= 90) return "A+";
@@ -25,31 +26,37 @@ async function getActiveYear(schoolId) {
 // ─── GET /api/results/meta ─────────────────────────────────────────────────
 export async function getResultsMeta(req, res) {
   try {
-    const userId   = req.user?.id;
+    const userId = req.user?.id;
     const schoolId = req.user?.schoolId;
-    const role     = req.user?.role;
+    const role = req.user?.role;
     if (!userId || !schoolId) return err(res, "Unauthorized", 401);
 
     const activeYear = await getActiveYear(schoolId);
     if (!activeYear) return err(res, "No active academic year", 404);
 
     if (role === "ADMIN") {
-        const [exams, schedules] = await Promise.all([
-          prisma.assessmentGroup.findMany({
-            where: { schoolId, academicYearId: activeYear.id, deletedAt: null },
-            orderBy: { createdAt: "desc" },
-            select: { id: true, name: true, term: { select: { id: true, name: true } } },
-          }),
+      const [exams, schedules] = await Promise.all([
+        prisma.assessmentGroup.findMany({
+          where: { schoolId, academicYearId: activeYear.id, deletedAt: null },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            name: true,
+            term: { select: { id: true, name: true } },
+          },
+        }),
         prisma.assessmentSchedule.findMany({
-          where: { assessmentGroup: { academicYearId: activeYear.id, schoolId } },
+          where: {
+            assessmentGroup: { academicYearId: activeYear.id, schoolId },
+          },
           select: {
             classSection: { select: { id: true, name: true } },
-            subject:      { select: { id: true, name: true } },
+            subject: { select: { id: true, name: true } },
           },
         }),
       ]);
 
-      const classMap   = new Map();
+      const classMap = new Map();
       const subjectMap = new Map();
       for (const s of schedules) {
         classMap.set(s.classSection.id, s.classSection.name);
@@ -58,12 +65,14 @@ export async function getResultsMeta(req, res) {
 
       return ok(res, {
         exams,
-        classes:  [...classMap.entries()].map(([id, name]) => ({ id, name })),
+        classes: [...classMap.entries()].map(([id, name]) => ({ id, name })),
         subjects: [...subjectMap.entries()].map(([id, name]) => ({ id, name })),
       });
     }
 
-    const teacher = await prisma.teacherProfile.findUnique({ where: { userId } });
+    const teacher = await prisma.teacherProfile.findUnique({
+      where: { userId },
+    });
     if (!teacher) return err(res, "Teacher profile not found", 404);
 
     const [timetableEntries, extraClasses] = await Promise.all([
@@ -72,34 +81,51 @@ export async function getResultsMeta(req, res) {
         select: { classSectionId: true, subjectId: true },
       }),
       prisma.extraClass.findMany({
-        where: { teacherId: teacher.id, academicYearId: activeYear.id, schoolId, isActive: true },
+        where: {
+          teacherId: teacher.id,
+          academicYearId: activeYear.id,
+          schoolId,
+          isActive: true,
+        },
         select: { classSectionId: true },
       }),
     ]);
 
-    const teacherClassIds   = [...new Set([...timetableEntries, ...extraClasses].map((e) => e.classSectionId).filter(Boolean))];
-    const teacherSubjectIds = [...new Set(timetableEntries.map((e) => e.subjectId).filter(Boolean))];
+    const teacherClassIds = [
+      ...new Set(
+        [...timetableEntries, ...extraClasses]
+          .map((e) => e.classSectionId)
+          .filter(Boolean),
+      ),
+    ];
+    const teacherSubjectIds = [
+      ...new Set(timetableEntries.map((e) => e.subjectId).filter(Boolean)),
+    ];
 
     const [exams, schedules] = await Promise.all([
       prisma.assessmentGroup.findMany({
         where: { schoolId, academicYearId: activeYear.id, deletedAt: null },
         orderBy: { createdAt: "desc" },
-        select: { id: true, name: true, term: { select: { id: true, name: true } } },
+        select: {
+          id: true,
+          name: true,
+          term: { select: { id: true, name: true } },
+        },
       }),
       prisma.assessmentSchedule.findMany({
         where: {
           classSectionId: { in: teacherClassIds },
-          subjectId:      { in: teacherSubjectIds },
+          subjectId: { in: teacherSubjectIds },
           assessmentGroup: { academicYearId: activeYear.id, schoolId },
         },
         select: {
           classSection: { select: { id: true, name: true } },
-          subject:      { select: { id: true, name: true } },
+          subject: { select: { id: true, name: true } },
         },
       }),
     ]);
 
-    const classMap   = new Map();
+    const classMap = new Map();
     const subjectMap = new Map();
     for (const s of schedules) {
       classMap.set(s.classSection.id, s.classSection.name);
@@ -108,7 +134,7 @@ export async function getResultsMeta(req, res) {
 
     return ok(res, {
       exams,
-      classes:  [...classMap.entries()].map(([id, name]) => ({ id, name })),
+      classes: [...classMap.entries()].map(([id, name]) => ({ id, name })),
       subjects: [...subjectMap.entries()].map(([id, name]) => ({ id, name })),
     });
   } catch (e) {
@@ -120,11 +146,13 @@ export async function getResultsMeta(req, res) {
 // ─── GET /api/results/teacher/classes ─────────────────────────────────────
 export async function getTeacherClasses(req, res) {
   try {
-    const userId   = req.user?.id;
+    const userId = req.user?.id;
     const schoolId = req.user?.schoolId;
     if (!userId || !schoolId) return err(res, "Unauthorized", 401);
 
-    const teacher = await prisma.teacherProfile.findUnique({ where: { userId } });
+    const teacher = await prisma.teacherProfile.findUnique({
+      where: { userId },
+    });
     if (!teacher) return err(res, "Teacher profile not found", 404);
 
     const activeYear = await getActiveYear(schoolId);
@@ -133,12 +161,27 @@ export async function getTeacherClasses(req, res) {
     const [entries, extras] = await Promise.all([
       prisma.timetableEntry.findMany({
         where: { teacherId: teacher.id, academicYearId: activeYear.id },
-        select: { classSectionId: true, classSection: { select: { id: true, name: true, grade: true, section: true } } },
+        select: {
+          classSectionId: true,
+          classSection: {
+            select: { id: true, name: true, grade: true, section: true },
+          },
+        },
         distinct: ["classSectionId"],
       }),
       prisma.extraClass.findMany({
-        where: { teacherId: teacher.id, academicYearId: activeYear.id, schoolId, isActive: true },
-        select: { classSectionId: true, classSection: { select: { id: true, name: true, grade: true, section: true } } },
+        where: {
+          teacherId: teacher.id,
+          academicYearId: activeYear.id,
+          schoolId,
+          isActive: true,
+        },
+        select: {
+          classSectionId: true,
+          classSection: {
+            select: { id: true, name: true, grade: true, section: true },
+          },
+        },
         distinct: ["classSectionId"],
       }),
     ]);
@@ -146,10 +189,16 @@ export async function getTeacherClasses(req, res) {
     const seen = new Set();
     const classes = [...entries, ...extras]
       .map((e) => e.classSection)
-      .filter((cs) => { if (seen.has(cs.id)) return false; seen.add(cs.id); return true; })
-      .sort((a, b) =>
-        String(a.grade).localeCompare(String(b.grade), undefined, { numeric: true }) ||
-        String(a.section).localeCompare(String(b.section)),
+      .filter((cs) => {
+        if (seen.has(cs.id)) return false;
+        seen.add(cs.id);
+        return true;
+      })
+      .sort(
+        (a, b) =>
+          String(a.grade).localeCompare(String(b.grade), undefined, {
+            numeric: true,
+          }) || String(a.section).localeCompare(String(b.section)),
       );
 
     return ok(res, { classes });
@@ -162,25 +211,33 @@ export async function getTeacherClasses(req, res) {
 // ─── GET /api/results/teacher/classes/:classSectionId/subjects ────────────
 export async function getTeacherSubjectsForClass(req, res) {
   try {
-    const userId   = req.user?.id;
+    const userId = req.user?.id;
     const schoolId = req.user?.schoolId;
     if (!userId || !schoolId) return err(res, "Unauthorized", 401);
 
     const { classSectionId } = req.params;
     const { assessmentGroupId } = req.query;
 
-    const teacher = await prisma.teacherProfile.findUnique({ where: { userId } });
+    const teacher = await prisma.teacherProfile.findUnique({
+      where: { userId },
+    });
     if (!teacher) return err(res, "Teacher profile not found", 404);
 
     const activeYear = await getActiveYear(schoolId);
     if (!activeYear) return err(res, "No active academic year", 404);
 
     const timetableEntries = await prisma.timetableEntry.findMany({
-      where: { teacherId: teacher.id, academicYearId: activeYear.id, classSectionId },
+      where: {
+        teacherId: teacher.id,
+        academicYearId: activeYear.id,
+        classSectionId,
+      },
       select: { subjectId: true },
       distinct: ["subjectId"],
     });
-    const teacherSubjectIds = timetableEntries.map((e) => e.subjectId).filter(Boolean);
+    const teacherSubjectIds = timetableEntries
+      .map((e) => e.subjectId)
+      .filter(Boolean);
 
     const schedules = await prisma.assessmentSchedule.findMany({
       where: {
@@ -193,15 +250,19 @@ export async function getTeacherSubjectsForClass(req, res) {
         },
       },
       select: {
-        id: true, maxMarks: true, passingMarks: true, examDate: true,
-        subject:         { select: { id: true, name: true, code: true } },
+        id: true,
+        maxMarks: true,
+        passingMarks: true,
+        examDate: true,
+        subject: { select: { id: true, name: true, code: true } },
         assessmentGroup: { select: { id: true, name: true } },
       },
     });
 
     const subjectMap = new Map();
     for (const s of schedules) {
-      if (!subjectMap.has(s.subject.id)) subjectMap.set(s.subject.id, s.subject);
+      if (!subjectMap.has(s.subject.id))
+        subjectMap.set(s.subject.id, s.subject);
     }
 
     return ok(res, { subjects: [...subjectMap.values()], schedules });
@@ -224,7 +285,12 @@ export async function getResultExamGroups(req, res) {
       where: { schoolId, academicYearId: activeYear.id, deletedAt: null },
       orderBy: { createdAt: "desc" },
       select: {
-        id: true, name: true, weightage: true, isPublished: true, isLocked: true, termId: true,
+        id: true,
+        name: true,
+        weightage: true,
+        isPublished: true,
+        isLocked: true,
+        termId: true,
         term: { select: { id: true, name: true } },
       },
     });
@@ -256,7 +322,9 @@ export async function getSubExamGroups(req, res) {
     // elsewhere), and exams filed under any of them are still Sub Exams.
     let assessmentTerms = await prisma.assessmentTerm.findMany({
       where: {
-        schoolId, academicYearId: activeYear.id, deletedAt: null,
+        schoolId,
+        academicYearId: activeYear.id,
+        deletedAt: null,
         name: { equals: "Assessment", mode: "insensitive" },
       },
     });
@@ -269,12 +337,27 @@ export async function getSubExamGroups(req, res) {
     const termIds = assessmentTerms.map((t) => t.id);
 
     const subExams = await prisma.assessmentGroup.findMany({
-      where: { schoolId, academicYearId: activeYear.id, termId: { in: termIds }, deletedAt: null },
+      where: {
+        schoolId,
+        academicYearId: activeYear.id,
+        termId: { in: termIds },
+        deletedAt: null,
+      },
       orderBy: { createdAt: "desc" },
-      select: { id: true, name: true, weightage: true, isPublished: true, isLocked: true },
+      select: {
+        id: true,
+        name: true,
+        weightage: true,
+        isPublished: true,
+        isLocked: true,
+      },
     });
 
-    return ok(res, { term: assessmentTerms[0], terms: assessmentTerms, data: subExams });
+    return ok(res, {
+      term: assessmentTerms[0],
+      terms: assessmentTerms,
+      data: subExams,
+    });
   } catch (e) {
     console.error("[getSubExamGroups]", e);
     return err(res, e.message, 500);
@@ -284,9 +367,9 @@ export async function getSubExamGroups(req, res) {
 // ─── GET /api/results/exams/:assessmentGroupId/schedules ──────────────────
 export async function getSchedulesByAssessmentGroup(req, res) {
   try {
-    const userId   = req.user?.id;
+    const userId = req.user?.id;
     const schoolId = req.user?.schoolId;
-    const role     = req.user?.role;
+    const role = req.user?.role;
     if (!userId || !schoolId) return err(res, "Unauthorized", 401);
 
     const activeYear = await getActiveYear(schoolId);
@@ -304,32 +387,44 @@ export async function getSchedulesByAssessmentGroup(req, res) {
           { subject: { name: "asc" } },
         ],
         select: {
-          id: true, classSectionId: true, subjectId: true,
-          maxMarks: true, passingMarks: true, examDate: true,
+          id: true,
+          classSectionId: true,
+          subjectId: true,
+          maxMarks: true,
+          passingMarks: true,
+          examDate: true,
           assessmentGroup: { select: { id: true, name: true, termId: true } },
-          classSection:    { select: { id: true, name: true, grade: true, section: true } },
-          subject:         { select: { id: true, name: true, code: true } },
+          classSection: {
+            select: { id: true, name: true, grade: true, section: true },
+          },
+          subject: { select: { id: true, name: true, code: true } },
         },
       });
       return ok(res, { data: schedules });
     }
 
-    const teacher = await prisma.teacherProfile.findUnique({ where: { userId } });
+    const teacher = await prisma.teacherProfile.findUnique({
+      where: { userId },
+    });
     if (!teacher) return err(res, "Teacher profile not found", 404);
 
     const timetableEntries = await prisma.timetableEntry.findMany({
       where: { teacherId: teacher.id, academicYearId: activeYear.id },
       select: { classSectionId: true, subjectId: true },
     });
-    const teacherClassIds   = [...new Set(timetableEntries.map((e) => e.classSectionId).filter(Boolean))];
-    const teacherSubjectIds = [...new Set(timetableEntries.map((e) => e.subjectId).filter(Boolean))];
+    const teacherClassIds = [
+      ...new Set(timetableEntries.map((e) => e.classSectionId).filter(Boolean)),
+    ];
+    const teacherSubjectIds = [
+      ...new Set(timetableEntries.map((e) => e.subjectId).filter(Boolean)),
+    ];
 
     const schedules = await prisma.assessmentSchedule.findMany({
       where: {
         assessmentGroupId: req.params.assessmentGroupId,
-        classSectionId:    { in: teacherClassIds },
-        subjectId:         { in: teacherSubjectIds },
-        classSection:      { schoolId },
+        classSectionId: { in: teacherClassIds },
+        subjectId: { in: teacherSubjectIds },
+        classSection: { schoolId },
       },
       orderBy: [
         { classSection: { grade: "asc" } },
@@ -337,11 +432,17 @@ export async function getSchedulesByAssessmentGroup(req, res) {
         { subject: { name: "asc" } },
       ],
       select: {
-        id: true, classSectionId: true, subjectId: true,
-        maxMarks: true, passingMarks: true, examDate: true,
+        id: true,
+        classSectionId: true,
+        subjectId: true,
+        maxMarks: true,
+        passingMarks: true,
+        examDate: true,
         assessmentGroup: { select: { id: true, name: true, termId: true } },
-        classSection:    { select: { id: true, name: true, grade: true, section: true } },
-        subject:         { select: { id: true, name: true, code: true } },
+        classSection: {
+          select: { id: true, name: true, grade: true, section: true },
+        },
+        subject: { select: { id: true, name: true, code: true } },
       },
     });
 
@@ -365,65 +466,88 @@ export async function getStudentsForSchedule(req, res) {
       prisma.assessmentSchedule.findFirst({
         where: { id: req.params.scheduleId, classSection: { schoolId } },
         select: {
-          id: true, classSectionId: true, maxMarks: true, passingMarks: true,
-          examDate: true, assessmentGroupId: true,
+          id: true,
+          classSectionId: true,
+          maxMarks: true,
+          passingMarks: true,
+          examDate: true,
+          assessmentGroupId: true,
           assessmentGroup: {
-            select: { id: true, name: true, termId: true, term: { select: { id: true, name: true } } },
+            select: {
+              id: true,
+              name: true,
+              termId: true,
+              term: { select: { id: true, name: true } },
+            },
           },
           classSection: { select: { id: true, name: true } },
-          subject:      { select: { id: true, name: true, code: true } },
+          subject: { select: { id: true, name: true, code: true } },
         },
       }),
       prisma.marks.findMany({
         where: { scheduleId: req.params.scheduleId },
-        select: { id: true, studentId: true, marksObtained: true, isAbsent: true, remarks: true, components: true },
+        select: {
+          id: true,
+          studentId: true,
+          marksObtained: true,
+          isAbsent: true,
+          remarks: true,
+          components: true,
+        },
       }),
     ]);
 
     if (!schedule) return err(res, "Schedule not found", 404);
 
     const enrollments = await prisma.studentEnrollment.findMany({
-      where: { classSectionId: schedule.classSectionId, academicYearId: activeYear.id, status: "ACTIVE" },
+      where: {
+        classSectionId: schedule.classSectionId,
+        academicYearId: activeYear.id,
+        status: "ACTIVE",
+      },
       orderBy: [{ rollNumber: "asc" }, { student: { name: "asc" } }],
       select: {
-        rollNumber: true, admissionNumber: true,
+        rollNumber: true,
+        admissionNumber: true,
         student: { select: { id: true, name: true, email: true } },
       },
     });
 
     const marksMap = new Map(existingMarks.map((m) => [m.studentId, m]));
 
-    const students = enrollments.map(({ student, rollNumber, admissionNumber }) => {
-      const m = marksMap.get(student.id);
-      return {
-        studentId:       student.id,
-        studentName:     student.name,
-        email:           student.email,
-        rollNumber:      rollNumber || "",
-        admissionNumber: admissionNumber || "",
-        marksId:         m?.id || null,
-        marksObtained:   m?.marksObtained ?? "",
-        isAbsent:        m?.isAbsent || false,
-        remarks:         m?.remarks || "",
-        components:      m?.components || null,
-      };
-    });
+    const students = enrollments.map(
+      ({ student, rollNumber, admissionNumber }) => {
+        const m = marksMap.get(student.id);
+        return {
+          studentId: student.id,
+          studentName: student.name,
+          email: student.email,
+          rollNumber: rollNumber || "",
+          admissionNumber: admissionNumber || "",
+          marksId: m?.id || null,
+          marksObtained: m?.marksObtained ?? "",
+          isAbsent: m?.isAbsent || false,
+          remarks: m?.remarks || "",
+          components: m?.components || null,
+        };
+      },
+    );
 
     return ok(res, {
       data: {
         schedule: {
-          id:               schedule.id,
-          examId:           schedule.assessmentGroup.id,
-          examName:         schedule.assessmentGroup.name,
-          termId:           schedule.assessmentGroup.term?.id || null,
-          termName:         schedule.assessmentGroup.term?.name || null,
-          classSectionId:   schedule.classSection.id,
+          id: schedule.id,
+          examId: schedule.assessmentGroup.id,
+          examName: schedule.assessmentGroup.name,
+          termId: schedule.assessmentGroup.term?.id || null,
+          termName: schedule.assessmentGroup.term?.name || null,
+          classSectionId: schedule.classSection.id,
           classSectionName: schedule.classSection.name,
-          subjectName:      schedule.subject.name,
-          subjectCode:      schedule.subject.code,
-          maxMarks:         schedule.maxMarks,
-          passingMarks:     schedule.passingMarks,
-          examDate:         schedule.examDate,
+          subjectName: schedule.subject.name,
+          subjectCode: schedule.subject.code,
+          maxMarks: schedule.maxMarks,
+          passingMarks: schedule.passingMarks,
+          examDate: schedule.examDate,
         },
         students,
       },
@@ -441,9 +565,10 @@ export async function saveMarksForSchedule(req, res) {
     const { scheduleId } = req.params;
     const { students } = req.body;
 
-    if (!schoolId)                                    return err(res, "Unauthorized", 401);
-    if (!scheduleId)                                  return err(res, "Schedule id required", 400);
-    if (!Array.isArray(students) || !students.length) return err(res, "Students array required", 400);
+    if (!schoolId) return err(res, "Unauthorized", 401);
+    if (!scheduleId) return err(res, "Schedule id required", 400);
+    if (!Array.isArray(students) || !students.length)
+      return err(res, "Students array required", 400);
 
     const activeYear = await getActiveYear(schoolId);
     if (!activeYear) return err(res, "No active academic year", 404);
@@ -451,14 +576,21 @@ export async function saveMarksForSchedule(req, res) {
     const schedule = await prisma.assessmentSchedule.findFirst({
       where: { id: scheduleId, classSection: { schoolId } },
       select: {
-        id: true, classSectionId: true, maxMarks: true, assessmentGroupId: true,
+        id: true,
+        classSectionId: true,
+        maxMarks: true,
+        assessmentGroupId: true,
         assessmentGroup: { select: { id: true, termId: true } },
       },
     });
     if (!schedule) return err(res, "Schedule not found", 404);
 
     const validIds = await prisma.studentEnrollment.findMany({
-      where: { classSectionId: schedule.classSectionId, academicYearId: activeYear.id, status: "ACTIVE" },
+      where: {
+        classSectionId: schedule.classSectionId,
+        academicYearId: activeYear.id,
+        status: "ACTIVE",
+      },
       select: { studentId: true },
     });
     const validSet = new Set(validIds.map((s) => s.studentId));
@@ -466,89 +598,127 @@ export async function saveMarksForSchedule(req, res) {
     for (const item of students) {
       if (!validSet.has(item.studentId))
         return err(res, `Invalid student: ${item.studentId}`, 400);
-      if (!item.isAbsent && item.marksObtained !== "" && item.marksObtained != null) {
+      if (
+        !item.isAbsent &&
+        item.marksObtained !== "" &&
+        item.marksObtained != null
+      ) {
         const v = Number(item.marksObtained);
-        if (isNaN(v) || v < 0)    return err(res, `Invalid marks for ${item.studentId}`, 400);
-        if (v > schedule.maxMarks) return err(res, `Marks exceed max for ${item.studentId}`, 400);
+        if (isNaN(v) || v < 0)
+          return err(res, `Invalid marks for ${item.studentId}`, 400);
+        if (v > schedule.maxMarks)
+          return err(res, `Marks exceed max for ${item.studentId}`, 400);
       }
     }
 
     const schedulesInGroup = await prisma.assessmentSchedule.findMany({
-      where: { assessmentGroupId: schedule.assessmentGroupId, classSectionId: schedule.classSectionId },
+      where: {
+        assessmentGroupId: schedule.assessmentGroupId,
+        classSectionId: schedule.classSectionId,
+      },
       select: { id: true, maxMarks: true },
     });
-    const scheduleIds        = schedulesInGroup.map((s) => s.id);
-    const maxMarksBySchedule = new Map(schedulesInGroup.map((s) => [s.id, Number(s.maxMarks || 0)]));
+    const scheduleIds = schedulesInGroup.map((s) => s.id);
+    const maxMarksBySchedule = new Map(
+      schedulesInGroup.map((s) => [s.id, Number(s.maxMarks || 0)]),
+    );
 
-    await prisma.$transaction(async (tx) => {
-      await Promise.all(students.map((item) => {
-        const marksValue =
-          item.isAbsent || item.marksObtained === "" || item.marksObtained == null
-            ? null : Number(item.marksObtained);
-        const data = {
-          marksObtained: marksValue,
-          isAbsent:      !!item.isAbsent,
-          remarks:       item.remarks?.trim() || null,
-          // Optional component breakdown (e.g. Formative Assessment format:
-          // R&R / CW / PW / ST). marksObtained is still the authoritative
-          // total (TOT) — the frontend computes and sends it either way.
-          components:    item.components ?? null,
-        };
-        return tx.marks.upsert({
-          where:  { scheduleId_studentId: { scheduleId, studentId: item.studentId } },
-          update: data,
-          create: { scheduleId, studentId: item.studentId, ...data },
+    await prisma.$transaction(
+      async (tx) => {
+        await Promise.all(
+          students.map((item) => {
+            const marksValue =
+              item.isAbsent ||
+              item.marksObtained === "" ||
+              item.marksObtained == null
+                ? null
+                : Number(item.marksObtained);
+            const data = {
+              marksObtained: marksValue,
+              isAbsent: !!item.isAbsent,
+              remarks: item.remarks?.trim() || null,
+              // Optional component breakdown (e.g. Formative Assessment format:
+              // R&R / CW / PW / ST). marksObtained is still the authoritative
+              // total (TOT) — the frontend computes and sends it either way.
+              components: item.components ?? null,
+            };
+            return tx.marks.upsert({
+              where: {
+                scheduleId_studentId: { scheduleId, studentId: item.studentId },
+              },
+              update: data,
+              create: { scheduleId, studentId: item.studentId, ...data },
+            });
+          }),
+        );
+
+        const allMarks = await tx.marks.findMany({
+          where: {
+            studentId: { in: students.map((s) => s.studentId) },
+            scheduleId: { in: scheduleIds },
+          },
+          select: { studentId: true, scheduleId: true, marksObtained: true },
         });
-      }));
 
-      const allMarks = await tx.marks.findMany({
-        where: { studentId: { in: students.map((s) => s.studentId) }, scheduleId: { in: scheduleIds } },
-        select: { studentId: true, scheduleId: true, marksObtained: true },
-      });
+        const marksByStudent = allMarks.reduce((acc, m) => {
+          acc.set(m.studentId, [...(acc.get(m.studentId) || []), m]);
+          return acc;
+        }, new Map());
 
-      const marksByStudent = allMarks.reduce((acc, m) => {
-        acc.set(m.studentId, [...(acc.get(m.studentId) || []), m]);
-        return acc;
-      }, new Map());
+        await Promise.all(
+          students.map((item) => {
+            const sMarks = marksByStudent.get(item.studentId) || [];
 
-      await Promise.all(students.map((item) => {
-        const sMarks = marksByStudent.get(item.studentId) || [];
+            const totalMarks = sMarks.reduce(
+              (sum, m) => sum + Number(m.marksObtained || 0),
+              0,
+            );
+            const coveredMax = sMarks.reduce(
+              (sum, m) => sum + (maxMarksBySchedule.get(m.scheduleId) || 0),
+              0,
+            );
 
-        const totalMarks = sMarks.reduce((sum, m) => sum + Number(m.marksObtained || 0), 0);
-        const coveredMax = sMarks.reduce((sum, m) => sum + (maxMarksBySchedule.get(m.scheduleId) || 0), 0);
+            const percentage =
+              coveredMax > 0 ? (totalMarks / coveredMax) * 100 : 0;
+            const grade = getGrade(percentage);
 
-        const percentage = coveredMax > 0 ? (totalMarks / coveredMax) * 100 : 0;
-        const grade      = getGrade(percentage);
+            const summaryData = {
+              totalMarks,
+              maxMarks: coveredMax,
+              percentage,
+              grade,
+            };
+            const termId = schedule.assessmentGroup.termId;
 
-        const summaryData = { totalMarks, maxMarks: coveredMax, percentage, grade };
-          const termId = schedule.assessmentGroup.termId;
+            if (!termId) {
+              console.warn("❌ termId missing → skipping resultSummary");
+              return; // ⛔ prevent Prisma crash
+            }
 
-          if (!termId) {
-            console.warn("❌ termId missing → skipping resultSummary");
-            return; // ⛔ prevent Prisma crash
-          }
-
-          return tx.resultSummary.upsert({
-            where: {
-              studentId_academicYearId_termId_assessmentGroupId: {
+            return tx.resultSummary.upsert({
+              where: {
+                studentId_academicYearId_termId_assessmentGroupId: {
+                  studentId: item.studentId,
+                  academicYearId: activeYear.id,
+                  termId: termId, // ✅ FIXED
+                  assessmentGroupId: schedule.assessmentGroupId,
+                },
+              },
+              update: summaryData,
+              create: {
                 studentId: item.studentId,
                 academicYearId: activeYear.id,
-                termId: termId, // ✅ FIXED
+                termId: schedule.assessmentGroup.termId || null,
                 assessmentGroupId: schedule.assessmentGroupId,
+                isPublished: false,
+                ...summaryData,
               },
-            },
-          update: summaryData,
-          create: {
-            studentId:         item.studentId,
-            academicYearId:    activeYear.id,
-            termId:            schedule.assessmentGroup.termId || null,
-            assessmentGroupId: schedule.assessmentGroupId,
-            isPublished:       false,
-            ...summaryData,
-          },
-        });
-      }));
-    }, { timeout: 15000 });
+            });
+          }),
+        );
+      },
+      { timeout: 15000 },
+    );
 
     return ok(res, { message: "Marks saved successfully" });
   } catch (e) {
@@ -560,21 +730,28 @@ export async function saveMarksForSchedule(req, res) {
 // ─── GET /api/results/list ─────────────────────────────────────────────────
 export async function getResultsList(req, res) {
   try {
-    const userId   = req.user?.id;
+    const userId = req.user?.id;
     const schoolId = req.user?.schoolId;
-    const role     = req.user?.role;
+    const role = req.user?.role;
     if (!userId || !schoolId) return err(res, "Unauthorized", 401);
 
-    const { search = "", assessmentGroupId = "", classSectionId = "", subjectId = "" } = req.query;
+    const {
+      search = "",
+      assessmentGroupId = "",
+      classSectionId = "",
+      subjectId = "",
+    } = req.query;
 
     const activeYear = await getActiveYear(schoolId);
     if (!activeYear) return err(res, "No active academic year", 404);
 
-    let effectiveClassIds   = null;
+    let effectiveClassIds = null;
     let effectiveSubjectIds = null;
 
     if (role !== "ADMIN") {
-      const teacher = await prisma.teacherProfile.findUnique({ where: { userId } });
+      const teacher = await prisma.teacherProfile.findUnique({
+        where: { userId },
+      });
       if (!teacher) return err(res, "Teacher profile not found", 404);
 
       const timetableEntries = await prisma.timetableEntry.findMany({
@@ -582,10 +759,16 @@ export async function getResultsList(req, res) {
         select: { classSectionId: true, subjectId: true },
       });
 
-      const teacherClassIds   = [...new Set(timetableEntries.map((e) => e.classSectionId).filter(Boolean))];
-      const teacherSubjectIds = [...new Set(timetableEntries.map((e) => e.subjectId).filter(Boolean))];
+      const teacherClassIds = [
+        ...new Set(
+          timetableEntries.map((e) => e.classSectionId).filter(Boolean),
+        ),
+      ];
+      const teacherSubjectIds = [
+        ...new Set(timetableEntries.map((e) => e.subjectId).filter(Boolean)),
+      ];
 
-      effectiveClassIds   = classSectionId
+      effectiveClassIds = classSectionId
         ? teacherClassIds.filter((id) => id === classSectionId)
         : teacherClassIds;
       effectiveSubjectIds = subjectId
@@ -600,27 +783,52 @@ export async function getResultsList(req, res) {
     const rows = await prisma.marks.findMany({
       where: {
         schedule: {
-          ...(effectiveClassIds   ? { classSectionId: { in: effectiveClassIds } }   : classSectionId  ? { classSectionId }  : {}),
-          ...(effectiveSubjectIds ? { subjectId:      { in: effectiveSubjectIds } }  : subjectId       ? { subjectId }       : {}),
+          ...(effectiveClassIds
+            ? { classSectionId: { in: effectiveClassIds } }
+            : classSectionId
+              ? { classSectionId }
+              : {}),
+          ...(effectiveSubjectIds
+            ? { subjectId: { in: effectiveSubjectIds } }
+            : subjectId
+              ? { subjectId }
+              : {}),
           assessmentGroup: {
             schoolId,
             academicYearId: activeYear.id,
             ...(assessmentGroupId ? { id: assessmentGroupId } : {}),
           },
         },
-        ...(search ? {
-          OR: [
-            { student: { name: { contains: search, mode: "insensitive" } } },
-            { student: { enrollments: { some: { academicYearId: activeYear.id, rollNumber: { contains: search, mode: "insensitive" } } } } },
-          ],
-        } : {}),
+        ...(search
+          ? {
+              OR: [
+                {
+                  student: { name: { contains: search, mode: "insensitive" } },
+                },
+                {
+                  student: {
+                    enrollments: {
+                      some: {
+                        academicYearId: activeYear.id,
+                        rollNumber: { contains: search, mode: "insensitive" },
+                      },
+                    },
+                  },
+                },
+              ],
+            }
+          : {}),
       },
       orderBy: { createdAt: "desc" },
       select: {
-        id: true, marksObtained: true, isAbsent: true, remarks: true,
+        id: true,
+        marksObtained: true,
+        isAbsent: true,
+        remarks: true,
         student: {
           select: {
-            id: true, name: true,
+            id: true,
+            name: true,
             enrollments: {
               where: { academicYearId: activeYear.id },
               select: { rollNumber: true },
@@ -630,9 +838,10 @@ export async function getResultsList(req, res) {
         },
         schedule: {
           select: {
-            maxMarks: true, examDate: true,
-            subject:         { select: { id: true, name: true } },
-            classSection:    { select: { id: true, name: true } },
+            maxMarks: true,
+            examDate: true,
+            subject: { select: { id: true, name: true } },
+            classSection: { select: { id: true, name: true } },
             assessmentGroup: { select: { id: true, name: true } },
           },
         },
@@ -640,25 +849,28 @@ export async function getResultsList(req, res) {
     });
 
     const data = rows.map((r) => {
-      const marks      = Number(r.marksObtained || 0);
+      const marks = Number(r.marksObtained || 0);
       const totalMarks = Number(r.schedule.maxMarks || 0);
-      const percentage = totalMarks > 0 ? Math.round((marks / totalMarks) * 100) : 0;
+      const percentage =
+        totalMarks > 0 ? Math.round((marks / totalMarks) * 100) : 0;
       return {
-        id:             r.id,
-        studentId:      r.student.id,
-        studentName:    r.student.name,
-        rollNo:         r.student.enrollments[0]?.rollNumber || "-",
+        id: r.id,
+        studentId: r.student.id,
+        studentName: r.student.name,
+        rollNo: r.student.enrollments[0]?.rollNumber || "-",
         classSectionId: r.schedule.classSection.id,
-        className:      r.schedule.classSection.name,
-        subjectId:      r.schedule.subject.id,
-        subject:        r.schedule.subject.name,
-        examId:         r.schedule.assessmentGroup.id,
-        exam:           r.schedule.assessmentGroup.name,
-        marks, totalMarks, percentage,
-        grade:    r.isAbsent ? "AB" : getGrade(percentage),
+        className: r.schedule.classSection.name,
+        subjectId: r.schedule.subject.id,
+        subject: r.schedule.subject.name,
+        examId: r.schedule.assessmentGroup.id,
+        exam: r.schedule.assessmentGroup.name,
+        marks,
+        totalMarks,
+        percentage,
+        grade: r.isAbsent ? "AB" : getGrade(percentage),
         isAbsent: r.isAbsent,
-        remarks:  r.remarks,
-        date:     r.schedule.examDate,
+        remarks: r.remarks,
+        date: r.schedule.examDate,
       };
     });
 
@@ -671,7 +883,7 @@ export async function getResultsList(req, res) {
 
 export async function getResultsSummary(req, res) {
   try {
-    const userId   = req.user?.id;
+    const userId = req.user?.id;
     const schoolId = req.user?.schoolId;
     if (!userId || !schoolId) return err(res, "Unauthorized", 401);
 
@@ -718,9 +930,7 @@ export async function getResultsSummary(req, res) {
     const data = summaries
       .map((s) => {
         // ✅ FIX: find correct enrollment
-        const enrollment = s.student.enrollments.find(
-          (e) => e.classSectionId
-        );
+        const enrollment = s.student.enrollments.find((e) => e.classSectionId);
 
         if (!enrollment) return null;
 
@@ -729,25 +939,24 @@ export async function getResultsSummary(req, res) {
           return null;
 
         return {
-          id:                s.id,
-          studentId:         s.studentId,
-          studentName:       s.student.name,
-          rollNo:            enrollment.rollNumber || "-",
-          classSectionId:    enrollment.classSectionId, // ✅ IMPORTANT
+          id: s.id,
+          studentId: s.studentId,
+          studentName: s.student.name,
+          rollNo: enrollment.rollNumber || "-",
+          classSectionId: enrollment.classSectionId, // ✅ IMPORTANT
           assessmentGroupId: s.assessmentGroupId,
-          examName:          s.assessmentGroup.name,
-          term:              s.assessmentGroup.term,
-          totalMarks:        Number(s.totalMarks || 0),
-          maxMarks:          Number(s.maxMarks || 0),
-          percentage:        Number(s.percentage || 0),
-          grade:             s.grade,
-          isPublished:       s.isPublished,
+          examName: s.assessmentGroup.name,
+          term: s.assessmentGroup.term,
+          totalMarks: Number(s.totalMarks || 0),
+          maxMarks: Number(s.maxMarks || 0),
+          percentage: Number(s.percentage || 0),
+          grade: s.grade,
+          isPublished: s.isPublished,
         };
       })
       .filter(Boolean);
 
     return ok(res, { data });
-
   } catch (e) {
     console.error("[getResultsSummary]", e);
     return err(res, e.message, 500);
@@ -756,11 +965,13 @@ export async function getResultsSummary(req, res) {
 // ─── DELETE /api/results/marks/:id ────────────────────────────────────────
 export async function deleteMarkEntry(req, res) {
   try {
-    const userId   = req.user?.id;
+    const userId = req.user?.id;
     const schoolId = req.user?.schoolId;
     if (!userId || !schoolId) return err(res, "Unauthorized", 401);
 
-    const teacher = await prisma.teacherProfile.findUnique({ where: { userId } });
+    const teacher = await prisma.teacherProfile.findUnique({
+      where: { userId },
+    });
     if (!teacher) return err(res, "Teacher profile not found", 404);
 
     const activeYear = await getActiveYear(schoolId);
@@ -777,10 +988,10 @@ export async function deleteMarkEntry(req, res) {
 
     const assigned = await prisma.timetableEntry.findFirst({
       where: {
-        teacherId:      teacher.id,
+        teacherId: teacher.id,
         academicYearId: activeYear.id,
         classSectionId: existing.schedule.classSectionId,
-        subjectId:      existing.schedule.subjectId,
+        subjectId: existing.schedule.subjectId,
       },
     });
     if (!assigned) return err(res, "Not authorized to delete this entry", 403);
@@ -793,7 +1004,6 @@ export async function deleteMarkEntry(req, res) {
   }
 }
 
-
 // ─── GET /api/results/admin/overview ───────────────────────────────────────
 // Admin-only. Powers the "Upload Exam Results" main page:
 //   - 4 status cards (Total Classes, Total Students, Uploaded Results, Pending Results)
@@ -801,7 +1011,7 @@ export async function deleteMarkEntry(req, res) {
 export async function getAdminUploadOverview(req, res) {
   try {
     const schoolId = req.user?.schoolId;
-    const role     = req.user?.role;
+    const role = req.user?.role;
     if (!schoolId) return err(res, "Unauthorized", 401);
     if (role !== "ADMIN") return err(res, "Forbidden", 403);
 
@@ -813,7 +1023,10 @@ export async function getAdminUploadOverview(req, res) {
         where: { schoolId, deletedAt: null },
         orderBy: [{ grade: "asc" }, { section: "asc" }],
         select: {
-          id: true, grade: true, section: true, name: true,
+          id: true,
+          grade: true,
+          section: true,
+          name: true,
           _count: {
             select: {
               studentEnrollments: {
@@ -840,38 +1053,42 @@ export async function getAdminUploadOverview(req, res) {
 
     const schedulesByClass = new Map();
     for (const s of schedules) {
-      if (!schedulesByClass.has(s.classSectionId)) schedulesByClass.set(s.classSectionId, []);
+      if (!schedulesByClass.has(s.classSectionId))
+        schedulesByClass.set(s.classSectionId, []);
       schedulesByClass.get(s.classSectionId).push(s);
     }
 
     let uploadedResults = 0;
-    let pendingResults  = 0;
+    let pendingResults = 0;
 
     const classWise = classSections.map((cs) => {
-      const list      = schedulesByClass.get(cs.id) || [];
-      const uploaded  = list.filter((s) => s._count.marks > 0).length;
-      const pending   = list.length - uploaded;
+      const list = schedulesByClass.get(cs.id) || [];
+      const uploaded = list.filter((s) => s._count.marks > 0).length;
+      const pending = list.length - uploaded;
       uploadedResults += uploaded;
-      pendingResults  += pending;
+      pendingResults += pending;
 
       return {
-        classSectionId:    cs.id,
-        grade:             cs.grade,
-        section:           cs.section,
-        name:              cs.name,
-        studentCount:      cs._count.studentEnrollments,
-        examCount:         new Set(list.map((s) => s.assessmentGroupId)).size,
-        totalSchedules:    list.length,
+        classSectionId: cs.id,
+        grade: cs.grade,
+        section: cs.section,
+        name: cs.name,
+        studentCount: cs._count.studentEnrollments,
+        examCount: new Set(list.map((s) => s.assessmentGroupId)).size,
+        totalSchedules: list.length,
         uploadedSchedules: uploaded,
-        pendingSchedules:  pending,
+        pendingSchedules: pending,
       };
     });
 
-    const totalStudents = classSections.reduce((sum, c) => sum + c._count.studentEnrollments, 0);
+    const totalStudents = classSections.reduce(
+      (sum, c) => sum + c._count.studentEnrollments,
+      0,
+    );
 
     return ok(res, {
       stats: {
-        totalClasses:    classSections.length,
+        totalClasses: classSections.length,
         totalStudents,
         uploadedResults,
         pendingResults,
@@ -890,7 +1107,10 @@ export const exportResultsExcel = async (req, res) => {
     const { classSectionId, assessmentGroupId, subjectId } = req.query;
 
     if (!classSectionId || !assessmentGroupId) {
-      return res.status(400).json({ message: "Missing required params: classSectionId and assessmentGroupId" });
+      return res.status(400).json({
+        message:
+          "Missing required params: classSectionId and assessmentGroupId",
+      });
     }
 
     // ── 1. Fetch data ──────────────────────────────────────────────────────────
@@ -906,106 +1126,119 @@ export const exportResultsExcel = async (req, res) => {
         student: true,
         schedule: {
           include: {
-            subject:         true,
-            classSection:    true,
+            subject: true,
+            classSection: true,
             assessmentGroup: true,
           },
         },
       },
       orderBy: [
         { schedule: { subject: { name: "asc" } } },
-        { student:  { name: "asc" } },
+        { student: { name: "asc" } },
       ],
     });
 
     if (!results.length) {
-      return res.status(404).json({ message: "No results found for the given filters" });
+      return res
+        .status(404)
+        .json({ message: "No results found for the given filters" });
     }
 
     // ── 2. Meta from first row ─────────────────────────────────────────────────
-    const first      = results[0].schedule;
-    const className  = first.classSection.name;
-    const examName   = first.assessmentGroup.name;
+    const first = results[0].schedule;
+    const className = first.classSection.name;
+    const examName = first.assessmentGroup.name;
     const exportDate = new Date().toLocaleDateString("en-IN", {
-      day: "2-digit", month: "long", year: "numeric",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
     });
 
     // ── 3. Build workbook ──────────────────────────────────────────────────────
     const ExcelJS = (await import("exceljs")).default;
     const wb = new ExcelJS.Workbook();
-    wb.creator  = "School Results System";
-    wb.created  = new Date();
+    wb.creator = "School Results System";
+    wb.created = new Date();
     wb.modified = new Date();
 
     const ws = wb.addWorksheet("Results", {
       pageSetup: { paperSize: 9, orientation: "landscape", fitToPage: true },
-      views: [{ state: "frozen", ySplit: 6 }],   // freeze above the data rows
+      views: [{ state: "frozen", ySplit: 6 }], // freeze above the data rows
     });
 
     // ── 4. Colour palette ──────────────────────────────────────────────────────
     const C = {
-      headerBg:    "FF1E3A5F",   // deep navy
-      headerFg:    "FFFFFFFF",   // white
-      subHeaderBg: "FF2E86AB",   // ocean blue
+      headerBg: "FF1E3A5F", // deep navy
+      headerFg: "FFFFFFFF", // white
+      subHeaderBg: "FF2E86AB", // ocean blue
       subHeaderFg: "FFFFFFFF",
-      metaBg:      "FFE8F4FD",   // very light blue
-      metaFg:      "FF1E3A5F",
-      colHeaderBg: "FF34495E",   // dark slate
+      metaBg: "FFE8F4FD", // very light blue
+      metaFg: "FF1E3A5F",
+      colHeaderBg: "FF34495E", // dark slate
       colHeaderFg: "FFFFFFFF",
-      rowEven:     "FFF8FBFF",   // off-white
-      rowOdd:      "FFFFFFFF",   // pure white
-      borderCol:   "FFB0C4DE",
-      gradA:       "FF1A7A4A",   // dark green   A+ / A
-      gradAFg:     "FFFFFFFF",
-      gradB:       "FF2E7D32",   // green        B
-      gradBFg:     "FFFFFFFF",
-      gradC:       "FFF57F17",   // amber        C
-      gradCFg:     "FFFFFFFF",
-      gradD:       "FFE65100",   // orange       D
-      gradDFg:     "FFFFFFFF",
-      gradF:       "FFC62828",   // red          F
-      gradFFg:     "FFFFFFFF",
-      gradAB:      "FF6D4C41",   // brown        AB (absent)
-      gradABFg:    "FFFFFFFF",
-      passCell:    "FFE8F5E9",   // light green  passing rows
-      failCell:    "FFFCE4E4",   // light red    failing rows
+      rowEven: "FFF8FBFF", // off-white
+      rowOdd: "FFFFFFFF", // pure white
+      borderCol: "FFB0C4DE",
+      gradA: "FF1A7A4A", // dark green   A+ / A
+      gradAFg: "FFFFFFFF",
+      gradB: "FF2E7D32", // green        B
+      gradBFg: "FFFFFFFF",
+      gradC: "FFF57F17", // amber        C
+      gradCFg: "FFFFFFFF",
+      gradD: "FFE65100", // orange       D
+      gradDFg: "FFFFFFFF",
+      gradF: "FFC62828", // red          F
+      gradFFg: "FFFFFFFF",
+      gradAB: "FF6D4C41", // brown        AB (absent)
+      gradABFg: "FFFFFFFF",
+      passCell: "FFE8F5E9", // light green  passing rows
+      failCell: "FFFCE4E4", // light red    failing rows
     };
 
     // ── 5. Column definitions (A–H) ────────────────────────────────────────────
     ws.columns = [
-      { key: "rollNo",     width: 10  },  // A
-      { key: "student",    width: 28  },  // B
-      { key: "subject",    width: 22  },  // C
-      { key: "exam",       width: 20  },  // D
-      { key: "marks",      width: 12  },  // E
-      { key: "total",      width: 12  },  // F
-      { key: "percentage", width: 14  },  // G
-      { key: "grade",      width: 10  },  // H
+      { key: "rollNo", width: 10 }, // A
+      { key: "student", width: 28 }, // B
+      { key: "subject", width: 22 }, // C
+      { key: "exam", width: 20 }, // D
+      { key: "marks", width: 12 }, // E
+      { key: "total", width: 12 }, // F
+      { key: "percentage", width: 14 }, // G
+      { key: "grade", width: 10 }, // H
     ];
     const LAST_COL = "H";
     const TOTAL_COLS = 8;
 
     // Helper – thin border all around
     const thinBorder = (color = C.borderCol) => ({
-      top:    { style: "thin", color: { argb: color } },
-      left:   { style: "thin", color: { argb: color } },
+      top: { style: "thin", color: { argb: color } },
+      left: { style: "thin", color: { argb: color } },
       bottom: { style: "thin", color: { argb: color } },
-      right:  { style: "thin", color: { argb: color } },
+      right: { style: "thin", color: { argb: color } },
     });
 
-    const fillSolid = (argb) => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+    const fillSolid = (argb) => ({
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb },
+    });
 
     // Helper – merge a row and style it
     const addBanner = (text, bgArgb, fgArgb, fontSize, rowHeight) => {
-      const row  = ws.addRow([text]);
+      const row = ws.addRow([text]);
       const cell = row.getCell(1);
       ws.mergeCells(`A${row.number}:${LAST_COL}${row.number}`);
-      cell.value          = text;
-      cell.font           = { bold: true, size: fontSize, color: { argb: fgArgb }, name: "Calibri" };
-      cell.alignment      = { horizontal: "center", vertical: "middle" };
-      cell.fill           = fillSolid(bgArgb);
-      cell.border         = thinBorder("FFFFFFFF");
-      row.height          = rowHeight;
+      cell.value = text;
+      cell.font = {
+        bold: true,
+        size: fontSize,
+        color: { argb: fgArgb },
+        name: "Calibri",
+      };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+      cell.fill = fillSolid(bgArgb);
+      cell.border = thinBorder("FFFFFFFF");
+      row.height = rowHeight;
       return row;
     };
 
@@ -1015,13 +1248,22 @@ export const exportResultsExcel = async (req, res) => {
     addBanner("📋  STUDENT RESULTS REPORT", C.headerBg, C.headerFg, 18, 36);
 
     // Row 2 – Class & Exam
-    addBanner(`Class: ${className}   |   Exam: ${examName}`, C.subHeaderBg, C.subHeaderFg, 13, 26);
+    addBanner(
+      `Class: ${className}   |   Exam: ${examName}`,
+      C.subHeaderBg,
+      C.subHeaderFg,
+      13,
+      26,
+    );
 
     // Row 3 – Export date + total students
     const totalStudents = new Set(results.map((r) => r.studentId)).size;
     addBanner(
       `Exported on: ${exportDate}     |     Total Students: ${totalStudents}     |     Total Records: ${results.length}`,
-      C.metaBg, C.metaFg, 10, 20,
+      C.metaBg,
+      C.metaFg,
+      10,
+      20,
     );
 
     // Row 4 – spacer
@@ -1032,34 +1274,53 @@ export const exportResultsExcel = async (req, res) => {
     // (skipped – freeze already at row 6)
 
     // ── 7. Row 6: Column headers ───────────────────────────────────────────────
-    const headerLabels = ["Roll No", "Student Name", "Subject", "Exam", "Marks", "Total", "Percentage", "Grade"];
-    const hdrRow       = ws.addRow(headerLabels);
-    hdrRow.height      = 28;
+    const headerLabels = [
+      "Roll No",
+      "Student Name",
+      "Subject",
+      "Exam",
+      "Marks",
+      "Total",
+      "Percentage",
+      "Grade",
+    ];
+    const hdrRow = ws.addRow(headerLabels);
+    hdrRow.height = 28;
     hdrRow.eachCell((cell) => {
-      cell.font      = { bold: true, size: 11, color: { argb: C.colHeaderFg }, name: "Calibri" };
-      cell.fill      = fillSolid(C.colHeaderBg);
-      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-      cell.border    = thinBorder("FF1A252F");
+      cell.font = {
+        bold: true,
+        size: 11,
+        color: { argb: C.colHeaderFg },
+        name: "Calibri",
+      };
+      cell.fill = fillSolid(C.colHeaderBg);
+      cell.alignment = {
+        horizontal: "center",
+        vertical: "middle",
+        wrapText: true,
+      };
+      cell.border = thinBorder("FF1A252F");
     });
 
     // ── 8. Data rows ───────────────────────────────────────────────────────────
     results.forEach((r, idx) => {
-      const marks  = Number(r.marksObtained || 0);
-      const total  = Number(r.schedule.maxMarks || 0);
-      const pct    = total > 0 ? parseFloat(((marks / total) * 100).toFixed(1)) : 0;
-      const grade  = r.isAbsent ? "AB" : getGrade(pct);
+      const marks = Number(r.marksObtained || 0);
+      const total = Number(r.schedule.maxMarks || 0);
+      const pct =
+        total > 0 ? parseFloat(((marks / total) * 100).toFixed(1)) : 0;
+      const grade = r.isAbsent ? "AB" : getGrade(pct);
       const passed = !r.isAbsent && pct >= 50;
       const rollNo = r.student.enrollments?.[0]?.rollNumber ?? idx + 1;
 
       const dataRow = ws.addRow({
-        rollNo:     rollNo,
-        student:    r.student.name,
-        subject:    r.schedule.subject.name,
-        exam:       r.schedule.assessmentGroup.name,
-        marks:      r.isAbsent ? "AB" : marks,
-        total:      total,
+        rollNo: rollNo,
+        student: r.student.name,
+        subject: r.schedule.subject.name,
+        exam: r.schedule.assessmentGroup.name,
+        marks: r.isAbsent ? "AB" : marks,
+        total: total,
         percentage: r.isAbsent ? "AB" : pct,
-        grade:      grade,
+        grade: grade,
       });
       dataRow.height = 22;
 
@@ -1067,34 +1328,46 @@ export const exportResultsExcel = async (req, res) => {
 
       dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
         const isGradeCol = colNum === TOTAL_COLS;
-        const isNumCol   = colNum >= 5 && colNum <= 7;
+        const isNumCol = colNum >= 5 && colNum <= 7;
 
-        cell.font      = { size: 10, name: "Calibri", color: { argb: "FF1A1A2E" } };
+        cell.font = { size: 10, name: "Calibri", color: { argb: "FF1A1A2E" } };
         cell.alignment = {
-          horizontal: isNumCol || isGradeCol ? "center" : colNum === 1 ? "center" : "left",
-          vertical:   "middle",
+          horizontal:
+            isNumCol || isGradeCol
+              ? "center"
+              : colNum === 1
+                ? "center"
+                : "left",
+          vertical: "middle",
         };
         cell.border = thinBorder(C.borderCol);
 
         // Row background – light green for pass, light red for fail
         if (!isGradeCol) {
-          cell.fill = fillSolid(r.isAbsent ? "FFFFF9F0" : passed ? C.passCell : C.failCell);
+          cell.fill = fillSolid(
+            r.isAbsent ? "FFFFF9F0" : passed ? C.passCell : C.failCell,
+          );
         }
 
         // Grade cell – bold coloured badge
         if (isGradeCol) {
           const gradeColors = {
-            "A+": { bg: C.gradA,  fg: C.gradAFg  },
-            "A":  { bg: C.gradA,  fg: C.gradAFg  },
-            "B":  { bg: C.gradB,  fg: C.gradBFg  },
-            "C":  { bg: C.gradC,  fg: C.gradCFg  },
-            "D":  { bg: C.gradD,  fg: C.gradDFg  },
-            "F":  { bg: C.gradF,  fg: C.gradFFg  },
-            "AB": { bg: C.gradAB, fg: C.gradABFg },
+            "A+": { bg: C.gradA, fg: C.gradAFg },
+            A: { bg: C.gradA, fg: C.gradAFg },
+            B: { bg: C.gradB, fg: C.gradBFg },
+            C: { bg: C.gradC, fg: C.gradCFg },
+            D: { bg: C.gradD, fg: C.gradDFg },
+            F: { bg: C.gradF, fg: C.gradFFg },
+            AB: { bg: C.gradAB, fg: C.gradABFg },
           };
           const gc = gradeColors[grade] || { bg: "FFF0F0F0", fg: "FF000000" };
-          cell.fill      = fillSolid(gc.bg);
-          cell.font      = { bold: true, size: 11, name: "Calibri", color: { argb: gc.fg } };
+          cell.fill = fillSolid(gc.bg);
+          cell.font = {
+            bold: true,
+            size: 11,
+            name: "Calibri",
+            color: { argb: gc.fg },
+          };
           cell.alignment = { horizontal: "center", vertical: "middle" };
         }
 
@@ -1108,18 +1381,20 @@ export const exportResultsExcel = async (req, res) => {
     // ── 9. Summary stats footer ────────────────────────────────────────────────
     const scored = results.filter((r) => !r.isAbsent);
     const avgPct = scored.length
-      ? (scored.reduce((s, r) => {
-          const t = Number(r.schedule.maxMarks || 0);
-          const m = Number(r.marksObtained   || 0);
-          return s + (t > 0 ? (m / t) * 100 : 0);
-        }, 0) / scored.length).toFixed(1)
+      ? (
+          scored.reduce((s, r) => {
+            const t = Number(r.schedule.maxMarks || 0);
+            const m = Number(r.marksObtained || 0);
+            return s + (t > 0 ? (m / t) * 100 : 0);
+          }, 0) / scored.length
+        ).toFixed(1)
       : 0;
-    const passed  = scored.filter((r) => {
+    const passed = scored.filter((r) => {
       const t = Number(r.schedule.maxMarks || 0);
-      const m = Number(r.marksObtained   || 0);
+      const m = Number(r.marksObtained || 0);
       return t > 0 && (m / t) * 100 >= 50;
     }).length;
-    const absent  = results.filter((r) => r.isAbsent).length;
+    const absent = results.filter((r) => r.isAbsent).length;
 
     // Blank spacer row
     ws.addRow([]).height = 8;
@@ -1130,12 +1405,17 @@ export const exportResultsExcel = async (req, res) => {
     // Stats row
     const statsLabels = [
       ["Total Records", results.length],
-      ["Present",       scored.length],
-      ["Absent",        absent],
-      ["Passed",        passed],
-      ["Failed",        scored.length - passed],
-      ["Class Avg %",   `${avgPct}%`],
-      ["Pass Rate",     scored.length > 0 ? `${((passed / scored.length) * 100).toFixed(1)}%` : "N/A"],
+      ["Present", scored.length],
+      ["Absent", absent],
+      ["Passed", passed],
+      ["Failed", scored.length - passed],
+      ["Class Avg %", `${avgPct}%`],
+      [
+        "Pass Rate",
+        scored.length > 0
+          ? `${((passed / scored.length) * 100).toFixed(1)}%`
+          : "N/A",
+      ],
     ];
 
     // Two stats rows side-by-side (label + value pairs)
@@ -1143,7 +1423,10 @@ export const exportResultsExcel = async (req, res) => {
       const chunk = statsLabels.slice(i, i + 4);
       const labels = [];
       const values = [];
-      chunk.forEach(([l, v]) => { labels.push(l, ""); values.push(v, ""); });
+      chunk.forEach(([l, v]) => {
+        labels.push(l, "");
+        values.push(v, "");
+      });
       // Pad to 8 columns
       while (labels.length < 8) labels.push("");
       while (values.length < 8) values.push("");
@@ -1152,10 +1435,15 @@ export const exportResultsExcel = async (req, res) => {
       lRow.height = 18;
       lRow.eachCell({ includeEmpty: true }, (cell, cn) => {
         if (labels[cn - 1] !== "") {
-          cell.font      = { bold: true, size: 9, color: { argb: C.metaFg }, name: "Calibri" };
-          cell.fill      = fillSolid(C.metaBg);
+          cell.font = {
+            bold: true,
+            size: 9,
+            color: { argb: C.metaFg },
+            name: "Calibri",
+          };
+          cell.fill = fillSolid(C.metaBg);
           cell.alignment = { horizontal: "center", vertical: "middle" };
-          cell.border    = thinBorder(C.borderCol);
+          cell.border = thinBorder(C.borderCol);
         }
       });
 
@@ -1163,10 +1451,15 @@ export const exportResultsExcel = async (req, res) => {
       vRow.height = 22;
       vRow.eachCell({ includeEmpty: true }, (cell, cn) => {
         if (values[cn - 1] !== "") {
-          cell.font      = { bold: true, size: 12, color: { argb: C.headerBg }, name: "Calibri" };
-          cell.fill      = fillSolid("FFFFFFFF");
+          cell.font = {
+            bold: true,
+            size: 12,
+            color: { argb: C.headerBg },
+            name: "Calibri",
+          };
+          cell.fill = fillSolid("FFFFFFFF");
           cell.alignment = { horizontal: "center", vertical: "middle" };
-          cell.border    = thinBorder(C.borderCol);
+          cell.border = thinBorder(C.borderCol);
         }
       });
     }
@@ -1175,17 +1468,25 @@ export const exportResultsExcel = async (req, res) => {
     ws.addRow([]).height = 6;
     addBanner(
       `This report was generated automatically on ${exportDate}. For official use only.`,
-      "FFECF0F1", C.metaFg, 8, 18,
+      "FFECF0F1",
+      C.metaFg,
+      8,
+      18,
     );
 
     // ── 11. Send response ──────────────────────────────────────────────────────
     const safeName = `${className}_${examName}`.replace(/[^a-zA-Z0-9_-]/g, "_");
-    res.setHeader("Content-Disposition", `attachment; filename="${safeName}_Results.xlsx"`);
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${safeName}_Results.xlsx"`,
+    );
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
 
     await wb.xlsx.write(res);
     res.end();
-
   } catch (error) {
     console.error("[exportResultsExcel]", error);
     res.status(500).json({ message: "Export failed", error: error.message });
@@ -1198,23 +1499,26 @@ export const exportResultsExcel = async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 const GRADE_SCALE_FULL = [
-  { min: 90, max: 100, grade: "A+", label: "Outstanding"   },
-  { min: 80, max:  89, grade: "A",  label: "Excellent"     },
-  { min: 70, max:  79, grade: "B",  label: "Very Good"     },
-  { min: 60, max:  69, grade: "C",  label: "Good"          },
-  { min: 50, max:  59, grade: "D",  label: "Average"       },
-  { min:  0, max:  49, grade: "F",  label: "Below Average" },
+  { min: 90, max: 100, grade: "A+", label: "Outstanding" },
+  { min: 80, max: 89, grade: "A", label: "Excellent" },
+  { min: 70, max: 79, grade: "B", label: "Very Good" },
+  { min: 60, max: 69, grade: "C", label: "Good" },
+  { min: 50, max: 59, grade: "D", label: "Average" },
+  { min: 0, max: 49, grade: "F", label: "Below Average" },
 ];
 
 function calcGradeFull(percentage) {
   return (
-    GRADE_SCALE_FULL.find((g) => percentage >= g.min && percentage <= g.max) ??
-    { grade: "F", label: "Below Average" }
+    GRADE_SCALE_FULL.find(
+      (g) => percentage >= g.min && percentage <= g.max,
+    ) ?? { grade: "F", label: "Below Average" }
   );
 }
 
 function computeTotalsFull(marksRows) {
-  let totalObtained = 0, totalMax = 0, hasFail = false;
+  let totalObtained = 0,
+    totalMax = 0,
+    hasFail = false;
   for (const m of marksRows) {
     if (!m.isAbsent && m.marksObtained !== null) {
       totalObtained += m.marksObtained;
@@ -1239,11 +1543,18 @@ function computeTotalsFull(marksRows) {
 
 const REPORT_SCHOOL_SELECT = {
   select: {
-    id: true, name: true, address: true, city: true, state: true,
-    phone: true, email: true, logoUrl: true, type: true,
+    id: true,
+    name: true,
+    address: true,
+    city: true,
+    state: true,
+    phone: true,
+    email: true,
+    logoUrl: true,
+    type: true,
     university: {
       select: {
-        logoUrl: true,   // ✅ the actual logo the SuperAdmin uploads (Settings → Profile → upload-logo)
+        logoUrl: true, // ✅ the actual logo the SuperAdmin uploads (Settings → Profile → upload-logo)
       },
     },
   },
@@ -1254,16 +1565,17 @@ const REPORT_SCHOOL_SELECT = {
 // → updateSchoolLogo). school.logoUrl is checked as a fallback for
 // schools that have their own logo set independently.
 async function resolveLogoUrlAdmin(school) {
-  const rawKey =
-    school?.university?.logoUrl ??
-    school?.logoUrl ??
-    null;
+  const rawKey = school?.university?.logoUrl ?? school?.logoUrl ?? null;
   if (!rawKey) return null;
-  if (rawKey.startsWith("http://") || rawKey.startsWith("https://")) return rawKey;
+  if (rawKey.startsWith("http://") || rawKey.startsWith("https://"))
+    return rawKey;
   try {
     return await generateSignedUrl(rawKey, 240);
   } catch (e) {
-    console.error("[resolveLogoUrlAdmin] signed URL generation failed:", e.message);
+    console.error(
+      "[resolveLogoUrlAdmin] signed URL generation failed:",
+      e.message,
+    );
     return null;
   }
 }
@@ -1280,59 +1592,109 @@ export async function getStudentReportCard(req, res) {
 
     const [enrollment, assessmentGroup] = await Promise.all([
       prisma.studentEnrollment.findFirst({
-        where:   { studentId, status: "ACTIVE" },
+        where: { studentId, status: "ACTIVE" },
         orderBy: { createdAt: "desc" },
         include: {
           academicYear: true,
           classSection: {
-            include: { stream: true, course: true, school: REPORT_SCHOOL_SELECT },
+            include: {
+              stream: true,
+              course: true,
+              school: REPORT_SCHOOL_SELECT,
+            },
           },
         },
       }),
       prisma.assessmentGroup.findUnique({
-        where:   { id: assessmentGroupId },
+        where: { id: assessmentGroupId },
         include: { term: true },
       }),
     ]);
 
-    if (!enrollment) return err(res, "No active enrollment found for this student", 404);
+    if (!enrollment)
+      return err(res, "No active enrollment found for this student", 404);
     if (!assessmentGroup) return err(res, "Exam not found", 404);
-    if (assessmentGroup.schoolId !== schoolId) return err(res, "Unauthorized", 403);
+    if (assessmentGroup.schoolId !== schoolId)
+      return err(res, "Unauthorized", 403);
 
-    const [personalInfo, student, marks, allClassMarks, resultSummary, schoolLogoUrl] = await Promise.all([
+    const [
+      personalInfo,
+      student,
+      marks,
+      allClassMarks,
+      resultSummary,
+      schoolLogoUrl,
+      fatherLink,
+    ] = await Promise.all([
       prisma.studentPersonalInfo.findUnique({ where: { studentId } }),
-      prisma.student.findUnique({ where: { id: studentId }, select: { name: true, email: true } }),
+      prisma.student.findUnique({
+        where: { id: studentId },
+        select: { name: true, email: true },
+      }),
       prisma.marks.findMany({
         where: {
           studentId,
           deletedAt: null,
-          schedule: { assessmentGroupId, classSectionId: enrollment.classSectionId },
+          schedule: {
+            assessmentGroupId,
+            classSectionId: enrollment.classSectionId,
+          },
         },
         include: {
-          schedule: { include: { subject: { select: { id: true, name: true, code: true } } } },
+          schedule: {
+            include: {
+              subject: { select: { id: true, name: true, code: true } },
+            },
+          },
         },
         orderBy: { schedule: { subject: { name: "asc" } } },
       }),
       // ✅ Runs concurrently with the queries above instead of waiting for
       // them to finish first — cuts a full DB round-trip off report load time.
       prisma.marks.findMany({
-        where: { schedule: { assessmentGroupId, classSectionId: enrollment.classSectionId } },
-        include: { schedule: { select: { maxMarks: true, passingMarks: true } } },
+        where: {
+          schedule: {
+            assessmentGroupId,
+            classSectionId: enrollment.classSectionId,
+          },
+        },
+        include: {
+          schedule: { select: { maxMarks: true, passingMarks: true } },
+        },
       }),
       prisma.resultSummary.findFirst({
-        where: { studentId, assessmentGroupId, academicYearId: enrollment.academicYearId },
+        where: {
+          studentId,
+          assessmentGroupId,
+          academicYearId: enrollment.academicYearId,
+        },
       }),
       // ✅ Also parallelized — doesn't depend on marks/summary, only on the
       // school object already resolved in the enrollment query above.
       resolveLogoUrlAdmin(enrollment.classSection.school),
+      // ✅ Father's name for the report card header. The linked Parent
+      // account (relation = FATHER) is the primary source; the free-text
+      // StudentPersonalInfo.parentName is used as a fallback below.
+      prisma.studentParent.findFirst({
+        where: { studentId, relation: "FATHER" },
+        select: { parent: { select: { name: true, deletedAt: true } } },
+      }),
     ]);
 
-    if (marks.length === 0) return err(res, "No marks found for this exam", 404);
+    const linkedFatherName =
+      fatherLink?.parent && !fatherLink.parent.deletedAt
+        ? fatherLink.parent.name?.trim() || null
+        : null;
+    const fatherName =
+      linkedFatherName ?? (personalInfo?.parentName?.trim() || null);
+
+    if (marks.length === 0)
+      return err(res, "No marks found for this exam", 404);
 
     const subjectResults = marks.map((m) => {
       const obtained = m.isAbsent ? null : (m.marksObtained ?? null);
       const maxMarks = m.schedule.maxMarks;
-      const passing  = m.schedule.passingMarks ?? null;
+      const passing = m.schedule.passingMarks ?? null;
       const pct =
         obtained !== null && maxMarks > 0
           ? parseFloat(((obtained / maxMarks) * 100).toFixed(2))
@@ -1340,34 +1702,37 @@ export async function getStudentReportCard(req, res) {
 
       let resultStatus = "absent";
       if (!m.isAbsent && obtained !== null) {
-        resultStatus = passing !== null ? (obtained >= passing ? "pass" : "fail") : "pass";
+        resultStatus =
+          passing !== null ? (obtained >= passing ? "pass" : "fail") : "pass";
       }
 
       return {
-        subjectId:     m.schedule.subject.id,
-        subjectName:   m.schedule.subject.name,
-        subjectCode:   m.schedule.subject.code,
+        subjectId: m.schedule.subject.id,
+        subjectName: m.schedule.subject.name,
+        subjectCode: m.schedule.subject.code,
         marksObtained: obtained,
         maxMarks,
-        passingMarks:  passing,
-        percentage:    pct,
-        grade:         pct !== null ? calcGradeFull(pct).grade : "—",
-        gradeLabel:    pct !== null ? calcGradeFull(pct).label : "—",
+        passingMarks: passing,
+        percentage: pct,
+        grade: pct !== null ? calcGradeFull(pct).grade : "—",
+        gradeLabel: pct !== null ? calcGradeFull(pct).label : "—",
         resultStatus,
-        isAbsent:      m.isAbsent,
-        remarks:       m.remarks ?? null,
-        examDate:      m.schedule.examDate,
+        isAbsent: m.isAbsent,
+        remarks: m.remarks ?? null,
+        examDate: m.schedule.examDate,
         // ✅ Formative Assessment breakdown (R&R/CW/PW/ST), if this subject
         // was uploaded using that format. null for standard-format subjects.
-        components:    m.components ?? null,
+        components: m.components ?? null,
       };
     });
 
-    const { totalObtained, totalMax, percentage, gradeInfo, hasFail } = computeTotalsFull(marks);
+    const { totalObtained, totalMax, percentage, gradeInfo, hasFail } =
+      computeTotalsFull(marks);
 
     const studentTotalsMap = {};
     for (const m of allClassMarks) {
-      if (!studentTotalsMap[m.studentId]) studentTotalsMap[m.studentId] = { rows: [] };
+      if (!studentTotalsMap[m.studentId])
+        studentTotalsMap[m.studentId] = { rows: [] };
       studentTotalsMap[m.studentId].rows.push(m);
     }
 
@@ -1376,7 +1741,9 @@ export async function getStudentReportCard(req, res) {
         const t = computeTotalsFull(rows);
         return { studentId: sid, total: t.totalObtained, pct: t.percentage };
       })
-      .sort((a, b) => (b.total !== a.total ? b.total - a.total : b.pct - a.pct));
+      .sort((a, b) =>
+        b.total !== a.total ? b.total - a.total : b.pct - a.pct,
+      );
 
     let rank = 1;
     for (let i = 0; i < studentSummaries.length; i++) {
@@ -1398,28 +1765,46 @@ export async function getStudentReportCard(req, res) {
     let subExamGroup = null;
     let finalSubjectResults = subjectResults;
     let finalSummary = {
-      totalObtained, totalMax, percentage,
-      grade:      hasFail ? "F"    : gradeInfo.grade,
+      totalObtained,
+      totalMax,
+      percentage,
+      grade: hasFail ? "F" : gradeInfo.grade,
       gradeLabel: hasFail ? "Fail" : gradeInfo.label,
-      hasFail, rank,
+      hasFail,
+      rank,
       totalStudentsInClass: studentSummaries.length,
       isPublished: resultSummary?.isPublished ?? assessmentGroup.isPublished,
     };
 
     if (subAssessmentGroupId) {
-      subExamGroup = await prisma.assessmentGroup.findUnique({ where: { id: subAssessmentGroupId } });
+      subExamGroup = await prisma.assessmentGroup.findUnique({
+        where: { id: subAssessmentGroupId },
+      });
       if (subExamGroup && subExamGroup.schoolId === schoolId) {
         const [subMarks, allClassSubMarks] = await Promise.all([
           prisma.marks.findMany({
             where: {
-              studentId, deletedAt: null,
-              schedule: { assessmentGroupId: subAssessmentGroupId, classSectionId: enrollment.classSectionId },
+              studentId,
+              deletedAt: null,
+              schedule: {
+                assessmentGroupId: subAssessmentGroupId,
+                classSectionId: enrollment.classSectionId,
+              },
             },
-            include: { schedule: { include: { subject: { select: { id: true } } } } },
+            include: {
+              schedule: { include: { subject: { select: { id: true } } } },
+            },
           }),
           prisma.marks.findMany({
-            where: { schedule: { assessmentGroupId: subAssessmentGroupId, classSectionId: enrollment.classSectionId } },
-            include: { schedule: { select: { maxMarks: true, passingMarks: true } } },
+            where: {
+              schedule: {
+                assessmentGroupId: subAssessmentGroupId,
+                classSectionId: enrollment.classSectionId,
+              },
+            },
+            include: {
+              schedule: { select: { maxMarks: true, passingMarks: true } },
+            },
           }),
         ]);
 
@@ -1434,103 +1819,135 @@ export async function getStudentReportCard(req, res) {
 
         // Per-subject: Assessment (sub exam) + Final Exam (main exam) → Total + Grade
         finalSubjectResults = subjectResults.map((s) => {
-          const subEntry      = subBySubject.get(s.subjectId);
-          const mainObtained  = s.isAbsent ? null : s.marksObtained;
-          const mainMax       = s.maxMarks;
-          const subObtained   = subEntry && !subEntry.isAbsent ? subEntry.obtained : null;
-          const subMax        = subEntry ? subEntry.maxMarks : 0;
+          const subEntry = subBySubject.get(s.subjectId);
+          const mainObtained = s.isAbsent ? null : s.marksObtained;
+          const mainMax = s.maxMarks;
+          const subObtained =
+            subEntry && !subEntry.isAbsent ? subEntry.obtained : null;
+          const subMax = subEntry ? subEntry.maxMarks : 0;
           const totalObtainedSubj = (mainObtained ?? 0) + (subObtained ?? 0);
-          const totalMaxSubj     = mainMax + subMax;
-          const pct = totalMaxSubj > 0
-            ? parseFloat(((totalObtainedSubj / totalMaxSubj) * 100).toFixed(2))
-            : null;
+          const totalMaxSubj = mainMax + subMax;
+          const pct =
+            totalMaxSubj > 0
+              ? parseFloat(
+                  ((totalObtainedSubj / totalMaxSubj) * 100).toFixed(2),
+                )
+              : null;
           return {
             ...s,
-            isCombined:      true,
-            mainObtained,    mainMax,
-            subExamObtained: subObtained, subExamMax: subMax,
-            totalObtained:   totalObtainedSubj,
-            totalMax:        totalMaxSubj,
-            percentage:      pct,
-            grade:           pct !== null ? calcGradeFull(pct).grade : "—",
+            isCombined: true,
+            mainObtained,
+            mainMax,
+            subExamObtained: subObtained,
+            subExamMax: subMax,
+            totalObtained: totalObtainedSubj,
+            totalMax: totalMaxSubj,
+            percentage: pct,
+            grade: pct !== null ? calcGradeFull(pct).grade : "—",
           };
         });
 
         // Combined class-wide totals → rank, using main + sub exam marks together
         const mainTotalsMap = {};
-        for (const m of allClassMarks) (mainTotalsMap[m.studentId] ??= []).push(m);
+        for (const m of allClassMarks)
+          (mainTotalsMap[m.studentId] ??= []).push(m);
         const subTotalsMap = {};
-        for (const m of allClassSubMarks) (subTotalsMap[m.studentId] ??= []).push(m);
+        for (const m of allClassSubMarks)
+          (subTotalsMap[m.studentId] ??= []).push(m);
 
-        const allStudentIds = new Set([...Object.keys(mainTotalsMap), ...Object.keys(subTotalsMap)]);
+        const allStudentIds = new Set([
+          ...Object.keys(mainTotalsMap),
+          ...Object.keys(subTotalsMap),
+        ]);
         const combinedStudentSummaries = [...allStudentIds]
           .map((sid) => {
             const mainT = computeTotalsFull(mainTotalsMap[sid] || []);
-            const subT  = computeTotalsFull(subTotalsMap[sid] || []);
-            return { studentId: sid, total: mainT.totalObtained + subT.totalObtained };
+            const subT = computeTotalsFull(subTotalsMap[sid] || []);
+            return {
+              studentId: sid,
+              total: mainT.totalObtained + subT.totalObtained,
+            };
           })
           .sort((a, b) => b.total - a.total);
 
         let combinedRank = 1;
         for (let i = 0; i < combinedStudentSummaries.length; i++) {
-          if (i > 0 && combinedStudentSummaries[i].total !== combinedStudentSummaries[i - 1].total) combinedRank = i + 1;
+          if (
+            i > 0 &&
+            combinedStudentSummaries[i].total !==
+              combinedStudentSummaries[i - 1].total
+          )
+            combinedRank = i + 1;
           if (combinedStudentSummaries[i].studentId === studentId) break;
         }
 
-        const grandTotalObtained = finalSubjectResults.reduce((sum, x) => sum + (x.totalObtained || 0), 0);
-        const grandTotalMax      = finalSubjectResults.reduce((sum, x) => sum + (x.totalMax || 0), 0);
-        const grandPct = grandTotalMax > 0
-          ? parseFloat(((grandTotalObtained / grandTotalMax) * 100).toFixed(2))
-          : 0;
+        const grandTotalObtained = finalSubjectResults.reduce(
+          (sum, x) => sum + (x.totalObtained || 0),
+          0,
+        );
+        const grandTotalMax = finalSubjectResults.reduce(
+          (sum, x) => sum + (x.totalMax || 0),
+          0,
+        );
+        const grandPct =
+          grandTotalMax > 0
+            ? parseFloat(
+                ((grandTotalObtained / grandTotalMax) * 100).toFixed(2),
+              )
+            : 0;
         const grandGradeInfo = calcGradeFull(grandPct);
-        const combinedHasFail = finalSubjectResults.some((x) => x.grade === "F");
+        const combinedHasFail = finalSubjectResults.some(
+          (x) => x.grade === "F",
+        );
 
         finalSummary = {
           totalObtained: grandTotalObtained,
-          totalMax:      grandTotalMax,
-          percentage:    grandPct,
-          grade:         combinedHasFail ? "F"    : grandGradeInfo.grade,
-          gradeLabel:    combinedHasFail ? "Fail" : grandGradeInfo.label,
-          hasFail:       combinedHasFail,
-          rank:          combinedRank,
+          totalMax: grandTotalMax,
+          percentage: grandPct,
+          grade: combinedHasFail ? "F" : grandGradeInfo.grade,
+          gradeLabel: combinedHasFail ? "Fail" : grandGradeInfo.label,
+          hasFail: combinedHasFail,
+          rank: combinedRank,
           totalStudentsInClass: combinedStudentSummaries.length,
-          isPublished:   resultSummary?.isPublished ?? assessmentGroup.isPublished,
+          isPublished:
+            resultSummary?.isPublished ?? assessmentGroup.isPublished,
         };
       }
     }
 
     const data = {
       student: {
-        id:              studentId,
-        name:            student?.name,
+        id: studentId,
+        name: student?.name,
         admissionNumber: enrollment.admissionNumber,
-        rollNumber:      enrollment.rollNumber,
-        firstName:       personalInfo?.firstName,
-        lastName:        personalInfo?.lastName,
-        profileImage:    personalInfo?.profileImage,
-        gender:          personalInfo?.gender,
-        dateOfBirth:     personalInfo?.dateOfBirth,
+        rollNumber: enrollment.rollNumber,
+        firstName: personalInfo?.firstName,
+        lastName: personalInfo?.lastName,
+        profileImage: personalInfo?.profileImage,
+        fatherName,
+        gender: personalInfo?.gender,
+        dateOfBirth: personalInfo?.dateOfBirth,
       },
       enrollment: {
-        className:     enrollment.classSection.name,
-        grade:         enrollment.classSection.grade,
-        section:       enrollment.classSection.section,
-        stream:        enrollment.classSection.stream?.name ?? null,
-        course:        enrollment.classSection.course?.name ?? null,
-        academicYear:  enrollment.academicYear.name,
-        schoolName:    school?.name    ?? null,
+        className: enrollment.classSection.name,
+        grade: enrollment.classSection.grade,
+        section: enrollment.classSection.section,
+        stream: enrollment.classSection.stream?.name ?? null,
+        course: enrollment.classSection.course?.name ?? null,
+        academicYear: enrollment.academicYear.name,
+        schoolName: school?.name ?? null,
         schoolAddress: school?.address ?? null,
-        schoolCity:    school?.city    ?? null,
-        schoolState:   school?.state   ?? null,
-        schoolPhone:   school?.phone   ?? null,
-        schoolEmail:   school?.email   ?? null,
+        schoolCity: school?.city ?? null,
+        schoolState: school?.state ?? null,
+        schoolPhone: school?.phone ?? null,
+        schoolEmail: school?.email ?? null,
         schoolLogoUrl: schoolLogoUrl,
       },
       exam: {
-        id:        assessmentGroup.id,
-        name:      assessmentGroup.name,
+        id: assessmentGroup.id,
+        name: assessmentGroup.name,
         weightage: assessmentGroup.weightage,
-        isLocked:  assessmentGroup.isLocked,
+        isLocked: assessmentGroup.isLocked,
         isPublished: assessmentGroup.isPublished,
         term: assessmentGroup.term
           ? { id: assessmentGroup.term.id, name: assessmentGroup.term.name }
@@ -1538,7 +1955,9 @@ export async function getStudentReportCard(req, res) {
       },
       // ✅ Present only when a Sub Exam was combined into this report
       hasSubExam: !!subExamGroup,
-      subExam: subExamGroup ? { id: subExamGroup.id, name: subExamGroup.name } : null,
+      subExam: subExamGroup
+        ? { id: subExamGroup.id, name: subExamGroup.name }
+        : null,
       subjectResults: finalSubjectResults,
       summary: finalSummary,
     };
