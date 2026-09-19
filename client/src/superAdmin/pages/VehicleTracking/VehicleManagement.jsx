@@ -60,7 +60,7 @@ export default function VehicleManagement() {
             <p style={{ margin: "2px 0 0", fontSize: 13, color: "#6B7280" }}>
               Live GPS tracking and vehicle management for all schools.
             </p>
-          </div>
+          </div> 
         </div>
       </div>
 

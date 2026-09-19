@@ -1,10 +1,37 @@
 // client/src/superAdmin/pages/VehicleTracking/LiveTrackingTab.jsx
+// ═══════════════════════════════════════════════════════════════════════════════
+// WHAT CHANGED AND WHY
+// ────────────────────
+// The old code polled with `setInterval(loadLive, 30_000)`, which fires whether
+// or not the previous request came back. The moment the API took longer than
+// 30s, a second request went out on top of the first, then a third, and so on.
+// The browser caps concurrent connections to one origin at ~6, so the rest
+// queued client-side — that is why the button sat on "Refreshing…" forever and
+// the countdown kept resetting. Server-side, every one of those queued requests
+// re-ran the same expensive query, saturating the DB and the Prisma pool, which
+// made the next one slower still. That feedback loop is what turned a slow
+// query into a page that appeared to hang for 10–20 minutes, and it is also why
+// the Manage Vehicles tab hung: it was queued behind this tab's backlog.
+//
+// Fixes here:
+//   1. `inFlightRef` overlap guard — never more than one request in flight.
+//   2. Self-scheduling setTimeout — the next poll starts 30s AFTER the previous
+//      one finishes, so polls can never stack.
+//   3. AbortController + 20s timeout — a hung request now fails visibly instead
+//      of leaving the UI stuck on a spinner forever.
+//   4. Polling pauses when the browser tab is hidden.
+//   5. Errors are surfaced to the user instead of being swallowed by `.catch(()=>{})`.
+// ═══════════════════════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect, useRef } from "react";
-import { MapPin, RefreshCw, Navigation, Clock, Zap } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { MapPin, RefreshCw, Navigation, Clock, Zap, AlertTriangle } from "lucide-react";
 import VehicleMap from "./VehicleMap";
+
 const API_URL = import.meta.env.VITE_API_URL;
 const BASE    = `${API_URL}/api/vehicles`;
+
+const REFRESH_MS         = 30_000; // gap between polls
+const REQUEST_TIMEOUT_MS = 20_000; // give up on a single request
 
 const getToken = () => {
   try { return JSON.parse(localStorage.getItem("auth"))?.token || null; }
@@ -25,6 +52,8 @@ function StatusBadge({ status }) {
     MOVING:  { bg: "#F0FDF4", color: "#166534", dot: "#22C55E", label: "Moving" },
     IDLE:    { bg: "#FFFBEB", color: "#92400E", dot: "#F59E0B", label: "Idle" },
     OFF:     { bg: "#F9FAFB", color: "#6B7280", dot: "#9CA3AF", label: "Off" },
+    // The GPS provider sends this literal string; it was rendering as "NODATA".
+    NODATA:  { bg: "#F9FAFB", color: "#6B7280", dot: "#D1D5DB", label: "No signal" },
   }[status] || { bg: "#F9FAFB", color: "#6B7280", dot: "#D1D5DB", label: status || "Unknown" };
 
   return (
@@ -41,7 +70,7 @@ function VehicleCard({ vehicle }) {
   const timeAgo = (dt) => {
     if (!dt) return "—";
     const secs = Math.floor((Date.now() - new Date(dt)) / 1000);
-    if (secs < 60)  return `${secs}s ago`;
+    if (secs < 60)   return `${secs}s ago`;
     if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
     return `${Math.floor(secs / 3600)}h ago`;
   };
@@ -120,47 +149,98 @@ function VehicleCard({ vehicle }) {
 }
 
 export default function LiveTrackingTab({ schoolId }) {
-  const [vehicles,     setVehicles]     = useState([]);
-  const [loading,      setLoading]      = useState(false);
-  const [lastUpdated,  setLastUpdated]  = useState(null);
-  const [countdown,    setCountdown]    = useState(30);
-  const intervalRef  = useRef(null);
-  const countdownRef = useRef(null);
+  const [vehicles,    setVehicles]    = useState([]);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState("");
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [countdown,   setCountdown]   = useState(REFRESH_MS / 1000);
 
-  function loadLive() {
+  const inFlightRef  = useRef(false);  // ← the overlap guard
+  const abortRef     = useRef(null);
+  const pollRef      = useRef(null);
+  const countdownRef = useRef(null);
+  const mountedRef   = useRef(true);
+
+  const loadLive = useCallback(async ({ silent = false } = {}) => {
     if (!schoolId) return;
-    setLoading(true);
-    fetch(`${BASE}/live-all?schoolId=${schoolId}`, { headers: authHeaders() })
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success) { setVehicles(d.data || []); setLastUpdated(new Date()); setCountdown(30); }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }
+    if (inFlightRef.current) return;   // a request is already running — skip this tick
+    inFlightRef.current = true;
+    if (!silent) setLoading(true);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const killer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const res = await fetch(
+        `${BASE}/live-all?schoolId=${encodeURIComponent(schoolId)}`,
+        { headers: authHeaders(), signal: controller.signal, cache: "no-store" },
+      );
+
+      if (!res.ok) throw new Error(`Server responded ${res.status}`);
+
+      const d = await res.json();
+      if (!mountedRef.current) return;
+
+      if (d.success) {
+        setVehicles(d.data || []);
+        setLastUpdated(new Date());
+        setError("");
+      } else {
+        setError(d.message || "Failed to load vehicles.");
+      }
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setError(
+        e.name === "AbortError"
+          ? `No response in ${REQUEST_TIMEOUT_MS / 1000}s — the tracking API is not responding.`
+          : e.message || "Network error.",
+      );
+    } finally {
+      clearTimeout(killer);
+      inFlightRef.current = false;
+      if (mountedRef.current) {
+        setLoading(false);
+        setCountdown(REFRESH_MS / 1000);
+      }
+    }
+  }, [schoolId]);
 
   useEffect(() => {
-    if (!schoolId) return;
+    mountedRef.current = true;
+    if (!schoolId) return undefined;
 
-    loadLive();
+    let cancelled = false;
 
-    // Auto-refresh every 30 seconds (in sync with backend cron)
-    intervalRef.current = setInterval(loadLive, 30 * 1000);
+    // Self-scheduling poll: the next one is queued only once this one settles,
+    // so requests can never stack up the way setInterval allowed.
+    const scheduleNext = () => {
+      if (cancelled) return;
+      pollRef.current = setTimeout(async () => {
+        if (cancelled) return;
+        if (!document.hidden) await loadLive({ silent: true });
+        scheduleNext();
+      }, REFRESH_MS);
+    };
 
-    // Countdown timer
+    loadLive().finally(scheduleNext);
+
     countdownRef.current = setInterval(() => {
-      setCountdown((c) => (c <= 1 ? 30 : c - 1));
+      setCountdown((c) => (c <= 1 ? REFRESH_MS / 1000 : c - 1));
     }, 1000);
 
     return () => {
-      clearInterval(intervalRef.current);
+      cancelled = true;
+      mountedRef.current = false;
+      clearTimeout(pollRef.current);
       clearInterval(countdownRef.current);
+      abortRef.current?.abort();   // cancel any request still open on unmount
     };
-  }, [schoolId]);
+  }, [schoolId, loadLive]);
 
-  const moving  = vehicles.filter((v) => v.location?.vehicleStatus === "MOVING" || v.location?.status === "MOVING");
-  const parked  = vehicles.filter((v) => v.location?.vehicleStatus === "PARKED" || v.location?.status === "PARKED");
-  const noData  = vehicles.filter((v) => !v.location);
+  const moving = vehicles.filter((v) => v.location?.vehicleStatus === "MOVING" || v.location?.status === "MOVING");
+  const parked = vehicles.filter((v) => v.location?.vehicleStatus === "PARKED" || v.location?.status === "PARKED");
+  const noData = vehicles.filter((v) => !v.location);
 
   return (
     <div style={{ fontFamily: "system-ui,-apple-system,sans-serif", color: "#111827" }}>
@@ -169,7 +249,6 @@ export default function LiveTrackingTab({ schoolId }) {
       {/* Header bar */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          {/* Stats */}
           {[
             { label: "Total",   value: vehicles.length, color: "#4338CA", bg: "#EEF2FF" },
             { label: "Moving",  value: moving.length,   color: "#166534", bg: "#F0FDF4" },
@@ -190,7 +269,7 @@ export default function LiveTrackingTab({ schoolId }) {
             </span>
           )}
           <button
-            onClick={loadLive}
+            onClick={() => loadLive()}
             disabled={loading}
             style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", background: "#4F46E5", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}
           >
@@ -200,8 +279,24 @@ export default function LiveTrackingTab({ schoolId }) {
         </div>
       </div>
 
+      {/* Error — previously these were swallowed, leaving the UI stuck */}
+      {error && (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: 8, marginBottom: 14, fontSize: 13 }}>
+          <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* First load */}
+      {loading && vehicles.length === 0 && !error && (
+        <div style={{ textAlign: "center", padding: "48px 0" }}>
+          <Spinner size={22} />
+          <p style={{ fontSize: 13, color: "#9CA3AF", margin: "12px 0 0" }}>Loading vehicles…</p>
+        </div>
+      )}
+
       {/* No vehicles */}
-      {!loading && vehicles.length === 0 && (
+      {!loading && !error && vehicles.length === 0 && (
         <div style={{ textAlign: "center", padding: "48px 0", color: "#9CA3AF" }}>
           <MapPin size={32} color="#E5E7EB" style={{ marginBottom: 12 }} />
           <p style={{ fontSize: 14, margin: 0 }}>No vehicles registered for this school.</p>
@@ -211,16 +306,16 @@ export default function LiveTrackingTab({ schoolId }) {
 
       {/* Vehicle cards grid */}
       {vehicles.length > 0 && (
-<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))", gap: "20px" }}>
-  <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
-    {vehicles.map((v) => (
-      <VehicleCard key={v.id} vehicle={v} />
-    ))}
-  </div>
-  <div style={{ minWidth: 0 }}>
-    <VehicleMap vehicles={vehicles} />
-  </div>
-</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))", gap: "20px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+            {vehicles.map((v) => (
+              <VehicleCard key={v.id} vehicle={v} />
+            ))}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <VehicleMap vehicles={vehicles} />
+          </div>
+        </div>
       )}
     </div>
   );
