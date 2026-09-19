@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { getToken } from "../auth/storage";
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5001";
 
 /**
  * Universal school logo hook.
@@ -38,7 +38,9 @@ export function useSchoolLogo() {
     };
 
     fetchLogo();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return logoUrl;

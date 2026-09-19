@@ -2,12 +2,18 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  Calendar, Clock, BookOpen, Coffee, UtensilsCrossed,
-  MapPin, User, AlertCircle,
+  Calendar,
+  Clock,
+  BookOpen,
+  Coffee,
+  UtensilsCrossed,
+  MapPin,
+  User,
+  AlertCircle,
 } from "lucide-react";
 import { getToken } from "../../../auth/storage.js";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5001";
 
 async function apiFetch(path) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -24,31 +30,41 @@ async function apiFetch(path) {
 
 // ── C tokens (same as CurriculumList) ─────────────────────────
 const C = {
-  slate:       "#6A89A7",
-  mist:        "#BDDDFC",
-  sky:         "#88BDF2",
-  deep:        "#384959",
-  deepDark:    "#243340",
-  bg:          "#EDF3FA",
-  white:       "#FFFFFF",
-  border:      "#C8DCF0",
+  slate: "#6A89A7",
+  mist: "#BDDDFC",
+  sky: "#88BDF2",
+  deep: "#384959",
+  deepDark: "#243340",
+  bg: "#EDF3FA",
+  white: "#FFFFFF",
+  border: "#C8DCF0",
   borderLight: "#DDE9F5",
-  text:        "#243340",
-  textLight:   "#6A89A7",
-  green:       "#22c55e",
-  amber:       "#f59e0b",
-  orange:      "#f97316",
+  text: "#243340",
+  textLight: "#6A89A7",
+  green: "#22c55e",
+  amber: "#f59e0b",
+  orange: "#f97316",
 };
 
 const F = { fontFamily: "'Inter', sans-serif" };
 
 const DAY_LABELS = {
-  MONDAY: "Monday", TUESDAY: "Tuesday", WEDNESDAY: "Wednesday",
-  THURSDAY: "Thursday", FRIDAY: "Friday", SATURDAY: "Saturday", SUNDAY: "Sunday",
+  MONDAY: "Monday",
+  TUESDAY: "Tuesday",
+  WEDNESDAY: "Wednesday",
+  THURSDAY: "Thursday",
+  FRIDAY: "Friday",
+  SATURDAY: "Saturday",
+  SUNDAY: "Sunday",
 };
 const DAY_SHORT = {
-  MONDAY: "Mon", TUESDAY: "Tue", WEDNESDAY: "Wed",
-  THURSDAY: "Thu", FRIDAY: "Fri", SATURDAY: "Sat", SUNDAY: "Sun",
+  MONDAY: "Mon",
+  TUESDAY: "Tue",
+  WEDNESDAY: "Wed",
+  THURSDAY: "Thu",
+  FRIDAY: "Fri",
+  SATURDAY: "Sat",
+  SUNDAY: "Sun",
 };
 
 function fmtTime(t) {
@@ -65,7 +81,7 @@ const TODAY_KEY = new Date()
 // ── Responsive breakpoint hook ────────────────────────────────
 function useWindowWidth() {
   const [w, setW] = useState(
-    typeof window !== "undefined" ? window.innerWidth : 1024
+    typeof window !== "undefined" ? window.innerWidth : 1024,
   );
   useEffect(() => {
     const handle = () => setW(window.innerWidth);
@@ -80,7 +96,12 @@ function Pulse({ w = "100%", h = 13, r = 8 }) {
   return (
     <div
       className="animate-pulse"
-      style={{ width: w, height: h, borderRadius: r, background: `${C.mist}55` }}
+      style={{
+        width: w,
+        height: h,
+        borderRadius: r,
+        background: `${C.mist}55`,
+      }}
     />
   );
 }
@@ -98,12 +119,21 @@ function LoadingSkeleton({ isMobile }) {
             borderRadius: 14,
             border: `1.5px solid ${C.borderLight}`,
             padding: isMobile ? "12px 14px" : "16px 20px",
-            display: "flex", alignItems: "center", gap: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
           }}
         >
           <Pulse w={32} h={32} r={99} />
           {!isMobile && <Pulse w={90} h={32} r={10} />}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: 7,
+            }}
+          >
             <Pulse w="50%" h={13} />
             <Pulse w="30%" h={10} />
           </div>
@@ -116,8 +146,8 @@ function LoadingSkeleton({ isMobile }) {
 
 // ── Period Card ───────────────────────────────────────────────
 function PeriodCard({ slot, classIndex, isMobile, isTablet }) {
-  const isBreak    = slot.slotType === "BREAK" || slot.slotType === "LUNCH";
-  const isLunch    = slot.slotType === "LUNCH";
+  const isBreak = slot.slotType === "BREAK" || slot.slotType === "LUNCH";
+  const isLunch = slot.slotType === "LUNCH";
   const accentColor = isLunch ? C.green : isBreak ? C.orange : C.sky;
 
   return (
@@ -133,55 +163,82 @@ function PeriodCard({ slot, classIndex, isMobile, isTablet }) {
         boxShadow: "0 2px 10px rgba(56,73,89,0.05)",
         transition: "box-shadow 0.2s, transform 0.2s",
       }}
-      onMouseEnter={e => {
+      onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = `0 8px 24px ${C.sky}28`;
         e.currentTarget.style.transform = "translateY(-2px)";
       }}
-      onMouseLeave={e => {
+      onMouseLeave={(e) => {
         e.currentTarget.style.boxShadow = "0 2px 10px rgba(56,73,89,0.05)";
         e.currentTarget.style.transform = "translateY(0)";
       }}
     >
       {/* Period number / break icon */}
       {!isBreak ? (
-        <div style={{
-          width: 30, height: 30, borderRadius: "50%",
-          background: `${C.sky}18`,
-          border: `1.5px solid ${C.sky}33`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          flexShrink: 0,
-          fontSize: 11, fontWeight: 800, color: C.deep,
-        }}>
+        <div
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: "50%",
+            background: `${C.sky}18`,
+            border: `1.5px solid ${C.sky}33`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            fontSize: 11,
+            fontWeight: 800,
+            color: C.deep,
+          }}
+        >
           {classIndex + 1}
         </div>
       ) : (
-        <div style={{
-          width: 30, height: 30, borderRadius: "50%",
-          background: `${accentColor}18`,
-          border: `1.5px solid ${accentColor}33`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          flexShrink: 0,
-        }}>
-          {isLunch
-            ? <UtensilsCrossed size={13} color={accentColor} />
-            : <Coffee size={13} color={accentColor} />
-          }
+        <div
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: "50%",
+            background: `${accentColor}18`,
+            border: `1.5px solid ${accentColor}33`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {isLunch ? (
+            <UtensilsCrossed size={13} color={accentColor} />
+          ) : (
+            <Coffee size={13} color={accentColor} />
+          )}
         </div>
       )}
 
       {/* Time block — hidden on mobile, shown inline on tablet+ */}
       {!isMobile && (
-        <div style={{
-          minWidth: 94, flexShrink: 0,
-          padding: "5px 10px",
-          background: C.bg,
-          border: `1px solid ${C.borderLight}`,
-          borderRadius: 10,
-          display: "flex", alignItems: "center", gap: 5,
-        }}>
+        <div
+          style={{
+            minWidth: 94,
+            flexShrink: 0,
+            padding: "5px 10px",
+            background: C.bg,
+            border: `1px solid ${C.borderLight}`,
+            borderRadius: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+          }}
+        >
           <Clock size={11} color={C.textLight} />
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: C.text,
+                lineHeight: 1.2,
+              }}
+            >
               {fmtTime(slot.startTime)}
             </div>
             <div style={{ fontSize: 10, color: C.textLight }}>
@@ -194,21 +251,42 @@ function PeriodCard({ slot, classIndex, isMobile, isTablet }) {
       {/* Subject / break info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Name + code */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          {!isBreak && <BookOpen size={13} color={C.slate} style={{ flexShrink: 0 }} />}
-          <span style={{
-            fontSize: isMobile ? 13 : 14,
-            fontWeight: 700, color: C.text,
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexWrap: "wrap",
+          }}
+        >
+          {!isBreak && (
+            <BookOpen size={13} color={C.slate} style={{ flexShrink: 0 }} />
+          )}
+          <span
+            style={{
+              fontSize: isMobile ? 13 : 14,
+              fontWeight: 700,
+              color: C.text,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {slot.subject?.name ?? (isLunch ? "Lunch Break" : "Break")}
           </span>
           {slot.subject?.code && (
-            <span style={{
-              fontSize: 10, fontWeight: 600, color: C.textLight,
-              background: C.bg, border: `1px solid ${C.borderLight}`,
-              borderRadius: 20, padding: "1px 7px", flexShrink: 0,
-            }}>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: C.textLight,
+                background: C.bg,
+                border: `1px solid ${C.borderLight}`,
+                borderRadius: 20,
+                padding: "1px 7px",
+                flexShrink: 0,
+              }}
+            >
               {slot.subject.code}
             </span>
           )}
@@ -216,7 +294,14 @@ function PeriodCard({ slot, classIndex, isMobile, isTablet }) {
 
         {/* Time on mobile — shown below name */}
         {isMobile && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              marginTop: 3,
+            }}
+          >
             <Clock size={10} color={C.textLight} />
             <span style={{ fontSize: 10, color: C.textLight, fontWeight: 500 }}>
               {fmtTime(slot.startTime)} – {fmtTime(slot.endTime)}
@@ -226,14 +311,32 @@ function PeriodCard({ slot, classIndex, isMobile, isTablet }) {
 
         {/* Teacher + room */}
         {!isBreak && (slot.teacher?.name || slot.roomNumber) && (
-          <div style={{ display: "flex", gap: 10, marginTop: 3, flexWrap: "wrap" }}>
+          <div
+            style={{ display: "flex", gap: 10, marginTop: 3, flexWrap: "wrap" }}
+          >
             {slot.teacher?.name && (
-              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: C.textLight }}>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 3,
+                  fontSize: 11,
+                  color: C.textLight,
+                }}
+              >
                 <User size={10} /> {slot.teacher.name}
               </span>
             )}
             {slot.roomNumber && (
-              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: C.textLight }}>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 3,
+                  fontSize: 11,
+                  color: C.textLight,
+                }}
+              >
                 <MapPin size={10} /> Room {slot.roomNumber}
               </span>
             )}
@@ -243,25 +346,33 @@ function PeriodCard({ slot, classIndex, isMobile, isTablet }) {
 
       {/* Right badge */}
       {isBreak ? (
-        <span style={{
-          fontSize: 10, fontWeight: 700,
-          background: `${accentColor}15`,
-          color: accentColor,
-          border: `1px solid ${accentColor}33`,
-          borderRadius: 20,
-          padding: isMobile ? "2px 8px" : "3px 10px",
-          flexShrink: 0,
-        }}>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            background: `${accentColor}15`,
+            color: accentColor,
+            border: `1px solid ${accentColor}33`,
+            borderRadius: 20,
+            padding: isMobile ? "2px 8px" : "3px 10px",
+            flexShrink: 0,
+          }}
+        >
           {isLunch ? "Lunch" : "Break"}
         </span>
       ) : slot.roomNumber && !isMobile ? (
-        <span style={{
-          fontSize: 10, fontWeight: 700,
-          background: `${C.sky}18`,
-          color: C.deep,
-          border: `1px solid ${C.sky}33`,
-          borderRadius: 20, padding: "3px 10px", flexShrink: 0,
-        }}>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            background: `${C.sky}18`,
+            color: C.deep,
+            border: `1px solid ${C.sky}33`,
+            borderRadius: 20,
+            padding: "3px 10px",
+            flexShrink: 0,
+          }}
+        >
           Room {slot.roomNumber}
         </span>
       ) : null}
@@ -273,19 +384,20 @@ function PeriodCard({ slot, classIndex, isMobile, isTablet }) {
 //  Main Page
 // ═════════════════════════════════════════════════════════════
 export default function TimeTable() {
-  const [data,      setData]      = useState(null);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(null);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeDay, setActiveDay] = useState(null);
 
-  const width    = useWindowWidth();
+  const width = useWindowWidth();
   const isMobile = width < 640;
   const isTablet = width >= 640 && width < 1024;
 
   useEffect(() => {
     apiFetch("/timetable")
       .then((res) => {
-        if (!res.success) throw new Error(res.message ?? "Failed to load timetable");
+        if (!res.success)
+          throw new Error(res.message ?? "Failed to load timetable");
         setData(res.data);
         const days = res.data.days ?? [];
         setActiveDay(days.includes(TODAY_KEY) ? TODAY_KEY : days[0] ?? null);
@@ -294,14 +406,20 @@ export default function TimeTable() {
       .finally(() => setLoading(false));
   }, []);
 
-  const slots      = data?.timetable?.[activeDay] ?? [];
-  const classSlots = slots.filter(s => s.slotType !== "BREAK" && s.slotType !== "LUNCH");
+  const slots = data?.timetable?.[activeDay] ?? [];
+  const classSlots = slots.filter(
+    (s) => s.slotType !== "BREAK" && s.slotType !== "LUNCH",
+  );
   const enrollment = data?.enrollment;
-  const stats      = data?.stats;
+  const stats = data?.stats;
 
   // Responsive values
-  const pagePadding = isMobile ? "20px 16px" : isTablet ? "24px 24px" : "28px 32px";
-  const titleSize   = isMobile ? 20 : 26;
+  const pagePadding = isMobile
+    ? "20px 16px"
+    : isTablet
+    ? "24px 24px"
+    : "28px 32px";
+  const titleSize = isMobile ? 20 : 26;
 
   return (
     <>
@@ -337,52 +455,79 @@ export default function TimeTable() {
         }
       `}</style>
 
-      <div style={{
-        minHeight: "100vh",
-        background: C.bg,
-        padding: pagePadding,
-        ...F,
-        backgroundImage: `radial-gradient(circle at 10% 0%, ${C.mist}28 0%, transparent 45%)`,
-      }}>
-
+      <div
+        style={{
+          minHeight: "100vh",
+          background: C.bg,
+          padding: pagePadding,
+          ...F,
+          backgroundImage: `radial-gradient(circle at 10% 0%, ${C.mist}28 0%, transparent 45%)`,
+        }}
+      >
         {/* ── Page header ── */}
         <div className="fade-up" style={{ marginBottom: isMobile ? 16 : 24 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 5 }}>
-            <div style={{
-              width: 4,
-              height: isMobile ? 26 : 32,
-              borderRadius: 99,
-              background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`,
-              flexShrink: 0,
-            }} />
-            <h1 style={{
-              margin: 0,
-              fontSize: titleSize,
-              fontWeight: 800,
-              color: C.text,
-              letterSpacing: "-0.5px",
-            }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 5,
+            }}
+          >
+            <div
+              style={{
+                width: 4,
+                height: isMobile ? 26 : 32,
+                borderRadius: 99,
+                background: `linear-gradient(180deg, ${C.sky}, ${C.deep})`,
+                flexShrink: 0,
+              }}
+            />
+            <h1
+              style={{
+                margin: 0,
+                fontSize: titleSize,
+                fontWeight: 800,
+                color: C.text,
+                letterSpacing: "-0.5px",
+              }}
+            >
               Class Time Table
             </h1>
           </div>
-          <p style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: C.textLight, fontWeight: 500 }}>
+          <p
+            style={{
+              margin: 0,
+              paddingLeft: 16,
+              fontSize: 12,
+              color: C.textLight,
+              fontWeight: 500,
+            }}
+          >
             {loading
               ? "Loading schedule…"
               : enrollment
-                ? `${enrollment.className} · ${enrollment.academicYear}`
-                : "View your daily class schedule"
-            }
+              ? `${enrollment.className} · ${enrollment.academicYear}`
+              : "View your daily class schedule"}
           </p>
         </div>
 
         {/* ── Error ── */}
         {error && (
-          <div style={{
-            display: "flex", alignItems: "flex-start", gap: 8,
-            padding: "12px 16px", borderRadius: 12,
-            background: "#fee8e8", border: "1px solid #f5b0b0",
-            marginBottom: 16, fontSize: 13, color: "#8b1c1c",
-          }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 8,
+              padding: "12px 16px",
+              borderRadius: 12,
+              background: "#fee8e8",
+              border: "1px solid #f5b0b0",
+              marginBottom: 16,
+              fontSize: 13,
+              color: "#8b1c1c",
+            }}
+          >
             <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
             <span>{error}</span>
           </div>
@@ -392,18 +537,19 @@ export default function TimeTable() {
           <LoadingSkeleton isMobile={isMobile} />
         ) : (
           <div className="fade-in">
-
             {/* ── Stat cards ── */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: isMobile
-                ? "1fr 1fr"
-                : isTablet
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr 1fr"
+                  : isTablet
                   ? "repeat(3, 1fr)"
                   : "repeat(3, 1fr)",
-              gap: isMobile ? 10 : 12,
-              marginBottom: isMobile ? 14 : 20,
-            }}>
+                gap: isMobile ? 10 : 12,
+                marginBottom: isMobile ? 14 : 20,
+              }}
+            >
               {[
                 {
                   label: "WORKING DAYS",
@@ -437,36 +583,47 @@ export default function TimeTable() {
                   }}
                 >
                   <div>
-                    <p style={{
-                      margin: 0, fontSize: 9, fontWeight: 700,
-                      color: C.textLight, letterSpacing: "0.5px",
-                      textTransform: "uppercase",
-                    }}>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 9,
+                        fontWeight: 700,
+                        color: C.textLight,
+                        letterSpacing: "0.5px",
+                        textTransform: "uppercase",
+                      }}
+                    >
                       {card.label}
                     </p>
-                    <p style={{
-                      margin: "3px 0 1px",
-                      fontSize: isMobile ? 20 : 24,
-                      fontWeight: 800,
-                      color: C.text,
-                      letterSpacing: "-0.5px",
-                      lineHeight: 1,
-                    }}>
+                    <p
+                      style={{
+                        margin: "3px 0 1px",
+                        fontSize: isMobile ? 20 : 24,
+                        fontWeight: 800,
+                        color: C.text,
+                        letterSpacing: "-0.5px",
+                        lineHeight: 1,
+                      }}
+                    >
                       {card.value}
                     </p>
                     <p style={{ margin: 0, fontSize: 10, color: C.textLight }}>
                       {card.sub}
                     </p>
                   </div>
-                  <div style={{
-                    width: isMobile ? 36 : 42,
-                    height: isMobile ? 36 : 42,
-                    borderRadius: 11,
-                    background: `${card.accent}15`,
-                    border: `1px solid ${card.accent}30`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0,
-                  }}>
+                  <div
+                    style={{
+                      width: isMobile ? 36 : 42,
+                      height: isMobile ? 36 : 42,
+                      borderRadius: 11,
+                      background: `${card.accent}15`,
+                      border: `1px solid ${card.accent}30`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
                     {card.icon}
                   </div>
                 </div>
@@ -474,33 +631,42 @@ export default function TimeTable() {
             </div>
 
             {/* ── Day selector ── */}
-            <div style={{
-              background: C.white,
-              borderRadius: 14,
-              border: `1.5px solid ${C.borderLight}`,
-              padding: isMobile ? "12px 14px" : "14px 20px",
-              marginBottom: isMobile ? 14 : 20,
-              boxShadow: "0 2px 10px rgba(56,73,89,0.05)",
-            }}>
-              <p style={{
-                margin: "0 0 10px",
-                fontSize: 10, fontWeight: 700,
-                color: C.textLight, letterSpacing: "0.5px",
-                textTransform: "uppercase",
-              }}>
+            <div
+              style={{
+                background: C.white,
+                borderRadius: 14,
+                border: `1.5px solid ${C.borderLight}`,
+                padding: isMobile ? "12px 14px" : "14px 20px",
+                marginBottom: isMobile ? 14 : 20,
+                boxShadow: "0 2px 10px rgba(56,73,89,0.05)",
+              }}
+            >
+              <p
+                style={{
+                  margin: "0 0 10px",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: C.textLight,
+                  letterSpacing: "0.5px",
+                  textTransform: "uppercase",
+                }}
+              >
                 Select Day
               </p>
               {/* Scrollable row on mobile */}
-              <div style={{
-                display: "flex", gap: 6,
-                overflowX: isMobile ? "auto" : "unset",
-                flexWrap: isMobile ? "nowrap" : "wrap",
-                paddingBottom: isMobile ? 2 : 0,
-                WebkitOverflowScrolling: "touch",
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 6,
+                  overflowX: isMobile ? "auto" : "unset",
+                  flexWrap: isMobile ? "nowrap" : "wrap",
+                  paddingBottom: isMobile ? 2 : 0,
+                  WebkitOverflowScrolling: "touch",
+                }}
+              >
                 {(data?.days ?? []).map((day) => {
                   const isActive = day === activeDay;
-                  const isToday  = day === TODAY_KEY;
+                  const isToday = day === TODAY_KEY;
                   return (
                     <button
                       key={day}
@@ -523,13 +689,22 @@ export default function TimeTable() {
                         transition: "all 0.15s",
                       }}
                     >
-                      {isMobile ? DAY_SHORT[day]?.slice(0, 2) ?? day : DAY_SHORT[day] ?? day}
+                      {isMobile
+                        ? DAY_SHORT[day]?.slice(0, 2) ?? day
+                        : DAY_SHORT[day] ?? day}
                       {isToday && (
-                        <span style={{
-                          position: "absolute", top: -3, right: -3,
-                          width: 7, height: 7, borderRadius: "50%",
-                          background: C.green, border: `2px solid ${C.white}`,
-                        }} />
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: -3,
+                            right: -3,
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: C.green,
+                            border: `2px solid ${C.white}`,
+                          }}
+                        />
                       )}
                     </button>
                   );
@@ -538,78 +713,129 @@ export default function TimeTable() {
             </div>
 
             {/* ── Period list ── */}
-            <div style={{
-              background: C.white,
-              borderRadius: 14,
-              border: `1.5px solid ${C.borderLight}`,
-              padding: isMobile ? "14px 14px" : "16px 20px",
-              boxShadow: "0 2px 10px rgba(56,73,89,0.05)",
-            }}>
+            <div
+              style={{
+                background: C.white,
+                borderRadius: 14,
+                border: `1.5px solid ${C.borderLight}`,
+                padding: isMobile ? "14px 14px" : "16px 20px",
+                boxShadow: "0 2px 10px rgba(56,73,89,0.05)",
+              }}
+            >
               {/* Section heading */}
-              <div style={{
-                display: "flex",
-                alignItems: isMobile ? "flex-start" : "center",
-                justifyContent: "space-between",
-                flexDirection: isMobile ? "column" : "row",
-                gap: isMobile ? 10 : 0,
-                marginBottom: 14,
-                paddingBottom: 12,
-                borderBottom: `1px solid ${C.borderLight}`,
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: isMobile ? "flex-start" : "center",
+                  justifyContent: "space-between",
+                  flexDirection: isMobile ? "column" : "row",
+                  gap: isMobile ? 10 : 0,
+                  marginBottom: 14,
+                  paddingBottom: 12,
+                  borderBottom: `1px solid ${C.borderLight}`,
+                }}
+              >
                 <div>
-                  <h2 style={{
-                    margin: 0,
-                    fontSize: isMobile ? 14 : 16,
-                    fontWeight: 800,
-                    color: C.text,
-                  }}>
+                  <h2
+                    style={{
+                      margin: 0,
+                      fontSize: isMobile ? 14 : 16,
+                      fontWeight: 800,
+                      color: C.text,
+                    }}
+                  >
                     {DAY_LABELS[activeDay] ?? activeDay}
                     {activeDay === TODAY_KEY && (
-                      <span style={{
-                        marginLeft: 7, fontSize: 9, fontWeight: 700,
-                        background: `${C.green}18`, color: C.green,
-                        border: `1px solid ${C.green}40`,
-                        borderRadius: 20, padding: "2px 7px",
-                        verticalAlign: "middle",
-                      }}>
+                      <span
+                        style={{
+                          marginLeft: 7,
+                          fontSize: 9,
+                          fontWeight: 700,
+                          background: `${C.green}18`,
+                          color: C.green,
+                          border: `1px solid ${C.green}40`,
+                          borderRadius: 20,
+                          padding: "2px 7px",
+                          verticalAlign: "middle",
+                        }}
+                      >
                         TODAY
                       </span>
                     )}
                   </h2>
-                  <p style={{ margin: "3px 0 0", fontSize: 11, color: C.textLight }}>
-                    {classSlots.length} class{classSlots.length !== 1 ? "es" : ""} · {slots.length} total slots
+                  <p
+                    style={{
+                      margin: "3px 0 0",
+                      fontSize: 11,
+                      color: C.textLight,
+                    }}
+                  >
+                    {classSlots.length} class
+                    {classSlots.length !== 1 ? "es" : ""} · {slots.length} total
+                    slots
                   </p>
                 </div>
 
                 {stats && (
-                  <div style={{
-                    padding: isMobile ? "6px 10px" : "6px 14px",
-                    background: C.bg,
-                    border: `1px solid ${C.borderLight}`,
-                    borderRadius: 10,
-                    textAlign: isMobile ? "left" : "right",
-                    alignSelf: isMobile ? "flex-start" : "auto",
-                  }}>
-                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.text }}>
+                  <div
+                    style={{
+                      padding: isMobile ? "6px 10px" : "6px 14px",
+                      background: C.bg,
+                      border: `1px solid ${C.borderLight}`,
+                      borderRadius: 10,
+                      textAlign: isMobile ? "left" : "right",
+                      alignSelf: isMobile ? "flex-start" : "auto",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: C.text,
+                      }}
+                    >
                       {fmtTime(stats.dayStart)} – {fmtTime(stats.dayEnd)}
                     </p>
-                    <p style={{ margin: 0, fontSize: 10, color: C.textLight }}>School hours</p>
+                    <p style={{ margin: 0, fontSize: 10, color: C.textLight }}>
+                      School hours
+                    </p>
                   </div>
                 )}
               </div>
 
               {/* Empty state */}
               {slots.length === 0 && (
-                <div style={{ textAlign: "center", padding: "40px 20px", color: C.textLight }}>
-                  <div style={{
-                    width: 46, height: 46, borderRadius: 13,
-                    background: `${C.sky}18`, border: `1px solid ${C.sky}33`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    margin: "0 auto 12px",
-                  }}>
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "40px 20px",
+                    color: C.textLight,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: 13,
+                      background: `${C.sky}18`,
+                      border: `1px solid ${C.sky}33`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      margin: "0 auto 12px",
+                    }}
+                  >
                     <Calendar size={20} color={C.sky} />
                   </div>
-                  <p style={{ fontWeight: 700, margin: 0, fontSize: 13, color: C.text }}>
+                  <p
+                    style={{
+                      fontWeight: 700,
+                      margin: 0,
+                      fontSize: 13,
+                      color: C.text,
+                    }}
+                  >
                     No periods scheduled
                   </p>
                   <p style={{ fontSize: 11, margin: "4px 0 0" }}>
@@ -620,11 +846,18 @@ export default function TimeTable() {
 
               {/* Period rows */}
               {slots.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 8 : 10 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: isMobile ? 8 : 10,
+                  }}
+                >
                   {(() => {
                     let cc = 0;
                     return slots.map((slot, i) => {
-                      const isBreak = slot.slotType === "BREAK" || slot.slotType === "LUNCH";
+                      const isBreak =
+                        slot.slotType === "BREAK" || slot.slotType === "LUNCH";
                       const ci = isBreak ? 0 : cc;
                       if (!isBreak) cc++;
                       return (
@@ -641,7 +874,6 @@ export default function TimeTable() {
                 </div>
               )}
             </div>
-
           </div>
         )}
       </div>

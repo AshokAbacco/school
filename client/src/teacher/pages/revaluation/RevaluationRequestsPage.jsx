@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
 import { getToken } from "../../../auth/storage";
 
-const API_BASE =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001";
 
 export default function RevaluationRequestsPage() {
-
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -15,23 +13,18 @@ export default function RevaluationRequestsPage() {
 
   const fetchRequests = async () => {
     try {
-
-      const res = await fetch(
-        `${API_BASE}/api/teacher/revaluation`,
-        {
-          credentials: "include",
-          headers: {
-            Authorization: `Bearer ${getToken()}`
-          }
-        }
-      );
+      const res = await fetch(`${API_BASE}/api/teacher/revaluation`, {
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
 
       const data = await res.json();
 
       if (data.success) {
         setRequests(data.data);
       }
-
     } catch (error) {
       console.error(error);
     } finally {
@@ -45,10 +38,7 @@ export default function RevaluationRequestsPage() {
 
   return (
     <div style={{ padding: 20 }}>
-
-      <h2 style={{ marginBottom: 20 }}>
-        Revaluation Requests
-      </h2>
+      <h2 style={{ marginBottom: 20 }}>Revaluation Requests</h2>
 
       <div
         style={{
@@ -58,7 +48,6 @@ export default function RevaluationRequestsPage() {
           border: "1px solid #e5e7eb",
         }}
       >
-
         <table
           style={{
             width: "100%",
@@ -87,26 +76,17 @@ export default function RevaluationRequestsPage() {
                   {r.student?.personalInfo?.lastName}
                 </td>
 
-                <td style={td}>
-                  {r.subject?.name}
-                </td>
+                <td style={td}>{r.subject?.name}</td>
 
-                <td style={td}>
-                  {r.currentMarks}
-                </td>
+                <td style={td}>{r.currentMarks}</td>
 
-                <td style={td}>
-                  {r.reason}
-                </td>
+                <td style={td}>{r.reason}</td>
 
-                <td style={td}>
-                  {r.status}
-                </td>
+                <td style={td}>{r.status}</td>
               </tr>
             ))}
           </tbody>
         </table>
-
       </div>
     </div>
   );

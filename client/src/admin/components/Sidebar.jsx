@@ -24,7 +24,8 @@ import {
   BookMarked,
   ReceiptText,
   FileSearch,
-  FileBadge2
+  FileBadge2,
+  Fingerprint,
 } from "lucide-react";
 
  
@@ -62,64 +63,75 @@ export default function Sidebar({ isOpen, onClose, user }) {
     // console.log("ADMIN PLAN =", userPlan);
 
 const NAV = [
-  { icon: LayoutDashboard, label: "Dashboard",   to: "/admin/dashboard" },
-  { icon: BookOpen,        label: "Classes",     to: "/admin/classes" },
-  { icon: Users,           label: "Students",    to: "/admin/students" },
-  { icon: GraduationCap,   label: "Teachers",    to: "/admin/teachers" },
-  { icon: Users,           label: "Staff",       to: "/admin/staff" },
-  { icon: ClipboardCheck,  label: "Attendance",  to: "/admin/attendance" },
+  { icon: LayoutDashboard, label: "Dashboard", to: "/admin/dashboard" },
+  { icon: BookOpen, label: "Classes", to: "/admin/classes" },
+  { icon: Users, label: "Students", to: "/admin/students" },
+  { icon: GraduationCap, label: "Teachers", to: "/admin/teachers" },
+  { icon: Users, label: "Staff", to: "/admin/staff" },
+  { icon: ClipboardCheck, label: "Attendance", to: "/admin/attendance" },
+  { icon: Fingerprint, label: "Biometric Management", to: "/admin/biometric" },
 
   // ✅ Premium only
   ...(userPlan === "Premium"
-    ? [{
-        icon: BookMarked,
-        label: "Tutorial Teachers",
-        to: "/admin/tutorial-teachers",
-      }]
+    ? [
+        {
+          icon: BookMarked,
+          label: "Tutorial Teachers",
+          to: "/admin/tutorial-teachers",
+        },
+      ]
     : []),
 
   // ✅ Gold + Premium
   ...(userPlan !== "Silver"
-    ? [{
-        icon: FileText,
-        label: "Exams & Results",
-        to: "/admin/exams",
-      }]
+    ? [
+        {
+          icon: FileText,
+          label: "Exams & Results",
+          to: "/admin/exams",
+        },
+      ]
     : []),
 
-      { icon: FileBadge2,      label: "Certificates", to: "/admin/certificates" },
+  { icon: FileBadge2, label: "Certificates", to: "/admin/certificates" },
 
   // ✅ Gold + Premium
   ...(userPlan !== "Silver"
-    ? [{
-        icon: Library,
-        label: "Curriculum",
-        to: "/admin/curriculum",
-      }]
+    ? [
+        {
+          icon: Library,
+          label: "Curriculum",
+          to: "/admin/curriculum",
+        },
+      ]
     : []),
 
   { icon: CalendarDays, label: "Holidays", to: "/admin/holidays" },
 
   // ✅ Gold + Premium
   ...(userPlan !== "Silver"
-    ? [{
-        icon: Medal,
-        label: "Activities",
-        to: "/admin/activities",
-      }]
+    ? [
+        {
+          icon: Medal,
+          label: "Activities",
+          to: "/admin/activities",
+        },
+      ]
     : []),
 
   { icon: Trophy, label: "Awards", to: "/admin/awards" },
 
   // ✅ Premium only
   ...(userPlan === "Premium"
-    ? [{
-        icon: CalendarCheck,
-        label: "Meetings",
-        to: "/admin/meetings",
-      }]
+    ? [
+        {
+          icon: CalendarCheck,
+          label: "Meetings",
+          to: "/admin/meetings",
+        },
+      ]
     : []),
-    
+
   //   // ✅ Premium only || i commented but don't dleete
   //   ...(userPlan === "Premium"
   //     ? [{
@@ -141,20 +153,24 @@ const NAV = [
 
   // ✅ Premium only
   ...(userPlan === "Premium"
-    ? [{
-        icon: Bus,
-        label: "Transport",
-        to: "/admin/transport",
-      }]
+    ? [
+        {
+          icon: Bus,
+          label: "Transport",
+          to: "/admin/transport",
+        },
+      ]
     : []),
 
   // ✅ Premium only
   ...(userPlan === "Premium"
-    ? [{
-        icon: MessageCircle,
-        label: "Chat",
-        to: "/admin/chat",
-      }]
+    ? [
+        {
+          icon: MessageCircle,
+          label: "Chat",
+          to: "/admin/chat",
+        },
+      ]
     : []),
 
   // ✅ Premium only || i commented but don't dleete
@@ -165,7 +181,6 @@ const NAV = [
   //       to: "/admin/tracking",
   //     }]
   //   : []),
-
 ];
 
   return (

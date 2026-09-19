@@ -316,7 +316,9 @@ const findUserByIdentifier = async (identifier) => {
   }
 
   // Otherwise treat as email
-  let user = await prisma.superAdmin.findFirst({ where: { email: identifier } });
+  let user = await prisma.superAdmin.findFirst({
+    where: { email: identifier },
+  });
   if (user) return { user, model: "superAdmin" };
 
   user = await prisma.student.findFirst({ where: { email: identifier } });
@@ -332,12 +334,22 @@ const findUserByIdentifier = async (identifier) => {
 };
 
 // ── Super Admin login (by phone OR email) ────────────────────────────────
-export const loginSuperAdminService = async ({ phone, password }) => {
+export const loginSuperAdminService = async ({
+  phone,
+  password,
+  universityId,
+}) => {
   // `phone` field may carry an email address when user types one in the login box
   const identifier = String(phone || "").trim();
+
   const includeOpts = {
     university: {
-      select: { id: true, name: true, code: true, isDeactivated: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        isDeactivated: true,
+      },
     },
     Payment: {
       where: { status: "SUCCESS" },
@@ -358,30 +370,66 @@ export const loginSuperAdminService = async ({ phone, password }) => {
   } else {
     // ── Phone lookup (original behaviour) ──
     const variants = phoneVariants(identifier);
+
     for (const v of variants) {
       admin = await prisma.superAdmin.findFirst({
         where: { phone: v },
         include: includeOpts,
       });
+
       if (admin) break;
     }
   }
 
-  if (!admin)
-    throw { status: 401, message: "Invalid credentials" };
+  if (!admin) {
+    throw {
+      status: 401,
+      message: "Invalid credentials",
+    };
+  }
 
-  if (!admin.isActive) throw { status: 403, message: DEACTIVATED_MSG };
+  // ── Foundation/University-specific Android app validation ──
+  // Web login does not send universityId, so existing web behaviour
+  // remains unchanged.
+  //
+  // Android foundation app sends universityId, so any Super Admin
+  // belonging to that foundation can log in.
 
-  if (admin.university?.isDeactivated)
-    throw { status: 403, message: DEACTIVATED_MSG };
+  if (universityId && admin.universityId !== universityId) {
+    throw {
+      status: 403,
+      message: "You are not authorized to login to this foundation",
+    };
+  }
+
+  if (!admin.isActive) {
+    throw {
+      status: 403,
+      message: DEACTIVATED_MSG,
+    };
+  }
+
+  if (admin.university?.isDeactivated) {
+    throw {
+      status: 403,
+      message: DEACTIVATED_MSG,
+    };
+  }
 
   const isValid = await bcrypt.compare(password, admin.password);
-  if (!isValid)
-    throw { status: 401, message: "Invalid credentials" };
+
+  if (!isValid) {
+    throw {
+      status: 401,
+      message: "Invalid credentials",
+    };
+  }
 
   await prisma.superAdmin.update({
     where: { id: admin.id },
-    data: { lastLoginAt: new Date() },
+    data: {
+      lastLoginAt: new Date(),
+    },
   });
 
   const token = generateToken({
@@ -393,6 +441,7 @@ export const loginSuperAdminService = async ({ phone, password }) => {
 
   return {
     token,
+
     user: {
       id: admin.id,
       name: admin.name,
@@ -406,46 +455,64 @@ export const loginSuperAdminService = async ({ phone, password }) => {
 };
 
 // ── Staff login (by phone OR email → profile → user) ─────────────────────
-export const loginStaffService = async ({ phone, password, selectedRole }) => {
+export const loginStaffService = async ({
+  phone,
+  password,
+  selectedRole,
+  schoolId,
+  universityId,
+}) => {
   // `phone` field may carry an email address
   const identifier = String(phone || "").trim();
 
   // Helper: resolve userId from staff profiles by phone variants
   const findUserIdByPhone = async () => {
     const variants = phoneVariants(identifier);
+
     for (const v of variants) {
       if (!selectedRole || selectedRole === "ADMIN") {
         const p = await prisma.schoolAdminProfile.findFirst({
           where: { phoneNumber: v },
           select: { userId: true },
         });
+
         if (p) return p.userId;
       }
+
       if (!selectedRole || selectedRole === "TEACHER") {
         const p = await prisma.teacherProfile.findFirst({
           where: { phone: v },
           select: { userId: true },
         });
+
         if (p) return p.userId;
       }
+
       if (!selectedRole || selectedRole === "FINANCE") {
         const p = await prisma.financeProfile.findFirst({
           where: { phone: v },
           select: { userId: true },
         });
+
         if (p) return p.userId;
       }
     }
+
     return null;
   };
 
   // Helper: resolve userId from User.email (for email login)
   const findUserIdByEmail = async () => {
     const roleFilter = selectedRole ? { role: selectedRole } : {};
+
     const u = await prisma.user.findFirst({
-      where: { email: identifier, ...roleFilter },
+      where: {
+        email: identifier,
+        ...roleFilter,
+      },
       select: { id: true },
     });
+
     return u?.id || null;
   };
 
@@ -456,14 +523,19 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
   // ── Check inactive account ──
   if (userId) {
     const inactiveUser = await prisma.user.findFirst({
-      where: { id: userId, isActive: false },
+      where: {
+        id: userId,
+        isActive: false,
+      },
     });
+
     if (inactiveUser) {
       const roleMessages = {
         ADMIN: "Your Admin account is inactive. Contact administrator.",
         TEACHER: "Your Teacher account is inactive. Contact administrator.",
         FINANCE: "Your Finance account is inactive. Contact administrator.",
       };
+
       throw {
         status: 403,
         message:
@@ -474,26 +546,41 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
   }
 
   if (!userId) {
-    throw { status: 401, message: "Invalid credentials" };
+    throw {
+      status: 401,
+      message: "Invalid credentials",
+    };
   }
 
   // ── Fetch full active user ──
   const user = await prisma.user.findFirst({
-    where: { id: userId, isActive: true },
+    where: {
+      id: userId,
+      isActive: true,
+    },
     include: {
       school: {
         include: {
           university: {
             include: {
               Subscription: {
-                orderBy: { createdAt: "desc" },
+                orderBy: {
+                  createdAt: "desc",
+                },
                 take: 1,
-                include: { payment: { select: { planName: true } } },
+                include: {
+                  payment: {
+                    select: {
+                      planName: true,
+                    },
+                  },
+                },
               },
             },
           },
         },
       },
+
       teacherProfile: {
         select: {
           id: true,
@@ -507,13 +594,23 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
     },
   });
 
-  if (!user)
-    throw { status: 401, message: "Invalid credentials" };
+  if (!user) {
+    throw {
+      status: 401,
+      message: "Invalid credentials",
+    };
+  }
 
   // ── Enforce selected role ──
   if (selectedRole && user.role !== selectedRole) {
-    const roleLabel = { ADMIN: "Admin", TEACHER: "Teacher", FINANCE: "Financer" };
+    const roleLabel = {
+      ADMIN: "Admin",
+      TEACHER: "Teacher",
+      FINANCE: "Financer",
+    };
+
     const actualLabel = roleLabel[user.role] || user.role;
+
     throw {
       status: 403,
       message:
@@ -522,23 +619,55 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
     };
   }
 
-  // ── University/school checks ──
-  if (user.school?.university?.isDeactivated)
-    throw { status: 403, message: DEACTIVATED_MSG };
+  // ── School-specific app validation ──
+  // IMPORTANT:
+  // If schoolId is provided (Android school app), make sure
+  // the staff member actually belongs to that school.
+  //
+  // If schoolId is NOT provided (existing web application),
+  // this check is skipped so existing multi-school behavior
+  // continues to work exactly as before.
+  if (universityId && user.school?.universityId !== universityId) {
+    throw {
+      status: 403,
+      message: "You are not authorized to login to this foundation",
+    };
+  }
 
-  if (!user.school || user.school.isActive === false)
-    throw { status: 403, message: "School is inactive" };
+  // ── University/school checks ──
+  if (user.school?.university?.isDeactivated) {
+    throw {
+      status: 403,
+      message: DEACTIVATED_MSG,
+    };
+  }
+
+  if (!user.school || user.school.isActive === false) {
+    throw {
+      status: 403,
+      message: "School is inactive",
+    };
+  }
 
   // ── Password check ──
   const isValid = await bcrypt.compare(password, user.password);
-  if (!isValid)
-    throw { status: 401, message: "Invalid credentials" };
 
+  if (!isValid) {
+    throw {
+      status: 401,
+      message: "Invalid credentials",
+    };
+  }
+
+  // ── Update last login ──
   await prisma.user.update({
     where: { id: user.id },
-    data: { lastLoginAt: new Date() },
+    data: {
+      lastLoginAt: new Date(),
+    },
   });
 
+  // ── Generate token ──
   const token = generateToken({
     id: user.id,
     role: user.role,
@@ -547,6 +676,7 @@ export const loginStaffService = async ({ phone, password, selectedRole }) => {
     universityId: user.school.universityId,
   });
 
+  // ── Return login result ──
   return {
     token,
     user: {
@@ -603,7 +733,12 @@ const STUDENT_INCLUDE = {
   },
 };
 
-export const loginStudentService = async ({ phone, password }) => {
+export const loginStudentService = async ({
+  phone,
+  password,
+  schoolId,
+  universityId,
+}) => {
   const identifier = String(phone || "").trim();
 
   let student = null;
@@ -652,18 +787,32 @@ export const loginStudentService = async ({ phone, password }) => {
   }
 
   if (!student.isActive) {
-    throw { status: 403, message: "Student account is inactive. Contact administrator." };
+    throw {
+      status: 403,
+      message: "Student account is inactive. Contact administrator.",
+    };
+  }
+
+  // School-specific app validation
+  // If schoolId is provided (Android school app), student must belong to that school.
+  if (universityId && student.school?.universityId !== universityId) {
+    throw {
+      status: 403,
+      message: "You are not authorized to login to this foundation",
+    };
   }
 
   if (student.school?.university?.isDeactivated)
     throw { status: 403, message: DEACTIVATED_MSG };
 
   const isValid = await bcrypt.compare(password, student.password);
-  if (!isValid)
-    throw { status: 401, message: "Invalid credentials" };
+  if (!isValid) throw { status: 401, message: "Invalid credentials" };
 
   if (student.personalInfo?.status === "SUSPENDED") {
-    throw { status: 403, message: "Your account is suspended. Contact your school." };
+    throw {
+      status: 403,
+      message: "Your account is suspended. Contact your school.",
+    };
   }
 
   const activeEnrollment = student.enrollments?.[0];
@@ -697,8 +846,15 @@ export const loginStudentService = async ({ phone, password }) => {
 };
 
 // ── Parent login (by own phone OR email) ──────────────────────────────────
-export const loginParentService = async ({ phone, password }) => {
+
+export const loginParentService = async ({
+  phone,
+  password,
+  schoolId,
+  universityId,
+}) => {
   const identifier = String(phone || "").trim();
+
   const includeOpts = {
     school: {
       include: {
@@ -707,7 +863,11 @@ export const loginParentService = async ({ phone, password }) => {
             Subscription: {
               orderBy: { createdAt: "desc" },
               take: 1,
-              include: { payment: { select: { planName: true } } },
+              include: {
+                payment: {
+                  select: { planName: true },
+                },
+              },
             },
           },
         },
@@ -720,32 +880,68 @@ export const loginParentService = async ({ phone, password }) => {
   if (isEmail(identifier)) {
     // ── Email lookup ──
     parent = await prisma.parent.findFirst({
-      where: { email: identifier, isActive: true },
+      where: {
+        email: identifier,
+        isActive: true,
+      },
       include: includeOpts,
       orderBy: { createdAt: "desc" },
     });
   } else {
     // ── Phone lookup (original behaviour) ──
     const variants = phoneVariants(identifier);
+
     for (const v of variants) {
       parent = await prisma.parent.findFirst({
-        where: { phone: v, isActive: true },
+        where: {
+          phone: v,
+          isActive: true,
+        },
         include: includeOpts,
         orderBy: { createdAt: "desc" },
       });
+
       if (parent) break;
     }
   }
 
-  if (!parent)
-    throw { status: 401, message: "Invalid credentials" };
+  if (!parent) {
+    throw {
+      status: 401,
+      message: "Invalid credentials",
+    };
+  }
 
-  if (parent.school?.university?.isDeactivated)
-    throw { status: 403, message: DEACTIVATED_MSG };
+  // ── Foundation/University-specific app validation ──
+  // Web login does not send universityId, so existing web behaviour remains unchanged.
+  // Android foundation app sends universityId, so the parent can belong
+  // to ANY school under that foundation.
+
+  if (
+    universityId &&
+    parent.school?.universityId !== universityId
+  ) {
+    throw {
+      status: 403,
+      message: "You are not authorized to login to this foundation",
+    };
+  }
+
+  if (parent.school?.university?.isDeactivated) {
+    throw {
+      status: 403,
+      message: DEACTIVATED_MSG,
+    };
+  }
 
   const isValid = await bcrypt.compare(password, parent.password);
-  if (!isValid)
-    throw { status: 401, message: "Invalid credentials" };
+
+  if (!isValid) {
+    throw {
+      status: 401,
+      message: "Invalid credentials",
+    };
+  }
 
   const token = generateToken({
     id: parent.id,
@@ -757,6 +953,7 @@ export const loginParentService = async ({ phone, password }) => {
 
   return {
     token,
+
     user: {
       id: parent.id,
       name: parent.name,
@@ -764,6 +961,7 @@ export const loginParentService = async ({ phone, password }) => {
       role: "PARENT",
       userType: "parent",
       school: parent.school,
+
       planName:
         parent.school?.university?.Subscription?.[0]?.payment?.planName ||
         "Silver",
@@ -772,7 +970,7 @@ export const loginParentService = async ({ phone, password }) => {
 };
 
 // ── Finance login (by phone OR email) ────────────────────────────────────
-export async function loginFinanceService({ phone, password }) {
+export async function loginFinanceService({ phone, password, schoolId }) {
   if (!phone || !password) {
     throw { status: 400, message: "Credentials are required" };
   }
@@ -797,7 +995,10 @@ export async function loginFinanceService({ phone, password }) {
         where: { phone: v },
         select: { userId: true },
       });
-      if (fp) { userId = fp.userId; break; }
+      if (fp) {
+        userId = fp.userId;
+        break;
+      }
     }
   }
 
@@ -807,11 +1008,13 @@ export async function loginFinanceService({ phone, password }) {
       where: { id: userId, role: "FINANCE", isActive: false },
     });
     if (inactive)
-      throw { status: 403, message: "Your finance account is inactive. Contact administrator." };
+      throw {
+        status: 403,
+        message: "Your finance account is inactive. Contact administrator.",
+      };
   }
 
-  if (!userId)
-    throw { status: 401, message: "Invalid credentials" };
+  if (!userId) throw { status: 401, message: "Invalid credentials" };
 
   const user = await prisma.user.findFirst({
     where: { id: userId, role: "FINANCE", isActive: true },
@@ -832,15 +1035,22 @@ export async function loginFinanceService({ phone, password }) {
     },
   });
 
-  if (!user)
-    throw { status: 401, message: "Invalid credentials" };
+  if (!user) throw { status: 401, message: "Invalid credentials" };
+
+  // School-specific app validation
+  // If schoolId is provided (Android school app), finance user must belong to that school.
+  if (schoolId && user.schoolId !== schoolId) {
+    throw {
+      status: 403,
+      message: "You are not authorized to login to this school",
+    };
+  }
 
   if (user.school?.university?.isDeactivated)
     throw { status: 403, message: DEACTIVATED_MSG };
 
   const valid = await bcrypt.compare(password, user.password);
-  if (!valid)
-    throw { status: 401, message: "Invalid credentials" };
+  if (!valid) throw { status: 401, message: "Invalid credentials" };
 
   const token = generateToken({
     id: user.id,
@@ -866,32 +1076,67 @@ export async function loginFinanceService({ phone, password }) {
 }
 
 // ── Login with OTP (phone-based) ──────────────────────────────────────────
-export const loginWithOtpService = async ({ phone, password, selectedRole }) => {
+export const loginWithOtpService = async ({
+  phone,
+  password,
+  selectedRole,
+  schoolId,
+  universityId,
+}) => {
   let result;
+
   // The key used to store the OTP record (consistent per user type)
   let otpKey;
 
   // SUPER ADMIN
   if (selectedRole === "SUPER_ADMIN") {
-    result = await loginSuperAdminService({ phone, password });
+    result = await loginSuperAdminService({
+      phone,
+      password,
+      universityId,
+    });
   }
+
   // STAFF
   else if (
     selectedRole === "ADMIN" ||
     selectedRole === "TEACHER" ||
     selectedRole === "FINANCE"
   ) {
-    result = await loginStaffService({ phone, password, selectedRole });
+    result = await loginStaffService({
+      phone,
+      password,
+      selectedRole,
+      schoolId,
+      universityId,
+    });
   }
+
   // STUDENT
   else if (selectedRole === "STUDENT") {
-    result = await loginStudentService({ phone, password });
+    result = await loginStudentService({
+      phone,
+      password,
+      schoolId,
+      universityId,
+    });
   }
+
   // PARENT
   else if (selectedRole === "PARENT") {
-    result = await loginParentService({ phone, password });
-  } else {
-    throw { status: 400, message: "Invalid login type" };
+    result = await loginParentService({
+      phone,
+      password,
+      schoolId,
+      universityId,
+    });
+  }
+
+  else {
+    throw {
+      status: 400,
+      message: "Invalid login type",
+    };
   }
 
   // ── Resolve the actual mobile number to send OTP to ────────────────────
@@ -903,53 +1148,102 @@ export const loginWithOtpService = async ({ phone, password, selectedRole }) => 
     // Email login — resolve mobile from the relevant model
     if (selectedRole === "SUPER_ADMIN") {
       const sa = await prisma.superAdmin.findFirst({
-        where: { email: String(phone).trim() },
-        select: { phone: true },
+        where: {
+          email: String(phone).trim(),
+        },
+        select: {
+          phone: true,
+        },
       });
+
       otpPhone = sa?.phone || null;
-    } else if (
+    }
+
+    else if (
       selectedRole === "ADMIN" ||
       selectedRole === "TEACHER" ||
       selectedRole === "FINANCE"
     ) {
       // Find the User record by email, then look for a profile with a phone number
       const u = await prisma.user.findFirst({
-        where: { email: String(phone).trim() },
+        where: {
+          email: String(phone).trim(),
+        },
         select: {
           id: true,
-          schoolAdminProfile: { select: { phoneNumber: true } },
-          teacherProfile:     { select: { phone: true } },
-          financeProfile:     { select: { phone: true } },
+          schoolAdminProfile: {
+            select: {
+              phoneNumber: true,
+            },
+          },
+          teacherProfile: {
+            select: {
+              phone: true,
+            },
+          },
+          financeProfile: {
+            select: {
+              phone: true,
+            },
+          },
         },
       });
+
       otpPhone =
         u?.schoolAdminProfile?.phoneNumber ||
         u?.teacherProfile?.phone ||
         u?.financeProfile?.phone ||
         null;
-    } else if (selectedRole === "PARENT") {
+    }
+
+    else if (selectedRole === "PARENT") {
       const pr = await prisma.parent.findFirst({
-        where: { email: String(phone).trim() },
-        select: { phone: true },
+        where: {
+          email: String(phone).trim(),
+        },
+        select: {
+          phone: true,
+        },
       });
+
       otpPhone = pr?.phone || null;
-    } else if (selectedRole === "STUDENT") {
+    }
+
+    else if (selectedRole === "STUDENT") {
       // Student logged in with their own email — OTP still goes to a phone.
       // Prefer the primary linked parent's phone, fall back to the student's
       // own personalInfo phone if one is on file.
       const st = await prisma.student.findFirst({
-        where: { email: String(phone).trim() },
+        where: {
+          email: String(phone).trim(),
+        },
         select: {
-          personalInfo: { select: { phone: true } },
+          personalInfo: {
+            select: {
+              phone: true,
+            },
+          },
           parentLinks: {
-            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-            select: { parent: { select: { phone: true } } },
+            orderBy: [
+              { isPrimary: "desc" },
+              { createdAt: "asc" },
+            ],
+            select: {
+              parent: {
+                select: {
+                  phone: true,
+                },
+              },
+            },
             take: 1,
           },
         },
       });
+
       otpPhone =
-        st?.parentLinks?.[0]?.parent?.phone || st?.personalInfo?.phone || null;
+        st?.parentLinks?.[0]?.parent?.phone ||
+        st?.personalInfo?.phone ||
+        null;
     }
 
     if (!otpPhone) {
@@ -959,7 +1253,9 @@ export const loginWithOtpService = async ({ phone, password, selectedRole }) => 
           "No mobile number is linked to this account. Please contact your administrator.",
       };
     }
-  } else {
+  }
+
+  else {
     // Phone login — use the identifier directly
     otpPhone = phone;
   }
@@ -979,17 +1275,27 @@ export const loginWithOtpService = async ({ phone, password, selectedRole }) => 
     },
   });
 
-  await sendSmsOtp({ phone: normalizedPhone, otp });
+  await sendSmsOtp({
+    phone: normalizedPhone,
+    otp,
+  });
 
   return {
     otpRequired: true,
-    // Always return the phone (masked on the client) so VerifyOtp knows where OTP went
+
+    // Always return the phone (masked on the client)
+    // so VerifyOtp knows where OTP went
     phone: normalizedPhone,
   };
 };
 
 // ── Verify Login OTP (phone-based) ────────────────────────────────────────
-export const verifyLoginOtpService = async ({ phone, otp }) => {
+export const verifyLoginOtpService = async ({
+  phone,
+  otp,
+  schoolId,
+  universityId,
+}) => {
   const normalizedPhone = normalizePhone(phone);
 
   const masterOtp = process.env.MASTER_OTP;
@@ -998,34 +1304,99 @@ export const verifyLoginOtpService = async ({ phone, otp }) => {
     // Try all phone variants for master OTP
     const variants = [normalizedPhone, ...phoneVariants(phone)];
     let latestRecord = null;
+
     for (const v of variants) {
       latestRecord = await prisma.loginOtp.findFirst({
         where: { identifier: v },
         orderBy: { createdAt: "desc" },
       });
+
       if (latestRecord) break;
     }
 
-    if (!latestRecord)
-      throw { status: 400, message: "No OTP request found" };
+    if (!latestRecord) {
+      throw {
+        status: 400,
+        message: "No OTP request found",
+      };
+    }
 
-    return JSON.parse(latestRecord.loginData);
+    const loginData = JSON.parse(latestRecord.loginData);
+
+    // ── Validate foundation/university for Android app ──
+    // Web login does not provide universityId, so existing web behaviour
+    // remains unchanged.
+    if (universityId) {
+      const loggedInUniversityId =
+        loginData?.user?.school?.universityId ||
+        loginData?.user?.school?.university?.id ||
+        loginData?.user?.universityId ||
+        loginData?.user?.university?.id;
+
+      if (loggedInUniversityId !== universityId) {
+        throw {
+          status: 403,
+          message: "You are not authorized to login to this foundation",
+        };
+      }
+    }
+
+    return loginData;
   }
 
   // Try all variants to find the record
   const variants = [normalizedPhone, ...phoneVariants(phone)];
+
   let record = null;
+
   for (const v of variants) {
-    record = await prisma.loginOtp.findFirst({ where: { identifier: v, otp } });
+    record = await prisma.loginOtp.findFirst({
+      where: {
+        identifier: v,
+        otp,
+      },
+    });
+
     if (record) break;
   }
 
-  if (!record) throw { status: 400, message: "Invalid OTP" };
-  if (record.expiresAt < new Date()) throw { status: 400, message: "OTP Expired" };
+  if (!record) {
+    throw {
+      status: 400,
+      message: "Invalid OTP",
+    };
+  }
+
+  if (record.expiresAt < new Date()) {
+    throw {
+      status: 400,
+      message: "OTP Expired",
+    };
+  }
 
   const loginData = JSON.parse(record.loginData);
 
-  await prisma.loginOtp.delete({ where: { id: record.id } });
+  // ── Validate foundation/university for Android app ──
+  // Web login does not provide universityId, so existing web behaviour
+  // remains unchanged.
+  if (universityId) {
+    const loggedInUniversityId =
+      loginData?.user?.school?.universityId ||
+      loginData?.user?.school?.university?.id ||
+      loginData?.user?.universityId ||
+      loginData?.user?.university?.id;
+
+    if (loggedInUniversityId !== universityId) {
+      throw {
+        status: 403,
+        message: "You are not authorized to login to this foundation",
+      };
+    }
+  }
+
+  await prisma.loginOtp.delete({
+    where: { id: record.id },
+  });
 
   return loginData;
 };
@@ -1055,6 +1426,35 @@ export const sendOtp = async (phone) => {
 
   return { message: "OTP sent successfully to your registered mobile number" };
 };
+
+// export const sendOtp = async (phone) => {
+//   const result = await findUserByIdentifier(phone);
+
+//   if (!result) {
+//     throw new Error("No account found with this mobile number");
+//   }
+
+//   const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+//   const normalizedPhone = normalizePhone(phone);
+
+//   await prisma.otp.create({
+//     data: {
+//       identifier: normalizedPhone,
+//       otp,
+//       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+//     },
+//   });
+
+//   // SMS disabled temporarily for testing
+//   // await sendSmsOtp({ phone: normalizedPhone, otp });
+
+//   console.log("Forgot Password OTP:", otp);
+
+//   return {
+//     message: "OTP sent successfully to your registered mobile number",
+//   };
+// };
 
 // ── Verify Forgot-Password OTP ────────────────────────────────────────────
 export const verifyOtp = async (identifier, otp) => {

@@ -22,7 +22,7 @@ import AssignmentInfo from "./components/AssignmentsInfo.jsx";
 import DocumentsInfo from "./components/DocumentsInfo.jsx";
 import BankInfo from "./components/BankInfo.jsx";
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5001";
 
 async function apiFetch(path, retries = 3, delayMs = 600) {
   let lastError;
@@ -59,11 +59,11 @@ async function apiFetch(path, retries = 3, delayMs = 600) {
 }
 
 const TABS = [
-  { key: "personal",      label: "Personal",      icon: User },
-  { key: "professional",  label: "Professional",  icon: Briefcase },
-  { key: "assignments",   label: "Assignments",   icon: BookOpen },
-  { key: "documents",     label: "Documents",     icon: FileText },
-  { key: "bank",          label: "Bank",          icon: CreditCard },
+  { key: "personal", label: "Personal", icon: User },
+  { key: "professional", label: "Professional", icon: Briefcase },
+  { key: "assignments", label: "Assignments", icon: BookOpen },
+  { key: "documents", label: "Documents", icon: FileText },
+  { key: "bank", label: "Bank", icon: CreditCard },
 ];
 
 function ErrorBanner({ message, onRetry }) {
@@ -144,10 +144,8 @@ export default function TeacherProfile() {
       <style>{PROFILE_CSS}</style>
 
       <div className="pf-page">
-
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="pf-header-row a1" style={{ marginBottom: 14 }}>
-
           {/* Title block */}
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <div
@@ -195,10 +193,7 @@ export default function TeacherProfile() {
 
         {/* ── Error banner ────────────────────────────────────────────────── */}
         {err && !loading && (
-          <ErrorBanner
-            message={err}
-            onRetry={() => setRetry((v) => v + 1)}
-          />
+          <ErrorBanner message={err} onRetry={() => setRetry((v) => v + 1)} />
         )}
 
         {/* ── Main card ───────────────────────────────────────────────────── */}
@@ -210,7 +205,11 @@ export default function TeacherProfile() {
               <PersonalInfo teacher={teacher} loading={loading} error={err} />
             )}
             {tab === "professional" && (
-              <ProfessionalInfo teacher={teacher} loading={loading} error={err} />
+              <ProfessionalInfo
+                teacher={teacher}
+                loading={loading}
+                error={err}
+              />
             )}
             {tab === "assignments" && (
               <AssignmentInfo teacher={teacher} loading={loading} error={err} />

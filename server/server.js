@@ -2,7 +2,6 @@
 import "dotenv/config";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import cors from "cors";
 import express from "express";
 import "./src/utils/redis.js";
 
@@ -29,56 +28,37 @@ import voiceRoutes from "./src/voice/routes/voice.routes.js";
 
 import dotenv from "dotenv";
 dotenv.config();
-const PORT = process.env.PORT || 5000;
 
+const PORT = process.env.PORT || 5001;
 
 // ==================== CORS ====================
+// REST API CORS is handled in src/app.js.
+// Here we only prepare the allowed origins for Socket.IO.
+
 const allowedOrigins = process.env.CLIENT_ORIGIN
-  ? process.env.CLIENT_ORIGIN.split(",").map(origin => origin.trim())
+  ? process.env.CLIENT_ORIGIN.split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean)
   : [];
 
-console.log("Allowed Origins:", allowedOrigins);
+console.log("Allowed Origins for Socket.IO:", allowedOrigins);
 
-const corsOptions = {
-  origin: (origin, callback) => {
-    console.log("Request Origin:", origin);
+// ==================== API REQUEST LOGGING ====================
 
-    // Allow requests without Origin (mobile apps, Postman, curl, etc.)
-    if (!origin) {
-      return callback(null, true);
-    }
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/")) {
+    console.log("API REQUEST:", req.method, req.path);
+    console.log("Origin:", req.headers.origin);
+    console.log(
+      "Authorization:",
+      req.headers.authorization ? "PRESENT" : "MISSING",
+    );
+  }
 
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+  next();
+});
 
-    console.log("Blocked Origin:", origin);
-
-    return callback(new Error(`CORS not allowed: ${origin}`));
-  },
-
-  credentials: true,
-
-  methods: [
-    "GET",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-    "OPTIONS",
-  ],
-
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "X-Requested-With",
-    "Accept",
-    "Origin",
-  ],
-};
-
-app.use(cors(corsOptions));
-
+// ==================== IMAGE PROXY ====================
 
 app.get("/api/image-proxy", async (req, res) => {
   try {
@@ -87,13 +67,13 @@ app.get("/api/image-proxy", async (req, res) => {
     if (!url) return res.status(400).send("Missing URL");
 
     const response = await fetch(url);
+
     if (!response.ok) {
       return res.status(400).send("Failed to fetch image");
     }
 
     const buffer = await response.arrayBuffer();
 
-    res.set("Access-Control-Allow-Origin", "*"); // 🔥 important
     res.set(
       "Content-Type",
       response.headers.get("content-type") || "image/jpeg",
@@ -105,9 +85,11 @@ app.get("/api/image-proxy", async (req, res) => {
     res.status(500).send("Proxy failed");
   }
 });
+
 app.use("/uploads", express.static("uploads"));
 
-// Routes
+// ==================== Routes ====================
+
 app.use(staff);
 app.use(student);
 app.use(finance);
@@ -123,18 +105,21 @@ app.use("/api/contact", contactRoutes);
 
 app.use("/api/voice", voiceRoutes);
 
- startReminderCron();
+startReminderCron();
+
+// ==================== HTTP SERVER ====================
 
 const server = createServer(app);
+
+// ==================== SOCKET.IO ====================
 
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
     credentials: true,
+    methods: ["GET", "POST"],
   },
 });
-
-
 
 global.io = io;
 
@@ -148,9 +133,8 @@ io.on("connection", (socket) => {
   console.log("Socket connected:", userId);
 });
 
+// ==================== START SERVER ====================
 
-
-// Start server
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

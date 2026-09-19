@@ -2,7 +2,7 @@
 import axios from "axios";
 import { getToken } from "../../../../auth/storage";
 const API = import.meta.env.VITE_API_URL;
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001";
 // ─────────────────────────────────────────
 // AXIOS INSTANCE (Protected)
 // ─────────────────────────────────────────
@@ -35,7 +35,6 @@ protectedAPI.interceptors.request.use((config) => {
 // ─────────────────────────────────────────
 
 // Logged-in student fetches their own profile
-
 
 // Staff viewing any student by ID
 export const getStudentById = async (id) => {

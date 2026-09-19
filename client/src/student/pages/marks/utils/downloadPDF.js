@@ -3,6 +3,22 @@
 // Morning theme. Supports the school logo, 4 selectable colour themes, and
 // a compact marks-wise progress chart. Sizing is tuned to fit up to ~6
 // subjects on a single page.
+//
+// Public API
+//   downloadReportPDF(reportData, themeKey?, pdfOptions?)        → saves the PDF
+//   generateReportPDFBlobUrl(reportData, themeKey?, pdfOptions?) → blob: URL of
+//       the exact same PDF, used by the admin "Print Preview".
+//
+//   pdfOptions = {
+//     attendance:        [{ month, total, present }],  // monthly attendance rows
+//     remarks:           "text",                       // blank → ruled lines
+//     showProgressChart: true,   // Marks-wise Progress Report section
+//     showAttendance:    true,   // Attendance Report section (needs ≥1 month)
+//     showRemarks:       true,   // Remarks section
+//   }
+//
+//   The old call style still works (used by the student Marks page):
+//   downloadReportPDF(reportData, themeKey, attendanceRows, remarksText)
 
 import { GRADE_SCALE, C, FONT } from "../tokens.js";
 
@@ -23,8 +39,8 @@ function buildAddress(enrollment) {
 
 function buildContact(enrollment) {
   const parts = [
-    enrollment?.schoolPhone  ? `Ph: ${enrollment.schoolPhone}`    : null,
-    enrollment?.schoolEmail  ? `Email: ${enrollment.schoolEmail}` : null,
+    enrollment?.schoolPhone ? `Ph: ${enrollment.schoolPhone}` : null,
+    enrollment?.schoolEmail ? `Email: ${enrollment.schoolEmail}` : null,
   ].filter(Boolean);
   return parts.join("  ·  ");
 }
@@ -111,7 +127,9 @@ async function fetchAsDataUrl(fetchUrl, timeoutMs) {
 
 async function toDataUrl(url, timeoutMs = 6000) {
   if (!url) return null;
-  const proxied = `${PDF_API_BASE}/api/image-proxy?url=${encodeURIComponent(url)}`;
+  const proxied = `${PDF_API_BASE}/api/image-proxy?url=${encodeURIComponent(
+    url,
+  )}`;
   const viaProxy = await fetchAsDataUrl(proxied, timeoutMs);
   if (viaProxy) return viaProxy;
   return fetchAsDataUrl(url, timeoutMs);
@@ -121,7 +139,8 @@ function loadHtml2Pdf() {
   return new Promise((resolve, reject) => {
     if (window.html2pdf) return resolve(window.html2pdf);
     const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    script.src =
+      "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
     script.crossOrigin = "anonymous";
     script.onload = () => resolve(window.html2pdf);
     script.onerror = () => reject(new Error("Failed to load html2pdf library"));
@@ -136,46 +155,101 @@ function buildProgressChartSVG(subjectResults, palette, isCombined) {
   if (!rows.length) return "";
 
   if (isCombined) {
-    const W = 680, H = 108, padTop = 16, padBottom = 22;
+    const W = 680,
+      H = 108,
+      padTop = 16,
+      padBottom = 22;
     const maxBarH = H - padTop - padBottom;
-    const barW = 13, barGap = 3, groupGap = 16;
+    const barW = 13,
+      barGap = 3,
+      groupGap = 16;
     const pairW = barW * 2 + barGap;
     const totalWidth = rows.length * pairW + (rows.length - 1) * groupGap;
     const startX = Math.max(8, (W - totalWidth) / 2);
 
-    const bars = rows.map((s, i) => {
-      const subPct  = s.subExamMax ? Math.max(0, Math.min(100, Math.round(((s.subExamObtained || 0) / s.subExamMax) * 100))) : 0;
-      const mainPct = s.mainMax    ? Math.max(0, Math.min(100, Math.round(((s.mainObtained    || 0) / s.mainMax)    * 100))) : 0;
-      const gx = startX + i * (pairW + groupGap);
-      const mainH = (mainPct / 100) * maxBarH;
-      const subH  = (subPct  / 100) * maxBarH;
-      const mainY = padTop + (maxBarH - mainH);
-      const subY  = padTop + (maxBarH - subH);
-      const label = String(s.subjectCode || s.subjectName || "").slice(0, 9);
+    const bars = rows
+      .map((s, i) => {
+        const subPct = s.subExamMax
+          ? Math.max(
+              0,
+              Math.min(
+                100,
+                Math.round(((s.subExamObtained || 0) / s.subExamMax) * 100),
+              ),
+            )
+          : 0;
+        const mainPct = s.mainMax
+          ? Math.max(
+              0,
+              Math.min(
+                100,
+                Math.round(((s.mainObtained || 0) / s.mainMax) * 100),
+              ),
+            )
+          : 0;
+        const gx = startX + i * (pairW + groupGap);
+        const mainH = (mainPct / 100) * maxBarH;
+        const subH = (subPct / 100) * maxBarH;
+        const mainY = padTop + (maxBarH - mainH);
+        const subY = padTop + (maxBarH - subH);
+        const label = String(s.subjectCode || s.subjectName || "").slice(0, 9);
 
-      return `
+        return `
         <g>
-          <rect x="${gx}" y="${mainY}" width="${barW}" height="${Math.max(mainH, 2)}" rx="2.5" fill="${palette.light}" />
-          <text x="${gx + barW / 2}" y="${mainY - 3}" font-size="6" font-weight="700" text-anchor="middle" fill="${palette.dark}">${mainPct}%</text>
-          <rect x="${gx + barW + barGap}" y="${subY}" width="${barW}" height="${Math.max(subH, 2)}" rx="2.5" fill="${palette.mid}" opacity="0.88" />
-          <text x="${gx + barW + barGap + barW / 2}" y="${subY - 3}" font-size="6" font-weight="700" text-anchor="middle" fill="${palette.dark}">${subPct}%</text>
-          <text x="${gx + pairW / 2}" y="${H - padBottom + 12}" font-size="6.3" font-weight="600" text-anchor="middle" fill="${palette.mid}">${label}</text>
+          <rect x="${gx}" y="${mainY}" width="${barW}" height="${Math.max(
+          mainH,
+          2,
+        )}" rx="2.5" fill="${palette.light}" />
+          <text x="${gx + barW / 2}" y="${
+          mainY - 3
+        }" font-size="6" font-weight="700" text-anchor="middle" fill="${
+          palette.dark
+        }">${mainPct}%</text>
+          <rect x="${
+            gx + barW + barGap
+          }" y="${subY}" width="${barW}" height="${Math.max(
+          subH,
+          2,
+        )}" rx="2.5" fill="${palette.mid}" opacity="0.88" />
+          <text x="${gx + barW + barGap + barW / 2}" y="${
+          subY - 3
+        }" font-size="6" font-weight="700" text-anchor="middle" fill="${
+          palette.dark
+        }">${subPct}%</text>
+          <text x="${gx + pairW / 2}" y="${
+          H - padBottom + 12
+        }" font-size="6.3" font-weight="600" text-anchor="middle" fill="${
+          palette.mid
+        }">${label}</text>
         </g>`;
-    }).join("");
+      })
+      .join("");
 
     const legend = `
       <g>
-        <rect x="${W - 170}" y="2" width="8" height="8" rx="2" fill="${palette.light}" />
-        <text x="${W - 158}" y="9.5" font-size="6.3" font-weight="600" fill="${palette.mid}">Final Exam</text>
-        <rect x="${W - 88}" y="2" width="8" height="8" rx="2" fill="${palette.mid}" opacity="0.88" />
-        <text x="${W - 76}" y="9.5" font-size="6.3" font-weight="600" fill="${palette.mid}">Assessment</text>
+        <rect x="${W - 170}" y="2" width="8" height="8" rx="2" fill="${
+      palette.light
+    }" />
+        <text x="${W - 158}" y="9.5" font-size="6.3" font-weight="600" fill="${
+      palette.mid
+    }">Final Exam</text>
+        <rect x="${W - 88}" y="2" width="8" height="8" rx="2" fill="${
+      palette.mid
+    }" opacity="0.88" />
+        <text x="${W - 76}" y="9.5" font-size="6.3" font-weight="600" fill="${
+      palette.mid
+    }">Assessment</text>
       </g>`;
 
     return `
       <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg">
         ${legend}
-        <line x1="0" y1="${padTop + maxBarH}" x2="${W}" y2="${padTop + maxBarH}" stroke="${palette.dark}" stroke-width="1.25" />
-        <line x1="0" y1="${padTop}" x2="${W}" y2="${padTop}" stroke="${palette.dark}" stroke-width="0.6" stroke-dasharray="2,3" />
+        <line x1="0" y1="${padTop + maxBarH}" x2="${W}" y2="${
+      padTop + maxBarH
+    }" stroke="${palette.dark}" stroke-width="1.25" />
+        <line x1="0" y1="${padTop}" x2="${W}" y2="${padTop}" stroke="${
+      palette.dark
+    }" stroke-width="0.6" stroke-dasharray="2,3" />
         ${bars}
       </svg>`;
   }
@@ -183,74 +257,158 @@ function buildProgressChartSVG(subjectResults, palette, isCombined) {
   const singleRows = rows.filter((s) => s.percentage != null);
   if (!singleRows.length) return "";
 
-  const W = 680, H = 98, padTop = 14, padBottom = 22;
+  const W = 680,
+    H = 98,
+    padTop = 14,
+    padBottom = 22;
   const maxBarH = H - padTop - padBottom;
   const gap = 12;
-  const barW = Math.min(38, (W - gap * (singleRows.length + 1)) / singleRows.length);
+  const barW = Math.min(
+    38,
+    (W - gap * (singleRows.length + 1)) / singleRows.length,
+  );
   const totalWidth = singleRows.length * barW + (singleRows.length + 1) * gap;
   const startX = Math.max(gap, (W - totalWidth) / 2 + gap);
 
-  const bars = singleRows.map((s, i) => {
-    const pct = Math.max(0, Math.min(100, s.percentage));
-    const barH = (pct / 100) * maxBarH;
-    const x = startX + i * (barW + gap);
-    const y = padTop + (maxBarH - barH);
-    const label = String(s.subjectCode || s.subjectName || "").slice(0, 8);
-    const barColor = pct >= 50 ? palette.light : palette.fail;
-    return `
+  const bars = singleRows
+    .map((s, i) => {
+      const pct = Math.max(0, Math.min(100, s.percentage));
+      const barH = (pct / 100) * maxBarH;
+      const x = startX + i * (barW + gap);
+      const y = padTop + (maxBarH - barH);
+      const label = String(s.subjectCode || s.subjectName || "").slice(0, 8);
+      const barColor = pct >= 50 ? palette.light : palette.fail;
+      return `
       <g>
-        <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(barH, 2)}" rx="3" fill="${barColor}" opacity="0.92" />
-        <text x="${x + barW / 2}" y="${y - 4}" font-size="7" font-weight="700" text-anchor="middle" fill="${palette.dark}">${pct}%</text>
-        <text x="${x + barW / 2}" y="${H - padBottom + 12}" font-size="6.3" font-weight="600" text-anchor="middle" fill="${palette.mid}">${label}</text>
+        <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(
+        barH,
+        2,
+      )}" rx="3" fill="${barColor}" opacity="0.92" />
+        <text x="${x + barW / 2}" y="${
+        y - 4
+      }" font-size="7" font-weight="700" text-anchor="middle" fill="${
+        palette.dark
+      }">${pct}%</text>
+        <text x="${x + barW / 2}" y="${
+        H - padBottom + 12
+      }" font-size="6.3" font-weight="600" text-anchor="middle" fill="${
+        palette.mid
+      }">${label}</text>
       </g>`;
-  }).join("");
+    })
+    .join("");
 
   return `
     <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg">
-      <line x1="0" y1="${padTop + maxBarH}" x2="${W}" y2="${padTop + maxBarH}" stroke="${palette.dark}" stroke-width="1.25" />
-      <line x1="0" y1="${padTop}" x2="${W}" y2="${padTop}" stroke="${palette.dark}" stroke-width="0.6" stroke-dasharray="2,3" />
+      <line x1="0" y1="${padTop + maxBarH}" x2="${W}" y2="${
+    padTop + maxBarH
+  }" stroke="${palette.dark}" stroke-width="1.25" />
+      <line x1="0" y1="${padTop}" x2="${W}" y2="${padTop}" stroke="${
+    palette.dark
+  }" stroke-width="0.6" stroke-dasharray="2,3" />
       ${bars}
     </svg>`;
 }
 
-export async function downloadReportPDF(reportData, themeKey = "default", attendance = [], remarks = "") {
-  if (!reportData) return;
+// ── Optional sections ───────────────────────────────────────────
+export const DEFAULT_SECTION_OPTIONS = {
+  showProgressChart: true,
+  showAttendance: true,
+  showRemarks: true,
+};
 
-  let html2pdf;
-  try {
-    html2pdf = await loadHtml2Pdf();
-  } catch (err) {
-    console.error(err);
-    alert("Could not load PDF generation library. Please check your internet connection.");
-    return;
-  }
+// Accepts either the new options object, or the old
+// (attendanceRows, remarksText[, sectionFlags]) argument list.
+function normalizePdfOptions(
+  optionsOrAttendance,
+  legacyRemarks,
+  legacySections,
+) {
+  const isLegacy =
+    Array.isArray(optionsOrAttendance) ||
+    optionsOrAttendance == null ||
+    typeof legacyRemarks === "string";
+
+  const base = isLegacy
+    ? {
+        attendance: Array.isArray(optionsOrAttendance)
+          ? optionsOrAttendance
+          : [],
+        remarks: legacyRemarks ?? "",
+        ...(legacySections || {}),
+      }
+    : { ...optionsOrAttendance };
+
+  return {
+    ...DEFAULT_SECTION_OPTIONS,
+    ...base,
+    attendance: Array.isArray(base.attendance) ? base.attendance : [],
+    remarks: base.remarks == null ? "" : String(base.remarks),
+  };
+}
+
+// Attendance months and remarks are typed by staff — escape before
+// putting them into the HTML template.
+function escapeHtml(v) {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Builds the print-ready DOM element + html2pdf options. Shared by the
+// download and the preview so both always produce the identical PDF.
+async function buildReportDocument(reportData, themeKey, pdfOptions) {
+  const opts = pdfOptions;
+  const attendance = opts.attendance;
+  const remarks = opts.remarks;
 
   const { student, enrollment, exam, subjectResults, summary } = reportData;
 
   const logoDataUrl = await toDataUrl(enrollment?.schoolLogoUrl);
 
-  const schoolName    = (enrollment?.schoolName   ?? "SCHOOL NAME").toUpperCase();
-  const schoolAddr    = buildAddress(enrollment);
+  const schoolName = (enrollment?.schoolName ?? "SCHOOL NAME").toUpperCase();
+  const schoolAddr = buildAddress(enrollment);
   const schoolContact = buildContact(enrollment);
 
-  const className    = enrollment?.className    ?? "—";
+  const className = enrollment?.className ?? "—";
   const academicYear = enrollment?.academicYear ?? "—";
-  const examName     = exam?.name               ?? "Examination";
-  const termName     = exam?.term?.name         ?? "";
-  const studentName  = (student?.name          ?? "—").toUpperCase();
-  const admNo        = student?.admissionNumber ?? "—";
-  const rollNo        = student?.rollNumber      ?? "—";
-  const dob          = student?.dateOfBirth
+  const examName = exam?.name ?? "Examination";
+  const termName = exam?.term?.name ?? "";
+  const studentName = (student?.name ?? "—").toUpperCase();
+  const admNo = student?.admissionNumber ?? "—";
+  const rollNo = student?.rollNumber ?? "—";
+  const dob = student?.dateOfBirth
     ? new Date(student.dateOfBirth).toLocaleDateString("en-IN", {
-        day: "2-digit", month: "2-digit", year: "numeric",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
       })
     : "—";
-  const gender       = student?.gender ?? "—";
-  const today        = new Date().toLocaleDateString("en-IN", {
-    day: "2-digit", month: "long", year: "numeric",
+  const fatherName = String(student?.fatherName ?? "").trim()
+    ? String(student.fatherName).trim().toUpperCase()
+    : "—";
+  const today = new Date().toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
   });
-  const examTitle    = [termName, examName].filter(Boolean).join(" — ").toUpperCase();
+  const examTitle = [termName, examName]
+    .filter(Boolean)
+    .join(" — ")
+    .toUpperCase();
   const overallResult = summary?.hasFail ? "FAIL" : "PASS";
+
+  // Class rank — failed students are not ranked. "of N" counts the ranked
+  // (passed) students; older API responses without rankedStudents fall back
+  // to the class size.
+  const isRanked = !summary?.hasFail && summary?.rank != null;
+  const rankValue = isRanked ? `#${summary.rank}` : "—";
+  const rankNote = isRanked
+    ? `of ${summary?.rankedStudents ?? summary?.totalStudentsInClass ?? "—"}`
+    : "Not ranked";
 
   const palette = PDF_THEMES[themeKey] || PDF_THEMES.default;
 
@@ -258,74 +416,130 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
   const isCombined = (subjectResults ?? []).some((s) => s.isCombined);
 
   const subjectRows = isCombined
-    ? (subjectResults ?? []).map((s, i) => {
-        const absent = s.isAbsent;
-        const bg     = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
-        return `
-      <tr style="background:${bg}; ${absent ? "color:" + palette.textLight + "; font-style:italic;" : ""}">
+    ? (subjectResults ?? [])
+        .map((s, i) => {
+          const absent = s.isAbsent;
+          const bg = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
+          return `
+      <tr style="background:${bg}; ${
+            absent ? "color:" + palette.textLight + "; font-style:italic;" : ""
+          }">
         <td class="tc" style="color: ${palette.mid};">${i + 1}</td>
-        <td class="tl" style="font-weight:600; color: ${palette.dark};">${s.subjectName}${s.subjectCode ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>` : ""}</td>
-        <td class="tc">${absent ? "AB" : (s.mainObtained ?? "—")}/${s.mainMax ?? "—"}</td>
+        <td class="tl" style="font-weight:600; color: ${palette.dark};">${
+            s.subjectName
+          }${
+            s.subjectCode
+              ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>`
+              : ""
+          }</td>
+        <td class="tc">${absent ? "AB" : s.mainObtained ?? "—"}/${
+            s.mainMax ?? "—"
+          }</td>
         <td class="tc">${s.subExamObtained ?? "—"}/${s.subExamMax ?? "—"}</td>
-        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${s.totalObtained ?? "—"}</td>
-        <td class="tc fw" style="color: ${palette.dark};">${absent ? "—" : (s.grade ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (s.percentage != null ? `${s.percentage}%` : "—")}</td>
+        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${
+            s.totalObtained ?? "—"
+          }</td>
+        <td class="tc fw" style="color: ${palette.dark};">${
+            absent ? "—" : s.grade ?? "—"
+          }</td>
+        <td class="tc">${
+          absent ? "—" : s.percentage != null ? `${s.percentage}%` : "—"
+        }</td>
       </tr>`;
-      }).join("")
+        })
+        .join("")
     : isFA
-    ? (subjectResults ?? []).map((s, i) => {
-        const absent = s.isAbsent;
-        const bg     = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
-        const comp   = s.components || {};
-        return `
-      <tr style="background:${bg}; ${absent ? "color:" + palette.textLight + "; font-style:italic;" : ""}">
+    ? (subjectResults ?? [])
+        .map((s, i) => {
+          const absent = s.isAbsent;
+          const bg = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
+          const comp = s.components || {};
+          return `
+      <tr style="background:${bg}; ${
+            absent ? "color:" + palette.textLight + "; font-style:italic;" : ""
+          }">
         <td class="tc" style="color: ${palette.mid};">${i + 1}</td>
-        <td class="tl" style="font-weight:600; color: ${palette.dark};">${s.subjectName}${s.subjectCode ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>` : ""}</td>
-        <td class="tc">${absent ? "—" : (comp.rr ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (comp.cw ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (comp.pw ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (comp.st ?? "—")}</td>
-        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${absent ? "AB" : (s.marksObtained ?? "—")}</td>
-        <td class="tc fw" style="color: ${palette.dark};">${absent ? "—" : (s.grade ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (s.percentage != null ? `${s.percentage}%` : "—")}</td>
+        <td class="tl" style="font-weight:600; color: ${palette.dark};">${
+            s.subjectName
+          }${
+            s.subjectCode
+              ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>`
+              : ""
+          }</td>
+        <td class="tc">${absent ? "—" : comp.rr ?? "—"}</td>
+        <td class="tc">${absent ? "—" : comp.cw ?? "—"}</td>
+        <td class="tc">${absent ? "—" : comp.pw ?? "—"}</td>
+        <td class="tc">${absent ? "—" : comp.st ?? "—"}</td>
+        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${
+            absent ? "AB" : s.marksObtained ?? "—"
+          }</td>
+        <td class="tc fw" style="color: ${palette.dark};">${
+            absent ? "—" : s.grade ?? "—"
+          }</td>
+        <td class="tc">${
+          absent ? "—" : s.percentage != null ? `${s.percentage}%` : "—"
+        }</td>
       </tr>`;
-      }).join("")
-    : (subjectResults ?? []).map((s, i) => {
-        const absent  = s.isAbsent;
-        const bg      = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
-        return `
-      <tr style="background:${bg}; ${absent ? "color:" + palette.textLight + "; font-style:italic;" : ""}">
+        })
+        .join("")
+    : (subjectResults ?? [])
+        .map((s, i) => {
+          const absent = s.isAbsent;
+          const bg = i % 2 === 0 ? "rgba(237,243,250,0.25)" : "#ffffff";
+          return `
+      <tr style="background:${bg}; ${
+            absent ? "color:" + palette.textLight + "; font-style:italic;" : ""
+          }">
         <td class="tc" style="color: ${palette.mid};">${i + 1}</td>
-        <td class="tl" style="font-weight:600; color: ${palette.dark};">${s.subjectName}${s.subjectCode ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>` : ""}</td>
+        <td class="tl" style="font-weight:600; color: ${palette.dark};">${
+            s.subjectName
+          }${
+            s.subjectCode
+              ? ` <span style="font-size:6.5pt; font-weight:400; color:${palette.textLight};">(${s.subjectCode})</span>`
+              : ""
+          }</td>
         <td class="tc">${s.maxMarks}</td>
         <td class="tc">${s.passingMarks ?? "—"}</td>
-        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${absent ? "AB" : (s.marksObtained ?? "—")}</td>
-        <td class="tc">${absent ? "—" : (s.percentage != null ? `${s.percentage}%` : "—")}</td>
-        <td class="tc fw" style="color: ${palette.dark};">${absent ? "—" : (s.grade ?? "—")}</td>
-        <td class="tc fw" style="color: ${s.resultStatus === 'fail' ? palette.fail : palette.pass};">${rl(s.resultStatus)}</td>
+        <td class="tc fw" style="font-size:9pt; color: ${palette.dark};">${
+            absent ? "AB" : s.marksObtained ?? "—"
+          }</td>
+        <td class="tc">${
+          absent ? "—" : s.percentage != null ? `${s.percentage}%` : "—"
+        }</td>
+        <td class="tc fw" style="color: ${palette.dark};">${
+            absent ? "—" : s.grade ?? "—"
+          }</td>
+        <td class="tc fw" style="color: ${
+          s.resultStatus === "fail" ? palette.fail : palette.pass
+        };">${rl(s.resultStatus)}</td>
       </tr>`;
-      }).join("");
+        })
+        .join("");
 
-  const gradeRows = GRADE_SCALE.map(g => `
+  const gradeRows = GRADE_SCALE.map(
+    (g) => `
     <tr>
       <td class="tc fw" style="color: ${palette.dark};">${g.grade}</td>
       <td class="tc" style="color: ${palette.mid};">${g.min}–${g.max}%</td>
       <td class="tl" style="color: ${palette.mid};">${g.label}</td>
-    </tr>`).join("");
+    </tr>`,
+  ).join("");
 
   const FA_LEGEND = [
     { abbr: "R&R", label: "Read and reflection" },
-    { abbr: "CW",  label: "Class Work Performance" },
-    { abbr: "PW",  label: "Project Work Performance" },
-    { abbr: "ST",  label: "Slip Test (FA 1 Exams Performance)" },
+    { abbr: "CW", label: "Class Work Performance" },
+    { abbr: "PW", label: "Project Work Performance" },
+    { abbr: "ST", label: "Slip Test (FA 1 Exams Performance)" },
     { abbr: "TOT", label: "Total" },
     { abbr: "GRD", label: "Grade" },
   ];
-  const faLegendRows = FA_LEGEND.map(g => `
+  const faLegendRows = FA_LEGEND.map(
+    (g) => `
     <tr>
       <td class="tc fw" style="color: ${palette.dark}; width:34px;">${g.abbr}</td>
       <td class="tl" style="color: ${palette.mid};">${g.label}</td>
-    </tr>`).join("");
+    </tr>`,
+  ).join("");
 
   const subjectTableHead = isCombined
     ? `
@@ -370,7 +584,9 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
         <td class="tl">Grand Total</td>
         <td class="tc">—</td>
         <td class="tc">—</td>
-        <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}/${summary?.totalMax ?? "—"}</td>
+        <td class="tc" style="font-size:9.5pt;">${
+          summary?.totalObtained ?? "—"
+        }/${summary?.totalMax ?? "—"}</td>
         <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
         <td class="tc">${summary?.percentage ?? "—"}%</td>
       </tr>`
@@ -383,7 +599,9 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
         <td class="tc">—</td>
         <td class="tc">—</td>
         <td class="tc">—</td>
-        <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}</td>
+        <td class="tc" style="font-size:9.5pt;">${
+          summary?.totalObtained ?? "—"
+        }</td>
         <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
         <td class="tc">${summary?.percentage ?? "—"}%</td>
       </tr>`
@@ -393,10 +611,14 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
         <td class="tl">Grand Total</td>
         <td class="tc">${summary?.totalMax ?? "—"}</td>
         <td class="tc">—</td>
-        <td class="tc" style="font-size:9.5pt;">${summary?.totalObtained ?? "—"}</td>
+        <td class="tc" style="font-size:9.5pt;">${
+          summary?.totalObtained ?? "—"
+        }</td>
         <td class="tc">${summary?.percentage ?? "—"}%</td>
         <td class="tc" style="font-size:9.5pt;">${summary?.grade ?? "—"}</td>
-        <td class="tc" style="font-size:8pt; color:${summary?.hasFail ? palette.fail : palette.pass} !important;">${overallResult}</td>
+        <td class="tc" style="font-size:8pt; color:${
+          summary?.hasFail ? palette.fail : palette.pass
+        } !important;">${overallResult}</td>
       </tr>`;
 
   // ── Dark section-header style (matches Attendance / Remarks bars) ──
@@ -407,12 +629,16 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
 
   const scaleLegendPanel = isFA
     ? `
-    <div style="border: 1px solid ${palette.dark}; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
+    <div style="border: 1px solid ${
+      palette.dark
+    }; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
       ${sectionHeader("Formative Assessment Key")}
       <div style="padding: 4px; flex-grow: 1;">
         <style>
           .fa-mini-table { width: 100%; border-collapse: collapse; }
-          .fa-mini-table td { padding: 2px 4px; font-size: 6pt; border-bottom: 1px dashed ${palette.dark}; }
+          .fa-mini-table td { padding: 2px 4px; font-size: 6pt; border-bottom: 1px dashed ${
+            palette.dark
+          }; }
           .fa-mini-table tr:last-child td { border-bottom: none; }
         </style>
         <table class="fa-mini-table">
@@ -421,18 +647,24 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
       </div>
     </div>`
     : `
-    <div style="border: 1px solid ${palette.dark}; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
+    <div style="border: 1px solid ${
+      palette.dark
+    }; border-radius: 8px; background: #ffffff; overflow: hidden; display: flex; flex-direction: column;">
       ${sectionHeader("Standard Scale")}
       <div style="padding: 4px; flex-grow: 1;">
         <style>
           .grade-mini-table { width: 100%; border-collapse: collapse; }
-          .grade-mini-table td { padding: 2px 4px; font-size: 6.3pt; border-bottom: 1px dashed ${palette.dark}; }
+          .grade-mini-table td { padding: 2px 4px; font-size: 6.3pt; border-bottom: 1px dashed ${
+            palette.dark
+          }; }
           .grade-mini-table tr:last-child td { border-bottom: none; }
         </style>
         <table class="grade-mini-table">
           <tbody>${gradeRows}</tbody>
         </table>
-        <div style="font-size: 5.1pt; color: ${palette.textLight}; margin-top: 5px; text-align: center; font-weight: 600;">
+        <div style="font-size: 5.1pt; color: ${
+          palette.textLight
+        }; margin-top: 5px; text-align: center; font-weight: 600;">
           P: Pass &nbsp;·&nbsp; F: Fail &nbsp;·&nbsp; AB: Absent
         </div>
       </div>
@@ -442,48 +674,130 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
     ? `<img src="${logoDataUrl}" style="width:34px; height:34px; border-radius:9px; object-fit:cover; border:1px solid ${palette.dark}; background:#ffffff; flex-shrink:0;" />`
     : `<div style="width: 4px; height: 30px; border-radius: 99px; background: linear-gradient(180deg, ${palette.light} 0%, ${palette.dark} 100%);"></div>`;
 
-  const chartSvg = buildProgressChartSVG(subjectResults, palette, isCombined);
+  const chartSvg = opts.showProgressChart
+    ? buildProgressChartSVG(subjectResults, palette, isCombined)
+    : "";
 
-  const validAttendance = (attendance ?? []).filter((r) => r?.month && String(r.month).trim() !== "");
+  const validAttendance = opts.showAttendance
+    ? (attendance ?? []).filter(
+        (r) => r?.month && String(r.month).trim() !== "",
+      )
+    : [];
   const attendanceSection = validAttendance.length
     ? `
-  <div style="border: 1.5px solid ${palette.dark}; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
+  <div style="border: 1.5px solid ${
+    palette.dark
+  }; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
     ${sectionHeader("Attendance Report")}
     <table style="width: 100%; border-collapse: collapse;">
       <tr>
         <td style="border: none; padding: 0;"></td>
-        ${validAttendance.map((r) => `<td colspan="2" style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 7.2pt; font-weight: 800; color: ${palette.dark}; text-align: center; background: ${palette.bgLight};">${String(r.month).toUpperCase()}</td>`).join("")}
+        ${validAttendance
+          .map(
+            (r) =>
+              `<td colspan="2" style="border: 1.5px solid ${
+                palette.dark
+              }; padding: 5px 7px; font-size: 7.2pt; font-weight: 800; color: ${
+                palette.dark
+              }; text-align: center; background: ${
+                palette.bgLight
+              };">${escapeHtml(String(r.month).trim().toUpperCase())}</td>`,
+          )
+          .join("")}
       </tr>
       <tr>
-        <td rowspan="2" style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 6.8pt; font-weight: 800; color: ${palette.dark}; text-transform: uppercase; vertical-align: middle;">Attendance</td>
-        ${validAttendance.map(() => `
+        <td rowspan="2" style="border: 1.5px solid ${
+          palette.dark
+        }; padding: 5px 7px; font-size: 6.8pt; font-weight: 800; color: ${
+        palette.dark
+      }; text-transform: uppercase; vertical-align: middle;">Attendance</td>
+        ${validAttendance
+          .map(
+            () => `
           <td style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 6.4pt; font-weight: 800; color: ${palette.dark}; text-align: center;">Total Days</td>
-          <td style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 6.4pt; font-weight: 800; color: ${palette.dark}; text-align: center;">Present Days</td>`).join("")}
+          <td style="border: 1.5px solid ${palette.dark}; padding: 5px 7px; font-size: 6.4pt; font-weight: 800; color: ${palette.dark}; text-align: center;">Present Days</td>`,
+          )
+          .join("")}
       </tr>
       <tr>
-        ${validAttendance.map((r) => `
-          <td style="border: 1.5px solid ${palette.dark}; padding: 8px 7px; font-size: 7.4pt; font-weight: 700; color: ${palette.dark}; text-align: center;">${r.total !== "" && r.total != null ? r.total : ""}</td>
-          <td style="border: 1.5px solid ${palette.dark}; padding: 8px 7px; font-size: 7.4pt; font-weight: 700; color: ${palette.dark}; text-align: center;">${r.present !== "" && r.present != null ? r.present : ""}</td>`).join("")}
+        ${validAttendance
+          .map(
+            (r) => `
+          <td style="border: 1.5px solid ${
+            palette.dark
+          }; padding: 8px 7px; font-size: 7.4pt; font-weight: 700; color: ${
+              palette.dark
+            }; text-align: center;">${
+              r.total !== "" && r.total != null ? escapeHtml(r.total) : ""
+            }</td>
+          <td style="border: 1.5px solid ${
+            palette.dark
+          }; padding: 8px 7px; font-size: 7.4pt; font-weight: 700; color: ${
+              palette.dark
+            }; text-align: center;">${
+              r.present !== "" && r.present != null ? escapeHtml(r.present) : ""
+            }</td>`,
+          )
+          .join("")}
       </tr>
     </table>
   </div>`
     : "";
 
   const hasRemarks = remarks && String(remarks).trim() !== "";
-  const remarksSection = `
-  <div style="border: 1.5px solid ${palette.dark}; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
+  const remarksSection = !opts.showRemarks
+    ? ""
+    : `
+  <div style="border: 1.5px solid ${
+    palette.dark
+  }; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
     ${sectionHeader("Remarks")}
-    ${hasRemarks
-      ? `<div style="min-height: 34px; padding: 8px 11px; font-size: 7.4pt; color: ${palette.dark}; font-weight: 500;">
-           ${String(remarks).trim()}
+    ${
+      hasRemarks
+        ? `<div style="min-height: 34px; padding: 8px 11px; font-size: 7.4pt; color: ${
+            palette.dark
+          }; font-weight: 500;">
+           ${escapeHtml(String(remarks).trim()).replace(/\n/g, "<br />")}
          </div>`
-      : `<div style="padding: 10px 12px 6px 12px;">
+        : `<div style="padding: 10px 12px 6px 12px;">
            <div style="border-bottom: 1px solid ${palette.border}; height: 18px;"></div>
            <div style="border-bottom: 1px solid ${palette.border}; height: 18px;"></div>
            <div style="height: 18px;"></div>
          </div>`
     }
   </div>`;
+
+  // ── Student information boxes ──
+  // Row 1: Student Name → Father's Name → Class & Section → Roll Number
+  // Row 2: Admission No. → Date of Birth → Academic Year → Date of Issue
+  // (Gender was removed from the report card.)
+  const infoBox = (label, value) => `
+    <div style="background: ${palette.bgLight}; border: 1px solid ${
+    palette.dark
+  }; padding: 5px 9px; border-radius: 6px; min-width: 0;">
+      <div style="font-size: 5.6pt; font-weight: 700; color: ${
+        palette.textLight
+      }; text-transform: uppercase; letter-spacing: 0.3px;">${label}</div>
+      <div style="font-size: 7.9pt; font-weight: 800; color: ${
+        palette.dark
+      }; margin-top: 1px; line-height: 1.25; overflow-wrap: anywhere;">${escapeHtml(
+    value,
+  )}</div>
+    </div>`;
+
+  const infoRow1 = [
+    infoBox("Student Name", studentName),
+    infoBox("Father's Name", fatherName),
+    infoBox("Class &amp; Section", className),
+    infoBox("Roll Number", rollNo),
+  ].join("");
+
+  const infoRow2 = [
+    infoBox("Admission No.", admNo),
+    infoBox("Date of Birth", dob),
+    infoBox("Academic Year", academicYear),
+    infoBox("Date of Issue", today),
+  ].join("");
 
   const element = document.createElement("div");
   element.style.width = "190mm";
@@ -492,73 +806,71 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
   element.style.backgroundColor = "#ffffff";
 
   element.innerHTML = `
-<div style="font-family: ${FONT?.sans ?? "Inter, sans-serif"}; font-size: 7.8pt; color: ${palette.dark}; line-height: 1.35; padding: 3mm;">
+<div style="font-family: ${
+    FONT?.sans ?? "Inter, sans-serif"
+  }; font-size: 7.8pt; color: ${
+    palette.dark
+  }; line-height: 1.35; padding: 3mm;">
   
-  <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid ${palette.light}; padding-bottom: 8px; margin-bottom: 10px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid ${
+    palette.light
+  }; padding-bottom: 8px; margin-bottom: 10px;">
     <div style="display: flex; align-items: center; gap: 10px;">
       ${logoHtml}
       <div>
-        <h1 style="font-size: 12.8pt; font-weight: 800; color: ${palette.dark}; margin: 0; letter-spacing: -0.5px;">${schoolName}</h1>
-        ${schoolAddr ? `<div style="font-size: 6.6pt; color: ${palette.mid}; margin-top: 1px;">${schoolAddr} ${schoolContact ? `· ${schoolContact}` : ""}</div>` : ""}
+        <h1 style="font-size: 12.8pt; font-weight: 800; color: ${
+          palette.dark
+        }; margin: 0; letter-spacing: -0.5px;">${schoolName}</h1>
+        ${
+          schoolAddr
+            ? `<div style="font-size: 6.6pt; color: ${
+                palette.mid
+              }; margin-top: 1px;">${schoolAddr} ${
+                schoolContact ? `· ${schoolContact}` : ""
+              }</div>`
+            : ""
+        }
       </div>
     </div>
     <div style="text-align: right;">
-      <div style="font-size: 8.2pt; font-weight: 800; color: ${palette.light}; letter-spacing: 1px;">REPORT CARD</div>
-      <div style="font-size: 6.6pt; color: ${palette.textLight}; font-weight: 500; margin-top: 1px;">${examTitle}</div>
+      <div style="font-size: 8.2pt; font-weight: 800; color: ${
+        palette.light
+      }; letter-spacing: 1px;">REPORT CARD</div>
+      <div style="font-size: 6.6pt; color: ${
+        palette.textLight
+      }; font-weight: 500; margin-top: 1px;">${examTitle}</div>
     </div>
   </div>
 
   <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px;">
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
-      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Student Name</div>
-      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">${studentName}</div>
-    </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
-      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Class & Section</div>
-      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${className}</div>
-    </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
-      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Roll Number</div>
-      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${rollNo}</div>
-    </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
-      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Admission No.</div>
-      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${admNo}</div>
-    </div>
+    ${infoRow1}
   </div>
 
   <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px;">
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
-      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Date of Birth</div>
-      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${dob}</div>
-    </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
-      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Gender</div>
-      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${gender}</div>
-    </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
-      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Academic Year</div>
-      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${academicYear}</div>
-    </div>
-    <div style="background: ${palette.bgLight}; border: 1px solid ${palette.dark}; padding: 5px 9px; border-radius: 6px;">
-      <div style="font-size: 5.6pt; font-weight: 700; color: ${palette.textLight}; text-transform: uppercase; letter-spacing: 0.3px;">Date of Issue</div>
-      <div style="font-size: 7.9pt; font-weight: 800; color: ${palette.dark}; margin-top: 1px;">${today}</div>
-    </div>
+    ${infoRow2}
   </div>
 
   <style>
     .pdf-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 0; }
-    .pdf-table th { background: rgba(237,243,250,0.9); font-size: 6.2pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2px; color: ${palette.dark}; padding: 5px 6px; border-bottom: 1.5px solid ${palette.dark}; }
-    .pdf-table td { padding: 5px 6px; border-bottom: 1px solid ${palette.dark}; font-size: 7.5pt; color: ${palette.mid}; }
+    .pdf-table th { background: rgba(237,243,250,0.9); font-size: 6.2pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2px; color: ${
+      palette.dark
+    }; padding: 5px 6px; border-bottom: 1.5px solid ${palette.dark}; }
+    .pdf-table td { padding: 5px 6px; border-bottom: 1px solid ${
+      palette.dark
+    }; font-size: 7.5pt; color: ${palette.mid}; }
     .pdf-table tr:last-child td { border-bottom: none; }
     .tc { text-align: center; }
     .tl { text-align: left !important; padding-left: 8px !important; }
     .fw { font-weight: 700; }
-    .tot-row td { background: rgba(237,243,250,0.85) !important; font-weight: 800; font-size: 7.9pt; color: ${palette.dark} !important; border-top: 1.5px solid ${palette.light} !important; }
+    .tot-row td { background: rgba(237,243,250,0.85) !important; font-weight: 800; font-size: 7.9pt; color: ${
+      palette.dark
+    } !important; border-top: 1.5px solid ${palette.light} !important; }
   </style>
 
   <!-- 1. Subject-wise Marks Statement -->
-  <div style="border: 1.5px solid ${palette.dark}; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
+  <div style="border: 1.5px solid ${
+    palette.dark
+  }; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
     ${sectionHeader("Subject-wise Marks Statement")}
     <table class="pdf-table">
       <thead>
@@ -574,13 +886,19 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
   </div>
 
   <!-- 2. Marks-wise Progress Report (chart) -->
-  ${chartSvg ? `
-  <div style="border: 1.5px solid ${palette.dark}; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
+  ${
+    chartSvg
+      ? `
+  <div style="border: 1.5px solid ${
+    palette.dark
+  }; border-radius: 7px; overflow: hidden; margin-bottom: 10px;">
     ${sectionHeader("Marks-wise Progress Report")}
     <div style="background:#ffffff; padding: 6px 10px;">
       ${chartSvg}
     </div>
-  </div>` : ""}
+  </div>`
+      : ""
+  }
 
   <!-- 3. Attendance Report -->
   ${attendanceSection}
@@ -593,56 +911,120 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
     
     ${scaleLegendPanel}
 
-    <div style="border: 1px solid ${palette.dark}; border-radius: 7px; background: #ffffff; display: flex; flex-direction: column; overflow: hidden;">
+    <div style="border: 1px solid ${
+      palette.dark
+    }; border-radius: 7px; background: #ffffff; display: flex; flex-direction: column; overflow: hidden;">
       ${sectionHeader("Consolidated Performance Overview")}
       
       <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px 6px 0 6px;">
-        <div style="border: 1px solid ${palette.dark}; background: ${palette.bgLight}; border-radius: 5px; padding: 3.5px; text-align: center;">
-          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${palette.dark};">Total Obtained</div>
-          <div style="font-size: 8.4pt; font-weight: 800; color: ${palette.dark};">${summary?.totalObtained ?? "—"}<span style="font-size:5.5pt; font-weight:500; color:${palette.textLight};">/${summary?.totalMax ?? "—"}</span></div>
+        <div style="border: 1px solid ${palette.dark}; background: ${
+    palette.bgLight
+  }; border-radius: 5px; padding: 3.5px; text-align: center;">
+          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${
+            palette.mid
+          }; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${
+    palette.dark
+  };">Total Obtained</div>
+          <div style="font-size: 8.4pt; font-weight: 800; color: ${
+            palette.dark
+          };">${
+    summary?.totalObtained ?? "—"
+  }<span style="font-size:5.5pt; font-weight:500; color:${
+    palette.textLight
+  };">/${summary?.totalMax ?? "—"}</span></div>
         </div>
         
-        <div style="border: 1px solid ${palette.dark}; background: ${palette.bgLight}; border-radius: 5px; padding: 3.5px; text-align: center;">
-          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${palette.dark};">Percentage</div>
-          <div style="font-size: 8.4pt; font-weight: 800; color: ${palette.dark};">${summary?.percentage ?? "—"}%</div>
+        <div style="border: 1px solid ${palette.dark}; background: ${
+    palette.bgLight
+  }; border-radius: 5px; padding: 3.5px; text-align: center;">
+          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${
+            palette.mid
+          }; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${
+    palette.dark
+  };">Percentage</div>
+          <div style="font-size: 8.4pt; font-weight: 800; color: ${
+            palette.dark
+          };">${summary?.percentage ?? "—"}%</div>
         </div>
         
-        <div style="border: 1px solid ${palette.dark}; background: ${palette.bgLight}; border-radius: 5px; padding: 3.5px; text-align: center;">
-          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${palette.dark};">Overall Grade</div>
-          <div style="font-size: 8.4pt; font-weight: 800; color: ${palette.dark};">${summary?.grade ?? "—"}</div>
+        <div style="border: 1px solid ${palette.dark}; background: ${
+    palette.bgLight
+  }; border-radius: 5px; padding: 3.5px; text-align: center;">
+          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${
+            palette.mid
+          }; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${
+    palette.dark
+  };">Overall Grade</div>
+          <div style="font-size: 8.4pt; font-weight: 800; color: ${
+            palette.dark
+          };">${summary?.grade ?? "—"}</div>
         </div>
         
-        <div style="border: 1px solid ${palette.dark}; background: ${palette.bgLight}; border-radius: 5px; padding: 3.5px; text-align: center;">
-          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${palette.mid}; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${palette.dark};">Class Rank</div>
-          <div style="font-size: 8.4pt; font-weight: 800; color: ${palette.dark};">${summary?.rank != null ? `#${summary.rank}` : "—"}</div>
-          <div style="font-size: 4.6pt; color: ${palette.textLight};">of ${summary?.totalStudentsInClass ?? "—"}</div>
+        <div style="border: 1px solid ${palette.dark}; background: ${
+    palette.bgLight
+  }; border-radius: 5px; padding: 3.5px; text-align: center;">
+          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${
+            palette.mid
+          }; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${
+    palette.dark
+  };">Class Rank</div>
+          <div style="font-size: 8.4pt; font-weight: 800; color: ${
+            palette.dark
+          };">${rankValue}</div>
+          <div style="font-size: 4.6pt; color: ${
+            palette.textLight
+          };">${rankNote}</div>
         </div>
         
-        <div style="border: 1px solid ${summary?.hasFail ? palette.fail : palette.light}; background: #ffffff; border-radius: 5px; padding: 3.5px; text-align: center;">
-          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${summary?.hasFail ? palette.fail : palette.light}; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${summary?.hasFail ? 'rgba(239,68,68,0.2)' : palette.dark};">Final Result</div>
-          <div style="font-size: 9pt; font-weight: 900; color: ${summary?.hasFail ? palette.fail : palette.pass}; letter-spacing: 0.5px;">${overallResult}</div>
+        <div style="border: 1px solid ${
+          summary?.hasFail ? palette.fail : palette.light
+        }; background: #ffffff; border-radius: 5px; padding: 3.5px; text-align: center;">
+          <div style="font-size: 5.1pt; font-weight: 800; text-transform: uppercase; color: ${
+            summary?.hasFail ? palette.fail : palette.light
+          }; padding-bottom: 2px; margin-bottom: 2.5px; border-bottom: 1px solid ${
+    summary?.hasFail ? "rgba(239,68,68,0.2)" : palette.dark
+  };">Final Result</div>
+          <div style="font-size: 9pt; font-weight: 900; color: ${
+            summary?.hasFail ? palette.fail : palette.pass
+          }; letter-spacing: 0.5px;">${overallResult}</div>
         </div>
       </div>
       
       <div style="margin-top: auto; padding: 10px 8px 6px 8px; display: flex; justify-content: space-between; align-items: flex-end;">
         <div style="text-align: center; width: 95px;">
-          <div style="border-top: 1px solid ${palette.dark}; margin-bottom: 2px;"></div>
-          <div style="font-size: 5.3pt; font-weight: 800; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.2px;">Principal Signature</div>
+          <div style="border-top: 1px solid ${
+            palette.dark
+          }; margin-bottom: 2px;"></div>
+          <div style="font-size: 5.3pt; font-weight: 800; color: ${
+            palette.mid
+          }; text-transform: uppercase; letter-spacing: 0.2px;">Principal Signature</div>
         </div>
         <div style="text-align: center; width: 95px;">
-          <div style="border-top: 1px solid ${palette.dark}; margin-bottom: 2px;"></div>
-          <div style="font-size: 4.6pt; font-weight: 900; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.2px;">Class Teacher Signature</div>
+          <div style="border-top: 1px solid ${
+            palette.dark
+          }; margin-bottom: 2px;"></div>
+          <div style="font-size: 4.6pt; font-weight: 900; color: ${
+            palette.mid
+          }; text-transform: uppercase; letter-spacing: 0.2px;">Class Teacher Signature</div>
         </div>
         
         <div style="text-align: center; width: 95px;">
-          <div style="border-top: 1px solid ${palette.dark}; margin-bottom: 2px;"></div>
-          <div style="font-size: 5.3pt; font-weight: 800; color: ${palette.mid}; text-transform: uppercase; letter-spacing: 0.2px;">Parent Guardian</div>
+          <div style="border-top: 1px solid ${
+            palette.dark
+          }; margin-bottom: 2px;"></div>
+          <div style="font-size: 5.3pt; font-weight: 800; color: ${
+            palette.mid
+          }; text-transform: uppercase; letter-spacing: 0.2px;">Parent Guardian</div>
         </div>
       </div>
     </div>
   </div>
 
-  <div style="border-top: 1px solid ${palette.dark}; padding: 4px 3px 0 3px; display: flex; justify-content: space-between; align-items: center; font-size: 5pt; color: ${palette.textLight}; font-weight: 500;">
+  <div style="border-top: 1px solid ${
+    palette.dark
+  }; padding: 4px 3px 0 3px; display: flex; justify-content: space-between; align-items: center; font-size: 5pt; color: ${
+    palette.textLight
+  }; font-weight: 500;">
     <span>* System generated secure report card documentation.</span>
     <span>Powered by ${schoolName} </span>
   </div>
@@ -652,16 +1034,82 @@ export async function downloadReportPDF(reportData, themeKey = "default", attend
 
   const options = {
     margin: [4, 6, 4, 6],
-    filename: `MarkSheet_${studentName.replace(/\s+/g, "_")}_${examName.replace(/\s+/g, "_")}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
+    filename: `MarkSheet_${studentName.replace(/\s+/g, "_")}_${examName.replace(
+      /\s+/g,
+      "_",
+    )}.pdf`,
+    image: { type: "jpeg", quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
   };
 
+  return { element, options };
+}
+
+// ── Download ────────────────────────────────────────────────────
+export async function downloadReportPDF(
+  reportData,
+  themeKey = "default",
+  optionsOrAttendance,
+  legacyRemarks,
+  legacySections,
+) {
+  if (!reportData) return;
+
+  let html2pdf;
   try {
+    html2pdf = await loadHtml2Pdf();
+  } catch (err) {
+    console.error(err);
+    alert(
+      "Could not load PDF generation library. Please check your internet connection.",
+    );
+    return;
+  }
+
+  try {
+    const opts = normalizePdfOptions(
+      optionsOrAttendance,
+      legacyRemarks,
+      legacySections,
+    );
+    const { element, options } = await buildReportDocument(
+      reportData,
+      themeKey,
+      opts,
+    );
     await html2pdf().set(options).from(element).save();
   } catch (error) {
-    console.error("Error creating report card PDF file streaming download", error);
+    console.error(
+      "Error creating report card PDF file streaming download",
+      error,
+    );
     alert("An error occurred during local conversion operation.");
   }
+}
+
+// ── Preview ─────────────────────────────────────────────────────
+// Renders the exact same PDF the download produces and returns a blob: URL
+// for an <iframe> or a new tab. Call URL.revokeObjectURL(url) when done.
+export async function generateReportPDFBlobUrl(
+  reportData,
+  themeKey = "default",
+  optionsOrAttendance,
+  legacyRemarks,
+  legacySections,
+) {
+  if (!reportData) throw new Error("No report data to preview.");
+  const html2pdf = await loadHtml2Pdf();
+  const opts = normalizePdfOptions(
+    optionsOrAttendance,
+    legacyRemarks,
+    legacySections,
+  );
+  const { element, options } = await buildReportDocument(
+    reportData,
+    themeKey,
+    opts,
+  );
+  const blob = await html2pdf().set(options).from(element).outputPdf("blob");
+  return URL.createObjectURL(blob);
 }
