@@ -2,39 +2,86 @@
 
 import { useEffect, useState, useCallback, useMemo, memo, useRef } from "react";
 import {
-  X, ChevronDown, BookOpen, Save, Loader2, AlertCircle, Check,
-  User, Hash, CheckSquare, Square, UploadCloud, FileDown, FileUp, Layers,
+  X,
+  ChevronDown,
+  BookOpen,
+  Save,
+  Loader2,
+  AlertCircle,
+  Check,
+  User,
+  Hash,
+  CheckSquare,
+  Square,
+  UploadCloud,
+  FileDown,
+  FileUp,
+  Layers,
 } from "lucide-react";
 import {
-  fetchExamGroups, fetchAllClassSections, fetchSchedulesForExam,
-  fetchStudentsForSchedule, saveMarks, fetchSubExamGroups,
+  fetchExamGroups,
+  fetchAllClassSections,
+  fetchSchedulesForExam,
+  fetchStudentsForSchedule,
+  saveMarks,
+  fetchSubExamGroups,
 } from "./uploadResultsApi.js";
-import { downloadSampleExcel, readExcelFile, matchExcelRowsToStudents, downloadSampleExcelAllSubjects, readExcelWorkbookAllSheets, matchWorkbookToSubjects } from "./excelMarksUtils.js";
+import {
+  downloadSampleExcel,
+  readExcelFile,
+  matchExcelRowsToStudents,
+  downloadSampleExcelAllSubjects,
+  readExcelWorkbookAllSheets,
+  matchWorkbookToSubjects,
+} from "./excelMarksUtils.js";
 
 const T = {
-  navy: "#0f2744", blue: "#2563eb", blueLight: "#dbeafe",
-  teal: "#0d9488", amber: "#d97706", amberLight: "#fef3c7",
-  slate: "#64748b", slateLight: "#f1f5f9", border: "#e2e8f0",
-  white: "#ffffff", bg: "#f8fafc", text: "#0f2744", textSub: "#64748b",
-  red: "#dc2626", redLight: "#fef2f2", green: "#059669", greenLight: "#ecfdf5",
+  navy: "#0f2744",
+  blue: "#2563eb",
+  blueLight: "#dbeafe",
+  teal: "#0d9488",
+  amber: "#d97706",
+  amberLight: "#fef3c7",
+  slate: "#64748b",
+  slateLight: "#f1f5f9",
+  border: "#e2e8f0",
+  white: "#ffffff",
+  bg: "#f8fafc",
+  text: "#0f2744",
+  textSub: "#64748b",
+  red: "#dc2626",
+  redLight: "#fef2f2",
+  green: "#059669",
+  greenLight: "#ecfdf5",
 };
 
 const FORMATS = [
   { id: "standard", label: "Standard (Marks / 100)" },
-  { id: "fa",        label: "Formative Assessment (R&R, CW, PW, ST)" },
+  { id: "fa", label: "Formative Assessment (R&R, CW, PW, ST)" },
 ];
 
 const GRADE_SCALE = [
   { min: 90, grade: "A+" },
-  { min: 80, grade: "A"  },
-  { min: 70, grade: "B"  },
-  { min: 60, grade: "C"  },
-  { min: 50, grade: "D"  },
-  { min: 0,  grade: "F"  },
+  { min: 80, grade: "A" },
+  { min: 70, grade: "B" },
+  { min: 60, grade: "C" },
+  { min: 50, grade: "D" },
+  { min: 0, grade: "F" },
 ];
 function calcGrade(pct) {
   if (pct == null || isNaN(pct)) return "—";
   return GRADE_SCALE.find((g) => pct >= g.min)?.grade ?? "—";
+}
+
+const EMPTY_COMPONENTS = { rr: "", cw: "", pw: "", st: "" };
+const COMPONENT_KEYS = ["rr", "cw", "pw", "st"];
+
+function isBlankVal(v) {
+  return v === "" || v === null || v === undefined;
+}
+
+function hasAnyComponent(components) {
+  return COMPONENT_KEYS.some((k) => !isBlankVal(components?.[k]));
 }
 
 function faTotal(components) {
@@ -45,10 +92,153 @@ function faTotal(components) {
   }, 0);
 }
 
+// FA total, or "" when no component is filled — a blank row stays pending,
+// it is never turned into 0.
+function faTotalOrBlank(components) {
+  return hasAnyComponent(components) ? faTotal(components) : "";
+}
+
+/* ── Edit-mode helpers ──────────────────────────────────────────────────────
+   Every student row keeps `_orig` — the values saved on the server when the
+   screen loaded. Only rows that differ from `_orig` are sent on save, so
+   opening this screen never rewrites or wipes existing marks, and editing one
+   student leaves everyone else untouched. */
+function normMarks(v) {
+  if (isBlankVal(v)) return "";
+  const n = Number(v);
+  return isNaN(n) ? String(v) : n;
+}
+
+function normComponents(c) {
+  if (!c || !hasAnyComponent(c)) return null;
+  const out = {};
+  COMPONENT_KEYS.forEach((k) => {
+    out[k] = isBlankVal(c[k]) ? "" : String(c[k]);
+  });
+  return out;
+}
+
+function snapshotOf(s) {
+  return {
+    marksObtained: s.isAbsent ? "" : normMarks(s.marksObtained),
+    isAbsent: !!s.isAbsent,
+    remarks: String(s.remarks || "").trim(),
+    components: s.isAbsent ? null : normComponents(s.components),
+  };
+}
+
+// Server row → editor row (existing marks pre-filled, others left blank).
+function toEditorStudent(s) {
+  const components = s.components
+    ? { ...EMPTY_COMPONENTS, ...s.components }
+    : { ...EMPTY_COMPONENTS };
+  const row = {
+    ...s,
+    selected: true,
+    marksObtained: s.isAbsent ? "" : normMarks(s.marksObtained),
+    isAbsent: !!s.isAbsent,
+    remarks: s.remarks || "",
+    components,
+  };
+  row._orig = snapshotOf(row);
+  return row;
+}
+
+function isRowDirty(s) {
+  if (!s._orig) return true;
+  const cur = snapshotOf(s);
+  return (
+    cur.isAbsent !== s._orig.isAbsent ||
+    String(cur.marksObtained) !== String(s._orig.marksObtained) ||
+    cur.remarks !== s._orig.remarks ||
+    JSON.stringify(cur.components) !== JSON.stringify(s._orig.components)
+  );
+}
+
+// Payload for one changed row. `components` is only included when the
+// breakdown is actually being set/cleared, so a remarks-only edit never
+// wipes a saved R&R/CW/PW/ST breakdown.
+function toSavePayload(s, format) {
+  const cur = snapshotOf(s);
+  const item = {
+    studentId: s.studentId,
+    marksObtained:
+      cur.isAbsent || cur.marksObtained === ""
+        ? null
+        : Number(cur.marksObtained),
+    isAbsent: cur.isAbsent,
+    remarks: cur.remarks,
+  };
+  const marksChanged =
+    !s._orig ||
+    cur.isAbsent !== s._orig.isAbsent ||
+    String(cur.marksObtained) !== String(s._orig.marksObtained);
+  const compsChanged =
+    JSON.stringify(cur.components) !==
+    JSON.stringify(s._orig?.components ?? null);
+
+  if (format === "fa") {
+    if (compsChanged || (marksChanged && cur.components))
+      item.components = cur.components;
+    else if (marksChanged && !cur.components) item.components = null;
+  } else if (marksChanged && s._orig?.components) {
+    // Marks re-entered as a plain number → the old breakdown no longer applies.
+    item.components = null;
+  }
+  return item;
+}
+
+function StatusDot({ student }) {
+  const dirty = student._orig && isRowDirty(student);
+  if (dirty)
+    return (
+      <span
+        title="Edited — not saved yet"
+        style={{
+          fontSize: 9.5,
+          fontWeight: 800,
+          color: "#b45309",
+          background: "#fef3c7",
+          borderRadius: 6,
+          padding: "1px 5px",
+        }}
+      >
+        EDITED
+      </span>
+    );
+  if (student.hasExistingMarks && student.markStatus !== "pending")
+    return (
+      <span
+        title="Saved marks loaded"
+        style={{
+          fontSize: 9.5,
+          fontWeight: 800,
+          color: "#047857",
+          background: "#ecfdf5",
+          borderRadius: 6,
+          padding: "1px 5px",
+        }}
+      >
+        SAVED
+      </span>
+    );
+  return null;
+}
+
 function Field({ label, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: T.slate }}>{label}</span>
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.07em",
+          textTransform: "uppercase",
+          color: T.slate,
+        }}
+      >
+        {label}
+      </span>
       {children}
     </div>
   );
@@ -62,80 +252,202 @@ function Dropdown({ value, onChange, disabled, children }) {
         onChange={onChange}
         disabled={disabled}
         style={{
-          width: "100%", appearance: "none", cursor: disabled ? "default" : "pointer",
-          background: T.slateLight, border: `1.5px solid ${T.border}`, borderRadius: 11,
-          padding: "10px 34px 10px 14px", fontSize: 13.5, color: T.text,
-          outline: "none", opacity: disabled ? 0.5 : 1,
+          width: "100%",
+          appearance: "none",
+          cursor: disabled ? "default" : "pointer",
+          background: T.slateLight,
+          border: `1.5px solid ${T.border}`,
+          borderRadius: 11,
+          padding: "10px 34px 10px 14px",
+          fontSize: 13.5,
+          color: T.text,
+          outline: "none",
+          opacity: disabled ? 0.5 : 1,
         }}
       >
         {children}
       </select>
-      <ChevronDown size={14} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: T.slate }} />
+      <ChevronDown
+        size={14}
+        style={{
+          position: "absolute",
+          right: 12,
+          top: "50%",
+          transform: "translateY(-50%)",
+          pointerEvents: "none",
+          color: T.slate,
+        }}
+      />
     </div>
   );
 }
 
 function InfoChip({ label, value, accent = T.navy, bg = T.slateLight }) {
   return (
-    <div style={{ background: T.slateLight, border: `1.5px solid ${T.border}`, borderRadius: 12, padding: "10px 14px" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: T.slate, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: accent, background: bg, display: "inline-block", borderRadius: 6, padding: "2px 8px" }}>{value}</div>
+    <div
+      style={{
+        background: T.slateLight,
+        border: `1.5px solid ${T.border}`,
+        borderRadius: 12,
+        padding: "10px 14px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: T.slate,
+          marginBottom: 4,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: accent,
+          background: bg,
+          display: "inline-block",
+          borderRadius: 6,
+          padding: "2px 8px",
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
 
 const StudentRow = memo(function StudentRow({ student, maxMarks, onUpdate }) {
+  const dirty = student._orig && isRowDirty(student);
   return (
     <div
       style={{
-        display: "grid", gridTemplateColumns: "36px 70px 1fr 110px 88px 1fr",
-        gap: 10, padding: "11px 14px", alignItems: "center",
+        display: "grid",
+        gridTemplateColumns: "36px 70px 1fr 110px 88px 1fr",
+        gap: 10,
+        padding: "11px 14px",
+        alignItems: "center",
         borderBottom: `1px solid ${T.border}`,
+        background: dirty ? "#fffbeb" : "transparent",
         opacity: student.selected ? 1 : 0.45,
-        transition: "opacity 0.15s",
+        transition: "opacity 0.15s, background 0.15s",
       }}
     >
       <input
         type="checkbox"
         checked={!!student.selected}
-        onChange={(e) => onUpdate(student.studentId, "selected", e.target.checked)}
-        style={{ width: 15, height: 15, accentColor: T.blue, cursor: "pointer" }}
+        onChange={(e) =>
+          onUpdate(student.studentId, "selected", e.target.checked)
+        }
+        style={{
+          width: 15,
+          height: 15,
+          accentColor: T.blue,
+          cursor: "pointer",
+        }}
       />
-      <span style={{ fontSize: 12, fontWeight: 700, color: T.slate }}>{student.rollNumber || "–"}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: "50%", background: T.blueLight,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 11, fontWeight: 800, color: T.blue, flexShrink: 0,
-        }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: T.slate }}>
+        {student.rollNumber || "–"}
+      </span>
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}
+      >
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            background: T.blueLight,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            fontWeight: 800,
+            color: T.blue,
+            flexShrink: 0,
+          }}
+        >
           {student.studentName?.[0] || "S"}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{student.studentName}</div>
-          <div style={{ fontSize: 10.5, color: T.slate }}>{student.admissionNumber || student.email || ""}</div>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: T.navy,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {student.studentName}
+          </div>
+          <div
+            style={{
+              fontSize: 10.5,
+              color: T.slate,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span>{student.admissionNumber || student.email || ""}</span>
+            <StatusDot student={student} />
+          </div>
         </div>
       </div>
       <input
-        type="number" min="0" max={maxMarks}
-        value={student.isAbsent ? "" : (student.marksObtained ?? "")}
+        type="number"
+        min="0"
+        max={maxMarks}
+        value={student.isAbsent ? "" : student.marksObtained ?? ""}
         disabled={student.isAbsent || !student.selected}
-        onChange={(e) => onUpdate(student.studentId, "marksObtained", e.target.value)}
+        onChange={(e) =>
+          onUpdate(student.studentId, "marksObtained", e.target.value)
+        }
         placeholder={`0–${maxMarks}`}
         style={{
-          width: "100%", textAlign: "center", background: T.white, border: `1.5px solid ${T.border}`,
-          borderRadius: 9, padding: "7px 8px", fontSize: 13, color: T.text, outline: "none",
+          width: "100%",
+          textAlign: "center",
+          background: T.white,
+          border: `1.5px solid ${T.border}`,
+          borderRadius: 9,
+          padding: "7px 8px",
+          fontSize: 13,
+          color: T.text,
+          outline: "none",
         }}
       />
-      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.slate, cursor: "pointer", whiteSpace: "nowrap" }}>
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 12,
+          color: T.slate,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
         <input
           type="checkbox"
           checked={!!student.isAbsent}
           disabled={!student.selected}
           onChange={(e) => {
             onUpdate(student.studentId, "isAbsent", e.target.checked);
-            if (e.target.checked) onUpdate(student.studentId, "marksObtained", "");
+            if (e.target.checked)
+              onUpdate(student.studentId, "marksObtained", "");
           }}
-          style={{ width: 14, height: 14, accentColor: T.red, cursor: "pointer" }}
+          style={{
+            width: 14,
+            height: 14,
+            accentColor: T.red,
+            cursor: "pointer",
+          }}
         />
         Absent
       </label>
@@ -146,91 +458,214 @@ const StudentRow = memo(function StudentRow({ student, maxMarks, onUpdate }) {
         onChange={(e) => onUpdate(student.studentId, "remarks", e.target.value)}
         placeholder="Optional remarks…"
         style={{
-          width: "100%", background: T.white, border: `1.5px solid ${T.border}`,
-          borderRadius: 9, padding: "7px 10px", fontSize: 12.5, color: T.text, outline: "none",
+          width: "100%",
+          background: T.white,
+          border: `1.5px solid ${T.border}`,
+          borderRadius: 9,
+          padding: "7px 10px",
+          fontSize: 12.5,
+          color: T.text,
+          outline: "none",
         }}
       />
     </div>
   );
 });
 
-const FA_FIELD_COLS = "36px 60px 1fr 54px 54px 54px 54px 56px 46px 34px 70px 1fr";
+const FA_FIELD_COLS =
+  "36px 60px 1fr 54px 54px 54px 54px 56px 46px 34px 70px 1fr";
 const FA_MINI_INPUT = {
-  width: "100%", textAlign: "center", background: T.white, border: `1.5px solid ${T.border}`,
-  borderRadius: 8, padding: "6px 4px", fontSize: 12.5, color: T.text, outline: "none",
+  width: "100%",
+  textAlign: "center",
+  background: T.white,
+  border: `1.5px solid ${T.border}`,
+  borderRadius: 8,
+  padding: "6px 4px",
+  fontSize: 12.5,
+  color: T.text,
+  outline: "none",
 };
 
-const StudentRowFA = memo(function StudentRowFA({ student, maxMarks, onUpdate }) {
-  const components = student.components || { rr: "", cw: "", pw: "", st: "" };
-  const tot = student.isAbsent ? null : faTotal(components);
-  const pct = tot != null && maxMarks > 0 ? Math.round((tot / maxMarks) * 1000) / 10 : null;
-  const grd = pct != null ? calcGrade(pct) : "—";
+const StudentRowFA = memo(function StudentRowFA({
+  student,
+  maxMarks,
+  onUpdate,
+}) {
+  const components = student.components || EMPTY_COMPONENTS;
+  const dirty = student._orig && isRowDirty(student);
+  // Total: from the breakdown when one is filled; otherwise the saved total
+  // (marks entered earlier in Standard format); otherwise pending ("—").
+  const tot = student.isAbsent
+    ? null
+    : hasAnyComponent(components)
+    ? faTotal(components)
+    : isBlankVal(student.marksObtained)
+    ? null
+    : Number(student.marksObtained);
+  const pct =
+    tot != null && maxMarks > 0
+      ? Math.round((tot / maxMarks) * 1000) / 10
+      : null;
+  const grd = student.isAbsent ? "AB" : pct != null ? calcGrade(pct) : "—";
 
   const updateComponent = (field, value) => {
     const nextComponents = { ...components, [field]: value };
     onUpdate(student.studentId, "components", nextComponents);
-    onUpdate(student.studentId, "marksObtained", student.isAbsent ? "" : faTotal(nextComponents));
+    onUpdate(
+      student.studentId,
+      "marksObtained",
+      student.isAbsent ? "" : faTotalOrBlank(nextComponents),
+    );
   };
 
   return (
     <div
       style={{
-        display: "grid", gridTemplateColumns: FA_FIELD_COLS,
-        gap: 8, padding: "11px 14px", alignItems: "center",
+        display: "grid",
+        gridTemplateColumns: FA_FIELD_COLS,
+        gap: 8,
+        padding: "11px 14px",
+        alignItems: "center",
         borderBottom: `1px solid ${T.border}`,
+        background: dirty ? "#fffbeb" : "transparent",
         opacity: student.selected ? 1 : 0.45,
-        transition: "opacity 0.15s",
+        transition: "opacity 0.15s, background 0.15s",
       }}
     >
       <input
         type="checkbox"
         checked={!!student.selected}
-        onChange={(e) => onUpdate(student.studentId, "selected", e.target.checked)}
-        style={{ width: 15, height: 15, accentColor: T.blue, cursor: "pointer" }}
+        onChange={(e) =>
+          onUpdate(student.studentId, "selected", e.target.checked)
+        }
+        style={{
+          width: 15,
+          height: 15,
+          accentColor: T.blue,
+          cursor: "pointer",
+        }}
       />
-      <span style={{ fontSize: 12, fontWeight: 700, color: T.slate }}>{student.rollNumber || "–"}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <div style={{
-          width: 26, height: 26, borderRadius: "50%", background: T.blueLight,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 10.5, fontWeight: 800, color: T.blue, flexShrink: 0,
-        }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: T.slate }}>
+        {student.rollNumber || "–"}
+      </span>
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}
+      >
+        <div
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: "50%",
+            background: T.blueLight,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 10.5,
+            fontWeight: 800,
+            color: T.blue,
+            flexShrink: 0,
+          }}
+        >
           {student.studentName?.[0] || "S"}
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: T.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{student.studentName}</div>
-          <div style={{ fontSize: 10, color: T.slate }}>{student.admissionNumber || student.email || ""}</div>
+          <div
+            style={{
+              fontSize: 12.5,
+              fontWeight: 700,
+              color: T.navy,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {student.studentName}
+          </div>
+          <div
+            style={{
+              fontSize: 10,
+              color: T.slate,
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <span>{student.admissionNumber || student.email || ""}</span>
+            <StatusDot student={student} />
+          </div>
         </div>
       </div>
 
       {["rr", "cw", "pw", "st"].map((f) => (
         <input
           key={f}
-          type="number" min="0"
-          value={student.isAbsent ? "" : (components[f] ?? "")}
+          type="number"
+          min="0"
+          value={student.isAbsent ? "" : components[f] ?? ""}
           disabled={student.isAbsent || !student.selected}
           onChange={(e) => updateComponent(f, e.target.value)}
           style={FA_MINI_INPUT}
         />
       ))}
 
-      <span style={{ textAlign: "center", fontSize: 13, fontWeight: 800, color: T.navy }}>{tot ?? "—"}</span>
-      <span style={{
-        textAlign: "center", fontSize: 11, fontWeight: 800, color: T.blue,
-        background: T.blueLight, borderRadius: 6, padding: "2px 0",
-      }}>{grd}</span>
-      <span style={{ textAlign: "center", fontSize: 11.5, fontWeight: 700, color: T.slate }}>{pct != null ? `${pct}%` : "—"}</span>
+      <span
+        style={{
+          textAlign: "center",
+          fontSize: 13,
+          fontWeight: 800,
+          color: T.navy,
+        }}
+      >
+        {tot ?? "—"}
+      </span>
+      <span
+        style={{
+          textAlign: "center",
+          fontSize: 11,
+          fontWeight: 800,
+          color: T.blue,
+          background: T.blueLight,
+          borderRadius: 6,
+          padding: "2px 0",
+        }}
+      >
+        {grd}
+      </span>
+      <span
+        style={{
+          textAlign: "center",
+          fontSize: 11.5,
+          fontWeight: 700,
+          color: T.slate,
+        }}
+      >
+        {pct != null ? `${pct}%` : "—"}
+      </span>
 
-      <label style={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }} title="Absent">
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+        }}
+        title="Absent"
+      >
         <input
           type="checkbox"
           checked={!!student.isAbsent}
           disabled={!student.selected}
           onChange={(e) => {
             onUpdate(student.studentId, "isAbsent", e.target.checked);
-            if (e.target.checked) onUpdate(student.studentId, "marksObtained", "");
+            if (e.target.checked)
+              onUpdate(student.studentId, "marksObtained", "");
           }}
-          style={{ width: 14, height: 14, accentColor: T.red, cursor: "pointer" }}
+          style={{
+            width: 14,
+            height: 14,
+            accentColor: T.red,
+            cursor: "pointer",
+          }}
         />
       </label>
 
@@ -241,52 +676,73 @@ const StudentRowFA = memo(function StudentRowFA({ student, maxMarks, onUpdate })
         onChange={(e) => onUpdate(student.studentId, "remarks", e.target.value)}
         placeholder="Optional remarks…"
         style={{
-          width: "100%", background: T.white, border: `1.5px solid ${T.border}`,
-          borderRadius: 9, padding: "7px 10px", fontSize: 12.5, color: T.text, outline: "none",
+          width: "100%",
+          background: T.white,
+          border: `1.5px solid ${T.border}`,
+          borderRadius: 9,
+          padding: "7px 10px",
+          fontSize: 12.5,
+          color: T.text,
+          outline: "none",
         }}
       />
     </div>
   );
 });
 
+// Loads one subject's students WITH their previously saved marks
+// (marksObtained / isAbsent / remarks / R&R-CW-PW-ST), matched by studentId.
+// Students without saved marks stay blank (pending).
 async function fetchSubjectEntry(subj) {
   const j = await fetchStudentsForSchedule(subj.scheduleId);
-  const students = (j.data?.students || []).map((s) => ({
-    ...s,
-    selected: true,
-    components: s.components || { rr: "", cw: "", pw: "", st: "" },
-  }));
+  const students = (j.data?.students || []).map(toEditorStudent);
   return {
     scheduleId: subj.scheduleId,
     scheduleInfo: j.data?.schedule,
+    // Open in the format the marks were saved in (FA if a breakdown exists).
+    format: j.data?.format === "fa" ? "fa" : "standard",
+    savedCount:
+      j.data?.savedCount ??
+      students.filter((s) => s.markStatus !== "pending").length,
     students,
     loading: false,
   };
 }
 
-export default function AdminUploadResultModal({ presetClass, onClose, onSaved }) {
-  const [rawExams, setRawExams]         = useState([]);
-  const [examId, setExamId]             = useState("");
-  const [classes, setClasses]           = useState([]);
-  const [classId, setClassId]           = useState(presetClass?.classSectionId || "");
-  const [loadingInit, setLoadingInit]   = useState(true);
+// Same for a sub-exam (assessment) schedule — always Standard format.
+async function fetchSubExamEntry(scheduleId) {
+  const j = await fetchStudentsForSchedule(scheduleId);
+  const students = (j.data?.students || []).map(toEditorStudent);
+  return { scheduleId, students, loading: false };
+}
 
-  const [schedules, setSchedules]       = useState([]);
+export default function AdminUploadResultModal({
+  presetClass,
+  onClose,
+  onSaved,
+}) {
+  const [rawExams, setRawExams] = useState([]);
+  const [examId, setExamId] = useState("");
+  const [classes, setClasses] = useState([]);
+  const [classId, setClassId] = useState(presetClass?.classSectionId || "");
+  const [loadingInit, setLoadingInit] = useState(true);
+
+  const [schedules, setSchedules] = useState([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
 
   const [activeSubjectId, setActiveSubjectId] = useState("");
-  const [subjectData, setSubjectData]   = useState({});
+  const [subjectData, setSubjectData] = useState({});
 
-  const [saving, setSaving]   = useState(false);
-  const [done, setDone]       = useState(false);
-  const [error, setError]     = useState("");
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
 
-  const [subExamGroups, setSubExamGroups]     = useState([]);
-  const [subExamId, setSubExamId]             = useState("");
+  const [subExamGroups, setSubExamGroups] = useState([]);
+  const [subExamId, setSubExamId] = useState("");
   const [loadingSubExams, setLoadingSubExams] = useState(false);
-  const [subSchedules, setSubSchedules]       = useState([]);
+  const [subSchedules, setSubSchedules] = useState([]);
   const [loadingSubSchedules, setLoadingSubSchedules] = useState(false);
-  const [subSubjectData, setSubSubjectData]   = useState({});
+  const [subSubjectData, setSubSubjectData] = useState({});
 
   useEffect(() => {
     setLoadingSubExams(true);
@@ -364,36 +820,49 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
   // Resolves the sub-exam (assessment) schedule for ANY subject id — used both
   // for the currently active subject and, in bulk Excel mode, for every
   // scheduled subject in the class at once.
-  const resolveSubSchedule = useCallback((subjectId) => {
-    if (!subExamId || !classId || !subjectId) return null;
+  const resolveSubSchedule = useCallback(
+    (subjectId) => {
+      if (!subExamId || !classId || !subjectId) return null;
 
-    const subjMeta  = subjectsForClass.find((s) => s.id === subjectId);
-    const selClass  = classes.find((c) => c.id === classId);
+      const subjMeta = subjectsForClass.find((s) => s.id === subjectId);
+      const selClass = classes.find((c) => c.id === classId);
 
-    let s = subSchedules.find((sc) => sc.classSectionId === classId && sc.subjectId === subjectId);
+      let s = subSchedules.find(
+        (sc) => sc.classSectionId === classId && sc.subjectId === subjectId,
+      );
 
-    if (!s) {
-      s = subSchedules.find((sc) => {
-        const classMatches =
-          sc.classSectionId === classId ||
-          (selClass && sc.classSection &&
-            String(sc.classSection.grade) === String(selClass.grade) &&
-            String(sc.classSection.section || "") === String(selClass.section || ""));
-        const subjectMatches =
-          sc.subjectId === subjectId ||
-          (subjMeta &&
-            (sc.subject?.name || "").trim().toLowerCase() === (subjMeta.name || "").trim().toLowerCase());
-        return classMatches && subjectMatches;
-      });
-    }
+      if (!s) {
+        s = subSchedules.find((sc) => {
+          const classMatches =
+            sc.classSectionId === classId ||
+            (selClass &&
+              sc.classSection &&
+              String(sc.classSection.grade) === String(selClass.grade) &&
+              String(sc.classSection.section || "") ===
+                String(selClass.section || ""));
+          const subjectMatches =
+            sc.subjectId === subjectId ||
+            (subjMeta &&
+              (sc.subject?.name || "").trim().toLowerCase() ===
+                (subjMeta.name || "").trim().toLowerCase());
+          return classMatches && subjectMatches;
+        });
+      }
 
-    if (!s) return null;
-    return { id: subjectId, scheduleId: s.id, maxMarks: s.maxMarks, passingMarks: s.passingMarks };
-  }, [subExamId, classId, subSchedules, subjectsForClass, classes]);
+      if (!s) return null;
+      return {
+        id: subjectId,
+        scheduleId: s.id,
+        maxMarks: s.maxMarks,
+        passingMarks: s.passingMarks,
+      };
+    },
+    [subExamId, classId, subSchedules, subjectsForClass, classes],
+  );
 
   const subSubjectForActive = useMemo(
     () => resolveSubSchedule(activeSubjectId),
-    [activeSubjectId, resolveSubSchedule]
+    [activeSubjectId, resolveSubSchedule],
   );
 
   useEffect(() => {
@@ -402,38 +871,51 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
     setSubSubjectData((prev) => ({
       ...prev,
-      [subSubjectForActive.id]: { ...(prev[subSubjectForActive.id] || {}), loading: true },
+      [subSubjectForActive.id]: {
+        ...(prev[subSubjectForActive.id] || {}),
+        loading: true,
+      },
     }));
 
-    fetchStudentsForSchedule(subSubjectForActive.scheduleId)
-      .then((j) => {
-        const students = (j.data?.students || []).map((s) => ({ ...s, selected: true }));
+    fetchSubExamEntry(subSubjectForActive.scheduleId)
+      .then((entry) => {
         setSubSubjectData((prev) => ({
           ...prev,
-          [subSubjectForActive.id]: { scheduleId: subSubjectForActive.scheduleId, students, loading: false },
+          [subSubjectForActive.id]: entry,
         }));
       })
       .catch((e) => {
         setError(e.message || "Failed to load sub exam students");
-        setSubSubjectData((prev) => ({ ...prev, [subSubjectForActive.id]: { ...(prev[subSubjectForActive.id] || {}), loading: false } }));
+        setSubSubjectData((prev) => ({
+          ...prev,
+          [subSubjectForActive.id]: {
+            ...(prev[subSubjectForActive.id] || {}),
+            loading: false,
+          },
+        }));
       });
   }, [subSubjectForActive]);
 
-  const updateSubStudent = useCallback((studentId, key, value) => {
-    if (!subSubjectForActive) return;
-    const subjId = subSubjectForActive.id;
-    setSubSubjectData((prev) => {
-      const cur = prev[subjId];
-      if (!cur) return prev;
-      return {
-        ...prev,
-        [subjId]: {
-          ...cur,
-          students: cur.students.map((s) => s.studentId === studentId ? { ...s, [key]: value } : s),
-        },
-      };
-    });
-  }, [subSubjectForActive]);
+  const updateSubStudent = useCallback(
+    (studentId, key, value) => {
+      if (!subSubjectForActive) return;
+      const subjId = subSubjectForActive.id;
+      setSubSubjectData((prev) => {
+        const cur = prev[subjId];
+        if (!cur) return prev;
+        return {
+          ...prev,
+          [subjId]: {
+            ...cur,
+            students: cur.students.map((s) =>
+              s.studentId === studentId ? { ...s, [key]: value } : s,
+            ),
+          },
+        };
+      });
+    },
+    [subSubjectForActive],
+  );
 
   // Merges a { studentId: patch } map (e.g. from an Excel upload) into a sub-exam subject's students.
   const applySubStudentUpdates = useCallback((subjectId, updates) => {
@@ -444,7 +926,9 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
         ...prev,
         [subjectId]: {
           ...cur,
-          students: cur.students.map((s) => (updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s)),
+          students: cur.students.map((s) =>
+            updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s,
+          ),
         },
       };
     });
@@ -459,8 +943,7 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     if (!activeSubjectId) return;
     const subj = subjectsForClass.find((s) => s.id === activeSubjectId);
     if (!subj) return;
-    if (subjectData[activeSubjectId]?.students)
-      return;
+    if (subjectData[activeSubjectId]?.students) return;
 
     setSubjectData((prev) => ({
       ...prev,
@@ -473,45 +956,65 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
       })
       .catch((e) => {
         setError(e.message || "Failed to load students");
-        setSubjectData((prev) => ({ ...prev, [activeSubjectId]: { ...(prev[activeSubjectId] || {}), loading: false } }));
+        setSubjectData((prev) => ({
+          ...prev,
+          [activeSubjectId]: {
+            ...(prev[activeSubjectId] || {}),
+            loading: false,
+          },
+        }));
       });
   }, [activeSubjectId, subjectsForClass]);
 
-  const updateStudent = useCallback((studentId, key, value) => {
-    setSubjectData((prev) => {
-      const cur = prev[activeSubjectId];
-      if (!cur) return prev;
-      return {
-        ...prev,
-        [activeSubjectId]: {
-          ...cur,
-          students: cur.students.map((s) => s.studentId === studentId ? { ...s, [key]: value } : s),
-        },
-      };
-    });
-  }, [activeSubjectId]);
+  const updateStudent = useCallback(
+    (studentId, key, value) => {
+      setSubjectData((prev) => {
+        const cur = prev[activeSubjectId];
+        if (!cur) return prev;
+        return {
+          ...prev,
+          [activeSubjectId]: {
+            ...cur,
+            students: cur.students.map((s) =>
+              s.studentId === studentId ? { ...s, [key]: value } : s,
+            ),
+          },
+        };
+      });
+    },
+    [activeSubjectId],
+  );
 
-  const toggleSelectAll = useCallback((checked) => {
-    setSubjectData((prev) => {
-      const cur = prev[activeSubjectId];
-      if (!cur) return prev;
-      return {
-        ...prev,
-        [activeSubjectId]: { ...cur, students: cur.students.map((s) => ({ ...s, selected: checked })) },
-      };
-    });
-  }, [activeSubjectId]);
+  const toggleSelectAll = useCallback(
+    (checked) => {
+      setSubjectData((prev) => {
+        const cur = prev[activeSubjectId];
+        if (!cur) return prev;
+        return {
+          ...prev,
+          [activeSubjectId]: {
+            ...cur,
+            students: cur.students.map((s) => ({ ...s, selected: checked })),
+          },
+        };
+      });
+    },
+    [activeSubjectId],
+  );
 
-  const setSubjectFormat = useCallback((format) => {
-    setSubjectData((prev) => {
-      const cur = prev[activeSubjectId];
-      if (!cur) return prev;
-      return { ...prev, [activeSubjectId]: { ...cur, format } };
-    });
-  }, [activeSubjectId]);
+  const setSubjectFormat = useCallback(
+    (format) => {
+      setSubjectData((prev) => {
+        const cur = prev[activeSubjectId];
+        if (!cur) return prev;
+        return { ...prev, [activeSubjectId]: { ...cur, format } };
+      });
+    },
+    [activeSubjectId],
+  );
 
-  const [excelError, setExcelError]     = useState("");
-  const [excelNotice, setExcelNotice]   = useState("");
+  const [excelError, setExcelError] = useState("");
+  const [excelNotice, setExcelNotice] = useState("");
   const [uploadingExcel, setUploadingExcel] = useState(false);
   const excelInputRef = useRef(null);
 
@@ -521,10 +1024,14 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     if (!data?.students?.length || !subj) return;
     downloadSampleExcel({
       subjectName: subj.name,
-      maxMarks:    subj.maxMarks,
-      examName:    exams.find((e) => e.id === examId)?.name || "Exam",
-      className:   classes.find((c) => c.id === classId)
-        ? `Grade ${classes.find((c) => c.id === classId).grade}${classes.find((c) => c.id === classId).section ? "-" + classes.find((c) => c.id === classId).section : ""}`
+      maxMarks: subj.maxMarks,
+      examName: exams.find((e) => e.id === examId)?.name || "Exam",
+      className: classes.find((c) => c.id === classId)
+        ? `Grade ${classes.find((c) => c.id === classId).grade}${
+            classes.find((c) => c.id === classId).section
+              ? "-" + classes.find((c) => c.id === classId).section
+              : ""
+          }`
         : "Class",
       format: data.format || "standard",
       students: data.students,
@@ -532,7 +1039,8 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
   };
 
   const handleUploadExcelClick = () => {
-    setExcelError(""); setExcelNotice("");
+    setExcelError("");
+    setExcelNotice("");
     excelInputRef.current?.click();
   };
 
@@ -546,10 +1054,12 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     if (!cur?.students?.length) return;
 
     setUploadingExcel(true);
-    setExcelError(""); setExcelNotice("");
+    setExcelError("");
+    setExcelNotice("");
     try {
       const rows = await readExcelFile(file);
-      const { isFA, updates, matchedCount, totalRows } = matchExcelRowsToStudents(rows, cur.students);
+      const { isFA, updates, matchedCount, blankCount, totalRows } =
+        matchExcelRowsToStudents(rows, cur.students);
 
       setSubjectData((prev) => {
         const c = prev[subjId];
@@ -559,15 +1069,23 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
           [subjId]: {
             ...c,
             format: isFA ? "fa" : "standard",
-            students: c.students.map((s) => (updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s)),
+            students: c.students.map((s) =>
+              updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s,
+            ),
           },
         };
       });
 
       setExcelNotice(
-        matchedCount < totalRows
+        (matchedCount < totalRows
           ? `Matched ${matchedCount} of ${totalRows} rows. Unmatched rows were skipped (check Roll No / Student spelling).`
-          : `Matched all ${matchedCount} students from the uploaded file.`
+          : `Matched all ${matchedCount} students from the uploaded file.`) +
+          (blankCount
+            ? ` ${blankCount} blank row${
+                blankCount !== 1 ? "s" : ""
+              } kept the existing saved marks.`
+            : "") +
+          " Review, then click Save Changes.",
       );
     } catch (err) {
       setExcelError(err.message || "Failed to process the uploaded Excel file");
@@ -576,38 +1094,45 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     }
   };
 
-  const activeData    = subjectData[activeSubjectId];
+  const activeData = subjectData[activeSubjectId];
   const activeSubject = subjectsForClass.find((s) => s.id === activeSubjectId);
   const activeStudents = activeData?.students || [];
-  const activeFormat   = activeData?.format || "standard";
-  const selectedCount  = activeStudents.filter((s) => s.selected).length;
-  const allSelected    = activeStudents.length > 0 && selectedCount === activeStudents.length;
+  const activeFormat = activeData?.format || "standard";
+  const selectedCount = activeStudents.filter((s) => s.selected).length;
+  const allSelected =
+    activeStudents.length > 0 && selectedCount === activeStudents.length;
 
   // ── Sub Exam (Assessment) Excel — single subject, standard format only ───
-  const [subExcelError, setSubExcelError]         = useState("");
-  const [subExcelNotice, setSubExcelNotice]       = useState("");
+  const [subExcelError, setSubExcelError] = useState("");
+  const [subExcelNotice, setSubExcelNotice] = useState("");
   const [uploadingSubExcel, setUploadingSubExcel] = useState(false);
   const subExcelInputRef = useRef(null);
 
-  const activeSubExamName = subExamGroups.find((g) => g.id === subExamId)?.name || "Assessment";
+  const activeSubExamName =
+    subExamGroups.find((g) => g.id === subExamId)?.name || "Assessment";
 
   const handleDownloadSubSample = () => {
     const data = subSubjectData[activeSubjectId];
     if (!data?.students?.length || !subSubjectForActive) return;
     downloadSampleExcel({
       subjectName: activeSubject?.name || "Subject",
-      maxMarks:    subSubjectForActive.maxMarks,
-      examName:    activeSubExamName,
-      className:   classes.find((c) => c.id === classId)
-        ? `Grade ${classes.find((c) => c.id === classId).grade}${classes.find((c) => c.id === classId).section ? "-" + classes.find((c) => c.id === classId).section : ""}`
+      maxMarks: subSubjectForActive.maxMarks,
+      examName: activeSubExamName,
+      className: classes.find((c) => c.id === classId)
+        ? `Grade ${classes.find((c) => c.id === classId).grade}${
+            classes.find((c) => c.id === classId).section
+              ? "-" + classes.find((c) => c.id === classId).section
+              : ""
+          }`
         : "Class",
-      format:      "standard",
-      students:    data.students,
+      format: "standard",
+      students: data.students,
     });
   };
 
   const handleUploadSubExcelClick = () => {
-    setSubExcelError(""); setSubExcelNotice("");
+    setSubExcelError("");
+    setSubExcelNotice("");
     subExcelInputRef.current?.click();
   };
 
@@ -621,42 +1146,54 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     if (!cur?.students?.length) return;
 
     setUploadingSubExcel(true);
-    setSubExcelError(""); setSubExcelNotice("");
+    setSubExcelError("");
+    setSubExcelNotice("");
     try {
       const rows = await readExcelFile(file);
-      const { updates, matchedCount, totalRows } = matchExcelRowsToStudents(rows, cur.students);
+      const { updates, matchedCount, totalRows } = matchExcelRowsToStudents(
+        rows,
+        cur.students,
+      );
       applySubStudentUpdates(subjId, updates);
       setSubExcelNotice(
         matchedCount < totalRows
           ? `Matched ${matchedCount} of ${totalRows} rows. Unmatched rows were skipped (check Roll No / Student spelling).`
-          : `Matched all ${matchedCount} students from the uploaded file.`
+          : `Matched all ${matchedCount} students from the uploaded file.`,
       );
     } catch (err) {
-      setSubExcelError(err.message || "Failed to process the uploaded Excel file");
+      setSubExcelError(
+        err.message || "Failed to process the uploaded Excel file",
+      );
     } finally {
       setUploadingSubExcel(false);
     }
   };
 
   useEffect(() => {
-    setExcelError(""); setExcelNotice("");
-    setSubExcelError(""); setSubExcelNotice("");
+    setExcelError("");
+    setExcelNotice("");
+    setSubExcelError("");
+    setSubExcelNotice("");
   }, [activeSubjectId, subExamId]);
 
-  const [bulkBusy, setBulkBusy]     = useState(false);
-  const [bulkError, setBulkError]   = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState("");
   const [bulkNotice, setBulkNotice] = useState("");
   const bulkInputRef = useRef(null);
 
   const ensureAllSubjectsLoaded = async () => {
-    const missing = subjectsForClass.filter((s) => !subjectData[s.id]?.students);
+    const missing = subjectsForClass.filter(
+      (s) => !subjectData[s.id]?.students,
+    );
     if (!missing.length) return subjectData;
 
     const fetched = await Promise.all(
-      missing.map(async (s) => [s.id, await fetchSubjectEntry(s)])
+      missing.map(async (s) => [s.id, await fetchSubjectEntry(s)]),
     );
     const merged = { ...subjectData };
-    fetched.forEach(([id, entry]) => { merged[id] = entry; });
+    fetched.forEach(([id, entry]) => {
+      merged[id] = entry;
+    });
     setSubjectData(merged);
     return merged;
   };
@@ -669,25 +1206,29 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     const targets = subjectsForClass
       .map((s) => ({ subjectId: s.id, sched: resolveSubSchedule(s.id) }))
       .filter((t) => t.sched);
-    const missing = targets.filter((t) => !subSubjectData[t.subjectId]?.students);
+    const missing = targets.filter(
+      (t) => !subSubjectData[t.subjectId]?.students,
+    );
     if (!missing.length) return subSubjectData;
 
     const fetched = await Promise.all(
-      missing.map(async (t) => {
-        const j = await fetchStudentsForSchedule(t.sched.scheduleId);
-        const students = (j.data?.students || []).map((s) => ({ ...s, selected: true }));
-        return [t.subjectId, { scheduleId: t.sched.scheduleId, students, loading: false }];
-      })
+      missing.map(async (t) => [
+        t.subjectId,
+        await fetchSubExamEntry(t.sched.scheduleId),
+      ]),
     );
     const merged = { ...subSubjectData };
-    fetched.forEach(([id, entry]) => { merged[id] = entry; });
+    fetched.forEach(([id, entry]) => {
+      merged[id] = entry;
+    });
     setSubSubjectData(merged);
     return merged;
   };
 
   const handleDownloadAllSample = async () => {
     if (!subjectsForClass.length) return;
-    setBulkError(""); setBulkNotice("");
+    setBulkError("");
+    setBulkNotice("");
     setBulkBusy(true);
     try {
       const data = await ensureAllSubjectsLoaded();
@@ -699,18 +1240,23 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
           maxMarks: s.maxMarks,
           format: data[s.id]?.format || "standard",
           students: data[s.id]?.students || [],
-          subExam: sched && subData[s.id]?.students?.length
-            ? { maxMarks: sched.maxMarks, students: subData[s.id].students }
-            : null,
+          subExam:
+            sched && subData[s.id]?.students?.length
+              ? { maxMarks: sched.maxMarks, students: subData[s.id].students }
+              : null,
         };
       });
       downloadSampleExcelAllSubjects({
         subjects: subjectsPayload,
         examName: exams.find((e) => e.id === examId)?.name || "Exam",
-        subExamName: subExamId ? (subExamGroups.find((g) => g.id === subExamId)?.name || "") : "",
+        subExamName: subExamId
+          ? subExamGroups.find((g) => g.id === subExamId)?.name || ""
+          : "",
         className: (() => {
           const c = classes.find((cc) => cc.id === classId);
-          return c ? `Grade ${c.grade}${c.section ? "-" + c.section : ""}` : "Class";
+          return c
+            ? `Grade ${c.grade}${c.section ? "-" + c.section : ""}`
+            : "Class";
         })(),
       });
     } catch (err) {
@@ -721,7 +1267,8 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
   };
 
   const handleUploadAllClick = () => {
-    setBulkError(""); setBulkNotice("");
+    setBulkError("");
+    setBulkNotice("");
     bulkInputRef.current?.click();
   };
 
@@ -731,7 +1278,8 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     if (!file) return;
 
     setBulkBusy(true);
-    setBulkError(""); setBulkNotice("");
+    setBulkError("");
+    setBulkNotice("");
     try {
       const data = await ensureAllSubjectsLoaded();
       const subData = subExamId ? await ensureAllSubExamsLoaded() : {};
@@ -744,11 +1292,15 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
           name: s.name,
           code: s.code,
           students: data[s.id]?.students || [],
-          subExam: sched && subData[s.id]?.students?.length ? { students: subData[s.id].students } : null,
+          subExam:
+            sched && subData[s.id]?.students?.length
+              ? { students: subData[s.id].students }
+              : null,
         };
       });
 
-      const { results, subExamResults, unmatchedSheets } = matchWorkbookToSubjects(sheets, subjectsForMatch);
+      const { results, subExamResults, unmatchedSheets } =
+        matchWorkbookToSubjects(sheets, subjectsForMatch);
 
       setSubjectData((prev) => {
         const next = { ...prev };
@@ -758,7 +1310,9 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
           next[subjectId] = {
             ...cur,
             format: isFA ? "fa" : "standard",
-            students: cur.students.map((s) => (updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s)),
+            students: cur.students.map((s) =>
+              updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s,
+            ),
           };
         });
         return next;
@@ -772,7 +1326,9 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
             if (!cur) return;
             next[subjectId] = {
               ...cur,
-              students: cur.students.map((s) => (updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s)),
+              students: cur.students.map((s) =>
+                updates[s.studentId] ? { ...s, ...updates[s.studentId] } : s,
+              ),
             };
           });
           return next;
@@ -781,15 +1337,28 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
       const totalMatched = results.reduce((sum, r) => sum + r.matchedCount, 0);
       const subjNames = results.map((r) => r.subjectName).join(", ");
-      const subExamMatched = subExamResults.reduce((sum, r) => sum + r.matchedCount, 0);
+      const subExamMatched = subExamResults.reduce(
+        (sum, r) => sum + r.matchedCount,
+        0,
+      );
       const subExamNames = subExamResults.map((r) => r.subjectName).join(", ");
 
       setBulkNotice(
-        `Filled ${totalMatched} student entr${totalMatched !== 1 ? "ies" : "y"} across ${results.length} subject${results.length !== 1 ? "s" : ""} (${subjNames}).` +
-        (subExamResults.length
-          ? ` Also filled ${subExamMatched} sub-exam entr${subExamMatched !== 1 ? "ies" : "y"} across ${subExamResults.length} subject${subExamResults.length !== 1 ? "s" : ""} (${subExamNames}).`
-          : "") +
-        (unmatchedSheets.length ? ` Sheets not matched: ${unmatchedSheets.join(", ")}.` : "")
+        `Filled ${totalMatched} student entr${
+          totalMatched !== 1 ? "ies" : "y"
+        } across ${results.length} subject${
+          results.length !== 1 ? "s" : ""
+        } (${subjNames}).` +
+          (subExamResults.length
+            ? ` Also filled ${subExamMatched} sub-exam entr${
+                subExamMatched !== 1 ? "ies" : "y"
+              } across ${subExamResults.length} subject${
+                subExamResults.length !== 1 ? "s" : ""
+              } (${subExamNames}).`
+            : "") +
+          (unmatchedSheets.length
+            ? ` Sheets not matched: ${unmatchedSheets.join(", ")}.`
+            : ""),
       );
     } catch (err) {
       setBulkError(err.message || "Failed to process the uploaded Excel file");
@@ -798,71 +1367,175 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
     }
   };
 
-  const loadedSubjectIds = Object.keys(subjectData).filter((id) => subjectData[id]?.students?.length);
+  const loadedSubjectIds = Object.keys(subjectData).filter(
+    (id) => subjectData[id]?.students?.length,
+  );
 
+  const [savedEntries, setSavedEntries] = useState(0);
+
+  // Saves ONLY rows that changed since they were loaded (selected rows only).
+  // Unchanged rows — including every other student's existing marks — are
+  // never sent, so they can't be overwritten. The backend then recalculates
+  // the overall result (percentage / grade / absent / rank) for the class.
   const handleSaveAll = async () => {
     setError("");
-    if (!loadedSubjectIds.length) return setError("Enter marks for at least one subject first");
+    if (!loadedSubjectIds.length)
+      return setError("Enter marks for at least one subject first");
 
+    // Validate changed rows
     for (const subjId of loadedSubjectIds) {
       const data = subjectData[subjId];
       const subjMeta = subjectsForClass.find((s) => s.id === subjId);
-      const selected = data.students.filter((s) => s.selected);
-      if (!selected.length) continue;
-      for (const s of selected) {
-        if (!s.isAbsent && s.marksObtained !== "" && s.marksObtained != null) {
+      const changed = data.students.filter((s) => s.selected && isRowDirty(s));
+      for (const s of changed) {
+        const total =
+          data.format === "fa" && hasAnyComponent(s.components)
+            ? faTotal(s.components)
+            : s.marksObtained;
+        if (!s.isAbsent && !isBlankVal(total)) {
+          const v = Number(total);
+          if (isNaN(v) || v < 0)
+            return setError(
+              `Invalid marks for ${s.studentName} (${subjMeta?.name})`,
+            );
+          if (v > Number(subjMeta?.maxMarks || 0))
+            return setError(
+              `Marks exceed ${subjMeta?.maxMarks} for ${s.studentName} (${subjMeta?.name})`,
+            );
+        }
+      }
+    }
+    for (const [subjId, subData] of Object.entries(subSubjectData)) {
+      if (!subData?.students?.length) continue;
+      const subjMeta = subjectsForClass.find((s) => s.id === subjId);
+      const sched = resolveSubSchedule(subjId);
+      for (const s of subData.students.filter(
+        (x) => x.selected && isRowDirty(x),
+      )) {
+        if (!s.isAbsent && !isBlankVal(s.marksObtained)) {
           const v = Number(s.marksObtained);
-          if (isNaN(v) || v < 0) return setError(`Invalid marks for ${s.studentName} (${subjMeta?.name})`);
-          if (v > Number(subjMeta?.maxMarks || 0)) return setError(`Marks exceed ${subjMeta?.maxMarks} for ${s.studentName} (${subjMeta?.name})`);
+          if (isNaN(v) || v < 0)
+            return setError(
+              `Invalid sub exam marks for ${s.studentName} (${subjMeta?.name})`,
+            );
+          if (sched?.maxMarks && v > Number(sched.maxMarks))
+            return setError(
+              `Sub exam marks exceed ${sched.maxMarks} for ${s.studentName} (${subjMeta?.name})`,
+            );
         }
       }
     }
 
+    const mainBatches = loadedSubjectIds
+      .map((subjId) => {
+        const data = subjectData[subjId];
+        const rows = data.students.filter((s) => s.selected && isRowDirty(s));
+        return { subjId, data, rows };
+      })
+      .filter((b) => b.rows.length);
+    const subBatches = Object.entries(subSubjectData)
+      .filter(([, d]) => d?.students?.length)
+      .map(([subjId, d]) => ({
+        subjId,
+        data: d,
+        rows: d.students.filter((s) => s.selected && isRowDirty(s)),
+      }))
+      .filter((b) => b.rows.length);
+
+    if (!mainBatches.length && !subBatches.length) {
+      return setError(
+        "No changes to save — existing marks are already up to date.",
+      );
+    }
+
     setSaving(true);
     const failed = [];
+    let savedCount = 0;
+
+    // After a successful save, the saved values become the new baseline.
+    const markSaved = (setter, subjId, savedIds) => {
+      setter((prev) => {
+        const cur = prev[subjId];
+        if (!cur) return prev;
+        return {
+          ...prev,
+          [subjId]: {
+            ...cur,
+            students: cur.students.map((s) =>
+              savedIds.has(s.studentId)
+                ? {
+                    ...s,
+                    _orig: snapshotOf(s),
+                    hasExistingMarks: true,
+                    markStatus: s.isAbsent
+                      ? "absent"
+                      : isBlankVal(s.marksObtained)
+                      ? "pending"
+                      : "entered",
+                  }
+                : s,
+            ),
+          },
+        };
+      });
+    };
+
     try {
-      for (const subjId of loadedSubjectIds) {
-        const data = subjectData[subjId];
+      for (const { subjId, data, rows } of mainBatches) {
         const subjMeta = subjectsForClass.find((s) => s.id === subjId);
-        const selected = data.students.filter((s) => s.selected);
-        if (!selected.length)
-          continue;
         try {
-          await saveMarks(data.scheduleId, selected.map((s) => ({
-            studentId:     s.studentId,
-            marksObtained: s.isAbsent ? null : s.marksObtained,
-            isAbsent:      !!s.isAbsent,
-            remarks:       s.remarks || "",
-            components: data.format === "fa" ? s.components : null,
-          })));
+          await saveMarks(
+            data.scheduleId,
+            rows.map((s) => toSavePayload(s, data.format || "standard")),
+          );
+          savedCount += rows.length;
+          markSaved(
+            setSubjectData,
+            subjId,
+            new Set(rows.map((r) => r.studentId)),
+          );
         } catch (e) {
-          failed.push(subjMeta?.name || subjId);
+          failed.push(
+            `${subjMeta?.name || subjId}${e?.message ? ` — ${e.message}` : ""}`,
+          );
         }
       }
 
-      for (const [subjId, subData] of Object.entries(subSubjectData)) {
-        if (!subData?.students?.length) continue;
-        const selected = subData.students.filter((s) => s.selected);
-        if (!selected.length) continue;
+      for (const { subjId, data, rows } of subBatches) {
         const subjMeta = subjectsForClass.find((s) => s.id === subjId);
         try {
-          await saveMarks(subData.scheduleId, selected.map((s) => ({
-            studentId:     s.studentId,
-            marksObtained: s.isAbsent ? null : s.marksObtained,
-            isAbsent:      !!s.isAbsent,
-            remarks:       s.remarks || "",
-            components:    null,
-          })));
+          await saveMarks(
+            data.scheduleId,
+            rows.map((s) => toSavePayload(s, "standard")),
+          );
+          savedCount += rows.length;
+          markSaved(
+            setSubSubjectData,
+            subjId,
+            new Set(rows.map((r) => r.studentId)),
+          );
         } catch (e) {
-          failed.push(`${subjMeta?.name || subjId} (Sub Exam)`);
+          failed.push(
+            `${subjMeta?.name || subjId} (Sub Exam)${
+              e?.message ? ` — ${e.message}` : ""
+            }`,
+          );
         }
       }
 
+      setSavedEntries(savedCount);
       if (failed.length) {
-        setError(`Failed to save: ${failed.join(", ")}. Other subjects were saved — please retry the failed ones.`);
+        setError(
+          `Failed to save: ${failed.join(
+            "; ",
+          )}. Other subjects were saved — please retry the failed ones.`,
+        );
       } else {
         setDone(true);
-        setTimeout(() => { setDone(false); onSaved?.(); }, 1400);
+        setTimeout(() => {
+          setDone(false);
+          onSaved?.();
+        }, 1400);
       }
     } finally {
       setSaving(false);
@@ -870,132 +1543,379 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
   };
 
   const selectedClass = classes.find((c) => c.id === classId);
-  const totalFilledAcrossSubjects = loadedSubjectIds.reduce((sum, id) => {
-    const st = subjectData[id]?.students || [];
-    return sum + st.filter((s) => s.selected && (s.isAbsent || s.marksObtained !== "")).length;
-  }, 0);
+  // Rows changed since load (main + sub exam) — what "Save" will actually send.
+  const pendingChangesCount =
+    loadedSubjectIds.reduce(
+      (sum, id) =>
+        sum +
+        (subjectData[id]?.students || []).filter(
+          (s) => s.selected && isRowDirty(s),
+        ).length,
+      0,
+    ) +
+    Object.values(subSubjectData).reduce(
+      (sum, d) =>
+        sum +
+        (d?.students || []).filter((s) => s.selected && isRowDirty(s)).length,
+      0,
+    );
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, background: "rgba(15,39,68,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", zIndex: 9999, padding: "20px 20px" }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15,39,68,0.45)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "center",
+        zIndex: 9999,
+        padding: "20px 20px",
+      }}
       onClick={onClose}
     >
       <div
-        style={{ width: "100%", maxWidth: 1120, maxHeight: "96vh", overflowY: "auto", borderRadius: 20, background: T.bg }}
+        style={{
+          width: "100%",
+          maxWidth: 1120,
+          maxHeight: "96vh",
+          overflowY: "auto",
+          borderRadius: 20,
+          background: T.bg,
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {done ? (
           <div style={{ padding: "64px 24px", textAlign: "center" }}>
-            <div style={{ width: 68, height: 68, borderRadius: "50%", background: T.greenLight, border: "2px solid #6ee7b7", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+            <div
+              style={{
+                width: 68,
+                height: 68,
+                borderRadius: "50%",
+                background: T.greenLight,
+                border: "2px solid #6ee7b7",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 20px",
+              }}
+            >
               <Check size={34} color={T.green} strokeWidth={2.5} />
             </div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: T.navy, marginBottom: 8 }}>Results Uploaded!</h2>
-            <p style={{ fontSize: 13, color: T.slate }}>Marks saved for {totalFilledAcrossSubjects} student entr{totalFilledAcrossSubjects !== 1 ? "ies" : "y"}.</p>
+            <h2
+              style={{
+                fontSize: 22,
+                fontWeight: 800,
+                color: T.navy,
+                marginBottom: 8,
+              }}
+            >
+              Results Uploaded!
+            </h2>
+            <p style={{ fontSize: 13, color: T.slate }}>
+              Marks saved for {savedEntries} changed student entr
+              {savedEntries !== 1 ? "ies" : "y"}. Results recalculated.
+            </p>
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20px 24px", background: T.white, borderBottom: `1px solid ${T.border}`, position: "sticky", top: 0, zIndex: 2, borderRadius: "20px 20px 0 0" }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: T.blueLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "20px 24px",
+                background: T.white,
+                borderBottom: `1px solid ${T.border}`,
+                position: "sticky",
+                top: 0,
+                zIndex: 2,
+                borderRadius: "20px 20px 0 0",
+              }}
+            >
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: T.blueLight,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
                 <UploadCloud size={21} color={T.navy} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <h1 style={{ fontSize: 18, fontWeight: 800, color: T.navy, margin: 0 }}>Upload Exam Results</h1>
-                <p style={{ fontSize: 12, color: T.textSub, margin: "2px 0 0" }}>Select class, students &amp; enter subject-wise marks — for any class in the school</p>
+                <h1
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 800,
+                    color: T.navy,
+                    margin: 0,
+                  }}
+                >
+                  Upload Exam Results
+                </h1>
+                <p
+                  style={{ fontSize: 12, color: T.textSub, margin: "2px 0 0" }}
+                >
+                  Select class, students &amp; enter subject-wise marks — for
+                  any class in the school
+                </p>
               </div>
-              <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.white, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+              <button
+                onClick={onClose}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  border: `1.5px solid ${T.border}`,
+                  background: T.white,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              >
                 <X size={15} color={T.slate} />
               </button>
             </div>
 
             {error && (
-              <div style={{ margin: "16px 24px 0", display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 14px", borderRadius: 12, background: T.redLight, border: "1.5px solid #fca5a5", color: T.red, fontSize: 13 }}>
-                <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+              <div
+                style={{
+                  margin: "16px 24px 0",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 8,
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  background: T.redLight,
+                  border: "1.5px solid #fca5a5",
+                  color: T.red,
+                  fontSize: 13,
+                }}
+              >
+                <AlertCircle
+                  size={15}
+                  style={{ flexShrink: 0, marginTop: 1 }}
+                />
                 <span>{error}</span>
               </div>
             )}
 
             <div style={{ padding: "20px 24px 4px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: 16,
+                  marginBottom: 16,
+                }}
+              >
                 <Field label="Exam">
-                  <Dropdown value={examId} onChange={(e) => setExamId(e.target.value)} disabled={loadingInit}>
-                    <option value="">{loadingInit ? "Loading…" : "Select exam"}</option>
+                  <Dropdown
+                    value={examId}
+                    onChange={(e) => setExamId(e.target.value)}
+                    disabled={loadingInit}
+                  >
+                    <option value="">
+                      {loadingInit ? "Loading…" : "Select exam"}
+                    </option>
                     {exams.map((e) => (
-                      <option key={e.id} value={e.id}>{e.name}{e.term?.name ? ` – ${e.term.name}` : ""}</option>
+                      <option key={e.id} value={e.id}>
+                        {e.name}
+                        {e.term?.name ? ` – ${e.term.name}` : ""}
+                      </option>
                     ))}
                   </Dropdown>
                 </Field>
                 <Field label="Class">
-                  <Dropdown value={classId} onChange={(e) => setClassId(e.target.value)} disabled={loadingInit}>
-                    <option value="">{loadingInit ? "Loading…" : "Select class"}</option>
+                  <Dropdown
+                    value={classId}
+                    onChange={(e) => setClassId(e.target.value)}
+                    disabled={loadingInit}
+                  >
+                    <option value="">
+                      {loadingInit ? "Loading…" : "Select class"}
+                    </option>
                     {classes.map((c) => (
-                      <option key={c.id} value={c.id}>Grade {c.grade}{c.section ? ` – ${c.section}` : ""}</option>
+                      <option key={c.id} value={c.id}>
+                        Grade {c.grade}
+                        {c.section ? ` – ${c.section}` : ""}
+                      </option>
                     ))}
                   </Dropdown>
                 </Field>
                 <Field label="Sub Exam (Optional)">
-                  <Dropdown value={subExamId} onChange={(e) => setSubExamId(e.target.value)} disabled={loadingSubExams}>
-                    <option value="">{loadingSubExams ? "Loading…" : "None"}</option>
+                  <Dropdown
+                    value={subExamId}
+                    onChange={(e) => setSubExamId(e.target.value)}
+                    disabled={loadingSubExams}
+                  >
+                    <option value="">
+                      {loadingSubExams ? "Loading…" : "None"}
+                    </option>
                     {subExamGroups.map((g) => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
                     ))}
                   </Dropdown>
                 </Field>
               </div>
 
               {selectedClass && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 6 }}>
-                  <InfoChip label="Class" value={`Grade ${selectedClass.grade}${selectedClass.section ? ` – ${selectedClass.section}` : ""}`} accent="#1d4ed8" bg={T.blueLight} />
-                  <InfoChip label="Subjects scheduled" value={subjectsForClass.length} accent="#0f766e" bg="#ccfbf1" />
-                  <InfoChip label="Selected this subject" value={activeSubjectId ? `${selectedCount}/${activeStudents.length}` : "—"} accent="#92400e" bg={T.amberLight} />
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: 12,
+                    marginBottom: 6,
+                  }}
+                >
+                  <InfoChip
+                    label="Class"
+                    value={`Grade ${selectedClass.grade}${
+                      selectedClass.section ? ` – ${selectedClass.section}` : ""
+                    }`}
+                    accent="#1d4ed8"
+                    bg={T.blueLight}
+                  />
+                  <InfoChip
+                    label="Subjects scheduled"
+                    value={subjectsForClass.length}
+                    accent="#0f766e"
+                    bg="#ccfbf1"
+                  />
+                  <InfoChip
+                    label="Selected this subject"
+                    value={
+                      activeSubjectId
+                        ? `${selectedCount}/${activeStudents.length}`
+                        : "—"
+                    }
+                    accent="#92400e"
+                    bg={T.amberLight}
+                  />
                 </div>
               )}
             </div>
 
-            <div style={{ height: 1, background: T.border, margin: "8px 24px" }} />
+            <div
+              style={{ height: 1, background: T.border, margin: "8px 24px" }}
+            />
 
             <div style={{ padding: "16px 24px 0" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-                <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.slate, margin: 0 }}>
-                  <BookOpen size={12} /> Subjects — click each to enter its marks
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 10,
+                  marginBottom: 12,
+                }}
+              >
+                <p
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    color: T.slate,
+                    margin: 0,
+                  }}
+                >
+                  <BookOpen size={12} /> Subjects — click each to enter its
+                  marks
                 </p>
 
                 {classId && subjectsForClass.length > 0 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
                     <button
                       onClick={handleDownloadAllSample}
                       disabled={bulkBusy}
-                      title={subExamId
-                        ? "Download one Excel file with a sheet per subject (plus a sub-exam sheet per subject), for the whole class"
-                        : "Download one Excel file with a sheet per subject, for the whole class"}
+                      title={
+                        subExamId
+                          ? "Download one Excel file with a sheet per subject (plus a sub-exam sheet per subject), for the whole class"
+                          : "Download one Excel file with a sheet per subject, for the whole class"
+                      }
                       style={{
-                        display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
-                        color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe",
-                        borderRadius: 8, padding: "6px 12px",
-                        cursor: bulkBusy ? "default" : "pointer", opacity: bulkBusy ? 0.65 : 1,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "#7c3aed",
+                        background: "#f5f3ff",
+                        border: "1px solid #ddd6fe",
+                        borderRadius: 8,
+                        padding: "6px 12px",
+                        cursor: bulkBusy ? "default" : "pointer",
+                        opacity: bulkBusy ? 0.65 : 1,
                       }}
                     >
-                      {bulkBusy
-                        ? <Loader2 size={13} style={{ animation: "adminSpin 0.8s linear infinite" }} />
-                        : <Layers size={13} />}
+                      {bulkBusy ? (
+                        <Loader2
+                          size={13}
+                          style={{
+                            animation: "adminSpin 0.8s linear infinite",
+                          }}
+                        />
+                      ) : (
+                        <Layers size={13} />
+                      )}
                       Download All Subjects Sample
                     </button>
 
                     <button
                       onClick={handleUploadAllClick}
                       disabled={bulkBusy}
-                      title={subExamId
-                        ? "Upload one Excel file covering every subject and sub-exam sheet at once"
-                        : "Upload one Excel file covering every subject at once"}
+                      title={
+                        subExamId
+                          ? "Upload one Excel file covering every subject and sub-exam sheet at once"
+                          : "Upload one Excel file covering every subject at once"
+                      }
                       style={{
-                        display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
-                        color: T.navy, background: T.blueLight, border: "1px solid #bfdbfe",
-                        borderRadius: 8, padding: "6px 12px",
-                        cursor: bulkBusy ? "default" : "pointer", opacity: bulkBusy ? 0.65 : 1,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: T.navy,
+                        background: T.blueLight,
+                        border: "1px solid #bfdbfe",
+                        borderRadius: 8,
+                        padding: "6px 12px",
+                        cursor: bulkBusy ? "default" : "pointer",
+                        opacity: bulkBusy ? 0.65 : 1,
                       }}
                     >
-                      {bulkBusy
-                        ? <Loader2 size={13} style={{ animation: "adminSpin 0.8s linear infinite" }} />
-                        : <FileUp size={13} />}
+                      {bulkBusy ? (
+                        <Loader2
+                          size={13}
+                          style={{
+                            animation: "adminSpin 0.8s linear infinite",
+                          }}
+                        />
+                      ) : (
+                        <FileUp size={13} />
+                      )}
                       Upload All Subjects
                     </button>
                     <input
@@ -1010,60 +1930,132 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
               </div>
 
               {bulkError && (
-                <div style={{
-                  display: "flex", alignItems: "flex-start", gap: 8,
-                  padding: "10px 12px", borderRadius: 10, marginBottom: 12,
-                  background: T.redLight, border: "1.5px solid #fca5a5", color: T.red, fontSize: 12.5,
-                }}>
-                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    marginBottom: 12,
+                    background: T.redLight,
+                    border: "1.5px solid #fca5a5",
+                    color: T.red,
+                    fontSize: 12.5,
+                  }}
+                >
+                  <AlertCircle
+                    size={14}
+                    style={{ flexShrink: 0, marginTop: 1 }}
+                  />
                   <span>{bulkError}</span>
                 </div>
               )}
               {bulkNotice && !bulkError && (
-                <div style={{
-                  display: "flex", alignItems: "flex-start", gap: 8,
-                  padding: "10px 12px", borderRadius: 10, marginBottom: 12,
-                  background: "#f5f3ff", border: "1.5px solid #ddd6fe", color: "#7c3aed", fontSize: 12.5,
-                }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    marginBottom: 12,
+                    background: "#f5f3ff",
+                    border: "1.5px solid #ddd6fe",
+                    color: "#7c3aed",
+                    fontSize: 12.5,
+                  }}
+                >
                   <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                   <span>{bulkNotice}</span>
                 </div>
               )}
 
               {loadingSchedules ? (
-                <div style={{ padding: "16px 0", textAlign: "center", color: T.slate, fontSize: 13 }}>
-                  <Loader2 size={16} style={{ animation: "adminSpin 0.8s linear infinite", display: "inline", marginRight: 8 }} /> Loading subjects…
+                <div
+                  style={{
+                    padding: "16px 0",
+                    textAlign: "center",
+                    color: T.slate,
+                    fontSize: 13,
+                  }}
+                >
+                  <Loader2
+                    size={16}
+                    style={{
+                      animation: "adminSpin 0.8s linear infinite",
+                      display: "inline",
+                      marginRight: 8,
+                    }}
+                  />{" "}
+                  Loading subjects…
                 </div>
               ) : !classId ? (
-                <div style={{ padding: "24px 0", textAlign: "center", color: T.slate, fontSize: 13 }}>Select a class to see its scheduled subjects.</div>
+                <div
+                  style={{
+                    padding: "24px 0",
+                    textAlign: "center",
+                    color: T.slate,
+                    fontSize: 13,
+                  }}
+                >
+                  Select a class to see its scheduled subjects.
+                </div>
               ) : subjectsForClass.length === 0 ? (
-                <div style={{ padding: "24px 0", textAlign: "center", color: T.slate, fontSize: 13 }}>No subjects scheduled for this class in the selected exam.</div>
+                <div
+                  style={{
+                    padding: "24px 0",
+                    textAlign: "center",
+                    color: T.slate,
+                    fontSize: 13,
+                  }}
+                >
+                  No subjects scheduled for this class in the selected exam.
+                </div>
               ) : (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {subjectsForClass.map((s) => {
                     const d = subjectData[s.id];
-                    const filled = d?.students?.filter((x) => x.selected && (x.isAbsent || x.marksObtained !== "")).length || 0;
+                    const filled =
+                      d?.students?.filter(
+                        (x) =>
+                          x.selected && (x.isAbsent || x.marksObtained !== ""),
+                      ).length || 0;
                     const active = s.id === activeSubjectId;
                     return (
                       <button
                         key={s.id}
                         onClick={() => setActiveSubjectId(s.id)}
                         style={{
-                          display: "flex", alignItems: "center", gap: 6,
-                          fontSize: 12.5, fontWeight: 700, padding: "8px 14px", borderRadius: 20,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          padding: "8px 14px",
+                          borderRadius: 20,
                           border: `1.5px solid ${active ? T.navy : T.border}`,
                           background: active ? T.navy : T.white,
                           color: active ? "#fff" : T.slate,
-                          cursor: "pointer", transition: "all .15s",
+                          cursor: "pointer",
+                          transition: "all .15s",
                         }}
                       >
-                        {s.name}{s.code ? ` (${s.code})` : ""}
+                        {s.name}
+                        {s.code ? ` (${s.code})` : ""}
                         {d?.students?.length ? (
-                          <span style={{
-                            fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 20,
-                            background: active ? "rgba(255,255,255,0.18)" : T.greenLight,
-                            color: active ? "#fff" : T.green,
-                          }}>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 800,
+                              padding: "1px 6px",
+                              borderRadius: 20,
+                              background: active
+                                ? "rgba(255,255,255,0.18)"
+                                : T.greenLight,
+                              color: active ? "#fff" : T.green,
+                            }}
+                          >
                             {filled}/{d.students.length}
                           </span>
                         ) : null}
@@ -1076,95 +2068,217 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
             {activeSubjectId && subExamId && (
               <div style={{ padding: "18px 24px 0" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-                  <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7c3aed", margin: 0 }}>
-                    <Layers size={12} /> {activeSubject?.name} — Assessment Marks (Sub Exam)
-                    {subSubjectForActive?.maxMarks ? ` (Max ${subSubjectForActive.maxMarks})` : ""}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: 10,
+                    marginBottom: 12,
+                  }}
+                >
+                  <p
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "#7c3aed",
+                      margin: 0,
+                    }}
+                  >
+                    <Layers size={12} /> {activeSubject?.name} — Assessment
+                    Marks (Sub Exam)
+                    {subSubjectForActive?.maxMarks
+                      ? ` (Max ${subSubjectForActive.maxMarks})`
+                      : ""}
                   </p>
 
-                  {subSubjectForActive && (subSubjectData[activeSubjectId]?.students?.length > 0) && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <button
-                        onClick={handleDownloadSubSample}
-                        title="Download a blank Excel sheet for this subject's sub-exam students"
+                  {subSubjectForActive &&
+                    subSubjectData[activeSubjectId]?.students?.length > 0 && (
+                      <div
                         style={{
-                          display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
-                          color: T.teal, background: "#ecfdf5", border: "1px solid #a7f3d0",
-                          borderRadius: 8, padding: "5px 12px", cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          flexWrap: "wrap",
                         }}
                       >
-                        <FileDown size={13} /> Download Sample Excel
-                      </button>
-                      <button
-                        onClick={handleUploadSubExcelClick}
-                        disabled={uploadingSubExcel}
-                        title="Upload a filled Excel sheet to bulk-fill sub-exam marks"
-                        style={{
-                          display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
-                          color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe",
-                          borderRadius: 8, padding: "5px 12px",
-                          cursor: uploadingSubExcel ? "default" : "pointer",
-                          opacity: uploadingSubExcel ? 0.65 : 1,
-                        }}
-                      >
-                        {uploadingSubExcel
-                          ? <Loader2 size={13} style={{ animation: "adminSpin 0.8s linear infinite" }} />
-                          : <FileUp size={13} />}
-                        {uploadingSubExcel ? "Reading…" : "Upload Excel"}
-                      </button>
-                      <input
-                        ref={subExcelInputRef}
-                        type="file"
-                        accept=".xlsx,.xls,.csv"
-                        onChange={handleSubExcelFileChange}
-                        style={{ display: "none" }}
-                      />
-                    </div>
-                  )}
+                        <button
+                          onClick={handleDownloadSubSample}
+                          title="Download a blank Excel sheet for this subject's sub-exam students"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: T.teal,
+                            background: "#ecfdf5",
+                            border: "1px solid #a7f3d0",
+                            borderRadius: 8,
+                            padding: "5px 12px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <FileDown size={13} /> Download Sample Excel
+                        </button>
+                        <button
+                          onClick={handleUploadSubExcelClick}
+                          disabled={uploadingSubExcel}
+                          title="Upload a filled Excel sheet to bulk-fill sub-exam marks"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: "#7c3aed",
+                            background: "#f5f3ff",
+                            border: "1px solid #ddd6fe",
+                            borderRadius: 8,
+                            padding: "5px 12px",
+                            cursor: uploadingSubExcel ? "default" : "pointer",
+                            opacity: uploadingSubExcel ? 0.65 : 1,
+                          }}
+                        >
+                          {uploadingSubExcel ? (
+                            <Loader2
+                              size={13}
+                              style={{
+                                animation: "adminSpin 0.8s linear infinite",
+                              }}
+                            />
+                          ) : (
+                            <FileUp size={13} />
+                          )}
+                          {uploadingSubExcel ? "Reading…" : "Upload Excel"}
+                        </button>
+                        <input
+                          ref={subExcelInputRef}
+                          type="file"
+                          accept=".xlsx,.xls,.csv"
+                          onChange={handleSubExcelFileChange}
+                          style={{ display: "none" }}
+                        />
+                      </div>
+                    )}
                 </div>
 
                 {subExcelError && (
-                  <div style={{
-                    display: "flex", alignItems: "flex-start", gap: 8,
-                    padding: "10px 12px", borderRadius: 10, marginBottom: 12,
-                    background: T.redLight, border: "1.5px solid #fca5a5", color: T.red, fontSize: 12.5,
-                  }}>
-                    <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 8,
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      marginBottom: 12,
+                      background: T.redLight,
+                      border: "1.5px solid #fca5a5",
+                      color: T.red,
+                      fontSize: 12.5,
+                    }}
+                  >
+                    <AlertCircle
+                      size={14}
+                      style={{ flexShrink: 0, marginTop: 1 }}
+                    />
                     <span>{subExcelError}</span>
                   </div>
                 )}
                 {subExcelNotice && !subExcelError && (
-                  <div style={{
-                    display: "flex", alignItems: "flex-start", gap: 8,
-                    padding: "10px 12px", borderRadius: 10, marginBottom: 12,
-                    background: "#f5f3ff", border: "1.5px solid #ddd6fe", color: "#7c3aed", fontSize: 12.5,
-                  }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 8,
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      marginBottom: 12,
+                      background: "#f5f3ff",
+                      border: "1.5px solid #ddd6fe",
+                      color: "#7c3aed",
+                      fontSize: 12.5,
+                    }}
+                  >
                     <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span>{subExcelNotice}</span>
                   </div>
                 )}
 
                 {loadingSubSchedules ? (
-                  <div style={{ padding: "16px 0", textAlign: "center", color: T.slate, fontSize: 13 }}>
-                    <Loader2 size={16} style={{ animation: "adminSpin 0.8s linear infinite", display: "inline", marginRight: 8 }} /> Loading sub exam…
+                  <div
+                    style={{
+                      padding: "16px 0",
+                      textAlign: "center",
+                      color: T.slate,
+                      fontSize: 13,
+                    }}
+                  >
+                    <Loader2
+                      size={16}
+                      style={{
+                        animation: "adminSpin 0.8s linear infinite",
+                        display: "inline",
+                        marginRight: 8,
+                      }}
+                    />{" "}
+                    Loading sub exam…
                   </div>
                 ) : !subSubjectForActive ? (
-                  <div style={{ padding: "16px 20px", textAlign: "center", background: "#f5f3ff", border: "1.5px solid #ddd6fe", borderRadius: 14, marginBottom: 8 }}>
+                  <div
+                    style={{
+                      padding: "16px 20px",
+                      textAlign: "center",
+                      background: "#f5f3ff",
+                      border: "1.5px solid #ddd6fe",
+                      borderRadius: 14,
+                      marginBottom: 8,
+                    }}
+                  >
                     <p style={{ fontSize: 12.5, color: "#7c3aed", margin: 0 }}>
-                      No sub exam schedule found for {activeSubject?.name} in this class. Create one via Exams → Add Exam under the "Assessment" term first.
+                      No sub exam schedule found for {activeSubject?.name} in
+                      this class. Create one via Exams → Add Exam under the
+                      "Assessment" term first.
                     </p>
                   </div>
                 ) : subSubjectData[activeSubjectId]?.loading ? (
                   <div style={{ padding: "24px 0", textAlign: "center" }}>
-                    <Loader2 size={18} color="#7c3aed" style={{ animation: "adminSpin 0.8s linear infinite" }} />
+                    <Loader2
+                      size={18}
+                      color="#7c3aed"
+                      style={{ animation: "adminSpin 0.8s linear infinite" }}
+                    />
                   </div>
                 ) : (
-                  <div style={{ border: "1.5px solid #ddd6fe", borderRadius: 14, overflow: "hidden", marginBottom: 8 }}>
-                    <div style={{
-                      display: "grid", gridTemplateColumns: "36px 70px 1fr 110px 88px 1fr", gap: 10,
-                      padding: "10px 14px", background: "#f5f3ff", borderBottom: "1px solid #ddd6fe",
-                      fontSize: 10.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#7c3aed",
-                    }}>
+                  <div
+                    style={{
+                      border: "1.5px solid #ddd6fe",
+                      borderRadius: 14,
+                      overflow: "hidden",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "36px 70px 1fr 110px 88px 1fr",
+                        gap: 10,
+                        padding: "10px 14px",
+                        background: "#f5f3ff",
+                        borderBottom: "1px solid #ddd6fe",
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        color: "#7c3aed",
+                      }}
+                    >
                       <span></span>
                       <span>Roll No</span>
                       <span>Student</span>
@@ -1173,9 +2287,16 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                       <span>Remarks</span>
                     </div>
                     <div style={{ maxHeight: 280, overflowY: "auto" }}>
-                      {(subSubjectData[activeSubjectId]?.students || []).map((s) => (
-                        <StudentRow key={s.studentId} student={s} maxMarks={subSubjectForActive.maxMarks || 100} onUpdate={updateSubStudent} />
-                      ))}
+                      {(subSubjectData[activeSubjectId]?.students || []).map(
+                        (s) => (
+                          <StudentRow
+                            key={s.studentId}
+                            student={s}
+                            maxMarks={subSubjectForActive.maxMarks || 100}
+                            onUpdate={updateSubStudent}
+                          />
+                        ),
+                      )}
                     </div>
                   </div>
                 )}
@@ -1184,26 +2305,78 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
             {activeSubjectId && (
               <div style={{ padding: "18px 24px 8px" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
-                  <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: T.slate, margin: 0 }}>
-                    <User size={12} /> {activeSubject?.name} — {subExamId ? "Final Exam" : "Student"} Marks {activeSubject?.maxMarks ? `(Max ${activeSubject.maxMarks})` : ""}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 12,
+                    flexWrap: "wrap",
+                    gap: 10,
+                  }}
+                >
+                  <p
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: T.slate,
+                      margin: 0,
+                    }}
+                  >
+                    <User size={12} /> {activeSubject?.name} —{" "}
+                    {subExamId ? "Final Exam" : "Student"} Marks{" "}
+                    {activeSubject?.maxMarks
+                      ? `(Max ${activeSubject.maxMarks})`
+                      : ""}
                   </p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
                     <div style={{ position: "relative", minWidth: 210 }}>
                       <select
                         value={activeFormat}
                         onChange={(e) => setSubjectFormat(e.target.value)}
                         style={{
-                          width: "100%", appearance: "none", cursor: "pointer",
-                          background: T.white, border: `1.5px solid ${T.border}`, borderRadius: 8,
-                          padding: "6px 28px 6px 10px", fontSize: 12, fontWeight: 700, color: T.navy, outline: "none",
+                          width: "100%",
+                          appearance: "none",
+                          cursor: "pointer",
+                          background: T.white,
+                          border: `1.5px solid ${T.border}`,
+                          borderRadius: 8,
+                          padding: "6px 28px 6px 10px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: T.navy,
+                          outline: "none",
                         }}
                       >
                         {FORMATS.map((f) => (
-                          <option key={f.id} value={f.id}>{f.label}</option>
+                          <option key={f.id} value={f.id}>
+                            {f.label}
+                          </option>
                         ))}
                       </select>
-                      <ChevronDown size={12} style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: T.slate }} />
+                      <ChevronDown
+                        size={12}
+                        style={{
+                          position: "absolute",
+                          right: 9,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                          color: T.slate,
+                        }}
+                      />
                     </div>
 
                     {activeStudents.length > 0 && (
@@ -1212,9 +2385,17 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                           onClick={handleDownloadSample}
                           title="Download a blank Excel sheet for this subject's students"
                           style={{
-                            display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
-                            color: T.teal, background: "#ecfdf5", border: "1px solid #a7f3d0",
-                            borderRadius: 8, padding: "5px 12px", cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: T.teal,
+                            background: "#ecfdf5",
+                            border: "1px solid #a7f3d0",
+                            borderRadius: 8,
+                            padding: "5px 12px",
+                            cursor: "pointer",
                           }}
                         >
                           <FileDown size={13} /> Download Sample Excel
@@ -1225,16 +2406,30 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                           disabled={uploadingExcel}
                           title="Upload a filled Excel sheet to bulk-fill marks"
                           style={{
-                            display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
-                            color: T.amber, background: T.amberLight, border: "1px solid #fde68a",
-                            borderRadius: 8, padding: "5px 12px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: T.amber,
+                            background: T.amberLight,
+                            border: "1px solid #fde68a",
+                            borderRadius: 8,
+                            padding: "5px 12px",
                             cursor: uploadingExcel ? "default" : "pointer",
                             opacity: uploadingExcel ? 0.65 : 1,
                           }}
                         >
-                          {uploadingExcel
-                            ? <Loader2 size={13} style={{ animation: "adminSpin 0.8s linear infinite" }} />
-                            : <FileUp size={13} />}
+                          {uploadingExcel ? (
+                            <Loader2
+                              size={13}
+                              style={{
+                                animation: "adminSpin 0.8s linear infinite",
+                              }}
+                            />
+                          ) : (
+                            <FileUp size={13} />
+                          )}
                           {uploadingExcel ? "Reading…" : "Upload Excel"}
                         </button>
                         <input
@@ -1251,12 +2446,24 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                       <button
                         onClick={() => toggleSelectAll(!allSelected)}
                         style={{
-                          display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700,
-                          color: T.blue, background: T.blueLight, border: "1px solid #bfdbfe",
-                          borderRadius: 8, padding: "5px 12px", cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: T.blue,
+                          background: T.blueLight,
+                          border: "1px solid #bfdbfe",
+                          borderRadius: 8,
+                          padding: "5px 12px",
+                          cursor: "pointer",
                         }}
                       >
-                        {allSelected ? <CheckSquare size={13} /> : <Square size={13} />}
+                        {allSelected ? (
+                          <CheckSquare size={13} />
+                        ) : (
+                          <Square size={13} />
+                        )}
                         {allSelected ? "Unselect all" : "Select all students"}
                       </button>
                     )}
@@ -1264,21 +2471,42 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                 </div>
 
                 {excelError && (
-                  <div style={{
-                    display: "flex", alignItems: "flex-start", gap: 8,
-                    padding: "10px 12px", borderRadius: 10, marginBottom: 12,
-                    background: T.redLight, border: "1.5px solid #fca5a5", color: T.red, fontSize: 12.5,
-                  }}>
-                    <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 8,
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      marginBottom: 12,
+                      background: T.redLight,
+                      border: "1.5px solid #fca5a5",
+                      color: T.red,
+                      fontSize: 12.5,
+                    }}
+                  >
+                    <AlertCircle
+                      size={14}
+                      style={{ flexShrink: 0, marginTop: 1 }}
+                    />
                     <span>{excelError}</span>
                   </div>
                 )}
                 {excelNotice && !excelError && (
-                  <div style={{
-                    display: "flex", alignItems: "flex-start", gap: 8,
-                    padding: "10px 12px", borderRadius: 10, marginBottom: 12,
-                    background: T.greenLight, border: "1.5px solid #a7f3d0", color: T.green, fontSize: 12.5,
-                  }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 8,
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      marginBottom: 12,
+                      background: T.greenLight,
+                      border: "1.5px solid #a7f3d0",
+                      color: T.green,
+                      fontSize: 12.5,
+                    }}
+                  >
                     <Check size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span>{excelNotice}</span>
                   </div>
@@ -1286,20 +2514,51 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
 
                 {activeData?.loading ? (
                   <div style={{ padding: "32px 0", textAlign: "center" }}>
-                    <Loader2 size={20} color={T.blue} style={{ animation: "adminSpin 0.8s linear infinite" }} />
-                    <p style={{ fontSize: 13, color: T.slate, marginTop: 10 }}>Loading students…</p>
+                    <Loader2
+                      size={20}
+                      color={T.blue}
+                      style={{ animation: "adminSpin 0.8s linear infinite" }}
+                    />
+                    <p style={{ fontSize: 13, color: T.slate, marginTop: 10 }}>
+                      Loading students…
+                    </p>
                   </div>
                 ) : activeStudents.length === 0 ? (
-                  <div style={{ padding: "28px 20px", textAlign: "center", background: T.slateLight, borderRadius: 14 }}>
-                    <p style={{ fontSize: 13, color: T.slate }}>No students found for this class.</p>
+                  <div
+                    style={{
+                      padding: "28px 20px",
+                      textAlign: "center",
+                      background: T.slateLight,
+                      borderRadius: 14,
+                    }}
+                  >
+                    <p style={{ fontSize: 13, color: T.slate }}>
+                      No students found for this class.
+                    </p>
                   </div>
                 ) : activeFormat === "fa" ? (
-                  <div style={{ border: `1.5px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
-                    <div style={{
-                      display: "grid", gridTemplateColumns: FA_FIELD_COLS, gap: 8,
-                      padding: "10px 14px", background: T.slateLight, borderBottom: `1px solid ${T.border}`,
-                      fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: T.slate,
-                    }}>
+                  <div
+                    style={{
+                      border: `1.5px solid ${T.border}`,
+                      borderRadius: 14,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: FA_FIELD_COLS,
+                        gap: 8,
+                        padding: "10px 14px",
+                        background: T.slateLight,
+                        borderBottom: `1px solid ${T.border}`,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        color: T.slate,
+                      }}
+                    >
                       <span></span>
                       <span>Roll No</span>
                       <span>Student</span>
@@ -1315,17 +2574,38 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                     </div>
                     <div style={{ maxHeight: 360, overflowY: "auto" }}>
                       {activeStudents.map((s) => (
-                        <StudentRowFA key={s.studentId} student={s} maxMarks={activeSubject?.maxMarks || 100} onUpdate={updateStudent} />
+                        <StudentRowFA
+                          key={s.studentId}
+                          student={s}
+                          maxMarks={activeSubject?.maxMarks || 100}
+                          onUpdate={updateStudent}
+                        />
                       ))}
                     </div>
                   </div>
                 ) : (
-                  <div style={{ border: `1.5px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
-                    <div style={{
-                      display: "grid", gridTemplateColumns: "36px 70px 1fr 110px 88px 1fr", gap: 10,
-                      padding: "10px 14px", background: T.slateLight, borderBottom: `1px solid ${T.border}`,
-                      fontSize: 10.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: T.slate,
-                    }}>
+                  <div
+                    style={{
+                      border: `1.5px solid ${T.border}`,
+                      borderRadius: 14,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "36px 70px 1fr 110px 88px 1fr",
+                        gap: 10,
+                        padding: "10px 14px",
+                        background: T.slateLight,
+                        borderBottom: `1px solid ${T.border}`,
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        color: T.slate,
+                      }}
+                    >
                       <span></span>
                       <span>Roll No</span>
                       <span>Student</span>
@@ -1335,7 +2615,12 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
                     </div>
                     <div style={{ maxHeight: 360, overflowY: "auto" }}>
                       {activeStudents.map((s) => (
-                        <StudentRow key={s.studentId} student={s} maxMarks={activeSubject?.maxMarks || 100} onUpdate={updateStudent} />
+                        <StudentRow
+                          key={s.studentId}
+                          student={s}
+                          maxMarks={activeSubject?.maxMarks || 100}
+                          onUpdate={updateStudent}
+                        />
                       ))}
                     </div>
                   </div>
@@ -1343,29 +2628,80 @@ export default function AdminUploadResultModal({ presetClass, onClose, onSaved }
               </div>
             )}
 
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "18px 24px", background: T.white, borderTop: `1px solid ${T.border}`, position: "sticky", bottom: 0, borderRadius: "0 0 20px 20px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                padding: "18px 24px",
+                background: T.white,
+                borderTop: `1px solid ${T.border}`,
+                position: "sticky",
+                bottom: 0,
+                borderRadius: "0 0 20px 20px",
+              }}
+            >
               <span style={{ fontSize: 12, color: T.slate }}>
                 {loadedSubjectIds.length > 0
-                  ? `${loadedSubjectIds.length} subject${loadedSubjectIds.length !== 1 ? "s" : ""} ready to save`
+                  ? pendingChangesCount > 0
+                    ? `${pendingChangesCount} unsaved change${
+                        pendingChangesCount !== 1 ? "s" : ""
+                      } · existing marks are kept as they are`
+                    : "Saved marks loaded — edit any student to update"
                   : "Pick a subject tab and enter marks"}
               </span>
               <div style={{ display: "flex", gap: 10 }}>
                 <button
                   onClick={onClose}
-                  style={{ padding: "10px 18px", borderRadius: 11, border: `1.5px solid ${T.border}`, background: T.white, color: T.slate, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                  style={{
+                    padding: "10px 18px",
+                    borderRadius: 11,
+                    border: `1.5px solid ${T.border}`,
+                    background: T.white,
+                    color: T.slate,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveAll}
-                  disabled={saving || !loadedSubjectIds.length}
+                  disabled={saving || !pendingChangesCount}
                   style={{
-                    display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 11,
-                    border: "none", background: saving || !loadedSubjectIds.length ? "#94a3b8" : `linear-gradient(135deg, ${T.navy}, ${T.teal})`,
-                    color: "#fff", fontWeight: 700, fontSize: 13, cursor: saving || !loadedSubjectIds.length ? "default" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "10px 20px",
+                    borderRadius: 11,
+                    border: "none",
+                    background:
+                      saving || !pendingChangesCount
+                        ? "#94a3b8"
+                        : `linear-gradient(135deg, ${T.navy}, ${T.teal})`,
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor:
+                      saving || !pendingChangesCount ? "default" : "pointer",
                   }}
                 >
-                  {saving ? <><Loader2 size={14} style={{ animation: "adminSpin 0.8s linear infinite" }} /> Saving…</> : <><Save size={14} /> Save All Marks</>}
+                  {saving ? (
+                    <>
+                      <Loader2
+                        size={14}
+                        style={{ animation: "adminSpin 0.8s linear infinite" }}
+                      />{" "}
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <Save size={14} /> Save Changes
+                      {pendingChangesCount ? ` (${pendingChangesCount})` : ""}
+                    </>
+                  )}
                 </button>
               </div>
             </div>

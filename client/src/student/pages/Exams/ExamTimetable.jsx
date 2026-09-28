@@ -6,9 +6,18 @@ import { getToken } from "../../../auth/storage.js";
 const API_URL = import.meta.env.VITE_API_URL;
 
 const C = {
-  dark: "#243340", mid: "#6A89A7", light: "#BDDDFC", sky: "#88BDF2",
-  deep: "#384959", border: "#C8DCF0", bg: "#EDF3FA", card: "#ffffff",
-  success: "#059669", warn: "#d97706", danger: "#dc2626", info: "#3b82f6",
+  dark: "#243340",
+  mid: "#6A89A7",
+  light: "#BDDDFC",
+  sky: "#88BDF2",
+  deep: "#384959",
+  border: "#C8DCF0",
+  bg: "#EDF3FA",
+  card: "#ffffff",
+  success: "#059669",
+  warn: "#d97706",
+  danger: "#ff7300",
+  info: "#3b82f6",
 };
 const F = { fontFamily: "'Inter', sans-serif" };
 const grad = "linear-gradient(135deg, #384959 0%, #6A89A7 100%)";

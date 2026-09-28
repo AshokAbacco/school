@@ -14,17 +14,17 @@ import { getToken } from "../../../../auth/storage";
 
 const F = { fontFamily: "'Inter', sans-serif" };
 const C = {
-  dark:    "#243340",
-  mid:     "#6A89A7",
-  light:   "#BDDDFC",
-  border:  "#C8DCF0",
-  bg:      "#EDF3FA",
-  card:    "#ffffff",
-  hover:   "#EDF3FA",
+  dark: "#243340",
+  mid: "#6A89A7",
+  light: "#BDDDFC",
+  border: "#C8DCF0",
+  bg: "#EDF3FA",
+  card: "#ffffff",
+  hover: "#EDF3FA",
   success: "#059669",
-  warn:    "#d97706",
-  danger:  "#dc2626",
-  blue:    "#3b82f6",
+  warn: "#d97706",
+  danger: "#ff7300",
+  blue: "#3b82f6",
 };
 const grad = "linear-gradient(135deg, #384959 0%, #6A89A7 100%)";
 

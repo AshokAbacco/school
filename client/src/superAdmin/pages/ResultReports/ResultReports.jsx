@@ -22,18 +22,18 @@ const API_URL = import.meta.env.VITE_API_URL;
 const font = { fontFamily: "'Inter', sans-serif" };
 
 const C = {
-  dark:    "#1C3044",
-  mid:     "#6A89A7",
-  border:  "#C8DCF0",
-  bg:      "#EDF3FA",
-  card:    "#ffffff",
-  hover:   "#f0f6ff",
+  dark: "#1C3044",
+  mid: "#6A89A7",
+  border: "#C8DCF0",
+  bg: "#EDF3FA",
+  card: "#ffffff",
+  hover: "#f0f6ff",
   success: "#059669",
-  warn:    "#d97706",
-  danger:  "#dc2626",
-  blue:    "#384959",
-  purple:  "#6A89A7",
-  accent:  "#2d4a64",
+  warn: "#d97706",
+  danger: "#ff7300",
+  blue: "#384959",
+  purple: "#6A89A7",
+  accent: "#2d4a64",
 };
 
 /* ─── helpers ────────────────────────────────────────────────────────────── */

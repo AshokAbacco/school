@@ -2,9 +2,23 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  BarChart2, Users, TrendingUp, Award, ChevronRight,
-  ArrowLeft, BookOpen, Search, X, Loader2, AlertCircle,
-  CheckCircle2, XCircle, Minus,Download, FileText
+  BarChart2,
+  Users,
+  TrendingUp,
+  Award,
+  ChevronRight,
+  ArrowLeft,
+  BookOpen,
+  Search,
+  X,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
+  Minus,
+  Download,
+  FileText,
+  TrendingDown,
 } from "lucide-react";
 import { getToken } from "../../../../auth/storage.js";
 import StudentReportModal from "./StudentReportModal.jsx";
@@ -12,19 +26,19 @@ import BulkReportDownloadModal from "./BulkReportDownloadModal.jsx";
 
 /* ─── constants ─────────────────────────────────────────────────────────── */
 const API_URL = import.meta.env.VITE_API_URL;
-const font    = { fontFamily: "'Inter', sans-serif" };
+const font = { fontFamily: "'Inter', sans-serif" };
 const C = {
-  dark:    "#243340",
-  mid:     "#6A89A7",
-  border:  "#C8DCF0",
-  bg:      "#EDF3FA",
-  card:    "#ffffff",
-  hover:   "#EDF3FA",
+  dark: "#243340",
+  mid: "#6A89A7",
+  border: "#C8DCF0",
+  bg: "#EDF3FA",
+  card: "#ffffff",
+  hover: "#EDF3FA",
   success: "#059669",
-  warn:    "#d97706",
-  danger:  "#dc2626",
-  blue:    "#384959",
-  purple:  "#6A89A7",
+  warn: "#d97706",
+  danger: "#ff7300",
+  blue: "#384959",
+  purple: "#6A89A7",
 };
 
 /* ─── helpers ───────────────────────────────────────────────────────────── */
@@ -37,33 +51,34 @@ const apiFetch = async (path) => {
   return j;
 };
 
-function getGrade(pct) {
-  if (pct >= 90) return "A+";
-  if (pct >= 80) return "A";
-  if (pct >= 70) return "B";
-  if (pct >= 60) return "C";
-  if (pct >= 50) return "D";
-  return "F";
-}
+// NOTE: no grade / pass-fail calculation happens in this file. Totals,
+// percentage, grade, status and rank all come from the backend
+// (/api/results/summary and /api/results/list), which use the same shared
+// rules as the report card, PDF and Excel export.
+
+// A calculated overall result (not all-absent, not pending)?
+const hasCalculatedResult = (r) =>
+  !r.isAbsent &&
+  r.resultStatus !== "pending" &&
+  r.percentage !== null &&
+  r.percentage !== undefined;
 
 function gradeColor(grade) {
-  if (!grade || grade === "—") return { color: C.mid,     bg: "#f1f5f9" };
-  if (grade === "A+")          return { color: "#059669", bg: "#f0fdf4" };
-  if (grade === "A")           return { color: "#0ea5e9", bg: "#f0f9ff" };
-  if (grade === "B")           return { color: "#7c3aed", bg: "#f5f3ff" };
-  if (grade === "C")           return { color: "#d97706", bg: "#fffbeb" };
-  if (grade === "D")           return { color: "#ea580c", bg: "#fff7ed" };
-  if (grade === "F")           return { color: "#dc2626", bg: "#fef2f2" };
-  if (grade === "AB")          return { color: "#6b7280", bg: "#f9fafb" };
-  return                              { color: C.mid,     bg: "#f1f5f9" };
+  if (!grade || grade === "—") return { color: C.mid, bg: "#f1f5f9" };
+  if (grade === "A+") return { color: "#059669", bg: "#f0fdf4" };
+  if (grade === "A") return { color: "#0ea5e9", bg: "#f0f9ff" };
+  if (grade === "B") return { color: "#7c3aed", bg: "#f5f3ff" };
+  if (grade === "C") return { color: "#d97706", bg: "#fffbeb" };
+  if (grade === "D") return { color: "#ea580c", bg: "#fff7ed" };
+  if (grade === "F") return { color: "#125a1f", bg: "#fef2f2" };
+  if (grade === "AB") return { color: "#30568f", bg: "#f9fafb" };
+  return { color: C.mid, bg: "#f1f5f9" };
 }
 
 function pctBar(pct) {
   const p = Math.min(100, Math.max(0, pct || 0));
   const color =
-    p >= 80 ? C.success :
-    p >= 60 ? C.blue    :
-    p >= 40 ? C.warn    : C.danger;
+    p >= 80 ? C.success : p >= 60 ? C.blue : p >= 40 ? C.warn : C.danger;
   return { p, color };
 }
 
@@ -71,22 +86,59 @@ function pctBar(pct) {
 
 function StatCard({ icon: Icon, label, value, accent, sub }) {
   return (
-    <div style={{
-      background: C.card, border: `1.5px solid ${C.border}`,
-      borderRadius: 16, padding: "18px 20px",
-      display: "flex", alignItems: "center", gap: 14,
-    }}>
-      <div style={{
-        width: 44, height: 44, borderRadius: 12,
-        background: accent + "18",
-        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-      }}>
+    <div
+      style={{
+        background: C.card,
+        border: `1.5px solid ${C.border}`,
+        borderRadius: 16,
+        padding: "18px 20px",
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+      }}
+    >
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          background: accent + "18",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
         <Icon size={20} color={accent} />
       </div>
       <div>
-        <p style={{ ...font, fontSize: 11, fontWeight: 600, color: C.mid, margin: 0 }}>{label}</p>
-        <p style={{ ...font, fontSize: 22, fontWeight: 800, color: C.dark, margin: "2px 0 0" }}>{value}</p>
-        {sub && <p style={{ ...font, fontSize: 11, color: C.mid, margin: "1px 0 0" }}>{sub}</p>}
+        <p
+          style={{
+            ...font,
+            fontSize: 11,
+            fontWeight: 600,
+            color: C.mid,
+            margin: 0,
+          }}
+        >
+          {label}
+        </p>
+        <p
+          style={{
+            ...font,
+            fontSize: 22,
+            fontWeight: 800,
+            color: C.dark,
+            margin: "2px 0 0",
+          }}
+        >
+          {value}
+        </p>
+        {sub && (
+          <p style={{ ...font, fontSize: 11, color: C.mid, margin: "1px 0 0" }}>
+            {sub}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -94,9 +146,9 @@ function StatCard({ icon: Icon, label, value, accent, sub }) {
 
 function ClassCard({ cs, onClick }) {
   const [hov, setHov] = useState(false);
-  const pct  = cs.avgPct || 0;
-  const bar  = pctBar(pct);
-  const gc   = gradeColor(cs.topGrade);
+  const pct = cs.avgPct || 0;
+  const bar = pctBar(pct);
+  const gc = gradeColor(cs.topGrade);
 
   return (
     <div
@@ -106,29 +158,61 @@ function ClassCard({ cs, onClick }) {
       style={{
         background: hov ? C.hover : C.card,
         border: `1.5px solid ${hov ? C.blue + "55" : C.border}`,
-        borderRadius: 16, padding: "18px 20px",
-        cursor: "pointer", transition: "all .18s",
+        borderRadius: 16,
+        padding: "18px 20px",
+        cursor: "pointer",
+        transition: "all .18s",
         boxShadow: hov ? "0 4px 20px rgba(59,130,246,0.1)" : "none",
-        display: "flex", flexDirection: "column", gap: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
       }}
     >
       {/* header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+        }}
+      >
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: `linear-gradient(135deg, #384959, #6A89A7)`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0,
-            }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: `linear-gradient(135deg, #384959, #6A89A7)`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
               <BookOpen size={15} color="#fff" />
             </div>
             <div>
-              <p style={{ ...font, fontSize: 14, fontWeight: 700, color: C.dark, margin: 0 }}>
-                Grade {cs.grade}{cs.section ? ` – ${cs.section}` : ""}
+              <p
+                style={{
+                  ...font,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: C.dark,
+                  margin: 0,
+                }}
+              >
+                Grade {cs.grade}
+                {cs.section ? ` – ${cs.section}` : ""}
               </p>
-              <p style={{ ...font, fontSize: 11, color: C.mid, margin: "1px 0 0" }}>
+              <p
+                style={{
+                  ...font,
+                  fontSize: 11,
+                  color: C.mid,
+                  margin: "1px 0 0",
+                }}
+              >
                 {cs.studentCount || 0} students
               </p>
             </div>
@@ -136,30 +220,60 @@ function ClassCard({ cs, onClick }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {cs.topGrade && (
-            <span style={{
-              ...font, fontSize: 11, fontWeight: 700,
-              padding: "3px 10px", borderRadius: 20,
-              background: gc.bg, color: gc.color,
-              border: `1px solid ${gc.color}33`,
-            }}>
+            <span
+              style={{
+                ...font,
+                fontSize: 11,
+                fontWeight: 700,
+                padding: "3px 10px",
+                borderRadius: 20,
+                background: gc.bg,
+                color: gc.color,
+                border: `1px solid ${gc.color}33`,
+              }}
+            >
               Top: {cs.topGrade}
             </span>
           )}
-          <ChevronRight size={16} color={hov ? C.blue : C.mid} style={{ transition: "color .18s" }} />
+          <ChevronRight
+            size={16}
+            color={hov ? C.blue : C.mid}
+            style={{ transition: "color .18s" }}
+          />
         </div>
       </div>
 
       {/* stats row */}
       <div style={{ display: "flex", gap: 12 }}>
         {[
-          { label: "Avg %",   val: pct ? pct.toFixed(1) + "%" : "—" },
-          { label: "Passed",  val: cs.passed  ?? "—" },
-          { label: "Failed",  val: cs.failed  ?? "—" },
-          { label: "Exams",   val: cs.examCount ?? "—" },
+          { label: "Avg %", val: pct ? pct.toFixed(1) + "%" : "—" },
+          { label: "Passed", val: cs.passed ?? "—" },
+          { label: "Failed", val: cs.failed ?? "—" },
+          { label: "Exams", val: cs.examCount ?? "—" },
         ].map(({ label, val }) => (
           <div key={label} style={{ flex: 1, textAlign: "center" }}>
-            <p style={{ ...font, fontSize: 16, fontWeight: 800, color: C.dark, margin: 0 }}>{val}</p>
-            <p style={{ ...font, fontSize: 10, color: C.mid, margin: "2px 0 0", fontWeight: 600 }}>{label}</p>
+            <p
+              style={{
+                ...font,
+                fontSize: 16,
+                fontWeight: 800,
+                color: C.dark,
+                margin: 0,
+              }}
+            >
+              {val}
+            </p>
+            <p
+              style={{
+                ...font,
+                fontSize: 10,
+                color: C.mid,
+                margin: "2px 0 0",
+                fontWeight: 600,
+              }}
+            >
+              {label}
+            </p>
           </div>
         ))}
       </div>
@@ -167,13 +281,33 @@ function ClassCard({ cs, onClick }) {
       {/* progress bar */}
       {pct > 0 && (
         <div>
-          <div style={{ height: 5, borderRadius: 99, background: "#e2e8f0", overflow: "hidden" }}>
-            <div style={{
-              height: "100%", width: `${bar.p}%`, borderRadius: 99,
-              background: bar.color, transition: "width .4s ease",
-            }} />
+          <div
+            style={{
+              height: 5,
+              borderRadius: 99,
+              background: "#e2e8f0",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${bar.p}%`,
+                borderRadius: 99,
+                background: bar.color,
+                transition: "width .4s ease",
+              }}
+            />
           </div>
-          <p style={{ ...font, fontSize: 10, color: C.mid, marginTop: 4, textAlign: "right" }}>
+          <p
+            style={{
+              ...font,
+              fontSize: 10,
+              color: C.mid,
+              marginTop: 4,
+              textAlign: "right",
+            }}
+          >
             Class average
           </p>
         </div>
@@ -183,10 +317,19 @@ function ClassCard({ cs, onClick }) {
 }
 
 /* ─── Student Results Table ─────────────────────────────────────────────── */
-function StudentResultsTable({ rows, subjectMode = false, onViewReport, selectedIds, onToggleRow, onToggleAll }) {
+function StudentResultsTable({
+  rows,
+  subjectMode = false,
+  onViewReport,
+  selectedIds,
+  onToggleRow,
+  onToggleAll,
+}) {
   const marksHeader = subjectMode ? "Marks" : "Total Marks";
   const selectableRows = rows.filter((r) => !r.isAbsent && r.studentId);
-  const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selectedIds.has(r.studentId));
+  const allSelected =
+    selectableRows.length > 0 &&
+    selectableRows.every((r) => selectedIds.has(r.studentId));
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -198,104 +341,299 @@ function StudentResultsTable({ rows, subjectMode = false, onViewReport, selected
                 checked={allSelected}
                 onChange={(e) => onToggleAll?.(e.target.checked)}
                 title="Select all"
-                style={{ width: 14, height: 14, accentColor: C.blue, cursor: "pointer" }}
+                style={{
+                  width: 14,
+                  height: 14,
+                  accentColor: C.blue,
+                  cursor: "pointer",
+                }}
               />
             </th>
-            {["#", "Student", "Roll No", marksHeader, "Percentage", "Grade", "Status", ""].map(h => (
-              <th key={h} style={{
-                ...font, padding: "10px 14px", textAlign: "left",
-                fontSize: 11, fontWeight: 700, letterSpacing: ".06em",
-                textTransform: "uppercase", color: C.mid,
-                borderBottom: `1.5px solid ${C.border}`,
-              }}>{h}</th>
+            {[
+              "#",
+              "Student",
+              "Roll No",
+              marksHeader,
+              "Percentage",
+              "Grade",
+              subjectMode ? "Status" : "Rank / Status",
+              "",
+            ].map((h) => (
+              <th
+                key={h}
+                style={{
+                  ...font,
+                  padding: "10px 14px",
+                  textAlign: "left",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: ".06em",
+                  textTransform: "uppercase",
+                  color: C.mid,
+                  borderBottom: `1.5px solid ${C.border}`,
+                }}
+              >
+                {h}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => {
             const isAbsent = r.isAbsent;
-            // ✅ FIX: resultSummary fields — totalMarks (obtained), maxMarks (out of)
-            const pct  = Number(r.percentage ?? 0);
-            const bar  = pctBar(pct);
-            const gc   = gradeColor(r.grade);
+            const isPending = r.resultStatus === "pending" || r.isPending;
+            // totalMarks = obtained, maxMarks = out of (all scheduled subjects)
+            const hasPct =
+              r.percentage !== null &&
+              r.percentage !== undefined &&
+              !isAbsent &&
+              !isPending;
+            const pct = Number(r.percentage ?? 0);
+            const bar = pctBar(pct);
+            const gc = gradeColor(r.grade);
             const canSelect = !isAbsent && !!r.studentId;
             return (
-              <tr key={r.studentId || i}
-                style={{ borderBottom: `1px solid ${C.border}` }}>
+              <tr
+                key={r.studentId || i}
+                style={{ borderBottom: `1px solid ${C.border}` }}
+              >
                 <td style={{ padding: "11px 14px" }}>
                   {canSelect && (
                     <input
                       type="checkbox"
                       checked={selectedIds.has(r.studentId)}
-                      onChange={(e) => onToggleRow?.(r.studentId, e.target.checked)}
-                      style={{ width: 14, height: 14, accentColor: C.blue, cursor: "pointer" }}
+                      onChange={(e) =>
+                        onToggleRow?.(r.studentId, e.target.checked)
+                      }
+                      style={{
+                        width: 14,
+                        height: 14,
+                        accentColor: C.blue,
+                        cursor: "pointer",
+                      }}
                     />
                   )}
                 </td>
-                <td style={{ ...font, padding: "11px 14px", fontSize: 12, color: C.mid }}>{i + 1}</td>
-                <td style={{ ...font, padding: "11px 14px", fontSize: 13, fontWeight: 600, color: C.dark }}>
+                <td
+                  style={{
+                    ...font,
+                    padding: "11px 14px",
+                    fontSize: 12,
+                    color: C.mid,
+                  }}
+                >
+                  {i + 1}
+                </td>
+                <td
+                  style={{
+                    ...font,
+                    padding: "11px 14px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: C.dark,
+                  }}
+                >
                   {r.studentName}
                 </td>
-                <td style={{ ...font, padding: "11px 14px", fontSize: 12, color: C.mid }}>
+                <td
+                  style={{
+                    ...font,
+                    padding: "11px 14px",
+                    fontSize: 12,
+                    color: C.mid,
+                  }}
+                >
                   {r.rollNo || "—"}
                 </td>
-                <td style={{ ...font, padding: "11px 14px", fontSize: 13, color: C.dark }}>
+                <td
+                  style={{
+                    ...font,
+                    padding: "11px 14px",
+                    fontSize: 13,
+                    color: C.dark,
+                  }}
+                >
                   {isAbsent ? (
-                    <span style={{ color: C.mid, fontStyle: "italic" }}>Absent</span>
+                    <span style={{ color: C.mid, fontStyle: "italic" }}>
+                      Absent
+                      {!subjectMode && r.maxMarks ? (
+                        <span style={{ fontStyle: "normal" }}>
+                          {" "}
+                          · 0 / {r.maxMarks}
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : isPending ? (
+                    <span style={{ color: C.mid, fontStyle: "italic" }}>
+                      Pending
+                    </span>
                   ) : (
                     <span>
                       {/* ✅ FIX: totalMarks = marks obtained, maxMarks = out of */}
                       <strong>{r.totalMarks ?? "—"}</strong>
-                      <span style={{ color: C.mid }}> / {r.maxMarks ?? "—"}</span>
+                      <span style={{ color: C.mid }}>
+                        {" "}
+                        / {r.maxMarks ?? "—"}
+                      </span>
                     </span>
                   )}
                 </td>
                 <td style={{ padding: "11px 14px", minWidth: 120 }}>
-                  {!isAbsent && pct > 0 ? (
+                  {hasPct ? (
                     <div>
-                      <div style={{ height: 5, borderRadius: 99, background: "#e2e8f0", overflow: "hidden", marginBottom: 3 }}>
-                        <div style={{ height: "100%", width: `${bar.p}%`, borderRadius: 99, background: bar.color }} />
+                      <div
+                        style={{
+                          height: 5,
+                          borderRadius: 99,
+                          background: "#e2e8f0",
+                          overflow: "hidden",
+                          marginBottom: 3,
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            width: `${bar.p}%`,
+                            borderRadius: 99,
+                            background: bar.color,
+                          }}
+                        />
                       </div>
-                      <span style={{ ...font, fontSize: 12, color: C.dark, fontWeight: 600 }}>{pct.toFixed(1)}%</span>
+                      <span
+                        style={{
+                          ...font,
+                          fontSize: 12,
+                          color: C.dark,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {pct.toFixed(2).replace(/\.?0+$/, "")}%
+                      </span>
                     </div>
-                  ) : <span style={{ ...font, fontSize: 12, color: C.mid }}>—</span>}
+                  ) : (
+                    <span style={{ ...font, fontSize: 12, color: C.mid }}>
+                      —
+                    </span>
+                  )}
                 </td>
                 <td style={{ padding: "11px 14px" }}>
-                  <span style={{
-                    ...font, fontSize: 11, fontWeight: 700,
-                    padding: "3px 10px", borderRadius: 20,
-                    background: gc.bg, color: gc.color,
-                    border: `1px solid ${gc.color}33`,
-                  }}>
+                  <span
+                    style={{
+                      ...font,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: "3px 10px",
+                      borderRadius: 20,
+                      background: gc.bg,
+                      color: gc.color,
+                      border: `1px solid ${gc.color}33`,
+                    }}
+                  >
                     {r.grade || "—"}
                   </span>
                 </td>
                 <td style={{ padding: "11px 14px" }}>
                   {isAbsent ? (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, ...font, fontSize: 12, color: C.mid }}>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        ...font,
+                        fontSize: 12,
+                        color: C.mid,
+                      }}
+                    >
                       <Minus size={13} /> Absent
+                      {!subjectMode ? " · Not Ranked" : ""}
                     </span>
-                  ) : (r.grade === "F" || pct < 50) ? (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, ...font, fontSize: 12, color: C.danger }}>
-                      <XCircle size={13} /> Failed
+                  ) : isPending ? (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        ...font,
+                        fontSize: 12,
+                        color: C.mid,
+                      }}
+                    >
+                      <Minus size={13} /> Pending
                     </span>
+                  ) : subjectMode ? (
+                    // Subject-level only: this subject vs its own passing marks.
+                    r.resultStatus === "fail" ? (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          ...font,
+                          fontSize: 12,
+                          color: C.danger,
+                        }}
+                      >
+                        <XCircle size={13} /> Below passing
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          ...font,
+                          fontSize: 12,
+                          color: C.success,
+                        }}
+                      >
+                        <CheckCircle2 size={13} /> Passed
+                      </span>
+                    )
                   ) : (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, ...font, fontSize: 12, color: C.success }}>
-                      <CheckCircle2 size={13} /> Passed
+                    // Overall: rank from total marks; no pass/fail override.
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        ...font,
+                        fontSize: 12,
+                        color: C.blue,
+                        fontWeight: 700,
+                      }}
+                    >
+                      <Award size={13} />
+                      {r.rank ? `Rank ${r.rank}` : "Not Ranked"}
+                      {r.isComplete === false && (
+                        <span
+                          style={{ fontWeight: 500, color: C.mid }}
+                          title="Some subjects have no marks entered yet"
+                        >
+                          {" "}
+                          · partial
+                        </span>
+                      )}
                     </span>
                   )}
                 </td>
                 <td style={{ padding: "11px 14px" }}>
-                  {!isAbsent && r.studentId && (
+                  {!isPending && r.studentId && (
                     <button
                       onClick={() => onViewReport?.(r)}
                       title="View marks & report card"
                       style={{
-                        display: "flex", alignItems: "center", gap: 5,
-                        padding: "5px 10px", borderRadius: 8,
-                        background: "#eef4fb", border: `1px solid ${C.border}`,
-                        color: C.blue, cursor: "pointer",
-                        ...font, fontSize: 11, fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                        padding: "5px 10px",
+                        borderRadius: 8,
+                        background: "#eef4fb",
+                        border: `1px solid ${C.border}`,
+                        color: C.blue,
+                        cursor: "pointer",
+                        ...font,
+                        fontSize: 11,
+                        fontWeight: 700,
                         whiteSpace: "nowrap",
                       }}
                     >
@@ -314,16 +652,16 @@ function StudentResultsTable({ rows, subjectMode = false, onViewReport, selected
 
 /* ─── Class Detail View ──────────────────────────────────────────────────── */
 function ClassDetailView({ cs, academicYearId, onBack }) {
-  const [rawGroups,    setRawGroups]    = useState([]); // all exam groups w/ a schedule for this class (unfiltered by Sub Exam)
-  const [selExam,      setSelExam]      = useState(null);
-  const [results,      setResults]      = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [resLoading,   setResLoading]   = useState(false);
-  const [error,        setError]        = useState("");
+  const [rawGroups, setRawGroups] = useState([]); // all exam groups w/ a schedule for this class (unfiltered by Sub Exam)
+  const [selExam, setSelExam] = useState(null);
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [resLoading, setResLoading] = useState(false);
+  const [error, setError] = useState("");
   // Subject filter
-  const [subjects,     setSubjects]     = useState([]);   // subjects that have results for selected exam+class
+  const [subjects, setSubjects] = useState([]); // subjects that have results for selected exam+class
   const [selSubjectId, setSelSubjectId] = useState("all"); // "all" or a subjectId string
-  const [reportView,   setReportView]   = useState(null); // { studentId, studentName } | null
+  const [reportView, setReportView] = useState(null); // { studentId, studentName } | null
 
   // ── Bulk "Download Reports" — checkbox selection across the results table ──
   const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
@@ -332,25 +670,31 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
   const toggleRowSelection = useCallback((studentId, checked) => {
     setSelectedStudentIds((prev) => {
       const next = new Set(prev);
-      if (checked) next.add(studentId); else next.delete(studentId);
+      if (checked) next.add(studentId);
+      else next.delete(studentId);
       return next;
     });
   }, []);
 
-  const toggleAllSelection = useCallback((checked) => {
-    setSelectedStudentIds(() => {
-      if (!checked) return new Set();
-      const ids = results.filter((r) => !r.isAbsent && r.studentId).map((r) => r.studentId);
-      return new Set(ids);
-    });
-  }, [results]);
+  const toggleAllSelection = useCallback(
+    (checked) => {
+      setSelectedStudentIds(() => {
+        if (!checked) return new Set();
+        const ids = results
+          .filter((r) => !r.isAbsent && r.studentId)
+          .map((r) => r.studentId);
+        return new Set(ids);
+      });
+    },
+    [results],
+  );
 
   // ── Sub Exam (optional) — combines an "Assessment" exam into the report
   // card shown from "View" (Subject-wise Marks Statement → Assessment + Final
   // Exam + Total + Grade). Purely additive; leaving it unset behaves exactly
   // as before.
   const [subExamGroups, setSubExamGroups] = useState([]);
-  const [subExamId,     setSubExamId]     = useState("");
+  const [subExamId, setSubExamId] = useState("");
 
   useEffect(() => {
     apiFetch("/api/results/sub-exams")
@@ -363,17 +707,19 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
     setLoading(true);
     setError("");
     apiFetch(`/api/exams/groups/${academicYearId}`)
-      .then(data => {
+      .then((data) => {
         const all = Array.isArray(data) ? data : [];
         // Only groups that have a schedule for this specific class. Sub Exam
         // exclusion happens separately below, by ID against the authoritative
         // Sub Exam list — see the `exams` memo.
-        const relevant = all.filter(g =>
-          (g.assessmentSchedules || []).some(sc => sc.classSectionId === cs.id)
+        const relevant = all.filter((g) =>
+          (g.assessmentSchedules || []).some(
+            (sc) => sc.classSectionId === cs.id,
+          ),
         );
         setRawGroups(relevant);
       })
-      .catch(e => setError(e.message))
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [cs.id, academicYearId]);
 
@@ -381,15 +727,15 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
   // authoritative list the "Combine with Sub Exam" dropdown uses), not by
   // term *name* — robust even if duplicate "Assessment"-named term rows exist.
   const exams = useMemo(() => {
-    const subIds = new Set(subExamGroups.map(g => g.id));
-    return rawGroups.filter(g => !subIds.has(g.id));
+    const subIds = new Set(subExamGroups.map((g) => g.id));
+    return rawGroups.filter((g) => !subIds.has(g.id));
   }, [rawGroups, subExamGroups]);
 
   // Keep the selected exam valid as `exams` settles (e.g. once the Sub Exam
   // list arrives and something gets excluded after the initial pick).
   useEffect(() => {
     if (!exams.length) return;
-    if (!selExam || !exams.some(e => e.id === selExam.id)) {
+    if (!selExam || !exams.some((e) => e.id === selExam.id)) {
       setSelExam(exams[0]);
     }
   }, [exams]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -411,49 +757,62 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
     if (selSubjectId === "all") {
       // Aggregated totals across all subjects
       apiFetch(
-        `/api/results/summary?classSectionId=${cs.id}&assessmentGroupId=${selExam.id}`
+        `/api/results/summary?classSectionId=${cs.id}&assessmentGroupId=${selExam.id}`,
       )
-        .then(d => {
+        .then((d) => {
           const rows = d.data || [];
-          const sorted = [...rows].sort((a, b) => b.percentage - a.percentage);
+          // Ranked students first (by rank), then all-absent (Not Ranked).
+          const sorted = [...rows].sort(
+            (a, b) =>
+              (a.rank ?? Number.MAX_SAFE_INTEGER) -
+                (b.rank ?? Number.MAX_SAFE_INTEGER) ||
+              (b.percentage ?? -1) - (a.percentage ?? -1) ||
+              String(a.studentName || "").localeCompare(
+                String(b.studentName || ""),
+              ),
+          );
           setResults(sorted);
 
           // Build subject list from the raw marks list for the dropdown
           // We fetch /api/results/list just to discover available subjects
           return apiFetch(
-            `/api/results/list?classSectionId=${cs.id}&assessmentGroupId=${selExam.id}`
+            `/api/results/list?classSectionId=${cs.id}&assessmentGroupId=${selExam.id}`,
           );
         })
-        .then(d => {
+        .then((d) => {
           const rows = d?.data || [];
           const subMap = new Map();
-          rows.forEach(r => {
+          rows.forEach((r) => {
             if (r.subjectId && r.subject) subMap.set(r.subjectId, r.subject);
           });
-          setSubjects([...subMap.entries()].map(([id, name]) => ({ id, name })));
+          setSubjects(
+            [...subMap.entries()].map(([id, name]) => ({ id, name })),
+          );
         })
-        .catch(e => setError(e.message))
+        .catch((e) => setError(e.message))
         .finally(() => setResLoading(false));
     } else {
       // Per-subject marks from /api/results/list
       apiFetch(
-        `/api/results/list?classSectionId=${cs.id}&assessmentGroupId=${selExam.id}&subjectId=${selSubjectId}`
+        `/api/results/list?classSectionId=${cs.id}&assessmentGroupId=${selExam.id}&subjectId=${selSubjectId}`,
       )
-        .then(d => {
+        .then((d) => {
           const rows = d.data || [];
           // Normalize fields: list returns marks/totalMarks, summary returns totalMarks/maxMarks
-          const normalized = rows.map(r => ({
+          const normalized = rows.map((r) => ({
             ...r,
-            totalMarks:  r.marks,
-            maxMarks:    r.totalMarks,
-            percentage:  r.percentage,
-            grade:       r.grade,
-            isAbsent:    r.isAbsent,
+            totalMarks: r.marks ?? null,
+            maxMarks: r.totalMarks,
+            percentage: r.percentage,
+            grade: r.grade,
+            isAbsent: r.isAbsent,
           }));
-          const sorted = [...normalized].sort((a, b) => b.percentage - a.percentage);
+          const sorted = [...normalized].sort(
+            (a, b) => (b.percentage ?? -1) - (a.percentage ?? -1),
+          );
           setResults(sorted);
         })
-        .catch(e => setError(e.message))
+        .catch((e) => setError(e.message))
         .finally(() => setResLoading(false));
     }
   }, [selExam, cs.id, selSubjectId]);
@@ -464,65 +823,91 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
     setSelectedStudentIds(new Set());
   }, [selExam, selSubjectId, cs.id]);
 
-  const passed  = results.filter(r => !r.isAbsent && r.percentage >= 50).length;
-  const failed  = results.filter(r => !r.isAbsent && r.percentage < 50).length;
-  const absent  = results.filter(r => r.isAbsent).length;
-  const avgPct  = results.length
-    ? results.filter(r => !r.isAbsent).reduce((a, r) => a + r.percentage, 0) /
-      Math.max(results.filter(r => !r.isAbsent).length, 1)
+  // Counts follow the backend grade (grade comes from overall percentage
+  // only) — "Failed" here simply means overall grade F, never a
+  // subject-level override. All-absent students are counted as Absent.
+  const calculated = results.filter(hasCalculatedResult);
+  const passed = calculated.filter((r) => r.grade !== "F").length;
+  const failed = calculated.filter((r) => r.grade === "F").length;
+  const absent = results.filter((r) => r.isAbsent).length;
+  const avgPct = calculated.length
+    ? calculated.reduce((a, r) => a + Number(r.percentage || 0), 0) /
+      calculated.length
     : 0;
 
+  const handleExportResults = async () => {
+    try {
+      if (!cs || !selExam) {
+        alert("Select class & exam");
+        return;
+      }
 
+      let url = `${API_URL}/api/results/export/excel?classSectionId=${cs.id}&assessmentGroupId=${selExam.id}`;
 
-    const handleExportResults = async () => {
-  try {
-    if (!cs || !selExam) {
-      alert("Select class & exam");
-      return;
+      if (selSubjectId !== "all") {
+        url += `&subjectId=${selSubjectId}`;
+      }
+
+      const res = await fetch(url, {
+        headers: authHdr(),
+      });
+
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `results-${cs.name}-${selExam.name}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      console.error("Export failed", err);
     }
-
-    let url = `${API_URL}/api/results/export/excel?classSectionId=${cs.id}&assessmentGroupId=${selExam.id}`;
-
-    if (selSubjectId !== "all") {
-      url += `&subjectId=${selSubjectId}`;
-    }
-
-    const res = await fetch(url, {
-      headers: authHdr(),
-    });
-
-    const blob = await res.blob();
-    const downloadUrl = window.URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = downloadUrl;
-    a.download = `results-${cs.name}-${selExam.name}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } catch (err) {
-    console.error("Export failed", err);
-  }
-};
+  };
 
   return (
     <div>
       {/* back + title */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 20,
+        }}
+      >
         <button
           onClick={onBack}
           style={{
-            display: "flex", alignItems: "center", gap: 6,
-            background: C.card, border: `1.5px solid ${C.border}`,
-            borderRadius: 10, padding: "7px 14px",
-            cursor: "pointer", ...font, fontSize: 13, fontWeight: 600, color: C.mid,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: C.card,
+            border: `1.5px solid ${C.border}`,
+            borderRadius: 10,
+            padding: "7px 14px",
+            cursor: "pointer",
+            ...font,
+            fontSize: 13,
+            fontWeight: 600,
+            color: C.mid,
           }}
         >
           <ArrowLeft size={14} /> Back
         </button>
         <div>
-          <h2 style={{ ...font, fontSize: 17, fontWeight: 800, color: C.dark, margin: 0 }}>
-            Grade {cs.grade}{cs.section ? ` – ${cs.section}` : ""} — Results
+          <h2
+            style={{
+              ...font,
+              fontSize: 17,
+              fontWeight: 800,
+              color: C.dark,
+              margin: 0,
+            }}
+          >
+            Grade {cs.grade}
+            {cs.section ? ` – ${cs.section}` : ""} — Results
           </h2>
           <p style={{ ...font, fontSize: 12, color: C.mid, margin: "2px 0 0" }}>
             {cs.studentCount || 0} students enrolled
@@ -539,31 +924,63 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
       ) : (
         <>
           {/* exam selector tabs */}
-          <div style={{
-            display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20,
-          }}>
-            {exams.map(e => (
-              <button key={e.id}
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              marginBottom: 20,
+            }}
+          >
+            {exams.map((e) => (
+              <button
+                key={e.id}
                 onClick={() => setSelExam(e)}
                 style={{
-                  ...font, fontSize: 12, fontWeight: 700, padding: "6px 16px",
-                  borderRadius: 20, border: `1.5px solid ${selExam?.id === e.id ? C.dark : C.border}`,
+                  ...font,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 16px",
+                  borderRadius: 20,
+                  border: `1.5px solid ${
+                    selExam?.id === e.id ? C.dark : C.border
+                  }`,
                   background: selExam?.id === e.id ? C.dark : C.card,
                   color: selExam?.id === e.id ? "#fff" : C.mid,
-                  cursor: "pointer", transition: "all .15s",
+                  cursor: "pointer",
+                  transition: "all .15s",
                 }}
               >
                 {e.name}
                 {e.term?.name && (
-                  <span style={{ fontWeight: 400, opacity: 0.75 }}> · {e.term.name}</span>
+                  <span style={{ fontWeight: 400, opacity: 0.75 }}>
+                    {" "}
+                    · {e.term.name}
+                  </span>
                 )}
               </button>
             ))}
           </div>
 
           {subExamGroups.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-              <span style={{ ...font, fontSize: 11.5, fontWeight: 700, color: C.mid, letterSpacing: "0.04em" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginBottom: 20,
+                flexWrap: "wrap",
+              }}
+            >
+              <span
+                style={{
+                  ...font,
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  color: C.mid,
+                  letterSpacing: "0.04em",
+                }}
+              >
                 Combine with Sub Exam (Optional):
               </span>
               <div style={{ position: "relative" }}>
@@ -571,20 +988,31 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
                   value={subExamId}
                   onChange={(e) => setSubExamId(e.target.value)}
                   style={{
-                    ...font, appearance: "none", cursor: "pointer",
-                    background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 8,
-                    padding: "6px 30px 6px 12px", fontSize: 12, fontWeight: 700, color: C.dark, outline: "none",
+                    ...font,
+                    appearance: "none",
+                    cursor: "pointer",
+                    background: C.card,
+                    border: `1.5px solid ${C.border}`,
+                    borderRadius: 8,
+                    padding: "6px 30px 6px 12px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: C.dark,
+                    outline: "none",
                   }}
                 >
                   <option value="">None</option>
                   {subExamGroups.map((g) => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
                   ))}
                 </select>
               </div>
               {subExamId && (
                 <span style={{ ...font, fontSize: 11, color: C.mid }}>
-                  "View" will show Assessment + Final Exam + Total for each student
+                  "View" will show Assessment + Final Exam + Total for each
+                  student
                 </span>
               )}
             </div>
@@ -592,24 +1020,61 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
 
           {/* mini stat row */}
           {!resLoading && results.length > 0 && (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-              gap: 10, marginBottom: 20,
-            }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                gap: 10,
+                marginBottom: 20,
+              }}
+            >
               {[
-                { label: "Total Students", val: results.length,          accent: C.dark    },
-                { label: "Passed",         val: passed,                  accent: C.success  },
-                { label: "Failed",         val: failed,                  accent: C.danger   },
-                { label: "Absent",         val: absent,                  accent: C.mid      },
-                { label: "Class Avg",      val: avgPct.toFixed(1) + "%", accent: C.blue     },
+                {
+                  label: "Total Students",
+                  val: results.length,
+                  accent: C.dark,
+                },
+                { label: "Passed", val: passed, accent: C.success },
+                { label: "Below Average", val: failed, accent: C.danger },
+                { label: "Absent", val: absent, accent: C.mid },
+                {
+                  label: "Class Avg",
+                  val: avgPct.toFixed(1) + "%",
+                  accent: C.blue,
+                },
               ].map(({ label, val, accent }) => (
-                <div key={label} style={{
-                  background: C.card, border: `1.5px solid ${C.border}`,
-                  borderRadius: 12, padding: "12px 14px", textAlign: "center",
-                }}>
-                  <p style={{ ...font, fontSize: 18, fontWeight: 800, color: accent, margin: 0 }}>{val}</p>
-                  <p style={{ ...font, fontSize: 10, fontWeight: 600, color: C.mid, margin: "3px 0 0" }}>{label}</p>
+                <div
+                  key={label}
+                  style={{
+                    background: C.card,
+                    border: `1.5px solid ${C.border}`,
+                    borderRadius: 12,
+                    padding: "12px 14px",
+                    textAlign: "center",
+                  }}
+                >
+                  <p
+                    style={{
+                      ...font,
+                      fontSize: 18,
+                      fontWeight: 800,
+                      color: accent,
+                      margin: 0,
+                    }}
+                  >
+                    {val}
+                  </p>
+                  <p
+                    style={{
+                      ...font,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: C.mid,
+                      margin: "3px 0 0",
+                    }}
+                  >
+                    {label}
+                  </p>
                 </div>
               ))}
             </div>
@@ -617,46 +1082,88 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
 
           {/* subject filter dropdown */}
           {subjects.length > 0 && (
-            <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ ...font, fontSize: 12, fontWeight: 600, color: C.mid, whiteSpace: "nowrap" }}>
+            <div
+              style={{
+                marginBottom: 16,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <span
+                style={{
+                  ...font,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: C.mid,
+                  whiteSpace: "nowrap",
+                }}
+              >
                 Filter by Subject:
               </span>
               <div style={{ position: "relative" }}>
                 <select
                   value={selSubjectId}
-                  onChange={e => setSelSubjectId(e.target.value)}
+                  onChange={(e) => setSelSubjectId(e.target.value)}
                   style={{
-                    ...font, fontSize: 13, fontWeight: 600,
+                    ...font,
+                    fontSize: 13,
+                    fontWeight: 600,
                     color: selSubjectId === "all" ? C.mid : C.dark,
                     background: C.card,
-                    border: `1.5px solid ${selSubjectId === "all" ? C.border : C.blue + "88"}`,
-                    borderRadius: 10, padding: "7px 32px 7px 12px",
-                    cursor: "pointer", outline: "none",
-                    appearance: "none", WebkitAppearance: "none",
-                    boxShadow: selSubjectId !== "all" ? `0 0 0 3px ${C.blue}18` : "none",
+                    border: `1.5px solid ${
+                      selSubjectId === "all" ? C.border : C.blue + "88"
+                    }`,
+                    borderRadius: 10,
+                    padding: "7px 32px 7px 12px",
+                    cursor: "pointer",
+                    outline: "none",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    boxShadow:
+                      selSubjectId !== "all" ? `0 0 0 3px ${C.blue}18` : "none",
                     transition: "all .15s",
                     minWidth: 190,
                   }}
                 >
                   <option value="all">Show All Subjects</option>
-                  {subjects.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                  {subjects.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
                   ))}
                 </select>
-                <span style={{
-                  position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
-                  pointerEvents: "none", color: C.mid, fontSize: 11,
-                }}>▾</span>
+                <span
+                  style={{
+                    position: "absolute",
+                    right: 10,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    pointerEvents: "none",
+                    color: C.mid,
+                    fontSize: 11,
+                  }}
+                >
+                  ▾
+                </span>
               </div>
               {selSubjectId !== "all" && (
                 <button
                   onClick={() => setSelSubjectId("all")}
                   style={{
-                    ...font, fontSize: 11, fontWeight: 600,
-                    color: C.mid, background: "#f1f5f9",
-                    border: `1px solid ${C.border}`, borderRadius: 8,
-                    padding: "5px 10px", cursor: "pointer",
-                    display: "flex", alignItems: "center", gap: 4,
+                    ...font,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: C.mid,
+                    background: "#f1f5f9",
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 8,
+                    padding: "5px 10px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
                   }}
                 >
                   <X size={11} /> Clear
@@ -666,37 +1173,70 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
           )}
 
           {/* results table */}
-          <div style={{
-            background: C.card, border: `1.5px solid ${C.border}`,
-            borderRadius: 16, overflow: "hidden",
-          }}>
-            <div style={{
-              padding: "12px 18px", borderBottom: `1.5px solid ${C.border}`,
-              display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8,
-            }}>
-              <p style={{ ...font, fontSize: 13, fontWeight: 700, color: C.dark, margin: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div
+            style={{
+              background: C.card,
+              border: `1.5px solid ${C.border}`,
+              borderRadius: 16,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "12px 18px",
+                borderBottom: `1.5px solid ${C.border}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 8,
+              }}
+            >
+              <p
+                style={{
+                  ...font,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: C.dark,
+                  margin: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
                 {selExam?.name} — Student Results
                 {selSubjectId !== "all" && subjects.length > 0 && (
-                  <span style={{
-                    fontSize: 11, fontWeight: 600,
-                    color: C.blue, background: C.blue + "15",
-                    border: `1px solid ${C.blue}33`,
-                    borderRadius: 20, padding: "2px 10px",
-                  }}>
-                    {subjects.find(s => s.id === selSubjectId)?.name}
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: C.blue,
+                      background: C.blue + "15",
+                      border: `1px solid ${C.blue}33`,
+                      borderRadius: 20,
+                      padding: "2px 10px",
+                    }}
+                  >
+                    {subjects.find((s) => s.id === selSubjectId)?.name}
                   </span>
                 )}
               </p>
               {resLoading && (
-                <Loader2 size={15} color={C.mid}
-                  style={{ animation: "spin 1s linear infinite" }} />
+                <Loader2
+                  size={15}
+                  color={C.mid}
+                  style={{ animation: "spin 1s linear infinite" }}
+                />
               )}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginLeft: "auto"   // 👈 pushes to right side
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginLeft: "auto", // 👈 pushes to right side
+                }}
+              >
                 <button
                   onClick={() => setBulkModalOpen(true)}
                   disabled={selectedStudentIds.size === 0}
@@ -708,14 +1248,21 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
                     borderRadius: 10,
                     fontSize: 12,
                     fontWeight: 600,
-                    background: selectedStudentIds.size === 0 ? "#f1f5f9" : "#eef4fb",
+                    background:
+                      selectedStudentIds.size === 0 ? "#f1f5f9" : "#eef4fb",
                     color: selectedStudentIds.size === 0 ? "#94a3b8" : C.blue,
-                    border: `1px solid ${selectedStudentIds.size === 0 ? C.border : "#bcd7f5"}`,
-                    cursor: selectedStudentIds.size === 0 ? "not-allowed" : "pointer",
+                    border: `1px solid ${
+                      selectedStudentIds.size === 0 ? C.border : "#bcd7f5"
+                    }`,
+                    cursor:
+                      selectedStudentIds.size === 0 ? "not-allowed" : "pointer",
                   }}
                 >
                   <FileText size={14} />
-                  Download Reports {selectedStudentIds.size > 0 ? `(${selectedStudentIds.size})` : ""}
+                  Download Reports{" "}
+                  {selectedStudentIds.size > 0
+                    ? `(${selectedStudentIds.size})`
+                    : ""}
                 </button>
 
                 <button
@@ -748,7 +1295,12 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
               <StudentResultsTable
                 rows={results}
                 subjectMode={selSubjectId !== "all"}
-                onViewReport={(r) => setReportView({ studentId: r.studentId, studentName: r.studentName })}
+                onViewReport={(r) =>
+                  setReportView({
+                    studentId: r.studentId,
+                    studentName: r.studentName,
+                  })
+                }
                 selectedIds={selectedStudentIds}
                 onToggleRow={toggleRowSelection}
                 onToggleAll={toggleAllSelection}
@@ -773,7 +1325,10 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
           open={bulkModalOpen}
           students={results
             .filter((r) => selectedStudentIds.has(r.studentId))
-            .map((r) => ({ studentId: r.studentId, studentName: r.studentName }))}
+            .map((r) => ({
+              studentId: r.studentId,
+              studentName: r.studentName,
+            }))}
           assessmentGroupId={selExam.id}
           subAssessmentGroupId={subExamId || undefined}
           onClose={() => setBulkModalOpen(false)}
@@ -786,12 +1341,21 @@ function ClassDetailView({ cs, academicYearId, onBack }) {
 /* ─── small utility components ──────────────────────────────────────────── */
 function Loader({ state = "Loading…" }) {
   return (
-    <div style={{
-      padding: "52px 0", textAlign: "center",
-      display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
-    }}>
-      <Loader2 size={22} color={C.mid}
-        style={{ animation: "spin 1s linear infinite" }} />
+    <div
+      style={{
+        padding: "52px 0",
+        textAlign: "center",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <Loader2
+        size={22}
+        color={C.mid}
+        style={{ animation: "spin 1s linear infinite" }}
+      />
       <p style={{ ...font, fontSize: 13, color: C.mid, margin: 0 }}>{state}</p>
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>
@@ -800,12 +1364,20 @@ function Loader({ state = "Loading…" }) {
 
 function ErrorBox({ msg }) {
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 10,
-      padding: "14px 18px", borderRadius: 12,
-      background: "#fef2f2", border: `1.5px solid #fca5a5`,
-      ...font, fontSize: 13, color: C.danger,
-    }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "14px 18px",
+        borderRadius: 12,
+        background: "#fef2f2",
+        border: `1.5px solid #fca5a5`,
+        ...font,
+        fontSize: 13,
+        color: C.danger,
+      }}
+    >
       <AlertCircle size={16} /> {msg}
     </div>
   );
@@ -813,17 +1385,40 @@ function ErrorBox({ msg }) {
 
 function EmptyBox({ msg }) {
   return (
-    <div style={{
-      padding: "48px 0", textAlign: "center",
-      display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
-    }}>
-      <div style={{
-        width: 48, height: 48, borderRadius: 14,
-        background: C.bg, display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
+    <div
+      style={{
+        padding: "48px 0",
+        textAlign: "center",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <div
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 14,
+          background: C.bg,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <BarChart2 size={20} color={C.mid} />
       </div>
-      <p style={{ ...font, fontSize: 13, fontWeight: 600, color: C.dark, margin: 0 }}>No data</p>
+      <p
+        style={{
+          ...font,
+          fontSize: 13,
+          fontWeight: 600,
+          color: C.dark,
+          margin: 0,
+        }}
+      >
+        No data
+      </p>
       <p style={{ ...font, fontSize: 12, color: C.mid, margin: 0 }}>{msg}</p>
     </div>
   );
@@ -831,10 +1426,10 @@ function EmptyBox({ msg }) {
 
 /* ─── Main ResultsTab ────────────────────────────────────────────────────── */
 export default function ResultsTab({ academicYearId, academicYearLabel }) {
-  const [classes,  setClasses]  = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState("");
-  const [search,   setSearch]   = useState("");
+  const [classes, setClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
   const [selClass, setSelClass] = useState(null);
 
   // ✅ FIX: load class sections + enrich with data from /api/results/summary
@@ -845,50 +1440,60 @@ export default function ResultsTab({ academicYearId, academicYearLabel }) {
     try {
       // 1. All class sections
       const cs = await apiFetch("/api/class-sections");
-        const sections =
-        Array.isArray(cs) ? cs :
-        cs.classSections || cs.data || [];
+      const sections = Array.isArray(cs)
+        ? cs
+        : cs.classSections || cs.data || [];
       // 2. ✅ Use /api/results/summary — returns resultSummary rows with correct fields
       //    (totalMarks=obtained, maxMarks=outOf, percentage, grade per student per exam)
       const summaryRes = await apiFetch(`/api/results/summary`);
-      const summaries  = summaryRes.data || [];
+      const summaries = summaryRes.data || [];
 
       // 3. Exam groups to count per class
-      const grps   = await apiFetch(`/api/exams/groups/${academicYearId}`);
+      const grps = await apiFetch(`/api/exams/groups/${academicYearId}`);
       const groups = Array.isArray(grps) ? grps : [];
 
-    const enriched = sections.map(sec => {
-    // ✅ FIX: direct filter (no map dependency)
-    const rows = summaries.filter(s => s.classSectionId === sec.id);
+      const enriched = sections.map((sec) => {
+        // ✅ FIX: direct filter (no map dependency)
+        const rows = summaries.filter((s) => s.classSectionId === sec.id);
 
-    const studentMap = {};
+        const studentMap = {};
 
-    rows.forEach(r => {
-        if (!studentMap[r.studentId]) {
-        studentMap[r.studentId] = { totalPct: 0, count: 0 };
-        }
-        studentMap[r.studentId].totalPct += r.percentage || 0;
-        studentMap[r.studentId].count += 1;
-    });
+        rows.forEach((r) => {
+          if (!studentMap[r.studentId]) {
+            studentMap[r.studentId] = { totalPct: 0, count: 0 };
+          }
+          // All-absent rows have no percentage → not part of the average.
+          if (hasCalculatedResult(r)) {
+            studentMap[r.studentId].totalPct += Number(r.percentage || 0);
+            studentMap[r.studentId].count += 1;
+          }
+        });
 
-    const studentList = Object.values(studentMap);
+        const studentList = Object.values(studentMap);
+        const withPct = studentList.filter((s) => s.count > 0);
 
-    const avgPct = studentList.length
-        ? studentList.reduce((a, s) => a + (s.totalPct / s.count), 0) / studentList.length
-        : 0;
+        const avgPct = withPct.length
+          ? withPct.reduce((a, s) => a + s.totalPct / s.count, 0) /
+            withPct.length
+          : 0;
 
-    const passed = rows.filter(r => r.percentage >= 50).length;
-    const failed = rows.filter(r => r.percentage < 50).length;
+        // Grade-based (overall percentage only) — no subject-level override.
+        const passed = rows.filter(
+          (r) => hasCalculatedResult(r) && r.grade !== "F",
+        ).length;
+        const failed = rows.filter(
+          (r) => hasCalculatedResult(r) && r.grade === "F",
+        ).length;
 
-    return {
-        ...sec,
-        avgPct,
-        studentCount: studentList.length,
-        passed,
-        failed,
-        examCount: new Set(rows.map(r => r.assessmentGroupId)).size,
-    };
-    });
+        return {
+          ...sec,
+          avgPct,
+          studentCount: studentList.length,
+          passed,
+          failed,
+          examCount: new Set(rows.map((r) => r.assessmentGroupId)).size,
+        };
+      });
 
       setClasses(enriched);
     } catch (e) {
@@ -898,37 +1503,44 @@ export default function ResultsTab({ academicYearId, academicYearLabel }) {
     }
   }, [academicYearId]);
 
-  useEffect(() => { loadClasses(); }, [loadClasses]);
+  useEffect(() => {
+    loadClasses();
+  }, [loadClasses]);
 
   // Overall stats
   const totalStudents = useMemo(
     () => classes.reduce((a, c) => a + (c.studentCount || 0), 0),
-    [classes]
+    [classes],
   );
   const totalPassed = useMemo(
     () => classes.reduce((a, c) => a + (c.passed || 0), 0),
-    [classes]
+    [classes],
   );
   const totalFailed = useMemo(
     () => classes.reduce((a, c) => a + (c.failed || 0), 0),
-    [classes]
+    [classes],
   );
   const overallAvg = useMemo(() => {
-    const active = classes.filter(c => c.avgPct > 0);
+    const active = classes.filter((c) => c.avgPct > 0);
     if (!active.length) return 0;
     return active.reduce((a, c) => a + c.avgPct, 0) / active.length;
   }, [classes]);
 
-  const filtered = useMemo(() =>
-    classes.filter(c => {
-      const q = search.toLowerCase();
-      return (
-        String(c.grade).toLowerCase().includes(q) ||
-        String(c.section || "").toLowerCase().includes(q) ||
-        String(c.name || "").toLowerCase().includes(q)
-      );
-    }),
-    [classes, search]
+  const filtered = useMemo(
+    () =>
+      classes.filter((c) => {
+        const q = search.toLowerCase();
+        return (
+          String(c.grade).toLowerCase().includes(q) ||
+          String(c.section || "")
+            .toLowerCase()
+            .includes(q) ||
+          String(c.name || "")
+            .toLowerCase()
+            .includes(q)
+        );
+      }),
+    [classes, search],
   );
 
   /* ── drill-down view ── */
@@ -946,39 +1558,80 @@ export default function ResultsTab({ academicYearId, academicYearLabel }) {
   return (
     <div>
       {/* stat cards */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(170px,1fr))",
-        gap: 12, marginBottom: 22,
-      }}>
-        <StatCard icon={Users}      label="Total Students" value={totalStudents}                                   accent={C.dark}    />
-        <StatCard icon={CheckCircle2} label="Passed"       value={totalPassed}                                    accent={C.success}  />
-        <StatCard icon={XCircle}    label="Failed"         value={totalFailed}                                    accent={C.danger}   />
-        <StatCard icon={TrendingUp} label="School Avg"     value={overallAvg > 0 ? overallAvg.toFixed(1) + "%" : "—"} accent={C.blue} />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(170px,1fr))",
+          gap: 12,
+          marginBottom: 22,
+        }}
+      >
+        <StatCard
+          icon={Users}
+          label="Total Students"
+          value={totalStudents}
+          accent={C.dark}
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="Passed"
+          value={totalPassed}
+          accent={C.success}
+        />
+        <StatCard
+          icon={TrendingDown}
+          label="Below Average"
+          value={totalFailed}
+          accent={C.danger}
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="School Avg"
+          value={overallAvg > 0 ? overallAvg.toFixed(1) + "%" : "—"}
+          accent={C.blue}
+        />
       </div>
 
       {/* search bar */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        background: C.card, border: `1.5px solid ${C.border}`,
-        borderRadius: 12, padding: "8px 14px", marginBottom: 18,
-        maxWidth: 360,
-      }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          background: C.card,
+          border: `1.5px solid ${C.border}`,
+          borderRadius: 12,
+          padding: "8px 14px",
+          marginBottom: 18,
+          maxWidth: 360,
+        }}
+      >
         <Search size={13} color={C.mid} />
         <input
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Search classes…"
           style={{
-            border: "none", outline: "none", background: "transparent",
-            ...font, fontSize: 13, color: C.dark, flex: 1,
+            border: "none",
+            outline: "none",
+            background: "transparent",
+            ...font,
+            fontSize: 13,
+            color: C.dark,
+            flex: 1,
           }}
         />
         {search && (
           <button
             onClick={() => setSearch("")}
-            style={{ background: "none", border: "none", cursor: "pointer",
-              display: "flex", color: C.mid }}>
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              color: C.mid,
+            }}
+          >
             <X size={12} />
           </button>
         )}
@@ -990,26 +1643,26 @@ export default function ResultsTab({ academicYearId, academicYearLabel }) {
       ) : error ? (
         <ErrorBox msg={error} />
       ) : filtered.length === 0 ? (
-        <EmptyBox msg={search ? "No classes match your search." : "No classes found."} />
+        <EmptyBox
+          msg={search ? "No classes match your search." : "No classes found."}
+        />
       ) : (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-          gap: 14,
-        }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+            gap: 14,
+          }}
+        >
           {filtered
-            .sort((a, b) =>
-              (parseInt(a.grade) || 0) - (parseInt(b.grade) || 0) ||
-              String(a.section || "").localeCompare(String(b.section || ""))
+            .sort(
+              (a, b) =>
+                (parseInt(a.grade) || 0) - (parseInt(b.grade) || 0) ||
+                String(a.section || "").localeCompare(String(b.section || "")),
             )
-            .map(cs => (
-              <ClassCard
-                key={cs.id}
-                cs={cs}
-                onClick={() => setSelClass(cs)}
-              />
-            ))
-          }
+            .map((cs) => (
+              <ClassCard key={cs.id} cs={cs} onClick={() => setSelClass(cs)} />
+            ))}
         </div>
       )}
     </div>

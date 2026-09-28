@@ -8,11 +8,11 @@ import * as XLSX from "xlsx";
 
 const GRADE_SCALE = [
   { min: 90, grade: "A+" },
-  { min: 80, grade: "A"  },
-  { min: 70, grade: "B"  },
-  { min: 60, grade: "C"  },
-  { min: 50, grade: "D"  },
-  { min: 0,  grade: "F"  },
+  { min: 80, grade: "A" },
+  { min: 70, grade: "B" },
+  { min: 60, grade: "C" },
+  { min: 50, grade: "D" },
+  { min: 0, grade: "F" },
 ];
 function calcGrade(pct) {
   if (pct == null || isNaN(pct)) return "";
@@ -20,31 +20,71 @@ function calcGrade(pct) {
 }
 
 function safeFileToken(s) {
-  return String(s || "").trim().replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "Sheet";
+  return (
+    String(s || "")
+      .trim()
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "Sheet"
+  );
 }
 
 // ─── Download Sample Excel ──────────────────────────────────────────────────
-export function downloadSampleExcel({ subjectName, maxMarks, examName, className, format, students }) {
+export function downloadSampleExcel({
+  subjectName,
+  maxMarks,
+  examName,
+  className,
+  format,
+  students,
+}) {
   const isFA = format === "fa";
 
   const header = isFA
-    ? ["Roll No", "Student", "R&R", "CW", "PW", "ST", "TOT", "GRD", "PER (%)", "Absent", "Remarks"]
+    ? [
+        "Roll No",
+        "Student",
+        "R&R",
+        "CW",
+        "PW",
+        "ST",
+        "TOT",
+        "GRD",
+        "PER (%)",
+        "Absent",
+        "Remarks",
+      ]
     : ["Roll No", "Student", `Marks / ${maxMarks ?? ""}`, "Absent", "Remarks"];
 
   const rows = (students || []).map((s) => {
     if (isFA) {
-      return [s.rollNumber || "", s.studentName || "", "", "", "", "", "", "", "", "No", ""];
+      return [
+        s.rollNumber || "",
+        s.studentName || "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "No",
+        "",
+      ];
     }
     return [s.rollNumber || "", s.studentName || "", "", "No", ""];
   });
 
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-  ws["!cols"] = header.map((h) => ({ wch: Math.max(12, String(h).length + 4) }));
+  ws["!cols"] = header.map((h) => ({
+    wch: Math.max(12, String(h).length + 4),
+  }));
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Marks");
 
-  const filename = `${safeFileToken(subjectName)}_${safeFileToken(examName)}_${safeFileToken(className)}_Sample.xlsx`;
+  const filename = `${safeFileToken(subjectName)}_${safeFileToken(
+    examName,
+  )}_${safeFileToken(className)}_Sample.xlsx`;
   XLSX.writeFile(wb, filename);
 }
 
@@ -57,12 +97,17 @@ export function readExcelFile(file) {
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, { type: "array" });
         const sheetName = wb.SheetNames[0];
-        if (!sheetName) return reject(new Error("The Excel file has no sheets."));
+        if (!sheetName)
+          return reject(new Error("The Excel file has no sheets."));
         const ws = wb.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
         resolve(rows);
       } catch (err) {
-        reject(new Error("Could not read that file — make sure it's a valid .xlsx/.csv export."));
+        reject(
+          new Error(
+            "Could not read that file — make sure it's a valid .xlsx/.csv export.",
+          ),
+        );
       }
     };
     reader.onerror = () => reject(new Error("Failed to read the file."));
@@ -73,14 +118,18 @@ export function readExcelFile(file) {
 function findCell(row, ...names) {
   const rowKeys = Object.keys(row);
   for (const name of names) {
-    const found = rowKeys.find((k) => k.trim().toLowerCase() === name.toLowerCase());
+    const found = rowKeys.find(
+      (k) => k.trim().toLowerCase() === name.toLowerCase(),
+    );
     if (found !== undefined) return row[found];
   }
   return undefined;
 }
 
 function parseAbsent(v) {
-  const s = String(v ?? "").trim().toLowerCase();
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
   return ["yes", "y", "true", "1", "ab", "absent"].includes(s);
 }
 
@@ -103,12 +152,15 @@ export function matchExcelRowsToStudents(rows, students) {
   const byRoll = new Map();
   const byName = new Map();
   (students || []).forEach((s) => {
-    if (s.rollNumber) byRoll.set(String(s.rollNumber).trim().toLowerCase(), s.studentId);
-    if (s.studentName) byName.set(String(s.studentName).trim().toLowerCase(), s.studentId);
+    if (s.rollNumber)
+      byRoll.set(String(s.rollNumber).trim().toLowerCase(), s.studentId);
+    if (s.studentName)
+      byName.set(String(s.studentName).trim().toLowerCase(), s.studentId);
   });
 
   const updates = {};
   let matchedCount = 0;
+  let blankCount = 0; // matched rows left blank → existing marks kept
 
   for (const row of rows) {
     const rollRaw = findCell(row, "Roll No", "RollNo", "Roll");
@@ -124,10 +176,19 @@ export function matchExcelRowsToStudents(rows, students) {
     if (!studentId) continue;
 
     matchedCount++;
-    const absent  = parseAbsent(findCell(row, "Absent"));
-    const remarks = String(findCell(row, "Remarks") ?? "");
+    const absent = parseAbsent(findCell(row, "Absent"));
+    const remarksRaw = String(findCell(row, "Remarks") ?? "").trim();
 
-    if (isFA) {
+    // Only fields actually filled in the sheet are applied. A blank cell
+    // means "no change" — it never wipes marks that were already saved.
+    const patch = {};
+    if (remarksRaw) patch.remarks = remarksRaw;
+
+    if (absent) {
+      patch.isAbsent = true;
+      patch.marksObtained = "";
+      if (isFA) patch.components = { rr: "", cw: "", pw: "", st: "" };
+    } else if (isFA) {
       const rr = findCell(row, "R&R", "RR");
       const cw = findCell(row, "CW");
       const pw = findCell(row, "PW");
@@ -138,37 +199,48 @@ export function matchExcelRowsToStudents(rows, students) {
         pw: pw === "" || pw == null ? "" : String(pw),
         st: st === "" || st == null ? "" : String(st),
       };
-      updates[studentId] = {
-        components,
-        marksObtained: absent ? "" : faTotal(components),
-        isAbsent: absent,
-        remarks,
-      };
+      const anyFilled = Object.values(components).some((v) => v !== "");
+      if (anyFilled) {
+        patch.components = components;
+        patch.marksObtained = faTotal(components);
+        patch.isAbsent = false;
+      }
     } else {
-      const marksKey = Object.keys(row).find((k) => k.trim().toLowerCase().startsWith("marks"));
-      const marksVal = marksKey !== undefined ? row[marksKey] : findCell(row, "Marks Obtained");
-      updates[studentId] = {
-        marksObtained: absent || marksVal === "" || marksVal == null ? "" : Number(marksVal),
-        isAbsent: absent,
-        remarks,
-      };
+      const marksKey = Object.keys(row).find((k) =>
+        k.trim().toLowerCase().startsWith("marks"),
+      );
+      const marksVal =
+        marksKey !== undefined
+          ? row[marksKey]
+          : findCell(row, "Marks Obtained");
+      if (marksVal !== "" && marksVal != null) {
+        patch.marksObtained = Number(marksVal); // a real 0 stays 0
+        patch.isAbsent = false;
+      }
     }
+
+    if (Object.keys(patch).length) updates[studentId] = patch;
+    else blankCount++;
   }
 
   if (!matchedCount) {
     throw new Error(
-      "No matching students found in the uploaded file. Make sure Roll No or Student Name matches this class exactly."
+      "No matching students found in the uploaded file. Make sure Roll No or Student Name matches this class exactly.",
     );
   }
 
-  return { isFA, updates, matchedCount, totalRows: rows.length };
+  return { isFA, updates, matchedCount, blankCount, totalRows: rows.length };
 }
 
 // ─── All-subjects workbook: one sheet per subject ──────────────────────────
 
 // Excel sheet names: max 31 chars, no : \ / ? * [ ], must be unique in the book.
 function safeSheetName(name, used) {
-  let base = String(name || "Subject").replace(/[:\\/?*[\]]/g, "").slice(0, 31).trim() || "Subject";
+  let base =
+    String(name || "Subject")
+      .replace(/[:\\/?*[\]]/g, "")
+      .slice(0, 31)
+      .trim() || "Subject";
   let candidate = base;
   let i = 2;
   while (used.has(candidate.toLowerCase())) {
@@ -184,37 +256,94 @@ function safeSheetName(name, used) {
 // subExam (optional): { maxMarks, students } — final marks and sub-exam (assessment) marks for the
 // same subject are entered on separate sheets: "Subject" and "Subject (Assessment)". Sub-exam sheets
 // are always Standard format (no FA support for sub exams).
-export function downloadSampleExcelAllSubjects({ subjects, examName, className, subExamName }) {
+export function downloadSampleExcelAllSubjects({
+  subjects,
+  examName,
+  className,
+  subExamName,
+}) {
   const wb = XLSX.utils.book_new();
   const usedNames = new Set();
 
   (subjects || []).forEach((subj) => {
     const isFA = subj.format === "fa";
     const header = isFA
-      ? ["Roll No", "Student", "R&R", "CW", "PW", "ST", "TOT", "GRD", "PER (%)", "Absent", "Remarks"]
-      : ["Roll No", "Student", `Marks / ${subj.maxMarks ?? ""}`, "Absent", "Remarks"];
+      ? [
+          "Roll No",
+          "Student",
+          "R&R",
+          "CW",
+          "PW",
+          "ST",
+          "TOT",
+          "GRD",
+          "PER (%)",
+          "Absent",
+          "Remarks",
+        ]
+      : [
+          "Roll No",
+          "Student",
+          `Marks / ${subj.maxMarks ?? ""}`,
+          "Absent",
+          "Remarks",
+        ];
 
-    const rows = (subj.students || []).map((s) => (
+    const rows = (subj.students || []).map((s) =>
       isFA
-        ? [s.rollNumber || "", s.studentName || "", "", "", "", "", "", "", "", "No", ""]
-        : [s.rollNumber || "", s.studentName || "", "", "No", ""]
-    ));
+        ? [
+            s.rollNumber || "",
+            s.studentName || "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "No",
+            "",
+          ]
+        : [s.rollNumber || "", s.studentName || "", "", "No", ""],
+    );
 
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-    ws["!cols"] = header.map((h) => ({ wch: Math.max(12, String(h).length + 4) }));
+    ws["!cols"] = header.map((h) => ({
+      wch: Math.max(12, String(h).length + 4),
+    }));
 
     XLSX.utils.book_append_sheet(wb, ws, safeSheetName(subj.name, usedNames));
 
     if (subj.subExam?.students?.length) {
-      const saHeader = ["Roll No", "Student", `Marks / ${subj.subExam.maxMarks ?? ""}`, "Absent", "Remarks"];
-      const saRows = subj.subExam.students.map((s) => [s.rollNumber || "", s.studentName || "", "", "No", ""]);
+      const saHeader = [
+        "Roll No",
+        "Student",
+        `Marks / ${subj.subExam.maxMarks ?? ""}`,
+        "Absent",
+        "Remarks",
+      ];
+      const saRows = subj.subExam.students.map((s) => [
+        s.rollNumber || "",
+        s.studentName || "",
+        "",
+        "No",
+        "",
+      ]);
       const saWs = XLSX.utils.aoa_to_sheet([saHeader, ...saRows]);
-      saWs["!cols"] = saHeader.map((h) => ({ wch: Math.max(12, String(h).length + 4) }));
-      XLSX.utils.book_append_sheet(wb, saWs, safeSheetName(`${subj.name} (Assessment)`, usedNames));
+      saWs["!cols"] = saHeader.map((h) => ({
+        wch: Math.max(12, String(h).length + 4),
+      }));
+      XLSX.utils.book_append_sheet(
+        wb,
+        saWs,
+        safeSheetName(`${subj.name} (Assessment)`, usedNames),
+      );
     }
   });
 
-  const filename = `${safeFileToken(examName)}${subExamName ? "_" + safeFileToken(subExamName) : ""}_${safeFileToken(className)}_AllSubjects_Sample.xlsx`;
+  const filename = `${safeFileToken(examName)}${
+    subExamName ? "_" + safeFileToken(subExamName) : ""
+  }_${safeFileToken(className)}_AllSubjects_Sample.xlsx`;
   XLSX.writeFile(wb, filename);
 }
 
@@ -226,14 +355,21 @@ export function readExcelWorkbookAllSheets(file) {
       try {
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, { type: "array" });
-        if (!wb.SheetNames.length) return reject(new Error("The Excel file has no sheets."));
+        if (!wb.SheetNames.length)
+          return reject(new Error("The Excel file has no sheets."));
         const sheets = {};
         wb.SheetNames.forEach((name) => {
-          sheets[name] = XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: "" });
+          sheets[name] = XLSX.utils.sheet_to_json(wb.Sheets[name], {
+            defval: "",
+          });
         });
         resolve(sheets);
       } catch (err) {
-        reject(new Error("Could not read that file — make sure it's a valid .xlsx export."));
+        reject(
+          new Error(
+            "Could not read that file — make sure it's a valid .xlsx export.",
+          ),
+        );
       }
     };
     reader.onerror = () => reject(new Error("Failed to read the file."));
@@ -242,7 +378,10 @@ export function readExcelWorkbookAllSheets(file) {
 }
 
 function normalizeName(s) {
-  return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 // Matches each sheet name to a subject (by name, then by code), and runs the
@@ -257,8 +396,8 @@ export function matchWorkbookToSubjects(sheets, subjects) {
     if (s.code) bySubjectNorm.set(normalizeName(s.code), s);
   });
 
-  const results = [];         // { subjectId, subjectName, isFA, updates, matchedCount, totalRows } — final marks
-  const subExamResults = [];  // { subjectId, subjectName, updates, matchedCount, totalRows } — sub-exam marks
+  const results = []; // { subjectId, subjectName, isFA, updates, matchedCount, totalRows } — final marks
+  const subExamResults = []; // { subjectId, subjectName, updates, matchedCount, totalRows } — sub-exam marks
   const unmatchedSheets = [];
 
   for (const [sheetName, rows] of Object.entries(sheets || {})) {
@@ -266,7 +405,9 @@ export function matchWorkbookToSubjects(sheets, subjects) {
 
     // Excel may have appended " (2)" etc. to keep sheet names unique, and/or
     // an " (Assessment)" suffix marking this as the sub-exam sheet.
-    const assessmentMatch = sheetName.match(/^(.*?)\s*\(assessment\)\s*(?:\(\d+\))?$/i);
+    const assessmentMatch = sheetName.match(
+      /^(.*?)\s*\(assessment\)\s*(?:\(\d+\))?$/i,
+    );
     const isAssessmentSheet = !!assessmentMatch;
     const lookupName = isAssessmentSheet ? assessmentMatch[1] : sheetName;
 
@@ -282,12 +423,23 @@ export function matchWorkbookToSubjects(sheets, subjects) {
 
     if (isAssessmentSheet) {
       if (!subj.subExam?.students?.length) {
-        unmatchedSheets.push(`${sheetName} (no sub exam schedule for this subject)`);
+        unmatchedSheets.push(
+          `${sheetName} (no sub exam schedule for this subject)`,
+        );
         continue;
       }
       try {
-        const { updates, matchedCount, totalRows } = matchExcelRowsToStudents(rows, subj.subExam.students);
-        subExamResults.push({ subjectId: subj.id, subjectName: subj.name, updates, matchedCount, totalRows });
+        const { updates, matchedCount, totalRows } = matchExcelRowsToStudents(
+          rows,
+          subj.subExam.students,
+        );
+        subExamResults.push({
+          subjectId: subj.id,
+          subjectName: subj.name,
+          updates,
+          matchedCount,
+          totalRows,
+        });
       } catch {
         unmatchedSheets.push(`${sheetName} (no matching students)`);
       }
@@ -295,8 +447,16 @@ export function matchWorkbookToSubjects(sheets, subjects) {
     }
 
     try {
-      const { isFA, updates, matchedCount, totalRows } = matchExcelRowsToStudents(rows, subj.students);
-      results.push({ subjectId: subj.id, subjectName: subj.name, isFA, updates, matchedCount, totalRows });
+      const { isFA, updates, matchedCount, totalRows } =
+        matchExcelRowsToStudents(rows, subj.students);
+      results.push({
+        subjectId: subj.id,
+        subjectName: subj.name,
+        isFA,
+        updates,
+        matchedCount,
+        totalRows,
+      });
     } catch {
       unmatchedSheets.push(`${sheetName} (no matching students)`);
     }
@@ -305,8 +465,10 @@ export function matchWorkbookToSubjects(sheets, subjects) {
   if (!results.length && !subExamResults.length) {
     throw new Error(
       unmatchedSheets.length
-        ? `None of the sheet names matched a subject for this class (${unmatchedSheets.join(", ")}).`
-        : "The uploaded file has no usable data."
+        ? `None of the sheet names matched a subject for this class (${unmatchedSheets.join(
+            ", ",
+          )}).`
+        : "The uploaded file has no usable data.",
     );
   }
 

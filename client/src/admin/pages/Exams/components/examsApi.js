@@ -109,6 +109,23 @@ export const createSchedule = (data) =>
     body: JSON.stringify(data),
   }).then(handle);
 
+/**
+ * Update an existing schedule IN PLACE (keeps its id, so saved marks stay
+ * attached). Used by the Edit Exam wizard instead of delete + re-create.
+ * PUT /api/results/schedule/:id
+ */
+export const updateSchedule = (id, data) =>
+  fetch(`${API_URL}/api/results/schedule/${id}`, {
+    method: "PUT",
+    headers: authHeaders(true),
+    body: JSON.stringify(data),
+  }).then(async (r) => {
+    const j = await r.json();
+    if (!r.ok || j.success === false)
+      throw new Error(j.message || j.error || `HTTP ${r.status}`);
+    return j;
+  });
+
 export const deleteSchedule = (id) =>
   fetch(`${BASE}/schedules/${id}`, {
     method: "DELETE",

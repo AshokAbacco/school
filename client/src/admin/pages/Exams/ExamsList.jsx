@@ -297,7 +297,7 @@ export default function ExamsList() {
           setYearError("No academic year found. Please create one first.");
         }
       })
-      .catch(() => setYearError("Failed to load academic year."))
+      .catch(() => setYearError("  to load academic year."))
       .finally(() => setYearLoading(false));
   }, []);
 
