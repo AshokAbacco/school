@@ -25,6 +25,16 @@ export default function CertificateFilters({
   dateTo,
   onDateFromChange,
   onDateToChange,
+  // Exam Name dropdown (Certificate History). `examOptions` = [{ examId, examName, count }]
+  showExamFilter = false,
+  examValue,
+  onExamChange,
+  examOptions = [],
+  loadingExams = false,
+  // Single date filter (Certificate History) — replaces the From/To pair there.
+  showSingleDate = false,
+  date,
+  onDateChange,
 }) {
   const [academicYears, setAcademicYears] = useState([]);
   const [classSections, setClassSections] = useState([]);
@@ -77,6 +87,26 @@ export default function CertificateFilters({
         ))}
       </select>
 
+      {showExamFilter && (
+        <select
+          value={examValue || ""}
+          onChange={(e) => onExamChange?.(e.target.value || null)}
+          className="px-3 py-2 rounded-xl text-sm outline-none"
+          style={selectStyle}
+          title="Exam Name"
+        >
+          <option value="">{loadingExams ? "Loading exams…" : "All Exams"}</option>
+          {examOptions.map((ex) => {
+            const value = ex.examId || `name:${ex.examName}`;
+            return (
+              <option key={value} value={value}>
+                {ex.examName}
+              </option>
+            );
+          })}
+        </select>
+      )}
+
       {showTypeFilter && (
         <select
           value={certificateType || ""}
@@ -91,6 +121,18 @@ export default function CertificateFilters({
             </option>
           ))}
         </select>
+      )}
+
+      {showSingleDate && (
+        <input
+          type="date"
+          value={date || ""}
+          onChange={(e) => onDateChange?.(e.target.value || null)}
+          className="px-3 py-2 rounded-xl text-sm outline-none"
+          style={selectStyle}
+          title="Generated on"
+          aria-label="Generated on"
+        />
       )}
 
       {showDateRange && (

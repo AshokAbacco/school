@@ -1,5 +1,5 @@
 // client/src/admin/pages/certificates/CertificateHistory.jsx
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Search, Loader2, Eye, Printer, Download, Trash2, FileBadge2, ChevronLeft, ChevronRight, RefreshCw,
@@ -18,10 +18,13 @@ export default function CertificateHistory() {
   const [types, setTypes] = useState([]);
   const [studentName, setStudentName] = useState("");
   const [admissionNumber, setAdmissionNumber] = useState("");
+  const [academicYearId, setAcademicYearId] = useState(null);
   const [classSectionId, setClassSectionId] = useState(null);
+  const [examValue, setExamValue] = useState(null); // examId, or "name:<exam name>" for older tickets
+  const [examOptions, setExamOptions] = useState([]);
+  const [loadingExams, setLoadingExams] = useState(false);
   const [certificateType, setCertificateType] = useState(searchParams.get("type") || null);
-  const [dateFrom, setDateFrom] = useState(null);
-  const [dateTo, setDateTo] = useState(null);
+  const [date, setDate] = useState(null); // single "Generated on" date (yyyy-mm-dd)
 
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -45,6 +48,48 @@ export default function CertificateHistory() {
     })();
   }, []);
 
+  // Exam Name options — exams that actually have Hall Tickets, narrowed to the
+  // chosen Academic Year / Class. Clears the exam pick if it's no longer listed.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingExams(true);
+      try {
+        const params = new URLSearchParams({
+          ...(academicYearId ? { academicYearId } : {}),
+          ...(classSectionId ? { classSectionId } : {}),
+        });
+        const res = await fetch(`${API_URL}/api/certificates/history/exams?${params}`, { headers: authHeaders() });
+        const data = await res.json();
+        if (cancelled) return;
+        const list = data.exams || [];
+        setExamOptions(list);
+        setExamValue((cur) =>
+          cur && !list.some((ex) => (ex.examId || `name:${ex.examName}`) === cur) ? null : cur
+        );
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelled) setLoadingExams(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [academicYearId, classSectionId]);
+
+  const selectedExam = useMemo(
+    () => examOptions.find((ex) => (ex.examId || `name:${ex.examName}`) === examValue) || null,
+    [examOptions, examValue]
+  );
+
+  // The single date covers that whole calendar day in the user's timezone.
+  const dayRange = useMemo(() => {
+    if (!date) return null;
+    const [y, m, d] = date.split("-").map(Number);
+    const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+    return { dateFrom: start.toISOString(), dateTo: end.toISOString() };
+  }, [date]);
+
   const fetchHistory = useCallback(async () => {
     setLoading(true);
     try {
@@ -53,10 +98,12 @@ export default function CertificateHistory() {
         limit: "15",
         ...(studentName ? { studentName } : {}),
         ...(admissionNumber ? { admissionNumber } : {}),
+        ...(academicYearId ? { academicYearId } : {}),
         ...(classSectionId ? { classSectionId } : {}),
+        ...(selectedExam?.examId ? { examId: selectedExam.examId } : {}),
+        ...(selectedExam?.examName ? { examName: selectedExam.examName } : {}),
         ...(certificateType ? { certificateType } : {}),
-        ...(dateFrom ? { dateFrom } : {}),
-        ...(dateTo ? { dateTo } : {}),
+        ...(dayRange ? dayRange : {}),
       });
       const res = await fetch(`${API_URL}/api/certificates/history?${params}`, { headers: authHeaders() });
       const data = await res.json();
@@ -69,14 +116,14 @@ export default function CertificateHistory() {
     } finally {
       setLoading(false);
     }
-  }, [page, studentName, admissionNumber, classSectionId, certificateType, dateFrom, dateTo]);
+  }, [page, studentName, admissionNumber, academicYearId, classSectionId, selectedExam, certificateType, dayRange]);
 
   useEffect(() => {
     const t = setTimeout(fetchHistory, 300);
     return () => clearTimeout(t);
   }, [fetchHistory]);
 
-  useEffect(() => setPage(1), [studentName, admissionNumber, classSectionId, certificateType, dateFrom, dateTo]);
+  useEffect(() => setPage(1), [studentName, admissionNumber, academicYearId, classSectionId, examValue, certificateType, date]);
 
   const handleView = async (cert, action) => {
     try {
@@ -177,17 +224,20 @@ export default function CertificateHistory() {
         <CertificateFilters
           classSectionId={classSectionId}
           onClassSectionChange={setClassSectionId}
-          academicYearId={null}
-          onAcademicYearChange={() => {}}
+          academicYearId={academicYearId}
+          onAcademicYearChange={setAcademicYearId}
+          showExamFilter
+          examValue={examValue}
+          onExamChange={setExamValue}
+          examOptions={examOptions}
+          loadingExams={loadingExams}
           certificateType={certificateType}
           onCertificateTypeChange={setCertificateType}
           certificateTypeOptions={types}
           showTypeFilter
-          showDateRange
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          onDateFromChange={setDateFrom}
-          onDateToChange={setDateTo}
+          showSingleDate
+          date={date}
+          onDateChange={setDate}
         />
       </div>
 

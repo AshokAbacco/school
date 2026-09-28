@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
-  ChevronLeft, ChevronRight, Loader2, FileBadge2, RefreshCw, AlertTriangle,
+  ChevronLeft, ChevronRight, Loader2, FileBadge2, RefreshCw, AlertTriangle, Users,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getToken } from "../../../auth/storage";
@@ -10,12 +10,46 @@ import CertificateFilters from "./components/CertificateFilters";
 import StudentSelector from "./components/StudentSelector";
 import CertificatePreview from "./components/CertificatePreview";
 import PdfViewer from "./components/PdfViewer";
+import HallTicketStudentsTab from "./components/HallTicketStudentsTab";
 import { C, API_URL, HALL_TICKET_THEMES, DEFAULT_HALL_TICKET_INSTRUCTIONS as DEFAULT_INSTRUCTIONS } from "./components/theme";
 
 const authHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
 const authJsonHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
 
-const STEPS = ["Certificate Type", "Academic Year & Class", "Student", "Details & Generate"];
+// Step keys → labels. Hall Tickets are generated for a whole class, so they
+// skip the single-Student step and end with a Students tab listing every
+// generated ticket. All other certificate types keep the per-student flow.
+const STEP_LABELS = {
+  type: "Certificate Type",
+  class: "Academic Year & Class",
+  student: "Student",
+  details: "Details & Generate",
+  students: "Students",
+};
+const DEFAULT_STEPS = ["type", "class", "student", "details"];
+const HALL_TICKET_STEPS = ["type", "class", "details", "students"];
+
+// Mirrors parseHallTicketRange() in server/src/certificates/certificate.service.js
+function parseHallTicketRange(from, to, requiredCount) {
+  const f = String(from ?? "").trim();
+  const t = String(to ?? "").trim();
+  if (!f || !t) return { valid: false, error: "" };
+  if (!/^\d+$/.test(f) || !/^\d+$/.test(t)) return { valid: false, error: "Hall Ticket Numbers must contain digits only." };
+  if (f.length > 15 || t.length > 15) return { valid: false, error: "Hall Ticket Numbers can be at most 15 digits." };
+  const start = Number(f);
+  const end = Number(t);
+  if (end < start) return { valid: false, error: "'To' must be greater than or equal to 'From'." };
+  const width = Math.max(f.length, t.length);
+  const numberAt = (i) => String(start + i).padStart(width, "0");
+  const available = end - start + 1;
+  if (requiredCount != null && available < requiredCount) {
+    return {
+      valid: false, available, numberAt,
+      error: `Range has only ${available} number(s) but the class has ${requiredCount} student(s). Set 'To' to at least ${numberAt(requiredCount - 1)}.`,
+    };
+  }
+  return { valid: true, error: "", available, numberAt };
+}
 
 // Reuses the existing Examination Module's own APIs — no new backend
 // endpoints or tables for exam data. See ExamsRoutes.js:
@@ -38,7 +72,7 @@ function deriveSession(startTime) {
 }
 
 export default function CertificateGenerate() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
@@ -60,8 +94,22 @@ export default function CertificateGenerate() {
   const [loadingTimetable, setLoadingTimetable] = useState(false);
   const [timetableError, setTimetableError] = useState("");
 
+  // ── Hall Ticket: class-wide generation ──
+  const [hallTicketFrom, setHallTicketFrom] = useState("");
+  const [hallTicketTo, setHallTicketTo] = useState("");
+  const [classStudents, setClassStudents] = useState([]);
+  const [loadingClassStudents, setLoadingClassStudents] = useState(false);
+  const [batch, setBatch] = useState(null); // { batchId, tickets[], failed[] }
+
   const typeMeta = useMemo(() => types.find((t) => t.key === certificateType), [types, certificateType]);
   const isHallTicket = certificateType === "HALL_TICKET";
+  const steps = isHallTicket ? HALL_TICKET_STEPS : DEFAULT_STEPS;
+  const stepKey = steps[step];
+
+  const range = useMemo(
+    () => parseHallTicketRange(hallTicketFrom, hallTicketTo, classStudents.length || null),
+    [hallTicketFrom, hallTicketTo, classStudents.length]
+  );
 
   useEffect(() => {
     (async () => {
@@ -86,9 +134,32 @@ export default function CertificateGenerate() {
   }, []);
 
   useEffect(() => {
+    const batchId = searchParams.get("batch");
+    if (certificateType === "HALL_TICKET" && batchId) {
+      loadBatch(batchId);
+      return;
+    }
     if (certificateType && step === 0) setStep(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-open the Students tab of a previous class-wide run (?batch=<id>),
+  // so a page refresh doesn't lose the generated list.
+  const loadBatch = async (batchId) => {
+    try {
+      const res = await fetch(`${API_URL}/api/certificates/hall-tickets/batch/${batchId}`, { headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Could not load Hall Tickets");
+      setAcademicYearId(data.academicYearId);
+      setClassSectionId(data.classSectionId);
+      setBatch({ ...data, failed: [] });
+      setStep(HALL_TICKET_STEPS.indexOf("students"));
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || "Could not load Hall Tickets");
+      setStep(1);
+    }
+  };
 
   // Load the list of Exams (AssessmentGroups) for the chosen Academic Year —
   // straight from the existing Examination Module, only when generating a
@@ -115,6 +186,42 @@ export default function CertificateGenerate() {
   useEffect(() => {
     setAssessmentGroupId(null);
   }, [academicYearId]);
+
+  // A different class/year means a different roster — drop the stale one.
+  useEffect(() => {
+    if (!isHallTicket) return;
+    setClassStudents([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [academicYearId, classSectionId]);
+
+  // Load the class roster (in Hall Ticket numbering order) when landing on the
+  // Details step — drives the student count, range validation and the preview.
+  useEffect(() => {
+    if (!isHallTicket || stepKey !== "details" || !academicYearId || !classSectionId) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingClassStudents(true);
+      try {
+        const params = new URLSearchParams({ academicYearId, classSectionId });
+        const res = await fetch(`${API_URL}/api/certificates/hall-tickets/class-students?${params}`, { headers: authHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Failed to load class students");
+        if (cancelled) return;
+        const list = data.students || [];
+        setClassStudents(list);
+        // Use the first student as the sample for the live preview.
+        if (list[0]) fetchStudentInfo(list[0].studentId, { keepFields: true });
+        else setStudentInfo(null);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) toast.error(err.message || "Could not load students for this class");
+      } finally {
+        if (!cancelled) setLoadingClassStudents(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHallTicket, stepKey, academicYearId, classSectionId]);
 
   // Auto-fetch the exam timetable (subjects, dates, timings) for the chosen
   // Exam + Class/Section, straight from the Examination Module's own
@@ -171,13 +278,13 @@ export default function CertificateGenerate() {
   // Fetch automatically once we land on the Details step with everything
   // selected — this is what makes it "automatic", not a manual button-only flow.
   useEffect(() => {
-    if (isHallTicket && step === 3 && assessmentGroupId && classSectionId) {
+    if (isHallTicket && stepKey === "details" && assessmentGroupId && classSectionId) {
       fetchExamTimetable();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHallTicket, step, assessmentGroupId, classSectionId]);
+  }, [isHallTicket, stepKey, assessmentGroupId, classSectionId]);
 
-  const fetchStudentInfo = async (id) => {
+  const fetchStudentInfo = async (id, { keepFields = false } = {}) => {
     setLoadingStudent(true);
     try {
       const params = new URLSearchParams({
@@ -188,7 +295,7 @@ export default function CertificateGenerate() {
       if (!res.ok) throw new Error("Failed to load student info");
       const data = await res.json();
       setStudentInfo(data.student);
-      setEditableFields({});
+      if (!keepFields) setEditableFields({});
     } catch (err) {
       console.error(err);
       toast.error("Could not load student details");
@@ -202,14 +309,87 @@ export default function CertificateGenerate() {
     fetchStudentInfo(id);
   };
 
-  const goNext = () => setStep((s) => Math.min(STEPS.length - 1, s + 1));
+  const goNext = () => setStep((s) => Math.min(steps.length - 1, s + 1));
   const goBack = () => setStep((s) => Math.max(0, s - 1));
 
   const canProceed = () => {
-    if (step === 0) return !!certificateType;
-    if (step === 1) return true; // academic year / class-section optional filters
-    if (step === 2) return !!studentId;
+    if (stepKey === "type") return !!certificateType;
+    if (stepKey === "class") {
+      // Hall Tickets are generated for a whole class of one exam, so all
+      // three are required; other certificates treat these as filters.
+      if (isHallTicket) return !!(academicYearId && classSectionId && assessmentGroupId);
+      return true;
+    }
+    if (stepKey === "student") return !!studentId;
     return true;
+  };
+
+  const handleGenerateClass = async () => {
+    if (!academicYearId || !classSectionId || !assessmentGroupId) {
+      toast.error("Pick an Academic Year, Class and Exam in Step 2.");
+      return;
+    }
+    if (!editableFields.subjects || editableFields.subjects.length === 0) {
+      toast.error("No exam timetable loaded yet. Pick an Exam in Step 2, or hit Refresh.");
+      return;
+    }
+    if (classStudents.length === 0) {
+      toast.error("There are no active students in the selected class.");
+      return;
+    }
+    if (!range.valid) {
+      toast.error(range.error || "Enter a valid Hall Ticket Number range.");
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const res = await fetch(`${API_URL}/api/certificates/hall-tickets/generate-class`, {
+        method: "POST",
+        headers: authJsonHeaders(),
+        body: JSON.stringify({
+          academicYearId,
+          classSectionId,
+          assessmentGroupId,
+          hallTicketFrom: hallTicketFrom.trim(),
+          hallTicketTo: hallTicketTo.trim(),
+          editableFields: { ...editableFields, hallTicketNumber: undefined },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to generate Hall Tickets");
+
+      setBatch(data);
+      setStep(HALL_TICKET_STEPS.indexOf("students"));
+      const next = new URLSearchParams(searchParams);
+      next.set("type", "HALL_TICKET");
+      next.set("batch", data.batchId);
+      setSearchParams(next, { replace: true });
+
+      if (data.failed?.length) {
+        toast.error(`${data.generatedCount} of ${data.total} Hall Tickets generated — ${data.failed.length} failed.`);
+      } else {
+        toast.success(`${data.generatedCount} Hall Tickets generated`);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || "Failed to generate Hall Tickets");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const startAnotherClass = () => {
+    setBatch(null);
+    setClassSectionId(null);
+    setClassStudents([]);
+    setStudentInfo(null);
+    setHallTicketFrom("");
+    setHallTicketTo("");
+    const next = new URLSearchParams(searchParams);
+    next.delete("batch");
+    setSearchParams(next, { replace: true });
+    setStep(HALL_TICKET_STEPS.indexOf("class"));
   };
 
   const handleGenerate = async () => {
@@ -260,14 +440,14 @@ export default function CertificateGenerate() {
           <h1 className="text-lg font-bold" style={{ color: C.deep }}>
             {typeMeta ? `Generate ${typeMeta.label}` : "Generate Certificate"}
           </h1>
-          <p className="text-xs" style={{ color: C.textLight }}>Step {step + 1} of {STEPS.length}: {STEPS[step]}</p>
+          <p className="text-xs" style={{ color: C.textLight }}>Step {step + 1} of {steps.length}: {STEP_LABELS[stepKey]}</p>
         </div>
       </div>
 
       {/* Stepper */}
       <div className="flex items-center mb-6 overflow-x-auto pb-1">
-        {STEPS.map((label, i) => (
-          <div key={label} className="flex items-center flex-shrink-0">
+        {steps.map((key, i) => (
+          <div key={key} className="flex items-center flex-shrink-0">
             <div
               className="flex items-center justify-center rounded-full text-xs font-bold"
               style={{
@@ -283,9 +463,9 @@ export default function CertificateGenerate() {
               className="text-xs ml-2 mr-4 whitespace-nowrap"
               style={{ color: i <= step ? C.deep : C.textLight, fontWeight: i === step ? 700 : 400 }}
             >
-              {label}
+              {STEP_LABELS[key]}
             </span>
-            {i < STEPS.length - 1 && (
+            {i < steps.length - 1 && (
               <div className="w-8 h-px mr-4" style={{ background: C.border }} />
             )}
           </div>
@@ -296,7 +476,7 @@ export default function CertificateGenerate() {
         className="rounded-2xl p-5"
         style={{ background: C.white, border: `1px solid ${C.border}` }}
       >
-        {step === 0 && (
+        {stepKey === "type" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {types.map((t) => (
               <button
@@ -304,6 +484,8 @@ export default function CertificateGenerate() {
                 onClick={() => {
                   setCertificateType(t.key);
                   setEditableFields({});
+                  setResult(null);
+                  setBatch(null);
                 }}
                 className="text-left p-4 rounded-xl border transition-colors"
                 style={{
@@ -318,7 +500,7 @@ export default function CertificateGenerate() {
           </div>
         )}
 
-        {step === 1 && (
+        {stepKey === "class" && (
           <div className="max-w-lg flex flex-col gap-4">
             <div>
               <label className="text-xs font-bold mb-1.5 block" style={{ color: C.slate }}>
@@ -330,6 +512,11 @@ export default function CertificateGenerate() {
                 classSectionId={classSectionId}
                 onClassSectionChange={setClassSectionId}
               />
+              {isHallTicket && (
+                <p className="text-xs mt-1.5" style={{ color: C.textLight }}>
+                  Hall Tickets are generated for every student in the selected class.
+                </p>
+              )}
             </div>
 
             {isHallTicket && (
@@ -362,7 +549,7 @@ export default function CertificateGenerate() {
           </div>
         )}
 
-        {step === 2 && (
+        {stepKey === "student" && (
           <StudentSelector
             academicYearId={academicYearId}
             classSectionId={classSectionId}
@@ -371,10 +558,10 @@ export default function CertificateGenerate() {
           />
         )}
 
-        {step === 3 && (
+        {stepKey === "details" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
-              {loadingStudent ? (
+              {loadingStudent && !isHallTicket ? (
                 <div className="flex justify-center py-10">
                   <Loader2 className="animate-spin" style={{ color: C.slate }} />
                 </div>
@@ -388,24 +575,45 @@ export default function CertificateGenerate() {
                   timetableError={timetableError}
                   onRefreshTimetable={fetchExamTimetable}
                   hasExamSelected={!!(assessmentGroupId && classSectionId)}
+                  classSummary={isHallTicket ? {
+                    className: studentInfo?.className,
+                    examName: editableFields.examName,
+                    count: classStudents.length,
+                    loading: loadingClassStudents,
+                  } : null}
+                  hallTicketFrom={hallTicketFrom}
+                  hallTicketTo={hallTicketTo}
+                  setHallTicketFrom={setHallTicketFrom}
+                  setHallTicketTo={setHallTicketTo}
+                  range={range}
+                  studentCount={classStudents.length}
                 />
               )}
             </div>
 
             <div>
-              <p className="text-xs font-bold mb-2" style={{ color: C.slate }}>Live Preview</p>
+              <p className="text-xs font-bold mb-2" style={{ color: C.slate }}>
+                Live Preview
+                {isHallTicket && studentInfo && (
+                  <span style={{ color: C.textLight, fontWeight: 400 }}> — sample: {studentInfo.studentName}</span>
+                )}
+              </p>
               {!result ? (
                 <CertificatePreview
                   certificateType={certificateType}
                   student={studentInfo}
                   school={schoolInfo}
-                  editableFields={editableFields}
+                  editableFields={
+                    isHallTicket
+                      ? { ...editableFields, hallTicketNumber: range.numberAt ? range.numberAt(0) : "" }
+                      : editableFields
+                  }
                 />
               ) : (
                 <PdfViewer url={result.pdfUrl} fileName={`${result.certificate.certificateNumber}.pdf`} />
               )}
 
-              {!result && (
+              {!result && !isHallTicket && (
                 <button
                   onClick={handleGenerate}
                   disabled={generating}
@@ -416,13 +624,40 @@ export default function CertificateGenerate() {
                   {generating ? "Generating..." : "Generate PDF"}
                 </button>
               )}
+
+              {isHallTicket && (
+                <>
+                  <button
+                    onClick={handleGenerateClass}
+                    disabled={generating || loadingClassStudents || !range.valid || classStudents.length === 0}
+                    className="w-full mt-4 flex items-center justify-center gap-2 text-sm font-bold py-3 rounded-xl disabled:opacity-50"
+                    style={{ background: C.deep, color: "#fff", opacity: generating ? 0.7 : undefined }}
+                  >
+                    {generating ? <Loader2 size={16} className="animate-spin" /> : <Users size={16} />}
+                    {generating
+                      ? `Generating ${classStudents.length} Hall Tickets…`
+                      : `Generate Hall Tickets for Class (${classStudents.length})`}
+                  </button>
+                  {generating && (
+                    <p className="text-xs text-center mt-2" style={{ color: C.textLight }}>
+                      This can take a minute for a large class — please keep this page open.
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           </div>
+        )}
+        {stepKey === "students" && batch && (
+          <HallTicketStudentsTab
+            batch={batch}
+            onGenerateAnother={startAnotherClass}
+          />
         )}
       </div>
 
       {/* Navigation */}
-      {!result && (
+      {!result && stepKey !== "students" && (
         <div className="flex justify-between mt-5">
           <button
             onClick={goBack}
@@ -432,7 +667,7 @@ export default function CertificateGenerate() {
           >
             <ChevronLeft size={16} /> Back
           </button>
-          {step < STEPS.length - 1 && (
+          {step < steps.length - 1 && stepKey !== "details" && (
             <button
               onClick={goNext}
               disabled={!canProceed()}
@@ -445,7 +680,7 @@ export default function CertificateGenerate() {
         </div>
       )}
 
-      {result && (
+      {(result || stepKey === "students") && (
         <div className="flex justify-end mt-5">
           <button
             onClick={() => navigate("/admin/certificates/history")}
@@ -464,6 +699,7 @@ export default function CertificateGenerate() {
 function EditableFieldsForm({
   certificateType, studentInfo, editableFields, setEditableFields,
   loadingTimetable, timetableError, onRefreshTimetable, hasExamSelected,
+  classSummary, hallTicketFrom, hallTicketTo, setHallTicketFrom, setHallTicketTo, range, studentCount,
 }) {
   const set = (key, value) => setEditableFields((p) => ({ ...p, [key]: value }));
 
@@ -473,7 +709,25 @@ function EditableFieldsForm({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Auto-filled (read-only) summary */}
+      {/* Hall Ticket: whole-class summary instead of a single student record */}
+      {classSummary ? (
+        <div className="rounded-xl p-3" style={{ background: C.bg, border: `1px solid ${C.borderLight}` }}>
+          <p className="text-xs font-bold mb-2" style={{ color: C.slate }}>Generating for the entire class</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs" style={{ color: C.text }}>
+            <span><b>Class:</b> {classSummary.className || "—"}</span>
+            <span><b>Exam:</b> {classSummary.examName || "—"}</span>
+            <span className="flex items-center gap-1">
+              <b>Students:</b>{" "}
+              {classSummary.loading ? <Loader2 size={12} className="animate-spin" /> : classSummary.count}
+            </span>
+          </div>
+          {!classSummary.loading && classSummary.count === 0 && (
+            <p className="text-xs mt-2" style={{ color: C.danger }}>
+              No active students found in this class for the selected academic year.
+            </p>
+          )}
+        </div>
+      ) : (
       <div className="rounded-xl p-3" style={{ background: C.bg, border: `1px solid ${C.borderLight}` }}>
         <p className="text-xs font-bold mb-2" style={{ color: C.slate }}>Auto-filled from student record</p>
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs" style={{ color: C.text }}>
@@ -485,6 +739,7 @@ function EditableFieldsForm({
           <span><b>Parent/Guardian:</b> {studentInfo?.parentOrGuardianName || "—"}</span>
         </div>
       </div>
+      )}
 
       {certificateType === "TRANSFER_CERTIFICATE" && (
         <>
@@ -536,6 +791,12 @@ function EditableFieldsForm({
           timetableError={timetableError}
           onRefreshTimetable={onRefreshTimetable}
           hasExamSelected={hasExamSelected}
+          hallTicketFrom={hallTicketFrom}
+          hallTicketTo={hallTicketTo}
+          setHallTicketFrom={setHallTicketFrom}
+          setHallTicketTo={setHallTicketTo}
+          range={range}
+          studentCount={studentCount}
         />
       )}
     </div>
@@ -544,7 +805,10 @@ function EditableFieldsForm({
 
 function HallTicketFields({
   editableFields, set, inputStyle, loadingTimetable, timetableError, onRefreshTimetable, hasExamSelected,
+  hallTicketFrom, hallTicketTo, setHallTicketFrom, setHallTicketTo, range, studentCount,
 }) {
+  const digitsOnly = (v) => v.replace(/\D/g, "").slice(0, 15);
+  const rangeBorder = (val) => (val && range.error ? { ...inputStyle, borderColor: C.danger } : inputStyle);
   const subjects = editableFields.subjects || [];
   const selectedTheme = editableFields.theme || "GREEN";
 
@@ -574,20 +838,46 @@ function HallTicketFields({
         </div>
       </div>
 
+      <div>
+        <p className="text-xs font-bold mb-1" style={{ color: C.slate }}>Hall Ticket Number Range</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="From">
+            <input style={rangeBorder(hallTicketFrom)} inputMode="numeric" placeholder="00001234"
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono"
+              value={hallTicketFrom} onChange={(e) => setHallTicketFrom(digitsOnly(e.target.value))} />
+          </Field>
+          <Field label="To">
+            <input style={rangeBorder(hallTicketTo)} inputMode="numeric" placeholder="00001299"
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none font-mono"
+              value={hallTicketTo} onChange={(e) => setHallTicketTo(digitsOnly(e.target.value))} />
+          </Field>
+        </div>
+        {range.error ? (
+          <p className="text-xs mt-1.5 flex items-start gap-1" style={{ color: C.danger }}>
+            <AlertTriangle size={13} className="flex-shrink-0 mt-0.5" /> {range.error}
+          </p>
+        ) : range.valid && studentCount > 0 ? (
+          <p className="text-xs mt-1.5" style={{ color: C.success }}>
+            {studentCount} student(s) will be numbered {range.numberAt(0)} → {range.numberAt(studentCount - 1)}
+            {range.available > studentCount ? ` (${range.available - studentCount} number(s) left unused)` : ""}.
+          </p>
+        ) : (
+          <p className="text-xs mt-1.5" style={{ color: C.textLight }}>
+            Numbers are assigned in roll-number order. Leading zeros are kept.
+          </p>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Hall Ticket Number">
-          <input style={inputStyle} className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-            value={editableFields.hallTicketNumber || ""} onChange={(e) => set("hallTicketNumber", e.target.value)} />
-        </Field>
         <Field label="School Code">
           <input style={inputStyle} className="w-full px-3 py-2 rounded-lg text-sm outline-none"
             value={editableFields.schoolCode || ""} onChange={(e) => set("schoolCode", e.target.value)} />
         </Field>
+        <Field label="Exam Centre">
+          <input style={inputStyle} className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+            value={editableFields.examCentre || ""} onChange={(e) => set("examCentre", e.target.value)} />
+        </Field>
       </div>
-      <Field label="Exam Centre">
-        <input style={inputStyle} className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-          value={editableFields.examCentre || ""} onChange={(e) => set("examCentre", e.target.value)} />
-      </Field>
 
       <div>
         <div className="flex items-center justify-between mb-2">
