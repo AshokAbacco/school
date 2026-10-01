@@ -1,251 +1,994 @@
-// client/src/parent/pages/VehicleTracking/VehicleTracking.jsx
+// client/src/parent/pages/VehicleTracking/VehicleTracking.jsx  (UPDATED)
+// ═══════════════════════════════════════════════════════════════════════════════
+// Parent — live bus tracking
+//   • Embedded live map (bus, your stop, route stops, recent path)
+//   • Real-time push over SSE — new GPS points appear within ~1–2 s of reaching
+//     the server (was: 30 s polling on top of the GPS delay)
+//   • Smooth movement between GPS points (no more jumping marker)
+//   • Auto-reconnect; falls back to 10 s polling if the stream is unavailable
+//   • Pauses when the tab/app is in the background (saves battery & data)
+//   • Multiple children supported
+// ═══════════════════════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect, useRef } from "react";
-import { MapPin, Phone, Navigation, RefreshCw, Bus, Clock, Zap } from "lucide-react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
+import {
+  MapPin,
+  Phone,
+  Navigation,
+  Bus,
+  Clock,
+  Gauge,
+  AlertTriangle,
+  WifiOff,
+  Radio,
+} from "lucide-react";
+import LiveBusMap from "../../../shared/liveTracking/LiveBusMap";
+import {
+  API_URL,
+  authHeaders,
+  openLiveStream,
+  applyLivePoints,
+  tsOf,
+  distanceMeters,
+  roughEtaMinutes,
+  formatAge,
+} from "../../../shared/liveTracking/liveTracking";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const BASE = `${API_URL}/api/parent/vehicle-tracking`;
+const FALLBACK_POLL_MS = 10 * 1000; // when live stream is not connected
+const IDLE_POLL_MS = 60 * 1000; // when there is no bus to stream yet
+const STALE_SEC = 180;
 
-const getToken = () => {
-  try { return JSON.parse(localStorage.getItem("auth"))?.token || null; }
-  catch { return null; }
-};
-const authHeaders = () => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${getToken()}`,
-});
-
-function StatusBadge({ status }) {
+// ── Small UI pieces ──────────────────────────────────────────────────────────
+function StatusBadge({ status, stale }) {
+  const key = stale ? "STALE" : (status || "").toUpperCase();
   const cfg = {
-    PARKED:  { bg: "#EEF2FF", color: "#4338CA", dot: "#6366F1", label: "Parked" },
-    MOVING:  { bg: "#F0FDF4", color: "#166534", dot: "#22C55E", label: "Moving" },
-    IDLE:    { bg: "#FFFBEB", color: "#92400E", dot: "#F59E0B", label: "Idle"   },
-    OFF:     { bg: "#F9FAFB", color: "#6B7280", dot: "#9CA3AF", label: "Off"    },
-  }[status] || { bg: "#F9FAFB", color: "#6B7280", dot: "#D1D5DB", label: status || "Unknown" };
+    MOVING: {
+      bg: "#F0FDF4",
+      color: "#166534",
+      dot: "#22C55E",
+      label: "Moving",
+    },
+    IDLE: { bg: "#FFFBEB", color: "#92400E", dot: "#F59E0B", label: "Stopped" },
+    PARKED: {
+      bg: "#EEF2FF",
+      color: "#4338CA",
+      dot: "#6366F1",
+      label: "Parked",
+    },
+    OFF: {
+      bg: "#F9FAFB",
+      color: "#6B7280",
+      dot: "#9CA3AF",
+      label: "Engine off",
+    },
+    STALE: {
+      bg: "#F9FAFB",
+      color: "#6B7280",
+      dot: "#9CA3AF",
+      label: "No recent signal",
+    },
+  }[key] || {
+    bg: "#F9FAFB",
+    color: "#6B7280",
+    dot: "#D1D5DB",
+    label: status || "Unknown",
+  };
 
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: cfg.bg, color: cfg.color, padding: "5px 12px", borderRadius: 99, fontSize: 12, fontWeight: 700 }}>
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: cfg.dot, display: "inline-block", animation: status === "MOVING" ? "blink 1.2s infinite" : "none" }} />
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        background: cfg.bg,
+        color: cfg.color,
+        padding: "5px 12px",
+        borderRadius: 99,
+        fontSize: 12,
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: cfg.dot,
+          animation: key === "MOVING" ? "vt-blink 1.2s infinite" : "none",
+        }}
+      />
       {cfg.label}
     </span>
   );
 }
 
-function InfoCard({ icon: Icon, label, value, color = "#4F46E5" }) {
+function ConnectionPill({ mode }) {
+  const cfg = {
+    live: { color: "#166534", bg: "#F0FDF4", label: "Live", icon: Radio },
+    connecting: {
+      color: "#92400E",
+      bg: "#FFFBEB",
+      label: "Connecting…",
+      icon: Radio,
+    },
+    reconnecting: {
+      color: "#92400E",
+      bg: "#FFFBEB",
+      label: "Reconnecting…",
+      icon: WifiOff,
+    },
+    polling: {
+      color: "#4338CA",
+      bg: "#EEF2FF",
+      label: "Updating every 10s",
+      icon: Clock,
+    },
+    paused: { color: "#6B7280", bg: "#F3F4F6", label: "Paused", icon: Clock },
+    idle: {
+      color: "#6B7280",
+      bg: "#F3F4F6",
+      label: "Waiting for bus",
+      icon: Clock,
+    },
+  }[mode] || { color: "#6B7280", bg: "#F3F4F6", label: "—", icon: Clock };
+  const Icon = cfg.icon;
   return (
-    <div style={{ background: "#F9FAFB", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Icon size={16} color={color} />
-      </div>
-      <div>
-        <p style={{ margin: 0, fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</p>
-        <p style={{ margin: "2px 0 0", fontSize: 14, fontWeight: 600, color: "#111827" }}>{value || "—"}</p>
-      </div>
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "5px 11px",
+        borderRadius: 99,
+        background: cfg.bg,
+        color: cfg.color,
+        fontSize: 12,
+        fontWeight: 700,
+      }}
+    >
+      <Icon
+        size={13}
+        style={{
+          animation: mode === "live" ? "vt-blink 1.6s infinite" : "none",
+        }}
+      />
+      {cfg.label}
+    </span>
+  );
+}
+
+function Stat({ icon: Icon, label, value, sub, color = "#111827" }) {
+  return (
+    <div
+      style={{
+        background: "#F9FAFB",
+        borderRadius: 12,
+        padding: "10px 12px",
+        minWidth: 0,
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          fontSize: 11,
+          color: "#6B7280",
+          fontWeight: 600,
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+        }}
+      >
+        <Icon size={12} /> {label}
+      </p>
+      <p
+        style={{
+          margin: "4px 0 0",
+          fontSize: 18,
+          fontWeight: 800,
+          color,
+          lineHeight: 1.2,
+        }}
+      >
+        {value}
+      </p>
+      {sub && (
+        <p style={{ margin: "2px 0 0", fontSize: 11, color: "#9CA3AF" }}>
+          {sub}
+        </p>
+      )}
     </div>
   );
 }
 
+// ── Page ─────────────────────────────────────────────────────────────────────
 export default function VehicleTracking() {
-  const [data,       setData]       = useState(null);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState("");
-  const [countdown,  setCountdown]  = useState(30);
-  const [lastUpdate, setLastUpdate] = useState(null);
-  const intervalRef  = useRef(null);
-  const countdownRef = useRef(null);
+  const [children, setChildren] = useState([]);
+  const [studentId, setStudentId] = useState(null);
+  const [info, setInfo] = useState(null); // route / stop / vehicle meta
+  const [vehicle, setVehicle] = useState(null); // map state (point + motion)
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [stream, setStream] = useState("connecting");
+  const [visible, setVisible] = useState(
+    () => document.visibilityState !== "hidden",
+  );
+  const [now, setNow] = useState(Date.now());
+  const skewRef = useRef(0); // serverTime - clientTime
 
-  // parentId comes from JWT token on backend — no need to pass studentId
-  function load() {
-    setLoading(true);
-    fetch(`${API_URL}/api/parent/vehicle-tracking`, { headers: authHeaders() })
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.success) { setData(d.data); setLastUpdate(new Date()); setCountdown(30); }
-        else setError(d.message || "Failed to load");
-      })
-      .catch(() => setError("Failed to connect"))
-      .finally(() => setLoading(false));
-  }
-
-  useEffect(() => {
-    load();
-    intervalRef.current  = setInterval(load, 30 * 1000);
-    countdownRef.current = setInterval(() => setCountdown((c) => c <= 1 ? 30 : c - 1), 1000);
-    return () => { clearInterval(intervalRef.current); clearInterval(countdownRef.current); };
-  }, []);
-
-  const timeAgo = (dt) => {
-    if (!dt) return "—";
-    const s = Math.floor((Date.now() - new Date(dt)) / 1000);
-    if (s < 60)  return `${s}s ago`;
-    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-    return `${Math.floor(s / 3600)}h ago`;
+  const updateSkew = (serverTime) => {
+    const t = Date.parse(serverTime);
+    if (Number.isFinite(t)) skewRef.current = t - Date.now();
   };
 
+  // 1s clock for "x s ago"
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Pause in background
+  useEffect(() => {
+    const onVis = () => setVisible(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
+  // Children list (for parents with more than one child)
+  useEffect(() => {
+    fetch(`${BASE}/children`, { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.success) return;
+        setChildren(d.data || []);
+        const first = (d.data || []).find((c) => c.hasTransport) || d.data?.[0];
+        setStudentId((cur) => cur || first?.studentId || "");
+      })
+      .catch(() => setStudentId((cur) => cur ?? ""));
+  }, []);
+
+  // Snapshot loader (full = with trail; used on first load / child switch)
+  const loadSnapshot = useCallback(
+    async ({ full = false } = {}) => {
+      if (studentId === null) return;
+      const qs = new URLSearchParams();
+      if (studentId) qs.set("studentId", studentId);
+      if (!full) qs.set("trail", "0");
+
+      try {
+        if (full) setLoading(true);
+        const res = await fetch(`${BASE}?${qs}`, { headers: authHeaders() });
+        const d = await res.json();
+        if (!d.success)
+          throw new Error(d.message || "Could not load bus location");
+
+        setError("");
+        const data = d.data;
+        if (data?.serverTime) updateSkew(data.serverTime);
+
+        if (full) {
+          setInfo(
+            data
+              ? { ...data, trail: undefined, location: undefined }
+              : { empty: true, message: d.message },
+          );
+          setVehicle(
+            data?.vehicle?.id
+              ? applyLivePoints(
+                  {
+                    ...data.vehicle,
+                    initialTrail: data.trail || [],
+                    point: null,
+                  },
+                  data.location ? [data.location] : [],
+                  { latestExtra: data.location, jump: true },
+                )
+              : null,
+          );
+        } else if (data?.location) {
+          setVehicle(
+            (prev) =>
+              prev &&
+              applyLivePoints(prev, [data.location], {
+                latestExtra: data.location,
+              }),
+          );
+        }
+      } catch (e) {
+        setError(
+          e.message === "Failed to fetch"
+            ? "No internet connection. Retrying…"
+            : e.message,
+        );
+      } finally {
+        if (full) setLoading(false);
+      }
+    },
+    [studentId],
+  );
+
+  // Full load on child change
+  useEffect(() => {
+    if (studentId === null) return;
+    setInfo(null);
+    setVehicle(null);
+    loadSnapshot({ full: true });
+  }, [studentId, loadSnapshot]);
+
+  const vehicleId = vehicle?.id || null;
+
+  // Live stream
+  useEffect(() => {
+    if (!vehicleId || !visible) {
+      setStream(visible ? "idle" : "paused");
+      return;
+    }
+    const qs = studentId ? `?studentId=${encodeURIComponent(studentId)}` : "";
+    const close = openLiveStream({
+      url: `${BASE}/stream${qs}`,
+      onStatus: (s) => setStream(s === "unavailable" ? "polling" : s),
+      onEvent: (event, payload) => {
+        if (payload?.serverTime) updateSkew(payload.serverTime);
+        if (event === "hello" && payload?.location) {
+          setVehicle(
+            (prev) =>
+              prev &&
+              applyLivePoints(prev, [payload.location], {
+                latestExtra: payload.location,
+              }),
+          );
+        }
+        if (event === "location") {
+          setVehicle(
+            (prev) =>
+              prev &&
+              applyLivePoints(prev, payload.path || [payload.latest], {
+                latestExtra: payload.latest,
+              }),
+          );
+        }
+      },
+    });
+    return close;
+  }, [vehicleId, studentId, visible]);
+
+  // Catch up immediately when the app comes back to the foreground
+  useEffect(() => {
+    if (visible && vehicleId) loadSnapshot();
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fallback polling when stream isn't live, slow polling when no bus yet
+  useEffect(() => {
+    if (!visible || studentId === null) return;
+    if (vehicleId && stream === "live") return;
+    const ms = vehicleId ? FALLBACK_POLL_MS : IDLE_POLL_MS;
+    const id = setInterval(() => loadSnapshot({ full: !vehicleId }), ms);
+    return () => clearInterval(id);
+  }, [stream, vehicleId, visible, studentId, loadSnapshot]);
+
+  // ── Derived values ────────────────────────────────────────────────────────
+  const point = vehicle?.point || null;
+  const ageSec = point?.ts
+    ? Math.max(0, (now + skewRef.current - tsOf(point)) / 1000)
+    : null;
+  const isStale = ageSec === null || ageSec > STALE_SEC;
+  const speed = point?.speed != null ? Math.round(point.speed) : null;
+
+  const stop = info?.stop;
+  const distanceToStop = useMemo(() => {
+    if (!point || stop?.latitude == null || stop?.longitude == null)
+      return null;
+    return distanceMeters(
+      { lat: point.latitude, lng: point.longitude },
+      { lat: Number(stop.latitude), lng: Number(stop.longitude) },
+    );
+  }, [point, stop]);
+  const eta =
+    !isStale && distanceToStop != null && distanceToStop > 150
+      ? roughEtaMinutes(distanceToStop, point?.speed)
+      : null;
+
+  const mapVehicles = useMemo(
+    () =>
+      vehicle
+        ? [{ ...vehicle, point: point ? { ...point, isStale } : null }]
+        : [],
+    [vehicle, point, isStale],
+  );
+
+  const connectionMode = !vehicleId ? "idle" : !visible ? "paused" : stream;
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ padding: "16px", maxWidth: 600, margin: "0 auto", fontFamily: "system-ui,-apple-system,sans-serif" }}>
-      <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    <div
+      style={{
+        padding: 16,
+        maxWidth: 960,
+        margin: "0 auto",
+        fontFamily: "system-ui,-apple-system,sans-serif",
+        color: "#111827",
+      }}
+    >
+      <style>{`
+        @keyframes vt-blink { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+        .vt-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+        @media (max-width: 820px) { .vt-grid { grid-template-columns: 1fr; } }
+        .vt-chip:focus-visible, .vt-btn:focus-visible { outline: 2px solid #4F46E5; outline-offset: 2px; }
+      `}</style>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+          marginBottom: 14,
+        }}
+      >
         <div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#111827", display: "flex", alignItems: "center", gap: 8 }}>
-            <Bus size={22} color="#4F46E5" /> Bus Tracking
-          </h1>
-          <p style={{ margin: "3px 0 0", fontSize: 13, color: "#6B7280" }}>Live location of your child's school bus</p>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          {lastUpdate && (
-            <p style={{ margin: 0, fontSize: 11, color: "#9CA3AF" }}>Refreshes in {countdown}s</p>
-          )}
-          <button
-            onClick={load}
-            disabled={loading}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: "#EEF2FF", color: "#4F46E5", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", marginTop: 4, opacity: loading ? 0.7 : 1 }}
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 21,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
           >
-            <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
-            Refresh
-          </button>
+            <Bus size={22} color="#4F46E5" /> Bus tracking
+          </h1>
+          <p style={{ margin: "3px 0 0", fontSize: 13, color: "#6B7280" }}>
+            {info?.studentName
+              ? `${info.studentName}'s school bus`
+              : "Your child's school bus"}
+          </p>
         </div>
+        <ConnectionPill mode={connectionMode} />
       </div>
 
+      {/* Child switcher */}
+      {children.length > 1 && (
+        <div
+          role="tablist"
+          aria-label="Choose child"
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            marginBottom: 14,
+          }}
+        >
+          {children.map((c) => {
+            const active = c.studentId === studentId;
+            return (
+              <button
+                key={c.studentId}
+                role="tab"
+                aria-selected={active}
+                className="vt-chip"
+                onClick={() => setStudentId(c.studentId)}
+                style={{
+                  padding: "7px 14px",
+                  borderRadius: 99,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  border: active
+                    ? "1.5px solid #4F46E5"
+                    : "1.5px solid #E5E7EB",
+                  background: active ? "#EEF2FF" : "#fff",
+                  color: active ? "#4338CA" : "#374151",
+                }}
+              >
+                {c.name}
+                {!c.hasTransport && (
+                  <span style={{ color: "#9CA3AF", fontWeight: 400 }}>
+                    {" "}
+                    (no bus)
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-
-      {/* Error */}
       {error && (
-        <div style={{ padding: "14px 16px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, marginBottom: 16, fontSize: 13, color: "#DC2626" }}>
+        <div
+          role="alert"
+          style={{
+            padding: "12px 14px",
+            background: "#FEF2F2",
+            border: "1px solid #FECACA",
+            borderRadius: 12,
+            marginBottom: 14,
+            fontSize: 13,
+            color: "#B91C1C",
+          }}
+        >
           {error}
         </div>
       )}
 
       {/* Loading */}
-      {loading && !data && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {[1, 2, 3].map((i) => (
-            <div key={i} style={{ height: 80, borderRadius: 12, background: "#F3F4F6", animation: "blink 1.5s infinite" }} />
-          ))}
-        </div>
-      )}
-
-      {/* No transport assigned */}
-      {!loading && data === null && !error && (
-        <div style={{ padding: "40px 20px", textAlign: "center", background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 16 }}>
-          <Bus size={40} color="#E5E7EB" style={{ marginBottom: 12 }} />
-          <p style={{ margin: 0, fontWeight: 600, color: "#374151" }}>No transport assigned</p>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9CA3AF" }}>Your child is not assigned to any school bus yet</p>
-        </div>
-      )}
-
-      {/* Data */}
-      {data && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-          {/* Route info card */}
-          <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 16, padding: "16px 18px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: "#111827" }}>{data.route?.name}</p>
-                <p style={{ margin: "2px 0 0", fontSize: 12, color: "#9CA3AF" }}>Route {data.route?.code}</p>
-              </div>
-              {data.location && <StatusBadge status={data.location.vehicleStatus || data.location.status} />}
-            </div>
-
-            {/* Vehicle reg no */}
-            {data.vehicle?.regNo && (
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#EEF2FF", padding: "4px 12px", borderRadius: 8, marginBottom: 12 }}>
-                <Bus size={13} color="#4F46E5" />
-                <code style={{ fontFamily: "monospace", fontWeight: 800, fontSize: 14, color: "#4338CA", letterSpacing: 1 }}>
-                  {data.vehicle.regNo}
-                </code>
-                {data.vehicle.vehicleName && (
-                  <span style={{ fontSize: 12, color: "#6B7280" }}>· {data.vehicle.vehicleName}</span>
-                )}
-              </div>
-            )}
-
-            {/* Your stop */}
-            {data.stop && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "#F0FDF4", borderRadius: 10, marginBottom: 12 }}>
-                <MapPin size={14} color="#16A34A" />
-                <span style={{ fontSize: 13, color: "#166534", fontWeight: 600 }}>Your stop: {data.stop.name}</span>
-                {data.stop.area && <span style={{ fontSize: 12, color: "#6B7280" }}>({data.stop.area})</span>}
-              </div>
-            )}
-
-            {/* Driver / Conductor */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {data.route?.driverName && (
-                <InfoCard icon={Phone} label="Driver" value={data.route.driverName} color="#059669" />
-              )}
-              {data.route?.driverPhone && (
-                <a href={`tel:${data.route.driverPhone}`} style={{ textDecoration: "none" }}>
-                  <InfoCard icon={Phone} label="Driver Phone" value={data.route.driverPhone} color="#059669" />
-                </a>
-              )}
-              {data.route?.conductorName && (
-                <InfoCard icon={Phone} label="Conductor" value={data.route.conductorName} color="#7C3AED" />
-              )}
-            </div>
+      {loading && !info && (
+        <div className="vt-grid">
+          <div
+            style={{
+              height: 420,
+              borderRadius: 14,
+              background: "#F3F4F6",
+              animation: "vt-blink 1.5s infinite",
+            }}
+          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {[1, 2].map((i) => (
+              <div
+                key={i}
+                style={{
+                  height: 140,
+                  borderRadius: 14,
+                  background: "#F3F4F6",
+                  animation: "vt-blink 1.5s infinite",
+                }}
+              />
+            ))}
           </div>
+        </div>
+      )}
 
-          {/* Live Location card */}
-          {data.location ? (
-            <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 16, padding: "16px 18px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: "#111827" }}>📍 Live Location</p>
-                <span style={{ fontSize: 11, color: "#9CA3AF", display: "flex", alignItems: "center", gap: 4 }}>
-                  <Clock size={11} /> {timeAgo(data.location.recordedAt)}
+      {/* No transport */}
+      {!loading && info?.empty && (
+        <div
+          style={{
+            padding: "40px 20px",
+            textAlign: "center",
+            background: "#F9FAFB",
+            border: "1px solid #E5E7EB",
+            borderRadius: 16,
+          }}
+        >
+          <Bus size={40} color="#D1D5DB" style={{ marginBottom: 12 }} />
+          <p style={{ margin: 0, fontWeight: 700, color: "#374151" }}>
+            No bus assigned
+          </p>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6B7280" }}>
+            {info.message ||
+              "Your child is not assigned to a school bus. Contact the school office to add transport."}
+          </p>
+        </div>
+      )}
+
+      {info && !info.empty && (
+        <div className="vt-grid">
+          {/* ── Map column ── */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              minWidth: 0,
+            }}
+          >
+            <LiveBusMap
+              vehicles={mapVehicles}
+              stops={info.routeStops || []}
+              myStop={stop}
+              followId={vehicleId}
+              fitKey={`${studentId}-${vehicleId || "none"}`}
+            />
+
+            {!point && (
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  padding: "12px 14px",
+                  background: "#F9FAFB",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: 12,
+                  fontSize: 13,
+                  color: "#4B5563",
+                }}
+              >
+                <MapPin size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>
+                  {info.message ||
+                    "The bus hasn't sent its location yet. It will appear on the map as soon as it starts."}
                 </span>
               </div>
+            )}
 
-              {/* Speed + Ignition */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-                <div style={{ background: "#F9FAFB", borderRadius: 10, padding: "10px 14px" }}>
-                  <p style={{ margin: 0, fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase" }}>Speed</p>
-                  <p style={{ margin: "3px 0 0", fontSize: 20, fontWeight: 800, color: data.location.speed > 0 ? "#166534" : "#374151" }}>
-                    {data.location.speed ?? 0} <span style={{ fontSize: 11, fontWeight: 400 }}>km/h</span>
-                  </p>
-                </div>
-                <div style={{ background: "#F9FAFB", borderRadius: 10, padding: "10px 14px" }}>
-                  <p style={{ margin: 0, fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase" }}>Ignition</p>
-                  <p style={{ margin: "3px 0 0", fontSize: 14, fontWeight: 700, color: data.location.ignitionStatus === "ON" ? "#166534" : "#6B7280", display: "flex", alignItems: "center", gap: 4 }}>
-                    <Zap size={14} /> {data.location.ignitionStatus || "—"}
-                  </p>
-                </div>
+            {point && isStale && (
+              <div
+                role="status"
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  padding: "12px 14px",
+                  background: "#FFFBEB",
+                  border: "1px solid #FDE68A",
+                  borderRadius: 12,
+                  fontSize: 13,
+                  color: "#92400E",
+                }}
+              >
+                <AlertTriangle
+                  size={16}
+                  style={{ flexShrink: 0, marginTop: 1 }}
+                />
+                <span>
+                  Last GPS signal was {formatAge(ageSec)}. The bus may be parked
+                  or in a low-network area — the map will update as soon as it
+                  reconnects.
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* ── Details column ── */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              minWidth: 0,
+            }}
+          >
+            {/* Live status */}
+            <section
+              style={{
+                background: "#fff",
+                border: "1px solid #E5E7EB",
+                borderRadius: 16,
+                padding: 16,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  marginBottom: 12,
+                }}
+              >
+                <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                  Right now
+                </h2>
+                {point && <StatusBadge status={point.status} stale={isStale} />}
               </div>
 
-              {/* Address */}
-              {data.location.address && (
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#F0FDF4", padding: "10px 12px", borderRadius: 10, marginBottom: 12 }}>
-                  <MapPin size={14} color="#16A34A" style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span style={{ fontSize: 13, color: "#166534", lineHeight: 1.5 }}>{data.location.address}</span>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 8,
+                }}
+              >
+                <Stat
+                  icon={Gauge}
+                  label="Speed"
+                  value={speed != null && !isStale ? `${speed} km/h` : "—"}
+                  color={speed > 0 && !isStale ? "#166534" : "#111827"}
+                />
+                <Stat
+                  icon={Clock}
+                  label="Last update"
+                  value={point ? formatAge(ageSec) : "—"}
+                  color={isStale ? "#B45309" : "#111827"}
+                />
+              </div>
+
+              {point?.address && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    marginTop: 10,
+                    padding: "10px 12px",
+                    background: "#F0FDF4",
+                    borderRadius: 10,
+                  }}
+                >
+                  <MapPin
+                    size={14}
+                    color="#16A34A"
+                    style={{ flexShrink: 0, marginTop: 2 }}
+                  />
+                  <span
+                    style={{ fontSize: 13, color: "#166534", lineHeight: 1.5 }}
+                  >
+                    {point.address}
+                  </span>
                 </div>
               )}
 
-              {/* Open in Google Maps */}
-              {data.location.latitude && data.location.longitude && (
+              {point && (
                 <a
-                  href={`https://www.google.com/maps?q=${data.location.latitude},${data.location.longitude}`}
+                  className="vt-btn"
+                  href={`https://www.google.com/maps?q=${point.latitude},${point.longitude}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "11px", background: "#4F46E5", color: "#fff", borderRadius: 12, fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+                  style={{
+                    marginTop: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    padding: 10,
+                    background: "#EEF2FF",
+                    color: "#4338CA",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    textDecoration: "none",
+                  }}
                 >
-                  <Navigation size={16} /> Open in Google Maps
+                  <Navigation size={15} /> Open in Google Maps
                 </a>
               )}
-            </div>
-          ) : (
-            <div style={{ padding: "24px", textAlign: "center", background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 16, color: "#9CA3AF" }}>
-              <MapPin size={28} color="#E5E7EB" style={{ marginBottom: 8 }} />
-              <p style={{ margin: 0, fontSize: 13 }}>{data.message || "No live location data yet — bus may not have started"}</p>
-            </div>
-          )}
+            </section>
 
-          {/* Last updated */}
-          {lastUpdate && (
-            <p style={{ margin: 0, textAlign: "center", fontSize: 11, color: "#D1D5DB" }}>
-              Last updated: {lastUpdate.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}
-            </p>
-          )}
+            {/* Your stop */}
+            {stop && (
+              <section
+                style={{
+                  background: "#fff",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: 16,
+                  padding: 16,
+                }}
+              >
+                <h2
+                  style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700 }}
+                >
+                  Your stop
+                </h2>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: "#166534",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <MapPin size={15} /> {stop.name}
+                </p>
+                {(stop.area || stop.landmark) && (
+                  <p
+                    style={{
+                      margin: "3px 0 0 21px",
+                      fontSize: 12,
+                      color: "#6B7280",
+                    }}
+                  >
+                    {[stop.landmark, stop.area].filter(Boolean).join(", ")}
+                  </p>
+                )}
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 8,
+                    marginTop: 12,
+                  }}
+                >
+                  {(stop.pickupTime || stop.dropTime) && (
+                    <Stat
+                      icon={Clock}
+                      label="Scheduled"
+                      value={
+                        info.pickupType === "DROP"
+                          ? stop.dropTime || "—"
+                          : stop.pickupTime || "—"
+                      }
+                      sub={
+                        info.pickupType === "BOTH" && stop.dropTime
+                          ? `Drop ${stop.dropTime}`
+                          : info.pickupType === "DROP"
+                          ? "Drop"
+                          : "Pickup"
+                      }
+                    />
+                  )}
+                  {distanceToStop != null && (
+                    <Stat
+                      icon={Navigation}
+                      label="Bus distance"
+                      value={
+                        distanceToStop < 1000
+                          ? `${Math.round(distanceToStop)} m`
+                          : `${(distanceToStop / 1000).toFixed(1)} km`
+                      }
+                      sub={
+                        distanceToStop <= 150
+                          ? "Bus is at your stop"
+                          : eta
+                          ? `About ${eta} min (approx.)`
+                          : "Straight-line distance"
+                      }
+                    />
+                  )}
+                </div>
+                {stop.latitude == null && (
+                  <p
+                    style={{
+                      margin: "10px 0 0",
+                      fontSize: 12,
+                      color: "#9CA3AF",
+                    }}
+                  >
+                    This stop has no map location yet, so distance can't be
+                    shown.
+                  </p>
+                )}
+              </section>
+            )}
+
+            {/* Route & crew */}
+            <section
+              style={{
+                background: "#fff",
+                border: "1px solid #E5E7EB",
+                borderRadius: 16,
+                padding: 16,
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                {info.route?.name}
+              </h2>
+              <p
+                style={{ margin: "2px 0 10px", fontSize: 12, color: "#6B7280" }}
+              >
+                Route {info.route?.code}
+                {info.vehicle?.regNo && (
+                  <>
+                    {" "}
+                    &nbsp;|&nbsp;{" "}
+                    <strong style={{ color: "#4338CA", letterSpacing: 0.5 }}>
+                      {info.vehicle.regNo}
+                    </strong>
+                  </>
+                )}
+                {info.vehicle?.vehicleName && (
+                  <> ({info.vehicle.vehicleName})</>
+                )}
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {info.route?.driverName && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      padding: "9px 12px",
+                      background: "#F9FAFB",
+                      borderRadius: 10,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: 11,
+                          color: "#6B7280",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Driver
+                      </p>
+                      <p
+                        style={{
+                          margin: "1px 0 0",
+                          fontSize: 14,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {info.route.driverName}
+                      </p>
+                    </div>
+                    {info.route.driverPhone && (
+                      <a
+                        className="vt-btn"
+                        href={`tel:${info.route.driverPhone}`}
+                        aria-label={`Call driver ${info.route.driverName}`}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "8px 12px",
+                          background: "#059669",
+                          color: "#fff",
+                          borderRadius: 9,
+                          fontSize: 13,
+                          fontWeight: 700,
+                          textDecoration: "none",
+                        }}
+                      >
+                        <Phone size={14} /> Call
+                      </a>
+                    )}
+                  </div>
+                )}
+                {info.route?.conductorName && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      padding: "9px 12px",
+                      background: "#F9FAFB",
+                      borderRadius: 10,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: 11,
+                          color: "#6B7280",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Conductor
+                      </p>
+                      <p
+                        style={{
+                          margin: "1px 0 0",
+                          fontSize: 14,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {info.route.conductorName}
+                      </p>
+                    </div>
+                    {info.route.conductorPhone && (
+                      <a
+                        className="vt-btn"
+                        href={`tel:${info.route.conductorPhone}`}
+                        aria-label={`Call conductor ${info.route.conductorName}`}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "8px 12px",
+                          background: "#7C3AED",
+                          color: "#fff",
+                          borderRadius: 9,
+                          fontSize: 13,
+                          fontWeight: 700,
+                          textDecoration: "none",
+                        }}
+                      >
+                        <Phone size={14} /> Call
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
         </div>
       )}
     </div>

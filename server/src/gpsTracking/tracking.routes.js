@@ -1,5 +1,10 @@
-import express from "express";
+// server/src/tracking/tracking.routes.js  (UPDATED)
+// SECURITY FIX: these routes had NO authentication. /all returned the live
+// position of every GPS device – and Device can be linked to a Student – to
+// anyone on the internet. Both routes now require login.
 
+import express from "express";
+import { requireAuth } from "../middlewares/auth.middleware.js";
 import {
   getLatestDeviceLocation,
   getAllDeviceLocations,
@@ -7,22 +12,12 @@ import {
 
 const router = express.Router();
 
-/*
-   GET all latest devices
-*/
+router.use(requireAuth);
 
-router.get(
-  "/all",
-  getAllDeviceLocations,
-);
+// GET all latest devices
+router.get("/all", getAllDeviceLocations);
 
-/*
-   GET latest single device
-*/
-
-router.get(
-  "/latest/:deviceId",
-  getLatestDeviceLocation,
-);
+// GET latest single device
+router.get("/latest/:deviceId", getLatestDeviceLocation);
 
 export default router;
