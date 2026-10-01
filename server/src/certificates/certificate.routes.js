@@ -15,6 +15,11 @@ import {
   deleteCertificate,
   getSchoolSettings,
   updateSchoolSettings,
+  getHallTicketClassStudents,
+  generateClassHallTickets,
+  getHallTicketBatch,
+  getCertificatePdfFile,
+  getHistoryExams,
 } from "./certificate.controller.js";
 
 const router = express.Router();
@@ -37,8 +42,15 @@ router.get("/students", getStudentsForCertificates);
 router.get("/student/:id", getStudentInfo);
 router.post("/generate", generateCertificate);
 router.get("/history", getCertificateHistory);
+router.get("/history/exams", getHistoryExams);
 router.get("/download/:id", downloadCertificate);
 router.get("/print/:id", printCertificate);
+router.get("/file/:id", getCertificatePdfFile);
+
+// Class-wide Hall Tickets
+router.get("/hall-tickets/class-students", getHallTicketClassStudents);
+router.post("/hall-tickets/generate-class", generateClassHallTickets);
+router.get("/hall-tickets/batch/:batchId", getHallTicketBatch);
 
 router.get("/school-settings", getSchoolSettings);
 router.put(

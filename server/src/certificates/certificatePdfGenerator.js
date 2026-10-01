@@ -739,7 +739,11 @@ function buildHtml(type, data, images) {
 //   exactly what gets passed in — auto-filled from Student + editable fields).
 // imageBuffers: { logo, signature, seal, photo } — raw Buffers or null,
 //   already fetched from R2 by the service layer.
-export async function generateCertificatePdf(type, data, imageBuffers = {}) {
+// options.browser: an already-open browser (from openPdfBrowser()) to reuse.
+//   Used by bulk Hall Ticket generation so a whole class is rendered with a
+//   single Chromium instance instead of launching one per student. When
+//   omitted, behaviour is unchanged: a browser is launched and closed here.
+export async function generateCertificatePdf(type, data, imageBuffers = {}, options = {}) {
   const images = {
     logo: toDataUri(imageBuffers.logo),
     signature: toDataUri(imageBuffers.signature),
@@ -749,10 +753,12 @@ export async function generateCertificatePdf(type, data, imageBuffers = {}) {
 
   const html = buildHtml(type, { ...data, photo: images.photo }, images);
 
-  const browser = await launchBrowser();
+  const sharedBrowser = options.browser || null;
+  const browser = sharedBrowser || (await launchBrowser());
 
+  let page;
   try {
-    const page = await browser.newPage();
+    page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -761,6 +767,16 @@ export async function generateCertificatePdf(type, data, imageBuffers = {}) {
     });
     return pdfBuffer;
   } finally {
-    await browser.close();
+    if (sharedBrowser) {
+      try { await page?.close(); } catch { /* ignore */ }
+    } else {
+      await browser.close();
+    }
   }
+}
+
+// Opens a browser that callers can pass to generateCertificatePdf() via
+// options.browser for batch rendering. Caller is responsible for close().
+export async function openPdfBrowser() {
+  return launchBrowser();
 }

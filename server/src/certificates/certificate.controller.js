@@ -4,6 +4,7 @@ import {
   validateGeneratePayload,
   validateStudentsQuery,
   validatePagination,
+  validateClassHallTicketPayload,
 } from "./certificate.validation.js";
 import { uploadToR2 } from "../lib/r2.js";
 import { prisma } from "../config/db.js";
@@ -97,6 +98,95 @@ export const generateCertificate = async (req, res) => {
   }
 };
 
+// ── Class-wide Hall Tickets ──────────────────────────────────────────────────
+
+// GET /api/certificates/hall-tickets/class-students?academicYearId&classSectionId
+// Roster (in Hall Ticket numbering order) used for the count + range check.
+export const getHallTicketClassStudents = async (req, res) => {
+  try {
+    const schoolId = getSchoolId(req);
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing from token" });
+
+    const { academicYearId, classSectionId } = req.query;
+    if (!academicYearId || !classSectionId)
+      return res.status(400).json({ message: "academicYearId and classSectionId are required." });
+
+    const students = await certificateService.listClassStudentsForHallTicket({
+      schoolId, academicYearId, classSectionId,
+    });
+    return res.json({ students, total: students.length });
+  } catch (err) {
+    console.error("[getHallTicketClassStudents]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// POST /api/certificates/hall-tickets/generate-class
+export const generateClassHallTickets = async (req, res) => {
+  try {
+    const schoolId = getSchoolId(req);
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing from token" });
+
+    const { valid, errors } = validateClassHallTicketPayload(req.body);
+    if (!valid) return res.status(400).json({ message: errors.join(" ") });
+
+    const {
+      academicYearId, classSectionId, assessmentGroupId, hallTicketFrom, hallTicketTo, editableFields,
+    } = req.body;
+
+    const result = await certificateService.generateHallTicketsForClass({
+      schoolId,
+      generatedById: req.user?.id || null,
+      academicYearId,
+      classSectionId,
+      assessmentGroupId,
+      hallTicketFrom,
+      hallTicketTo,
+      editableFields: editableFields || {},
+    });
+
+    return res.status(201).json(result);
+  } catch (err) {
+    console.error("[generateClassHallTickets]", err);
+    return res.status(err.status || 500).json({ message: err.message || "Server error" });
+  }
+};
+
+// GET /api/certificates/hall-tickets/batch/:batchId
+export const getHallTicketBatch = async (req, res) => {
+  try {
+    const schoolId = getSchoolId(req);
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing from token" });
+
+    const result = await certificateService.listHallTicketBatch({ schoolId, batchId: req.params.batchId });
+    if (!result.tickets.length) return res.status(404).json({ message: "No Hall Tickets found for this batch" });
+    return res.json(result);
+  } catch (err) {
+    console.error("[getHallTicketBatch]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// GET /api/certificates/file/:id  → the PDF itself (application/pdf)
+export const getCertificatePdfFile = async (req, res) => {
+  try {
+    const schoolId = getSchoolId(req);
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing from token" });
+
+    const file = await certificateService.getCertificatePdfFile({ schoolId, id: req.params.id });
+    if (!file) return res.status(404).json({ message: "Certificate PDF not found" });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Length", file.buffer.length);
+    res.setHeader("Content-Disposition", `attachment; filename="${file.fileName}"`);
+    res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+    return res.end(file.buffer);
+  } catch (err) {
+    console.error("[getCertificatePdfFile]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 // GET /api/certificates/history
 export const getCertificateHistory = async (req, res) => {
   try {
@@ -112,6 +202,9 @@ export const getCertificateHistory = async (req, res) => {
       classSectionId: req.query.classSectionId || null,
       certificateType: req.query.certificateType || null,
       academicYear: req.query.academicYear || null,
+      academicYearId: req.query.academicYearId || null,
+      examId: req.query.examId || null,
+      examName: req.query.examName?.trim() || null,
       dateFrom: req.query.dateFrom || null,
       dateTo: req.query.dateTo || null,
       page,
@@ -121,6 +214,24 @@ export const getCertificateHistory = async (req, res) => {
     return res.json(result);
   } catch (err) {
     console.error("[getCertificateHistory]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// GET /api/certificates/history/exams?classSectionId&academicYearId
+export const getHistoryExams = async (req, res) => {
+  try {
+    const schoolId = getSchoolId(req);
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing from token" });
+
+    const exams = await certificateService.listHistoryExams({
+      schoolId,
+      classSectionId: req.query.classSectionId || null,
+      academicYearId: req.query.academicYearId || null,
+    });
+    return res.json({ exams });
+  } catch (err) {
+    console.error("[getHistoryExams]", err);
     return res.status(500).json({ message: "Server error" });
   }
 };

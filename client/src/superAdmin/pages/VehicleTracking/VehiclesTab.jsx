@@ -1,19 +1,43 @@
 // client/src/superAdmin/pages/VehicleTracking/VehiclesTab.jsx
+// ═══════════════════════════════════════════════════════════════════════════════
+// WHAT CHANGED AND WHY
+// ────────────────────
+// Screenshot 3 shows this table stuck on a spinner. Two reasons:
+//   1. `.catch(() => {})` swallowed every failure silently, and
+//   2. there was no timeout, so a request that never returns left `loading`
+//      true forever — the `.finally()` simply never ran.
+// This version aborts after 20s, shows the real error, and offers a retry.
+// The heavy lifting is on the server (vehicle.controller.js) — this file just
+// stops the UI from lying about what is happening.
+// ═══════════════════════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect } from "react";
-import { Car, Plus, CheckCircle, XCircle, Search } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Car, Plus, CheckCircle, XCircle, Search, AlertTriangle } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL;
 const BASE    = `${API_URL}/api/vehicles`;
+
+const REQUEST_TIMEOUT_MS = 20_000;
 
 const getToken = () => {
   try { return JSON.parse(localStorage.getItem("auth"))?.token || null; }
   catch { return null; }
 };
 const authHeaders = () => ({
-  "Content-Type": "application/json", 
+  "Content-Type": "application/json",
   Authorization: `Bearer ${getToken()}`,
 });
+
+// fetch that always settles — either with a response or an AbortError.
+async function fetchWithTimeout(url, options = {}, ms = REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const killer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(killer);
+  }
+}
 
 function Spinner({ size = 16, color = "#4F46E5" }) {
   return (
@@ -36,12 +60,13 @@ function VehicleStatusBadge({ status }) {
     MOVING:  { bg: "#F0FDF4", color: "#166534", dot: "#22C55E" },
     IDLE:    { bg: "#FFFBEB", color: "#92400E", dot: "#F59E0B" },
     OFF:     { bg: "#F9FAFB", color: "#6B7280", dot: "#9CA3AF" },
+    NODATA:  { bg: "#F9FAFB", color: "#6B7280", dot: "#D1D5DB" },
   }[status] || { bg: "#F9FAFB", color: "#6B7280", dot: "#9CA3AF" };
 
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: cfg.bg, color: cfg.color, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.dot, display: "inline-block" }} />
-      {status || "No Data"}
+      {status === "NODATA" ? "No signal" : (status || "No Data")}
     </span>
   );
 }
@@ -49,35 +74,64 @@ function VehicleStatusBadge({ status }) {
 const VEHICLE_TYPES = ["BUS", "VAN", "AUTO", "SCOOTY", "CAR", "TRUCK", "OTHER"];
 
 export default function VehiclesTab({ schoolId, schools = [] }) {
-  const [vehicles,     setVehicles]     = useState([]);
-  const [loading,      setLoading]      = useState(false);
-  const [toggling,     setToggling]     = useState(null);
-  const [showForm,     setShowForm]     = useState(false);
-  const [search,       setSearch]       = useState("");
-  const [form,         setForm]         = useState({ schoolId: "", regNo: "", vehicleName: "", vehicleType: "BUS" });
-  const [formError,    setFormError]    = useState("");
-  const [formSuccess,  setFormSuccess]  = useState("");
-  const [submitting,   setSubmitting]   = useState(false);
+  const [vehicles,    setVehicles]    = useState([]);
+  const [loading,     setLoading]     = useState(false);
+  const [loadError,   setLoadError]   = useState("");
+  const [toggling,    setToggling]    = useState(null);
+  const [showForm,    setShowForm]    = useState(false);
+  const [search,      setSearch]      = useState("");
+  const [form,        setForm]        = useState({ schoolId: "", regNo: "", vehicleName: "", vehicleType: "BUS" });
+  const [formError,   setFormError]   = useState("");
+  const [formSuccess, setFormSuccess] = useState("");
+  const [submitting,  setSubmitting]  = useState(false);
 
-  useEffect(() => {
-    if (schoolId) loadVehicles();
+  const inFlightRef = useRef(false);
+  const mountedRef  = useRef(true);
+
+  const loadVehicles = useCallback(async () => {
+    if (!schoolId) return;
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    setLoading(true);
+    setLoadError("");
+
+    try {
+      const res = await fetchWithTimeout(
+        `${BASE}?schoolId=${encodeURIComponent(schoolId)}&includeInactive=true`,
+        { headers: authHeaders() },
+      );
+      if (!res.ok) throw new Error(`Server responded ${res.status}`);
+
+      const d = await res.json();
+      if (!mountedRef.current) return;
+
+      if (d.success) setVehicles(d.data || []);
+      else setLoadError(d.message || "Failed to load vehicles.");
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setLoadError(
+        e.name === "AbortError"
+          ? `No response in ${REQUEST_TIMEOUT_MS / 1000}s — the vehicles API is not responding.`
+          : e.message || "Network error.",
+      );
+    } finally {
+      inFlightRef.current = false;
+      if (mountedRef.current) setLoading(false);
+    }
   }, [schoolId]);
 
-  function loadVehicles() {
-    setLoading(true);
-    fetch(`${BASE}?schoolId=${schoolId}&includeInactive=true`, { headers: authHeaders() })
-      .then((r) => r.json())
-      .then((d) => { if (d.success) setVehicles(d.data || []); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }
+  useEffect(() => {
+    mountedRef.current = true;
+    loadVehicles();
+    return () => { mountedRef.current = false; };
+  }, [loadVehicles]);
 
   async function handleAdd() {
     const { schoolId: sid, regNo, vehicleName, vehicleType } = form;
     if (!sid || !regNo) { setFormError("School and Registration Number are required."); return; }
     setSubmitting(true); setFormError(""); setFormSuccess("");
     try {
-      const res = await fetch(BASE, {
+      const res = await fetchWithTimeout(BASE, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ schoolId: sid, regNo: regNo.toUpperCase().trim(), vehicleName, vehicleType }),
@@ -85,14 +139,14 @@ export default function VehiclesTab({ schoolId, schools = [] }) {
       const d = await res.json();
       if (d.success) {
         setFormSuccess(`Vehicle ${regNo.toUpperCase()} added successfully.`);
-        setForm({ schoolId: schoolId, regNo: "", vehicleName: "", vehicleType: "BUS" });
+        setForm({ schoolId, regNo: "", vehicleName: "", vehicleType: "BUS" });
         setShowForm(false);
         loadVehicles();
       } else {
         setFormError(d.message || "Failed to add vehicle.");
       }
     } catch (e) {
-      setFormError(e.message);
+      setFormError(e.name === "AbortError" ? "Request timed out." : e.message);
     } finally {
       setSubmitting(false);
     }
@@ -102,10 +156,14 @@ export default function VehiclesTab({ schoolId, schools = [] }) {
     if (toggling) return;
     setToggling(id);
     try {
-      await fetch(`${BASE}/${id}/toggle`, { method: "PATCH", headers: authHeaders() });
-      setVehicles((prev) => prev.map((v) => v.id === id ? { ...v, isActive: !v.isActive } : v));
-    } catch (e) { alert(e.message); }
-    finally { setToggling(null); }
+      const res = await fetchWithTimeout(`${BASE}/${id}/toggle`, { method: "PATCH", headers: authHeaders() });
+      if (!res.ok) throw new Error(`Server responded ${res.status}`);
+      setVehicles((prev) => prev.map((v) => (v.id === id ? { ...v, isActive: !v.isActive } : v)));
+    } catch (e) {
+      setLoadError(e.name === "AbortError" ? "Toggle request timed out." : e.message);
+    } finally {
+      setToggling(null);
+    }
   }
 
   const filtered = vehicles.filter((v) => {
@@ -116,12 +174,12 @@ export default function VehiclesTab({ schoolId, schools = [] }) {
       || (v.vehicleType || "").toLowerCase().includes(q);
   });
 
-  const inp = { width: "100%", padding: "8px 12px", border: "1.5px solid #E5E7EB", borderRadius: 8, fontSize: 14, color: "#111827", outline: "none", boxSizing: "border-box", background: "#FAFAFA" };
-  const sel = { ...inp, cursor: "pointer", appearance: "auto" };
-  const lbl = { display: "block", fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 };
+  const inp  = { width: "100%", padding: "8px 12px", border: "1.5px solid #E5E7EB", borderRadius: 8, fontSize: 14, color: "#111827", outline: "none", boxSizing: "border-box", background: "#FAFAFA" };
+  const sel  = { ...inp, cursor: "pointer", appearance: "auto" };
+  const lbl  = { display: "block", fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 };
   const card = { background: "#fff", borderRadius: 12, border: "1px solid #E5E7EB", padding: "18px 20px", marginBottom: 16 };
-  const thS = { padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#6B7280", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "2px solid #F3F4F6", whiteSpace: "nowrap", background: "#F9FAFB" };
-  const tdS = { padding: "12px 14px", borderBottom: "1px solid #F3F4F6", verticalAlign: "middle" };
+  const thS  = { padding: "10px 14px", textAlign: "left", fontWeight: 700, color: "#6B7280", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "2px solid #F3F4F6", whiteSpace: "nowrap", background: "#F9FAFB" };
+  const tdS  = { padding: "12px 14px", borderBottom: "1px solid #F3F4F6", verticalAlign: "middle" };
 
   return (
     <div style={{ fontFamily: "system-ui,-apple-system,sans-serif", color: "#111827" }}>
@@ -143,6 +201,17 @@ export default function VehiclesTab({ schoolId, schools = [] }) {
 
       {formSuccess && !showForm && (
         <div style={{ padding: "10px 14px", background: "#F0FDF4", color: "#166534", border: "1px solid #86EFAC", borderRadius: 8, marginBottom: 14, fontSize: 13 }}>✓ {formSuccess}</div>
+      )}
+
+      {loadError && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: 8, marginBottom: 14, fontSize: 13 }}>
+          <span style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} /> {loadError}
+          </span>
+          <button onClick={loadVehicles} style={{ padding: "5px 12px", background: "#fff", color: "#991B1B", border: "1px solid #FECACA", borderRadius: 6, fontWeight: 600, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+            Retry
+          </button>
+        </div>
       )}
 
       {/* Add form */}
@@ -207,7 +276,9 @@ export default function VehiclesTab({ schoolId, schools = [] }) {
               {loading ? (
                 <tr><td colSpan={7} style={{ textAlign: "center", padding: "40px 0" }}><Spinner size={20} /></td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", padding: "40px 0", color: "#9CA3AF" }}>No vehicles found. Add one above.</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: "center", padding: "40px 0", color: "#9CA3AF" }}>
+                  {loadError ? "Could not load vehicles." : "No vehicles found. Add one above."}
+                </td></tr>
               ) : filtered.map((v) => (
                 <tr key={v.id} style={{ opacity: v.isActive ? 1 : 0.55 }}>
                   <td style={tdS}>
