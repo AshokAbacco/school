@@ -5,24 +5,30 @@ import { requireAuth } from "../middlewares/auth.middleware.js";
 import {
   getVehicles,
   addVehicle,
+  updateVehicle,
   toggleVehicle,
   getVehicleLiveLocation,
   getVehicleHistory,
   getAllVehiclesLive,
+  streamSchoolVehicles,
 } from "./vehicle.controller.js";
 
 const router = express.Router();
 
 router.use(requireAuth);
 
-// ── Vehicle management ────────────────────────────────────────────────────────
-router.get  ("/",              getVehicles);          // ?schoolId=&includeInactive=
-router.post ("/",              addVehicle);
-router.patch("/:id/toggle",   toggleVehicle);
+// ── Live (static paths first so they never collide with /:id) ────────────────
+router.get("/live-all", getAllVehiclesLive); // ?schoolId=&trail=1  snapshot
+router.get("/live-stream", streamSchoolVehicles); // ?schoolId=          SSE live push
 
-// ── Live location ─────────────────────────────────────────────────────────────
-router.get("/live-all",        getAllVehiclesLive);    // ?schoolId= — all vehicles latest location
-router.get("/:id/live",        getVehicleLiveLocation); // one vehicle latest location
-router.get("/:id/history",     getVehicleHistory);    // ?from=&to=&limit=
+// ── Vehicle management ───────────────────────────────────────────────────────
+router.get("/", getVehicles); // ?schoolId=&includeInactive=
+router.post("/", addVehicle);
+router.patch("/:id/toggle", toggleVehicle);
+router.patch("/:id", updateVehicle); // set vehicleName / vehicleType / deviceId (IMEI)
+
+// ── Per-vehicle location ─────────────────────────────────────────────────────
+router.get("/:id/live", getVehicleLiveLocation);
+router.get("/:id/history", getVehicleHistory); // ?from=&to=&limit=
 
 export default router;
