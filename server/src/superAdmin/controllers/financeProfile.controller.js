@@ -164,7 +164,7 @@ export const getFinanceProfiles = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    await redisClient.set(CACHE_KEY, JSON.stringify(profiles), { EX: TTL });
+    await redisClient.setEx(CACHE_KEY, TTL, JSON.stringify(profiles));
     res.json({ success: true, fromCache: false, data: profiles });
   } catch (error) {
     console.error("Get FinanceProfiles Error:", error);
@@ -198,7 +198,7 @@ export const getFinanceProfile = async (req, res) => {
       return res.status(404).json({ message: "Finance profile not found" });
     }
 
-    await redisClient.set(CACHE_ONE(id), JSON.stringify(profile), { EX: TTL });
+    await redisClient.setEx(CACHE_ONE(id), TTL, JSON.stringify(profile));
     res.json({ success: true, fromCache: false, data: profile });
   } catch (error) {
     console.error("Get FinanceProfile Error:", error);
@@ -279,7 +279,7 @@ export const updateFinanceProfile = async (req, res) => {
     const uid = universityId ?? (await getUniversityIdForProfile(id));
     await bustCache(uid);
     await redisClient.del(CACHE_ONE(id));
-    await redisClient.set(CACHE_ONE(id), JSON.stringify(updated), { EX: TTL });
+    await redisClient.setEx(CACHE_ONE(id), TTL, JSON.stringify(updated));
 
     res.json({ success: true, message: "Finance profile updated", data: updated });
   } catch (error) {
