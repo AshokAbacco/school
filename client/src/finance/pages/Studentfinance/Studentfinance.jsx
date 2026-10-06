@@ -22,7 +22,11 @@ import {
 import Addstudent from "./Addstudent";
 import { PayModal } from "../../../finance/pages/Studentfinance/PayModal";
 import { EditPaymentModal } from "./EditPaymentModal.jsx";
-import { InvoiceModal, buildCategoryRows, fmt } from "./FeesInvoce.jsx";
+import {
+  InvoiceModal,
+  buildCategoryRows,
+  generateFeeReceiptPdf,
+} from "./FeesInvoce.jsx";
 import { downloadStudentFinanceExcel } from "../../../utils/downloadStudentFinanceExcel.js";
 import { FaWhatsapp, FaPhone } from "react-icons/fa";
 import { useSchoolLogo } from "../../../hooks/useSchoolLogo";
@@ -658,7 +662,7 @@ export default function StudentFeesPage() {
     return totalFees > 0 && paidAmount >= totalFees;
   }).length;
 
-const collectionPct =
+  const collectionPct =
     totalFeesAll > 0 ? Math.round((totalPaidAll / totalFeesAll) * 100) : 0;
 
   const addStudentData = (newStudent) => {
@@ -720,278 +724,43 @@ const collectionPct =
 
   const handleSendReceipt = async (student) => {
     try {
-      // Step 1: generate PDF as a Blob (SAME category logic as the Invoice page,
-      // via the shared buildCategoryRows() helper — Total / Paid / Pending per
-      // Fee Category, not just a flat "Amount" list).
-      if (!window.jspdf) {
-        alert("PDF library not loaded yet. Please try again in a moment.");
-        return;
-      }
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-
-      const W = 210,
-        m = 18;
-      const invoiceNo = `INV-${String(student.id || "")
-        .slice(-4)
-        .padStart(4, "0")}-${new Date().getFullYear()}`;
-      const today = new Date().toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-
-      // ── Fee-category rows: Total / Paid / Pending per category ────────
-      // Step A: self-heal any old mismatch first (records paid via the
-      // "Full Fee" button before the sync fix existed can have money
-      // collected but not reflected against a category — this brings
-      // them back in line automatically, no manual step needed).
+      // Step 1: build the receipt for the LATEST payment with the same engine
+      // as the Invoice page (Total | Paid Earlier | Paid Now | Balance + full
+      // payment history). Falls back to a fee statement if nothing is paid yet.
+      const tk = JSON.parse(localStorage.getItem("auth") || "{}")?.token;
+      let history = [];
       try {
-        const auth0 = JSON.parse(localStorage.getItem("auth"));
-        const token0 = auth0?.token;
-        await fetch(
-          `${API_URL}/api/finance/reconcileFeeCategories/${student.id}`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token0}` },
-          },
+        const hRes = await fetch(
+          `${API_URL}/api/finance/paymentHistory/${student.id}`,
+          { headers: { Authorization: `Bearer ${tk}` } },
         );
-      } catch (e) {
-        console.warn(
-          "Fee category reconciliation skipped (non-fatal):",
-          e.message,
-        );
-      }
-
-      // Step B: ALWAYS pull fresh categories here (don't trust the cached
-      // `student` from the list state) — the list may not have refreshed
-      // since the last payment, which previously caused custom/just-paid
-      // categories to show stale (often ₹0) paid amounts in the WhatsApp
-      // PDF while the invoice page (which always fetches fresh) showed
-      // correct ones.
-      let categorySource = student;
-      try {
-        const auth = JSON.parse(localStorage.getItem("auth"));
-        const token = auth?.token;
-        const catRes = await fetch(
-          `${API_URL}/api/finance/studentFeeCategories/${student.id}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-        if (catRes.ok) {
-          const cats = await catRes.json();
-          if (Array.isArray(cats) && cats.length > 0) {
-            categorySource = { ...student, feeCategories: cats };
-          }
+        if (hRes.ok) {
+          const data = await hRes.json();
+          history = Array.isArray(data) ? data : [];
         }
       } catch (e) {
         console.warn(
-          "Could not refresh fee categories, falling back to cached student data:",
+          "Payment history fetch failed (using statement):",
           e.message,
         );
       }
 
-      const rows = buildCategoryRows(categorySource);
-      const grandTotal = rows.reduce((s, r) => s + r.total, 0);
-      const grandPaid = rows.reduce((s, r) => s + r.paid, 0);
-      const grandPending = rows.reduce((s, r) => s + r.pending, 0);
-      const due = grandPending;
-
-      // Header
-      const schoolName = schoolInfo.name;
-      const schoolAddress = `${schoolInfo.address || ""}${schoolInfo.city ? ", " + schoolInfo.city : ""}`;
-      const headerH = schoolAddress ? 50 : 44;
-      doc.setFillColor(28, 48, 68);
-      doc.rect(0, 0, W, headerH, "F");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(18);
-      doc.setTextColor(255, 255, 255);
-      doc.text(schoolName || "Fee Invoice", m, 16);
-      doc.setFontSize(9.5);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(180, 205, 220);
-      doc.text("Fee Invoice & Payment Receipt", m, 25);
-      if (schoolAddress) {
-        doc.setFontSize(8.5);
-        doc.setTextColor(140, 175, 200);
-        doc.text(schoolAddress, m, 33);
-      }
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(W - m - 52, 8, 52, 22, 3, 3, "F");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(28, 48, 68);
-      doc.text("INVOICE", W - m - 26, 16, { align: "center" });
-      doc.setFontSize(10);
-      doc.text(invoiceNo, W - m - 26, 24, { align: "center" });
-      doc.setFillColor(39, 67, 91);
-      doc.rect(0, headerH, W, 10, "F");
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(180, 205, 220);
-      doc.text(`Date: ${today}`, m, headerH + 7);
-      doc.text(
-        `Status: ${due === 0 ? "PAID" : "PARTIALLY PAID"}`,
-        W - m,
-        headerH + 7,
-        { align: "right" },
-      );
-
-      // Student details
-      let y = headerH + 18;
-      const hasAddress = !!student.address;
-      const boxHeight = hasAddress ? 60 : 48;
-      doc.setFillColor(240, 247, 252);
-      doc.roundedRect(m, y - 6, W - m * 2, boxHeight, 3, 3, "F");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(28, 48, 68);
-      doc.text("STUDENT DETAILS", m + 4, y);
-
-      // Row 1: Name | Email
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(30, 50, 70);
-      doc.text("Name:", m + 4, y + 10);
-      doc.setFont("helvetica", "normal");
-      doc.text(student.name || "N/A", m + 22, y + 10);
-      doc.setFont("helvetica", "bold");
-      doc.text("Email:", W / 2 + 4, y + 10);
-      doc.setFont("helvetica", "normal");
-      doc.text(student.email || "N/A", W / 2 + 22, y + 10);
-
-      // Row 2: Course | Phone
-      doc.setFont("helvetica", "bold");
-      doc.text("Course:", m + 4, y + 20);
-      doc.setFont("helvetica", "normal");
-      doc.text(student.course || "N/A", m + 22, y + 20);
-      doc.setFont("helvetica", "bold");
-      doc.text("Phone:", W / 2 + 4, y + 20);
-      doc.setFont("helvetica", "normal");
-      doc.text(student.phone || "N/A", W / 2 + 22, y + 20);
-
-      // Row 3: Address (full width, only if present)
-      if (hasAddress) {
-        doc.setFont("helvetica", "bold");
-        doc.text("Address:", m + 4, y + 30);
-        doc.setFont("helvetica", "normal");
-        const addrLines = doc.splitTextToSize(student.address, W - m * 2 - 34);
-        doc.text(addrLines, m + 22, y + 30);
-      }
-
-      y += boxHeight + 12;
-
-      // Fee table — Fee Category | Total | Paid | Pending (same as invoice page)
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(28, 48, 68);
-      doc.text("FEE BREAKDOWN", m, y);
-      y += 5;
-
-      const COLW = W - m * 2;
-      // Numeric columns are right-aligned to a fixed right edge per column, so
-      // wider values (Rs.65,000 vs Rs.0) grow leftward into their own column
-      // instead of overflowing rightward past the page margin / next column.
-      const COL = {
-        name: m + 4,
-        total: m + 118,
-        paid: m + 152,
-        pending: m + COLW - 4,
-      };
-
-      doc.setFillColor(28, 48, 68);
-      doc.rect(m, y, COLW, 9, "F");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(255, 255, 255);
-      doc.text("Fee Category", COL.name, y + 6);
-      doc.text("Total", COL.total, y + 6, { align: "right" });
-      doc.text("Paid", COL.paid, y + 6, { align: "right" });
-      doc.text("Pending", COL.pending, y + 6, { align: "right" });
-      y += 9;
-
-      rows.forEach((row, i) => {
-        doc.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 252 : 255, 255);
-        doc.rect(m, y, COLW, 9, "F");
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9.5);
-        doc.setTextColor(30, 50, 70);
-        doc.text(row.name, COL.name, y + 6);
-        doc.setFont("helvetica", "bold");
-        doc.text(`Rs.${fmt(row.total)}`, COL.total, y + 6, { align: "right" });
-        doc.setTextColor(26, 110, 62);
-        doc.text(`Rs.${fmt(row.paid)}`, COL.paid, y + 6, { align: "right" });
-        doc.setTextColor(
-          row.pending > 0 ? 180 : 26,
-          row.pending > 0 ? 48 : 110,
-          row.pending > 0 ? 48 : 62,
-        );
-        doc.text(`Rs.${fmt(row.pending)}`, COL.pending, y + 6, {
-          align: "right",
-        });
-        doc.setTextColor(30, 50, 70);
-        y += 9;
+      const { doc } = await generateFeeReceiptPdf({
+        mode: history.length > 0 ? "receipt" : "statement",
+        txnId: history[0]?.id,
+        student,
+        history,
+        school: {
+          name: schoolInfo.name,
+          address: `${schoolInfo.address || ""}${
+            schoolInfo.city ? ", " + schoolInfo.city : ""
+          }`,
+          phone: schoolInfo.phone,
+        },
+        logoUrl: schoolLogoUrl,
+        invoicePrefix: schoolInfo.invoicePrefix || schoolInfo.code,
+        fallbackRows: buildCategoryRows(student),
       });
-
-      doc.setFillColor(28, 48, 68);
-      doc.rect(m, y, COLW, 9, "F");
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(255, 255, 255);
-      doc.text("TOTAL", COL.name, y + 6);
-      doc.text(`Rs.${fmt(grandTotal)}`, COL.total, y + 6, { align: "right" });
-      doc.text(`Rs.${fmt(grandPaid)}`, COL.paid, y + 6, { align: "right" });
-      doc.text(`Rs.${fmt(grandPending)}`, COL.pending, y + 6, {
-        align: "right",
-      });
-      y += 14;
-
-      const bx = W - m - 80;
-      doc.setFillColor(240, 247, 252);
-      doc.roundedRect(bx, y, 80, 34, 3, 3, "F");
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(80, 100, 120);
-      doc.text("Total Fees:", bx + 4, y + 9);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(28, 48, 68);
-      doc.text(`Rs. ${fmt(grandTotal)}`, bx + 78, y + 9, { align: "right" });
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(80, 100, 120);
-      doc.text("Amount Paid:", bx + 4, y + 18);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(28, 68, 48);
-      doc.text(`Rs. ${fmt(grandPaid)}`, bx + 78, y + 18, { align: "right" });
-      doc.setDrawColor(28, 48, 68);
-      doc.setLineWidth(0.5);
-      doc.line(bx + 4, y + 22, bx + 76, y + 22);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(28, 48, 68);
-      doc.text("Balance Due:", bx + 4, y + 30);
-      doc.setTextColor(
-        due === 0 ? 28 : 180,
-        due === 0 ? 90 : 30,
-        due === 0 ? 50 : 30,
-      );
-      doc.text(`Rs. ${fmt(due)}`, bx + 78, y + 30, { align: "right" });
-      y = 272;
-      doc.setFillColor(28, 48, 68);
-      doc.rect(0, y, W, 25, "F");
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      doc.setTextColor(180, 205, 220);
-      doc.text(
-        `${schoolName || "School"} · System-generated invoice. No signature required.`,
-        W / 2,
-        y + 9,
-        { align: "center" },
-      );
 
       // Step 2: Get PDF as ArrayBuffer and upload to R2
       const pdfArrayBuffer = doc.output("arraybuffer");
@@ -1355,7 +1124,9 @@ const collectionPct =
     });
 
     // ── Row 3: Address / Phone ───────────────────────────────────────────
-    const addrStr = `Address: ${school.address || ""}${school.city ? ", " + school.city : ""}`;
+    const addrStr = `Address: ${school.address || ""}${
+      school.city ? ", " + school.city : ""
+    }`;
     const phoneStr = `Phone: ${school.phone || ""}`;
     const r3 = ws.addRow([addrStr, ...Array(NCOLS - 1).fill("")]);
     r3.height = 18;
@@ -1679,8 +1450,6 @@ const collectionPct =
               })}
             </span>
 
-           
-
             <button
               className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl cursor-pointer flex-shrink-0"
               title="Choose the letters used at the start of every invoice number"
@@ -1808,8 +1577,8 @@ const collectionPct =
                 {dateFrom && dateTo
                   ? "Date range:"
                   : dateFrom
-                    ? "From:"
-                    : "Until:"}{" "}
+                  ? "From:"
+                  : "Until:"}{" "}
                 <strong style={{ color: "#4c1d95" }}>
                   {dateFrom
                     ? new Date(dateFrom + "T00:00:00").toLocaleDateString(
@@ -1835,7 +1604,9 @@ const collectionPct =
                   }}
                 >
                   {dateRangeFilteredStudents.length > 0
-                    ? `${dateRangeFilteredStudents.length} record${dateRangeFilteredStudents.length > 1 ? "s" : ""} found`
+                    ? `${dateRangeFilteredStudents.length} record${
+                        dateRangeFilteredStudents.length > 1 ? "s" : ""
+                      } found`
                     : "No records found"}
                 </span>
               </span>
@@ -2165,30 +1936,30 @@ const collectionPct =
                         {feeCategory === "SCHOOL"
                           ? "School Fee"
                           : feeCategory === "TUITION"
-                            ? "Tuition Fee"
-                            : feeCategory.startsWith("CUSTOM__")
-                              ? feeCategory.replace("CUSTOM__", "") + " Fee"
-                              : "Total Fees"}
+                          ? "Tuition Fee"
+                          : feeCategory.startsWith("CUSTOM__")
+                          ? feeCategory.replace("CUSTOM__", "") + " Fee"
+                          : "Total Fees"}
                       </th>
 
                       <th>
                         {feeCategory === "SCHOOL"
                           ? "Paid School Fee"
                           : feeCategory === "TUITION"
-                            ? "Paid Tuition Fee"
-                            : feeCategory.startsWith("CUSTOM__")
-                              ? "Paid"
-                              : "Paid"}
+                          ? "Paid Tuition Fee"
+                          : feeCategory.startsWith("CUSTOM__")
+                          ? "Paid"
+                          : "Paid"}
                       </th>
 
                       <th>
                         {feeCategory === "SCHOOL"
                           ? "School Due"
                           : feeCategory === "TUITION"
-                            ? "Tuition Due"
-                            : feeCategory.startsWith("CUSTOM__")
-                              ? feeCategory.replace("CUSTOM__", "") + " Due"
-                              : "Remaining"}
+                          ? "Tuition Due"
+                          : feeCategory.startsWith("CUSTOM__")
+                          ? feeCategory.replace("CUSTOM__", "") + " Due"
+                          : "Remaining"}
                       </th>
 
                       <th>Status</th>
@@ -2298,37 +2069,37 @@ const collectionPct =
                           feeCategory === "SCHOOL"
                             ? schoolFee
                             : feeCategory === "TUITION"
-                              ? tuitionFee
-                              : feeCategory.startsWith("CUSTOM__")
-                                ? customFeeAmt
-                                : totalFee;
+                            ? tuitionFee
+                            : feeCategory.startsWith("CUSTOM__")
+                            ? customFeeAmt
+                            : totalFee;
 
                         const displayPaid =
                           feeCategory === "SCHOOL"
                             ? schoolPaid
                             : feeCategory === "TUITION"
-                              ? tuitionPaid
-                              : feeCategory.startsWith("CUSTOM__")
-                                ? 0 // custom fees have no separate paid tracking
-                                : paidAmt;
+                            ? tuitionPaid
+                            : feeCategory.startsWith("CUSTOM__")
+                            ? 0 // custom fees have no separate paid tracking
+                            : paidAmt;
 
                         const displayRemaining =
                           feeCategory === "SCHOOL"
                             ? schoolRemaining
                             : feeCategory === "TUITION"
-                              ? tuitionRemaining
-                              : feeCategory.startsWith("CUSTOM__")
-                                ? customFeeAmt
-                                : remaining;
+                            ? tuitionRemaining
+                            : feeCategory.startsWith("CUSTOM__")
+                            ? customFeeAmt
+                            : remaining;
 
                         const isPaid =
                           feeCategory === "SCHOOL"
                             ? schoolFee > 0 && schoolPaid >= schoolFee
                             : feeCategory === "TUITION"
-                              ? tuitionFee > 0 && tuitionPaid >= tuitionFee
-                              : feeCategory.startsWith("CUSTOM__")
-                                ? false
-                                : totalFee > 0 && paidAmt >= totalFee;
+                            ? tuitionFee > 0 && tuitionPaid >= tuitionFee
+                            : feeCategory.startsWith("CUSTOM__")
+                            ? false
+                            : totalFee > 0 && paidAmt >= totalFee;
                         return (
                           <tr key={student.id}>
                             <td
@@ -2530,7 +2301,10 @@ const collectionPct =
           student={invoiceStudent}
           onClose={() => setInvoiceStudent(null)}
           schoolName={schoolInfo.name}
-          schoolAddress={`${schoolInfo.address || ""}${schoolInfo.city ? ", " + schoolInfo.city : ""}`}
+          schoolAddress={`${schoolInfo.address || ""}${
+            schoolInfo.city ? ", " + schoolInfo.city : ""
+          }`}
+          schoolPhone={schoolInfo.phone}
           schoolLogoUrl={schoolLogoUrl}
           invoicePrefix={schoolInfo.invoicePrefix || schoolInfo.code}
         />

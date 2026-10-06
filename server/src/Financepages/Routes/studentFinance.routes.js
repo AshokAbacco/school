@@ -556,12 +556,10 @@ router.post("/recordFullPayment", authMiddleware, async (req, res) => {
 router.post("/recordCategoryPayment", authMiddleware, async (req, res) => {
   try {
     if (!(await checkMigrated())) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Fee category tables not yet migrated. Run: npx prisma migrate dev --name add_fee_categories",
-        });
+      return res.status(400).json({
+        message:
+          "Fee category tables not yet migrated. Run: npx prisma migrate dev --name add_fee_categories",
+      });
     }
 
     const schoolId = req.user?.schoolId;
@@ -861,10 +859,10 @@ router.get("/studentsByClass", async (req, res) => {
               select: {
                 firstName: true,
                 lastName: true,
-                phone: true,          // student's own phone (kept for reference)
-                parentPhone: true,    // ← father's phone, explicitly fetched
-                motherPhone: true,    // ← mother's phone, explicitly fetched
-                guardianPhone: true,  // ← guardian's phone, explicitly fetched
+                phone: true, // student's own phone (kept for reference)
+                parentPhone: true, // ← father's phone, explicitly fetched
+                motherPhone: true, // ← mother's phone, explicitly fetched
+                guardianPhone: true, // ← guardian's phone, explicitly fetched
               },
             },
           },
@@ -1522,385 +1520,341 @@ router.post("/recordSimplePayment", authMiddleware, async (req, res) => {
 
 // ── PAYMENT HISTORY ───────────────────────────────────────────────────────────
 // GET /api/finance/paymentHistory/:studentListId
-// Returns per-transaction payment history, newest first.
-// Uses StudentPaymentLog if available, otherwise legacy fallback from StudentList.
+// Returns one entry per payment (receipt), NEWEST first. Every entry carries
+// the full picture at the moment of that payment so a receipt can be printed
+// on its own:
+//   items[]  → per category: totalAmount, previousPaid (all earlier receipts),
+//              amount (paid in THIS receipt), cumulativePaid, pending (after it)
+//   summary  → totalFees, previousPaid, paidNow, totalPaid, balance
+//   installmentNo / totalInstallments → "Instalment 2 of 3"
+//
+// FIX: logs are ordered by paidAt AND id. Payments recorded from the date
+// picker are all stamped at 00:00 IST, so two payments on the same day used to
+// tie and the running totals could be built in the wrong order — the 2nd
+// receipt then showed the 1st instalment as still pending. Custom fees are now
+// accumulated across receipts too (they used to only count the current one).
+const STD_FEE_CATS = [
+  { name: "School Fee", key: "collegeFee", field: "schoolFeePaid" },
+  { name: "Tuition Fee", key: "tuitionFee", field: "tuitionFeePaid" },
+  { name: "Exam Fee", key: "examFee", field: "examFeePaid" },
+  { name: "Transport Fee", key: "transportFee", field: "transportFeePaid" },
+  { name: "Books Fee", key: "booksFee", field: "booksFeePaid" },
+  { name: "Lab Fee", key: "labFee", field: "labFeePaid" },
+  { name: "Miscellaneous", key: "miscFee", field: "miscFeePaid" },
+];
+
+function parseFeeBreakdown(raw) {
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function breakdownTotal(bd, key) {
+  const e = bd[key];
+  if (!e) return 0;
+  return Number(typeof e === "object" ? (e.total ?? e.amount ?? 0) : e) || 0;
+}
+
+// Category list (with totals) this student actually has fees for.
+function feeCategoryDefs(bd) {
+  const defs = [];
+  for (const c of STD_FEE_CATS) {
+    const total = breakdownTotal(bd, c.key);
+    if (total > 0) defs.push({ ...c, total, isCustom: false });
+  }
+  const customs = Array.isArray(bd.customFees) ? bd.customFees : [];
+  for (const cf of customs) {
+    const label = cf.label || cf.name;
+    const total = Number(cf.total ?? cf.amount ?? 0);
+    if (!label || total <= 0) continue;
+    defs.push({
+      name: label,
+      customKey: String(label).toLowerCase().trim(),
+      total,
+      isCustom: true,
+    });
+  }
+  return defs;
+}
+
+// customFeeBreakdown keys can be stored in any case — normalise them.
+function normaliseCustomMap(raw) {
+  const out = {};
+  if (raw && typeof raw === "object") {
+    for (const [k, v] of Object.entries(raw)) {
+      const key = String(k).toLowerCase().trim();
+      out[key] = (out[key] || 0) + Number(v || 0);
+    }
+  }
+  return out;
+}
+
+const istDateLabel = (d) =>
+  new Date(d).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
+
 router.get(
   "/paymentHistory/:studentListId",
   authMiddleware,
   async (req, res) => {
     try {
       const studentListId = parseInt(req.params.studentListId);
-      console.log("[paymentHistory] studentListId:", studentListId);
+      if (!studentListId)
+        return res.status(400).json({ message: "Invalid student id" });
+
+      const studentRecord = await prisma.studentList.findUnique({
+        where: { id: studentListId },
+      });
+      if (!studentRecord)
+        return res.status(404).json({ message: "Student not found" });
+      if (req.user?.schoolId && studentRecord.schoolId !== req.user.schoolId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const bd = parseFeeBreakdown(studentRecord.feeBreakdown);
+      const defs = feeCategoryDefs(bd);
+      const totalFees =
+        Number(studentRecord.fees || 0) ||
+        defs.reduce((s, d) => s + d.total, 0);
 
       const hasTable = await checkPaymentLogMigrated();
-      console.log(
-        "[paymentHistory] student_payment_log table exists:",
-        hasTable,
-      );
 
-      // ── Path A: StudentPaymentLog table exists ────────────────────────────────
+      // ── Path A: StudentPaymentLog ──────────────────────────────────────────
       if (hasTable) {
         const logs = await prisma.studentPaymentLog.findMany({
           where: { studentListId },
-          orderBy: { paidAt: "desc" },
+          orderBy: [{ paidAt: "asc" }, { id: "asc" }], // oldest first, stable
         });
 
-        console.log("[paymentHistory] log rows found:", logs.length);
-
         if (logs.length > 0) {
-          // Get category totals from StudentList for pending calculation
-          const studentRecord = await prisma.studentList.findUnique({
-            where: { id: studentListId },
-            ...((await checkMigrated()) && {
-              include: {
-                feeCategories: { include: { category: true } },
-              },
-            }),
-          });
+          const running = {}; // category name → cumulative paid
+          let runningAmount = 0;
 
-          // Get feeBreakdown for total amounts per category
-          let bd = {};
-          try {
-            bd = studentRecord?.feeBreakdown
-              ? JSON.parse(studentRecord.feeBreakdown)
-              : {};
-          } catch {}
+          const ADVANCE = "Advance / Excess Payment";
+          const r2 = (n) => Math.round(n * 100) / 100;
 
-          const getTotal = (key) => {
-            const e = bd[key];
-            return e
-              ? Number(typeof e === "object" ? (e.total ?? e.amount ?? 0) : e)
-              : 0;
-          };
+          const oldestFirst = logs.map((log, idx) => {
+            const customMap = normaliseCustomMap(log.customFeeBreakdown);
+            const loggedAmount = Number(log.amount || 0);
 
-          // Build cumulative running totals going oldest→newest
-          const orderedLogs = [...logs].reverse(); // oldest first
-          const runningTotals = {
-            schoolFee: 0,
-            tuitionFee: 0,
-            examFee: 0,
-            transportFee: 0,
-            booksFee: 0,
-            labFee: 0,
-            miscFee: 0,
-          };
+            // 1. What the log says was paid per category
+            const raw = defs.map((d) =>
+              d.isCustom
+                ? Number(customMap[d.customKey] || 0)
+                : Number(log[d.field] || 0),
+            );
+            const splitSum = r2(raw.reduce((a, b) => a + b, 0));
 
-          const enriched = orderedLogs.map((log) => {
-            runningTotals.schoolFee += Number(log.schoolFeePaid || 0);
-            runningTotals.tuitionFee += Number(log.tuitionFeePaid || 0);
-            runningTotals.examFee += Number(log.examFeePaid || 0);
-            runningTotals.transportFee += Number(log.transportFeePaid || 0);
-            runningTotals.booksFee += Number(log.booksFeePaid || 0);
-            runningTotals.labFee += Number(log.labFeePaid || 0);
-            runningTotals.miscFee += Number(log.miscFeePaid || 0);
+            // Custom-fee keys in this log that are no longer in the student's
+            // fee list (category renamed / removed after the payment)
+            const known = new Set(
+              defs.filter((d) => d.isCustom).map((d) => d.customKey),
+            );
+            const orphanLabels = Object.entries(log.customFeeBreakdown || {})
+              .filter(
+                ([k, v]) =>
+                  Number(v) > 0 && !known.has(String(k).toLowerCase().trim()),
+              )
+              .map(([k]) => k);
 
-            return {
-              ...log,
-              cumulativeSchoolFee: runningTotals.schoolFee,
-              cumulativeTuitionFee: runningTotals.tuitionFee,
-              cumulativeExamFee: runningTotals.examFee,
-              cumulativeTransportFee: runningTotals.transportFee,
-              cumulativeBooksFeee: runningTotals.booksFee,
-              cumulativeLabFee: runningTotals.labFee,
-              cumulativeMiscFee: runningTotals.miscFee,
-            };
-          });
+            // 2. Money in `amount` that has no category in the split
+            //    (old "Full Fee" payments that skipped custom fees, renamed
+            //    categories, …). Apply it to categories that still have a
+            //    balance, oldest category first, so every screen shows ONE
+            //    balance that matches the amount actually received.
+            let gap = defs.length ? r2(loggedAmount - splitSum) : 0;
+            const unallocatedOriginal = gap > 0.009 ? gap : 0;
+            const appliedTo = [];
+            if (gap > 0.009) {
+              defs.forEach((d, i) => {
+                if (gap <= 0.009) return;
+                const capacity = d.total - (running[d.name] || 0) - raw[i];
+                if (capacity <= 0) return;
+                const chunk = r2(Math.min(capacity, gap));
+                raw[i] = r2(raw[i] + chunk);
+                gap = r2(gap - chunk);
+                appliedTo.push({ categoryName: d.name, amount: chunk });
+              });
+            }
+            const excess = gap > 0.009 ? gap : 0;
 
-          // Reverse back to newest-first for dropdown
-          enriched.reverse();
+            // If the split is LARGER than amount, trust the split.
+            const paidNow =
+              defs.length && splitSum > loggedAmount ? splitSum : loggedAmount;
+            const previousPaid = runningAmount;
+            runningAmount = r2(runningAmount + paidNow);
 
-          const result = enriched.map((log, idx) => {
-            const date = new Date(log.paidAt);
-            const dateKey = date.toLocaleDateString("en-IN", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-              timeZone: "Asia/Kolkata",
+            let items = defs.map((d, i) => {
+              const amount = raw[i];
+              const prev = running[d.name] || 0;
+              const cum = r2(prev + amount);
+              running[d.name] = cum;
+              const adj = appliedTo.find((a) => a.categoryName === d.name);
+              return {
+                studentFeeCategoryId: null,
+                categoryName: d.name,
+                isCustom: d.isCustom,
+                totalAmount: d.total,
+                previousPaid: prev,
+                amount,
+                autoApplied: adj ? adj.amount : 0,
+                cumulativePaid: cum,
+                pending: Math.max(0, r2(d.total - cum)),
+                paymentMode: log.paymentMode,
+              };
             });
 
-            // ALL categories shown — paid = 0 if not paid in this transaction
-            const pairs = [
-              {
-                catName: "School Fee",
-                paid: Number(log.schoolFeePaid || 0),
-                cumPaid: log.cumulativeSchoolFee,
-                totalKey: "collegeFee",
-              },
-              {
-                catName: "Tuition Fee",
-                paid: Number(log.tuitionFeePaid || 0),
-                cumPaid: log.cumulativeTuitionFee,
-                totalKey: "tuitionFee",
-              },
-              {
-                catName: "Exam Fee",
-                paid: Number(log.examFeePaid || 0),
-                cumPaid: log.cumulativeExamFee,
-                totalKey: "examFee",
-              },
-              {
-                catName: "Transport Fee",
-                paid: Number(log.transportFeePaid || 0),
-                cumPaid: log.cumulativeTransportFee,
-                totalKey: "transportFee",
-              },
-              {
-                catName: "Books Fee",
-                paid: Number(log.booksFeePaid || 0),
-                cumPaid: log.cumulativeBooksFeee,
-                totalKey: "booksFee",
-              },
-              {
-                catName: "Lab Fee",
-                paid: Number(log.labFeePaid || 0),
-                cumPaid: log.cumulativeLabFee,
-                totalKey: "labFee",
-              },
-              {
-                catName: "Miscellaneous",
-                paid: Number(log.miscFeePaid || 0),
-                cumPaid: log.cumulativeMiscFee,
-                totalKey: "miscFee",
-              },
-            ];
-
-            const items = [];
-            for (const p of pairs) {
-              const total = getTotal(p.totalKey);
-              if (total <= 0) continue; // skip categories this student doesn't have
-              const pending = Math.max(0, total - p.cumPaid);
+            if (excess > 0 || (running[ADVANCE] || 0) > 0) {
+              const prev = running[ADVANCE] || 0;
+              running[ADVANCE] = r2(prev + excess);
               items.push({
                 studentFeeCategoryId: null,
-                categoryName: p.catName,
-                amount: p.paid, // 0 if not paid this txn
-                cumulativePaid: p.cumPaid,
-                totalAmount: total,
-                pending,
-                paymentMode: log.paymentMode,
-              });
-            }
-
-            // =====================================================
-            // ADD CUSTOM FEE CATEGORIES
-            // =====================================================
-            const customFees = log.customFeeBreakdown || {};
-            const allCustom = Array.isArray(bd.customFees) ? bd.customFees : [];
-
-            for (const cf of allCustom) {
-              const label = cf.label;
-              const total = Number(cf.total ?? cf.amount ?? 0);
-
-              if (!label || total <= 0) continue;
-
-              const paid = Number(customFees[label] || 0);
-
-              items.push({
-                studentFeeCategoryId: null,
-                categoryName: label,
-                amount: paid,
-                cumulativePaid: paid,
-                totalAmount: total,
-                pending: Math.max(0, total - paid),
-                paymentMode: log.paymentMode,
-              });
-            }
-
-            // Fallback: if feeBreakdown has no categories, show one total row
-            if (items.length === 0) {
-              items.push({
-                studentFeeCategoryId: null,
-                categoryName: "Total Fees",
-                amount: Number(log.amount),
-                cumulativePaid: Number(log.amount),
-                totalAmount: Number(studentRecord?.fees || 0),
+                categoryName: ADVANCE,
+                isExtra: true,
+                totalAmount: 0,
+                previousPaid: prev,
+                amount: excess,
+                autoApplied: 0,
+                cumulativePaid: running[ADVANCE],
                 pending: 0,
                 paymentMode: log.paymentMode,
               });
             }
 
+            // No category breakdown on this student → one "Total Fees" row
+            if (items.length === 0) {
+              items = [
+                {
+                  studentFeeCategoryId: null,
+                  categoryName: "Total Fees",
+                  isCustom: false,
+                  totalAmount: totalFees,
+                  previousPaid,
+                  amount: paidNow,
+                  cumulativePaid: runningAmount,
+                  pending: Math.max(0, totalFees - runningAmount),
+                  paymentMode: log.paymentMode,
+                },
+              ];
+            }
+
+            const balance = Math.max(0, r2(totalFees - runningAmount));
             return {
               id: `log_${log.id}`,
-              label: dateKey,
-              date: date.toISOString(),
+              label: istDateLabel(log.paidAt),
+              date: new Date(log.paidAt).toISOString(),
               receiptNo: log.id,
               invoiceNumber: log.invoiceNumber || null,
+              paymentMode: log.paymentMode || "Cash",
+              amount: paidNow,
+              installmentNo: idx + 1,
+              totalInstallments: logs.length,
+              isLegacy: false,
+              status: balance <= 0 ? "PAID" : "PARTIAL",
+              // Present only when the saved split didn't cover the amount
+              unallocated: unallocatedOriginal
+                ? {
+                    amount: unallocatedOriginal,
+                    orphanLabels,
+                    appliedTo,
+                    excess,
+                  }
+                : null,
+              summary: {
+                totalFees,
+                previousPaid,
+                paidNow,
+                totalPaid: runningAmount,
+                balance,
+              },
               items,
             };
           });
 
-          // Deduplicate labels for same-day payments
-          const dateCounts = {};
-          result.forEach((r) => {
-            dateCounts[r.label] = (dateCounts[r.label] || 0) + 1;
-          });
-          const dateOcc = {};
-          result.forEach((r) => {
-            if (dateCounts[r.label] > 1) {
-              dateOcc[r.label] = (dateOcc[r.label] || 0) + 1;
+          // Same-day payments → make the dropdown labels unique
+          const counts = {};
+          oldestFirst.forEach(
+            (r) => (counts[r.label] = (counts[r.label] || 0) + 1),
+          );
+          oldestFirst.forEach((r) => {
+            if (counts[r.label] > 1)
               r.label = `${r.label} • Receipt #${r.receiptNo}`;
-            }
           });
 
-          console.log(
-            "[paymentHistory] ✅ Returning",
-            result.length,
-            "transactions from StudentPaymentLog",
-          );
-          return res.json(result);
+          return res.json(oldestFirst.reverse()); // newest first
         }
       }
 
-      // ── Path B: Legacy fallback — synthesise from StudentList fields ──────────
-      console.log("[paymentHistory] Using legacy fallback from StudentList");
-      const studentRecord = await prisma.studentList.findUnique({
-        where: { id: studentListId },
-      });
-      const paidAmount = Number(studentRecord?.paidAmount || 0);
-      console.log(
-        "[paymentHistory] StudentList.paidAmount:",
-        paidAmount,
-        "| paymentDate:",
-        studentRecord?.paymentDate,
-      );
+      // ── Path B: legacy (no log rows) — synthesise one entry ───────────────
+      const paidAmount = Number(studentRecord.paidAmount || 0);
+      if (paidAmount <= 0) return res.json([]);
 
-      if (!studentRecord || paidAmount <= 0) {
-        console.log("[paymentHistory] No payment data at all — returning []");
-        return res.json([]);
-      }
-
-      let bd = {};
-      try {
-        bd = studentRecord.feeBreakdown
-          ? JSON.parse(studentRecord.feeBreakdown)
-          : {};
-      } catch {}
-      const getTotal = (key) => {
-        const e = bd[key];
-        return e
-          ? Number(typeof e === "object" ? (e.total ?? e.amount ?? 0) : e)
-          : 0;
-      };
-
-      // Build items from per-category paid fields on StudentList
-      const legacyItems = [];
-      const legacyPairs = [
-        {
-          catName: "School Fee",
-          paid: Number(studentRecord.schoolFeePaid || 0),
-          total: getTotal("collegeFee"),
-        },
-        {
-          catName: "Tuition Fee",
-          paid: Number(studentRecord.tuitionFeePaid || 0),
-          total: getTotal("tuitionFee"),
-        },
-        {
-          catName: "Exam Fee",
-          paid: Number(studentRecord.examFeePaid || 0),
-          total: getTotal("examFee"),
-        },
-        {
-          catName: "Transport Fee",
-          paid: Number(studentRecord.transportFeePaid || 0),
-          total: getTotal("transportFee"),
-        },
-        {
-          catName: "Books Fee",
-          paid: Number(studentRecord.booksFeePaid || 0),
-          total: getTotal("booksFee"),
-        },
-        {
-          catName: "Lab Fee",
-          paid: Number(studentRecord.labFeePaid || 0),
-          total: getTotal("labFee"),
-        },
-        {
-          catName: "Miscellaneous",
-          paid: Number(studentRecord.miscFeePaid || 0),
-          total: getTotal("miscFee"),
-        },
-      ];
-      // =====================================================
-      // LEGACY CUSTOM FEES
-      // =====================================================
-      const customFees = studentRecord.customFeeBreakdown || {};
-
-      const customList = Array.isArray(bd.customFees) ? bd.customFees : [];
-
-      for (const cf of customList) {
-        const label = cf.label;
-
-        const total = Number(cf.total ?? cf.amount ?? 0);
-
-        if (!label || total <= 0) continue;
-
-        const paid = Number(customFees[label] || 0);
-
-        legacyItems.push({
+      let items = defs.map((d) => {
+        const paid = d.isCustom ? 0 : Number(studentRecord[d.field] || 0);
+        return {
           studentFeeCategoryId: null,
-          categoryName: label,
+          categoryName: d.name,
+          isCustom: d.isCustom,
+          totalAmount: d.total,
+          previousPaid: 0,
           amount: paid,
           cumulativePaid: paid,
-          totalAmount: total,
-          pending: Math.max(0, total - paid),
+          pending: Math.max(0, d.total - paid),
           paymentMode: studentRecord.paymentMode || "Cash",
-        });
-      }
-
-      for (const p of legacyPairs) {
-        if (p.total <= 0) continue; // skip categories this student doesn't have
-        legacyItems.push({
-          studentFeeCategoryId: null,
-          categoryName: p.catName,
-          amount: p.paid, // 0 if never paid
-          cumulativePaid: p.paid,
-          totalAmount: p.total,
-          pending: Math.max(0, p.total - p.paid),
-          paymentMode: studentRecord.paymentMode || "Cash",
-        });
-      }
-
-      if (legacyItems.length === 0) {
-        legacyItems.push({
-          studentFeeCategoryId: null,
-          categoryName: "Total Fees",
-          amount: paidAmount,
-          cumulativePaid: paidAmount,
-          totalAmount: Number(studentRecord.fees || 0),
-          pending: Math.max(0, Number(studentRecord.fees || 0) - paidAmount),
-          paymentMode: studentRecord.paymentMode || "Cash",
-        });
+        };
+      });
+      if (items.length === 0) {
+        items = [
+          {
+            studentFeeCategoryId: null,
+            categoryName: "Total Fees",
+            isCustom: false,
+            totalAmount: totalFees,
+            previousPaid: 0,
+            amount: paidAmount,
+            cumulativePaid: paidAmount,
+            pending: Math.max(0, totalFees - paidAmount),
+            paymentMode: studentRecord.paymentMode || "Cash",
+          },
+        ];
       }
 
       const payDate = studentRecord.paymentDate
         ? new Date(studentRecord.paymentDate)
-        : new Date(studentRecord.updatedAt || studentRecord.createdAt);
-      const dateLabel = payDate.toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        timeZone: "Asia/Kolkata",
-      });
+        : new Date(studentRecord.createdAt);
+      const balance = Math.max(0, totalFees - paidAmount);
 
-      const legacyResult = [
+      return res.json([
         {
           id: "legacy_0",
-          label: dateLabel,
+          label: istDateLabel(payDate),
           date: payDate.toISOString(),
           receiptNo: null,
-          invoiceNumber: null, // predates invoice numbering — frontend falls back to a generic number
+          invoiceNumber: null,
+          paymentMode: studentRecord.paymentMode || "Cash",
+          amount: paidAmount,
+          installmentNo: 1,
+          totalInstallments: 1,
           isLegacy: true,
-          items: legacyItems,
+          status: balance <= 0 ? "PAID" : "PARTIAL",
+          summary: {
+            totalFees,
+            previousPaid: 0,
+            paidNow: paidAmount,
+            totalPaid: paidAmount,
+            balance,
+          },
+          items,
         },
-      ];
-
-      console.log(
-        "[paymentHistory] ✅ Returning legacy result:",
-        JSON.stringify(legacyResult),
-      );
-      return res.json(legacyResult);
+      ]);
     } catch (error) {
-      console.error("[paymentHistory] ❌ error:", error);
+      console.error("[paymentHistory] error:", error);
       res.status(500).json({ message: error.message });
     }
   },
@@ -1924,11 +1878,9 @@ router.put("/updatePaymentLog/:logId", authMiddleware, async (req, res) => {
 
     const hasTable = await checkPaymentLogMigrated();
     if (!hasTable) {
-      return res
-        .status(400)
-        .json({
-          message: "Payment history is not available for this school yet.",
-        });
+      return res.status(400).json({
+        message: "Payment history is not available for this school yet.",
+      });
     }
 
     const existing = await prisma.studentPaymentLog.findUnique({
@@ -2592,7 +2544,6 @@ router.get("/paymentLogsByDateRange", authMiddleware, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
-
 
 // ── GET STUDENT CONTACT PHONE (parent/guardian preferred over StudentList) ──
 // Used by the Add/Edit Student Fees modal so phone always reflects the real
