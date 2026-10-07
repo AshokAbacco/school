@@ -1,11 +1,22 @@
 // PayModal.jsx — Category-aware Fee Payment Modal (FULLY RESPONSIVE)
-import { CreditCard, X, CheckCircle, Clock, ChevronDown, Calendar } from "lucide-react";
+import {
+  CreditCard,
+  X,
+  CheckCircle,
+  Clock,
+  ChevronDown,
+  Calendar,
+} from "lucide-react";
 import React, { useState, useEffect } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const parseBreakdown = (raw) => {
-  try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
 };
 
 // Today's date in yyyy-mm-dd, for the native <input type="date"> default value.
@@ -14,12 +25,42 @@ const todayISO = () => new Date().toISOString().split("T")[0];
 const MODES = ["UPI", "Net Banking", "Cash", "Card", "Cheque"];
 
 const FEE_DEFS = [
-  { key: "collegeFee",   label: "School Fee",    flatKey: "collegeFee",   paidField: "schoolFeePaid"   },
-  { key: "tuitionFee",   label: "Tuition Fee",   flatKey: "tuitionFee",   paidField: "tuitionFeePaid"  },
-  { key: "examFee",      label: "Exam Fee",      flatKey: "examFee",      paidField: "examFeePaid"     },
-  { key: "transportFee", label: "Transport Fee", flatKey: "transportFee", paidField: "transportFeePaid"},
-  { key: "booksFee",     label: "Books Fee",     flatKey: "booksFee",     paidField: "booksFeePaid"    },
-  { key: "labFee",       label: "Lab Fee",       flatKey: "labFee",       paidField: "labFeePaid"      },
+  {
+    key: "collegeFee",
+    label: "School Fee",
+    flatKey: "collegeFee",
+    paidField: "schoolFeePaid",
+  },
+  {
+    key: "tuitionFee",
+    label: "Tuition Fee",
+    flatKey: "tuitionFee",
+    paidField: "tuitionFeePaid",
+  },
+  {
+    key: "examFee",
+    label: "Exam Fee",
+    flatKey: "examFee",
+    paidField: "examFeePaid",
+  },
+  {
+    key: "transportFee",
+    label: "Transport Fee",
+    flatKey: "transportFee",
+    paidField: "transportFeePaid",
+  },
+  {
+    key: "booksFee",
+    label: "Books Fee",
+    flatKey: "booksFee",
+    paidField: "booksFeePaid",
+  },
+  {
+    key: "labFee",
+    label: "Lab Fee",
+    flatKey: "labFee",
+    paidField: "labFeePaid",
+  },
 ];
 
 const STYLES = `
@@ -223,7 +264,6 @@ const STYLES = `
 `;
 
 export function PayModal({ student, onClose, onPaymentDone }) {
-
   const totalFees = Number(student.fees || 0);
   const bd = parseBreakdown(student.feeBreakdown);
 
@@ -231,10 +271,16 @@ export function PayModal({ student, onClose, onPaymentDone }) {
   const dbCategoryMap = {};
   if (Array.isArray(student.feeCategories)) {
     student.feeCategories.forEach((sfc) => {
-      if (sfc.category?.name) dbCategoryMap[sfc.category.name.toLowerCase()] = sfc;
+      if (sfc.category?.name)
+        dbCategoryMap[sfc.category.name.toLowerCase()] = sfc;
     });
   }
-  console.log("[PayModal] feeCategories from student:", student.feeCategories?.length ?? 0, "| dbCategoryMap:", Object.keys(dbCategoryMap));
+  console.log(
+    "[PayModal] feeCategories from student:",
+    student.feeCategories?.length ?? 0,
+    "| dbCategoryMap:",
+    Object.keys(dbCategoryMap),
+  );
 
   const feeCategories = [];
   feeCategories.push({
@@ -250,8 +296,8 @@ export function PayModal({ student, onClose, onPaymentDone }) {
     const amount = bdEntry
       ? Number(
           typeof bdEntry === "object"
-            ? (bdEntry.total ?? bdEntry.amount ?? 0)
-            : bdEntry
+            ? bdEntry.total ?? bdEntry.amount ?? 0
+            : bdEntry,
         )
       : Number(student[def.flatKey] || 0);
 
@@ -291,34 +337,24 @@ export function PayModal({ student, onClose, onPaymentDone }) {
       const dbSfc =
         dbCategoryMap[labelLower] ||
         Object.values(dbCategoryMap).find(
-          (sfc) => (sfc.category?.name?.toLowerCase() || "") === labelLower
+          (sfc) => (sfc.category?.name?.toLowerCase() || "") === labelLower,
         );
 
-      const paid =
-        Number(
-          student.customPaidMap?.[labelLower] ||
-          0
-        );
+      const paid = Number(student.customPaidMap?.[labelLower] || 0);
 
-        console.log(
-          "[PayModal] Custom Fee:",
-          label,
-          "Paid:",
-          paid,
-          dbSfc
-        );
+      console.log("[PayModal] Custom Fee:", label, "Paid:", paid, dbSfc);
 
-        feeCategories.push({
-          id: `custom_${i}`,
-          label,
-          total: amount,
-          paidField: null,
-          paidAmount: paid,
-          isCustom: true,
-          customIdx: i,
-          dbSfcId: dbSfc?.id || null,
-          dbCategoryId: dbSfc?.categoryId || null,
-        });
+      feeCategories.push({
+        id: `custom_${i}`,
+        label,
+        total: amount,
+        paidField: null,
+        paidAmount: paid,
+        isCustom: true,
+        customIdx: i,
+        dbSfcId: dbSfc?.id || null,
+        dbCategoryId: dbSfc?.categoryId || null,
+      });
     }
   });
 
@@ -357,7 +393,7 @@ export function PayModal({ student, onClose, onPaymentDone }) {
   useEffect(() => {
     const map = {};
 
-    feeCategories.forEach(cat => {
+    feeCategories.forEach((cat) => {
       if (cat.isCustom) {
         map[cat.id] = Number(cat.paidAmount || 0);
       }
@@ -368,60 +404,99 @@ export function PayModal({ student, onClose, onPaymentDone }) {
     console.log("[PayModal] Custom Paid Map:", map);
   }, [student]);
 
-  const [categoryId,  setCategoryId]  = useState("FULL");
-  const activeCat    = feeCategories.find(c => c.id === categoryId) || feeCategories[0];
-  const catTotal     = activeCat.total;
-  const catPaid =
-    activeCat.isCustom
-      ? Number(customPaidMap[activeCat.id] || 0)
-      : (
-          activeCat.paidField
-            ? Number(paidMap[activeCat.paidField] || 0)
-            : 0
-        );
+  const [categoryId, setCategoryId] = useState("FULL");
+  const activeCat =
+    feeCategories.find((c) => c.id === categoryId) || feeCategories[0];
+  const catTotal = activeCat.total;
+  const catPaid = activeCat.isCustom
+    ? Number(customPaidMap[activeCat.id] || 0)
+    : activeCat.paidField
+    ? Number(paidMap[activeCat.paidField] || 0)
+    : 0;
   const catRemaining = Math.max(0, catTotal - catPaid);
-  const progressPct  = catTotal > 0 ? Math.min(100, Math.round((catPaid / catTotal) * 100)) : 0;
+  const progressPct =
+    catTotal > 0 ? Math.min(100, Math.round((catPaid / catTotal) * 100)) : 0;
 
-  const [useEmi,    setUseEmi]    = useState(null);
-  const [fullMode,  setFullMode]  = useState("UPI");
-  const [fullDone,  setFullDone]  = useState(false);
+  const [useEmi, setUseEmi] = useState(null);
+  const [fullMode, setFullMode] = useState("UPI");
+  const [fullDone, setFullDone] = useState(false);
   const [customAmt, setCustomAmt] = useState("");
   // Custom payment date — defaults to today, editable, applies to whichever
   // payment path (full/custom/EMI instalment) is confirmed.
   const [paymentDate, setPaymentDate] = useState(todayISO());
-  const [emiCount,  setEmiCount]  = useState(3);
-  const [emiList,   setEmiList]   = useState([]);
+  const [emiCount, setEmiCount] = useState(3);
+  const [emiList, setEmiList] = useState([]);
   const [confirmId, setConfirmId] = useState(null);
   const [modeInput, setModeInput] = useState("UPI");
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => { setUseEmi(null); setFullDone(false); setCustomAmt(""); setConfirmId(null); setError(""); }, [categoryId]);
+  useEffect(() => {
+    setUseEmi(null);
+    setFullDone(false);
+    setCustomAmt("");
+    setConfirmId(null);
+    setError("");
+  }, [categoryId]);
 
   useEffect(() => {
     if (!useEmi) return;
-    const base      = Math.floor(catRemaining / emiCount);
+    const base = Math.floor(catRemaining / emiCount);
     const remainder = catRemaining - base * emiCount;
     let alreadyLeft = catPaid;
     const list = Array.from({ length: emiCount }, (_, i) => {
       const amount = i === emiCount - 1 ? base + remainder : base;
-      let status = "pending", date = null, mode = null;
-      if (alreadyLeft >= amount) { status = "paid"; alreadyLeft -= amount; date = "Paid Earlier"; mode = "Saved"; }
-      return { id: i + 1, label: `Instalment ${i + 1}`, amount, date, mode, status };
+      let status = "pending",
+        date = null,
+        mode = null;
+      if (alreadyLeft >= amount) {
+        status = "paid";
+        alreadyLeft -= amount;
+        date = "Paid Earlier";
+        mode = "Saved";
+      }
+      return {
+        id: i + 1,
+        label: `Instalment ${i + 1}`,
+        amount,
+        date,
+        mode,
+        status,
+      };
     });
-    setEmiList(list); setConfirmId(null);
+    setEmiList(list);
+    setConfirmId(null);
   }, [emiCount, useEmi, categoryId]);
 
-  const emiPaid    = emiList.filter(e => e.status === "paid"   ).reduce((a, e) => a + e.amount, 0);
-  const emiPending = emiList.filter(e => e.status === "pending").reduce((a, e) => a + e.amount, 0);
+  const emiPaid = emiList
+    .filter((e) => e.status === "paid")
+    .reduce((a, e) => a + e.amount, 0);
+  const emiPending = emiList
+    .filter((e) => e.status === "pending")
+    .reduce((a, e) => a + e.amount, 0);
 
-  const getToken = () => { try { return JSON.parse(localStorage.getItem("auth"))?.token; } catch { return null; } };
+  const getToken = () => {
+    try {
+      return JSON.parse(localStorage.getItem("auth"))?.token;
+    } catch {
+      return null;
+    }
+  };
 
   const apiRecordCategoryPayment = async (categoryId, amount, mode) => {
     const res = await fetch(`${API_URL}/api/finance/recordCategoryPayment`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify({ studentListId: student.id, categoryId, amount, paymentMode: mode, paymentDate: new Date(paymentDate + "T00:00:00+05:30").toISOString() }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify({
+        studentListId: student.id,
+        categoryId,
+        amount,
+        paymentMode: mode,
+        paymentDate: new Date(paymentDate + "T00:00:00+05:30").toISOString(),
+      }),
     });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
@@ -429,15 +504,24 @@ export function PayModal({ student, onClose, onPaymentDone }) {
 
   const buildPayload = (addedAmt) => {
     const newTotalPaid = Math.min(totalFees, paidMap.paidAmount + addedAmt);
-    const isFullyPaid  = newTotalPaid >= totalFees;
-    const patch = { paymentMode: fullMode, paymentDate: new Date(paymentDate + "T00:00:00+05:30").toISOString(), paidAmount: newTotalPaid, paymentStatus: isFullyPaid ? "PAID" : "PARTIAL" };
+    const isFullyPaid = newTotalPaid >= totalFees;
+    const patch = {
+      paymentMode: fullMode,
+      paymentDate: new Date(paymentDate + "T00:00:00+05:30").toISOString(),
+      paidAmount: newTotalPaid,
+      paymentStatus: isFullyPaid ? "PAID" : "PARTIAL",
+    };
 
     if (activeCat.id === "FULL") {
       let remaining = newTotalPaid;
       for (const def of FEE_DEFS) {
         const bdEntry = bd[def.key];
-        const feeAmt  = bdEntry
-          ? Number(typeof bdEntry === "object" ? (bdEntry.total ?? bdEntry.amount ?? 0) : bdEntry)
+        const feeAmt = bdEntry
+          ? Number(
+              typeof bdEntry === "object"
+                ? bdEntry.total ?? bdEntry.amount ?? 0
+                : bdEntry,
+            )
           : Number(student[def.flatKey] || 0);
         if (feeAmt > 0) {
           const paid = Math.min(feeAmt, remaining);
@@ -453,32 +537,34 @@ export function PayModal({ student, onClose, onPaymentDone }) {
   };
 
   const apiUpdate = async (payload) => {
-    const res = await fetch(`${API_URL}/api/finance/updateStudentFinance/${student.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify({ ...student, ...payload }),
-    });
+    const res = await fetch(
+      `${API_URL}/api/finance/updateStudentFinance/${student.id}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ ...student, ...payload }),
+      },
+    );
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   };
 
-const applyPatch = (addedAmt) => {
-  const payload = buildPayload(addedAmt);
+  const applyPatch = (addedAmt) => {
+    const payload = buildPayload(addedAmt);
 
-  setPaidMap(prev => ({
-    ...prev,
-    paidAmount: payload.paidAmount,
-    ...(activeCat.paidField && {
-      [activeCat.paidField]: payload[activeCat.paidField],
-    }),
-  }));
+    setPaidMap((prev) => ({
+      ...prev,
+      paidAmount: payload.paidAmount,
+      ...(activeCat.paidField && {
+        [activeCat.paidField]: payload[activeCat.paidField],
+      }),
+    }));
 
-  onPaymentDone(
-    student.id,
-    payload.paidAmount,
-    payload.paymentStatus
-  );
-};
+    onPaymentDone(student.id, payload.paidAmount, payload.paymentStatus);
+  };
 
   // ── SESSION LOG — accumulates ALL categories paid in one PayModal open ────
   // Problem: user pays School Fee, then Exam Fee in same modal open.
@@ -489,26 +575,26 @@ const applyPatch = (addedAmt) => {
 
   // Map of category field → amount paid IN THIS SESSION (accumulates)
   const [sessionBreakdown, setSessionBreakdown] = useState({
-    amount:           0,
-    schoolFeePaid:    0,
-    tuitionFeePaid:   0,
-    examFeePaid:      0,
+    amount: 0,
+    schoolFeePaid: 0,
+    tuitionFeePaid: 0,
+    examFeePaid: 0,
     transportFeePaid: 0,
-    booksFeePaid:     0,
-    labFeePaid:       0,
-    miscFeePaid:      0,
+    booksFeePaid: 0,
+    labFeePaid: 0,
+    miscFeePaid: 0,
     customFeeBreakdown: {},
   });
 
   // ── Map activeCat.id → breakdown field ───────────────────────────────────
   const CAT_TO_FIELD = {
-    collegeFee:   "schoolFeePaid",
-    tuitionFee:   "tuitionFeePaid",
-    examFee:      "examFeePaid",
+    collegeFee: "schoolFeePaid",
+    tuitionFee: "tuitionFeePaid",
+    examFee: "examFeePaid",
     transportFee: "transportFeePaid",
-    booksFee:     "booksFeePaid",
-    labFee:       "labFeePaid",
-    miscFee:      "miscFeePaid",
+    booksFee: "booksFeePaid",
+    labFee: "labFeePaid",
+    miscFee: "miscFeePaid",
   };
 
   // ── Distribute a payment across categories (waterfall) ────────────────────
@@ -518,51 +604,110 @@ const applyPatch = (addedAmt) => {
   // "already paid before this transaction" baseline — matches the same
   // waterfall buildPayload() already uses for the legacy paidAmount patch,
   // so the two stay consistent.
+  // FIX: custom categories (Admission, Uniform, Transport…) are now part of
+  // the waterfall too. Previously only the 6 standard fees were filled, so any
+  // part of a "Full Fee" payment meant for a custom fee was saved in the log's
+  // total `amount` but in NO category — receipts then showed e.g. ₹24,000
+  // paid but only ₹20,000 split across categories.
   const allocateAcrossCategories = (amountPaid) => {
     const increments = {};
+    const customIncrements = {};
     let remaining = amountPaid;
     for (const def of FEE_DEFS) {
       if (remaining <= 0) break;
       const bdEntry = bd[def.key];
-      const feeAmt  = bdEntry
-        ? Number(typeof bdEntry === "object" ? (bdEntry.total ?? bdEntry.amount ?? 0) : bdEntry)
+      const feeAmt = bdEntry
+        ? Number(
+            typeof bdEntry === "object"
+              ? bdEntry.total ?? bdEntry.amount ?? 0
+              : bdEntry,
+          )
         : Number(student[def.flatKey] || 0);
       if (feeAmt <= 0) continue;
 
       const alreadyPaid = Number(paidMap[def.paidField] || 0);
-      const capacity     = Math.max(0, feeAmt - alreadyPaid);
+      const capacity = Math.max(0, feeAmt - alreadyPaid);
       if (capacity <= 0) continue;
 
       const chunk = Math.min(capacity, remaining);
       increments[def.paidField] = (increments[def.paidField] || 0) + chunk;
       remaining -= chunk;
     }
-    return increments;
+    for (const cat of feeCategories) {
+      if (remaining <= 0) break;
+      if (!cat.isCustom) continue;
+      const capacity = Math.max(
+        0,
+        cat.total - Number(customPaidMap[cat.id] || 0),
+      );
+      if (capacity <= 0) continue;
+      const chunk = Math.min(capacity, remaining);
+      customIncrements[cat.label] = (customIncrements[cat.label] || 0) + chunk;
+      remaining -= chunk;
+    }
+    if (remaining > 0) {
+      console.warn(
+        "[PayModal] ₹" +
+          remaining +
+          " exceeds all pending fees — left unassigned",
+      );
+    }
+    return { increments, customIncrements };
   };
 
   // ── Called after every successful payment in this session ────────────────
   // Creates the log row on first call, updates it on subsequent calls.
   const updateSessionLog = async (amountPaid, mode) => {
     try {
-  
       const field = CAT_TO_FIELD[activeCat.id];
 
-      const increments = field
-        ? { [field]: amountPaid }
-        : (activeCat.id === "FULL"
-            ? allocateAcrossCategories(amountPaid)
-            : {});
+      let increments = {};
+      let customIncrements = {};
+      if (field) {
+        increments = { [field]: amountPaid };
+      } else if (activeCat.id === "FULL") {
+        ({ increments, customIncrements } =
+          allocateAcrossCategories(amountPaid));
+      } else if (activeCat.isCustom) {
+        customIncrements = { [activeCat.label]: amountPaid };
+      }
 
-      // NEW: Track custom fee payments
-      const customFeeBreakdown =
-        activeCat.isCustom
-          ? {
-              [activeCat.label]:
-                ((sessionBreakdown.customFeeBreakdown?.[activeCat.label] || 0) + amountPaid),
+      // FIX: keep EVERY custom fee paid in this session (previously the map
+      // was replaced with only the category being paid right now).
+      const customFeeBreakdown = {
+        ...(sessionBreakdown.customFeeBreakdown || {}),
+      };
+      for (const [label, amt] of Object.entries(customIncrements)) {
+        customFeeBreakdown[label] = (customFeeBreakdown[label] || 0) + amt;
+      }
+
+      // Full Fee payments don't touch per-category paid state elsewhere —
+      // update it here so a second payment in the same session sees the
+      // correct remaining capacity per category.
+      if (activeCat.id === "FULL") {
+        setPaidMap((prev) => {
+          const next = { ...prev };
+          for (const [f, amt] of Object.entries(increments))
+            next[f] = Number(next[f] || 0) + amt;
+          return next;
+        });
+        setCustomPaidMap((prev) => {
+          const next = { ...prev };
+          for (const cat of feeCategories) {
+            if (cat.isCustom && customIncrements[cat.label]) {
+              next[cat.id] =
+                Number(next[cat.id] || 0) + customIncrements[cat.label];
             }
-          : (sessionBreakdown.customFeeBreakdown || {});
+          }
+          return next;
+        });
+      }
       // Merge into session accumulator
-      const updated = { ...sessionBreakdown, amount: sessionBreakdown.amount + amountPaid, customFeeBreakdown };
+      const updated = {
+        ...sessionBreakdown,
+        amount: sessionBreakdown.amount + amountPaid,
+        customFeeBreakdown,
+      };
       for (const [f, amt] of Object.entries(increments)) {
         updated[f] = (updated[f] || 0) + amt;
       }
@@ -570,20 +715,23 @@ const applyPatch = (addedAmt) => {
 
       const body = {
         studentListId: student.id,
-        amount:        updated.amount,
-        paymentMode:   mode,
-        paymentDate:   new Date(paymentDate + "T00:00:00+05:30").toISOString(),
+        amount: updated.amount,
+        paymentMode: mode,
+        paymentDate: new Date(paymentDate + "T00:00:00+05:30").toISOString(),
         ...updated,
         // Pass sessionLogId so backend can UPDATE instead of INSERT
-        sessionLogId:  sessionLogId || null,
+        sessionLogId: sessionLogId || null,
       };
 
       console.log("[PayModal] updateSessionLog →", body);
 
       const res = await fetch(`${API_URL}/api/finance/recordSimplePayment`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify(body),
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       console.log("[PayModal] session log result:", data);
@@ -593,86 +741,87 @@ const applyPatch = (addedAmt) => {
         setSessionLogId(data.logId);
       }
     } catch (e) {
-      console.warn("[PayModal] session log update failed (non-fatal):", e.message);
+      console.warn(
+        "[PayModal] session log update failed (non-fatal):",
+        e.message,
+      );
     }
   };
-// ===============================
-// DO PAYMENT
-// ===============================
-const doPayment = async (amount, mode) => {
-  // Category-based payment
-  if (activeCat.dbCategoryId && activeCat.id !== "FULL") {
+  // ===============================
+  // DO PAYMENT
+  // ===============================
+  const doPayment = async (amount, mode) => {
+    // Category-based payment
+    if (activeCat.dbCategoryId && activeCat.id !== "FULL") {
+      const result = await apiRecordCategoryPayment(
+        activeCat.dbCategoryId,
+        amount,
+        mode,
+      );
 
-    const result = await apiRecordCategoryPayment(
-      activeCat.dbCategoryId,
-      amount,
-      mode
-    );
+      const newTotalPaid = result.newTotalPaid;
 
-    const newTotalPaid = result.newTotalPaid;
+      if (activeCat.isCustom && result.updatedCategory) {
+        setCustomPaidMap((prev) => ({
+          ...prev,
+          [activeCat.id]: Number(result.updatedCategory.paidAmount),
+        }));
+      }
 
-    if (activeCat.isCustom && result.updatedCategory) {
-      setCustomPaidMap(prev => ({
-        ...prev,
-        [activeCat.id]: Number(result.updatedCategory.paidAmount),
-      }));
+      setPaidMap((prev) => {
+        const next = { ...prev };
+
+        // Update overall paid amount
+        next.paidAmount = newTotalPaid;
+
+        // Update default category
+        if (activeCat.paidField) {
+          next[activeCat.paidField] = Math.min(catTotal, catPaid + amount);
+        }
+
+        return next;
+      });
+
+      await updateSessionLog(amount, mode);
+
+      onPaymentDone(
+        student.id,
+        newTotalPaid,
+        newTotalPaid >= totalFees ? "PAID" : "PARTIAL",
+      );
+
+      return;
     }
 
-  setPaidMap(prev => {
-    const next = { ...prev };
+    // Legacy / Full Fee
+    const payload = buildPayload(amount);
 
-    // Update overall paid amount
-    next.paidAmount = newTotalPaid;
+    await apiUpdate(payload);
 
-    // Update default category
-    if (activeCat.paidField) {
-      next[activeCat.paidField] = Math.min(catTotal, catPaid + amount);
-    }
- 
-    return next;
-  });
+    applyPatch(amount);
 
     await updateSessionLog(amount, mode);
+  };
 
-    onPaymentDone(
-      student.id,
-      newTotalPaid,
-      newTotalPaid >= totalFees ? "PAID" : "PARTIAL"
+  // ===============================
+  // FULL PAYMENT
+  // ===============================
+  const handleFullPay = async () => {
+    setLoading(true);
+    setError("");
 
-    );
-
-    return;
-  }
-
-  // Legacy / Full Fee
-  const payload = buildPayload(amount);
-
-  await apiUpdate(payload);
-
-  applyPatch(amount);
-
-  await updateSessionLog(amount, mode);
-};
-
-// ===============================
-// FULL PAYMENT
-// ===============================
-const handleFullPay = async () => {
-  setLoading(true);
-  setError("");
-
-  try {
-    await doPayment(catRemaining, fullMode);
-    setFullDone(true);
-  } catch (e) {
-    setError(e.message || "Payment failed. Try again.");
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      await doPayment(catRemaining, fullMode);
+      setFullDone(true);
+    } catch (e) {
+      setError(e.message || "Payment failed. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // const handleFullPay = async () => {
-    
+
   //   setLoading(true); setError("");
   //   try { await doPayment(catRemaining, fullMode); setFullDone(true); }
   //   catch (e) { setError(e.message || "Payment failed. Try again."); }
@@ -681,56 +830,99 @@ const handleFullPay = async () => {
 
   const handleCustomPay = async () => {
     const amount = Number(customAmt);
-    if (!amount || amount <= 0)  { setError("Enter a valid amount."); return; }
-    if (amount > catRemaining)   { setError(`Amount cannot exceed remaining ₹${catRemaining.toLocaleString("en-IN")}.`); return; }
-    setLoading(true); setError("");
-    try { await doPayment(amount, fullMode); setCustomAmt(""); setFullDone(true); }
-    catch (e) { setError(e.message || "Payment failed. Try again."); }
-    finally { setLoading(false); }
+    if (!amount || amount <= 0) {
+      setError("Enter a valid amount.");
+      return;
+    }
+    if (amount > catRemaining) {
+      setError(
+        `Amount cannot exceed remaining ₹${catRemaining.toLocaleString(
+          "en-IN",
+        )}.`,
+      );
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      await doPayment(amount, fullMode);
+      setCustomAmt("");
+      setFullDone(true);
+    } catch (e) {
+      setError(e.message || "Payment failed. Try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleConfirmEmi = async (emi) => {
-    setLoading(true); setError("");
-    const paidLabel = new Date(paymentDate + "T00:00:00+05:30").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
+    setLoading(true);
+    setError("");
+    const paidLabel = new Date(
+      paymentDate + "T00:00:00+05:30",
+    ).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "Asia/Kolkata",
+    });
     try {
       await doPayment(emi.amount, modeInput);
-      const updatedList = emiList.map(e => e.id === emi.id ? { ...e, status: "paid", date: paidLabel, mode: modeInput } : e);
-      setEmiList(updatedList); setConfirmId(null);
-    } catch (e) { setError(e.message || "Payment failed. Try again."); }
-    finally { setLoading(false); }
+      const updatedList = emiList.map((e) =>
+        e.id === emi.id
+          ? { ...e, status: "paid", date: paidLabel, mode: modeInput }
+          : e,
+      );
+      setEmiList(updatedList);
+      setConfirmId(null);
+    } catch (e) {
+      setError(e.message || "Payment failed. Try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="pm-overlay">
       <style>{STYLES}</style>
-      <div className="pm-box" onClick={e => e.stopPropagation()}>
-
+      <div className="pm-box" onClick={(e) => e.stopPropagation()}>
         {/* Mobile drag handle */}
-        <div className="pm-drag-handle"><div className="pm-drag-pip" /></div>
+        <div className="pm-drag-handle">
+          <div className="pm-drag-pip" />
+        </div>
 
         {/* Header */}
         <div className="pm-head">
           <div className="pm-head-left">
-            <div className="pm-head-ico"><CreditCard size={18} color="#fff" /></div>
+            <div className="pm-head-ico">
+              <CreditCard size={18} color="#fff" />
+            </div>
             <div>
               <div className="pm-head-title">Fee Payment</div>
-              <div className="pm-head-sub">{student.name} · {student.course}</div>
+              <div className="pm-head-sub">
+                {student.name} · {student.course}
+              </div>
             </div>
           </div>
-          <button className="pm-close" onClick={onClose}><X size={15} /></button>
+          <button className="pm-close" onClick={onClose}>
+            <X size={15} />
+          </button>
         </div>
 
         {/* Body */}
         <div className="pm-body">
-
           {/* Category selector */}
           <div>
             <span className="pm-cat-label">Fee Category</span>
             <div className="pm-cat-wrap">
-              <select className="pm-cat-select" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
-                {feeCategories.map(cat => (
+              <select
+                className="pm-cat-select"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+              >
+                {feeCategories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
-                    {cat.label}  (₹{cat.total.toLocaleString("en-IN")})
+                    {cat.label} (₹{cat.total.toLocaleString("en-IN")})
                   </option>
                 ))}
               </select>
@@ -740,17 +932,21 @@ const handleFullPay = async () => {
 
           {/* Payment date — defaults to today, editable */}
           <div className="pm-date-row">
-            <div className="pm-date-icon"><Calendar size={16} color="#fff" /></div>
+            <div className="pm-date-icon">
+              <Calendar size={16} color="#fff" />
+            </div>
             <div>
               <div className="pm-date-label">Payment Date</div>
-              <div className="pm-date-hint">Select the date this payment was received</div>
+              <div className="pm-date-hint">
+                Select the date this payment was received
+              </div>
             </div>
             <input
               type="date"
               className="pm-date-inp"
               value={paymentDate}
               max={todayISO()}
-              onChange={e => setPaymentDate(e.target.value)}
+              onChange={(e) => setPaymentDate(e.target.value)}
             />
           </div>
 
@@ -758,16 +954,38 @@ const handleFullPay = async () => {
           <div className="pm-cards">
             <div className="pm-card">
               <div className="pm-card-lbl">{activeCat.label}</div>
-              <div className="pm-card-val">₹{catTotal.toLocaleString("en-IN")}</div>
+              <div className="pm-card-val">
+                ₹{catTotal.toLocaleString("en-IN")}
+              </div>
             </div>
             <div className="pm-card">
               <div className="pm-card-lbl">Amount Paid</div>
-              <div className="pm-card-val green">₹{(useEmi ? catPaid + emiPaid : (fullDone ? catTotal : catPaid)).toLocaleString("en-IN")}</div>
+              <div className="pm-card-val green">
+                ₹
+                {(useEmi
+                  ? catPaid + emiPaid
+                  : fullDone
+                  ? catTotal
+                  : catPaid
+                ).toLocaleString("en-IN")}
+              </div>
             </div>
             <div className="pm-card pm-card-third">
               <div className="pm-card-lbl">Pending</div>
-              <div className={`pm-card-val ${(useEmi ? emiPending : (fullDone ? 0 : catRemaining)) > 0 ? "red" : "green"}`}>
-                ₹{(useEmi ? emiPending : (fullDone ? 0 : catRemaining)).toLocaleString("en-IN")}
+              <div
+                className={`pm-card-val ${
+                  (useEmi ? emiPending : fullDone ? 0 : catRemaining) > 0
+                    ? "red"
+                    : "green"
+                }`}
+              >
+                ₹
+                {(useEmi
+                  ? emiPending
+                  : fullDone
+                  ? 0
+                  : catRemaining
+                ).toLocaleString("en-IN")}
               </div>
             </div>
           </div>
@@ -779,11 +997,18 @@ const handleFullPay = async () => {
               <span>{progressPct}% paid</span>
             </div>
             <div className="pm-prog-track">
-              <div className="pm-prog-fill" style={{ width: `${progressPct}%` }} />
+              <div
+                className="pm-prog-fill"
+                style={{ width: `${progressPct}%` }}
+              />
             </div>
             <div className="pm-prog-hints">
               <span>₹0</span>
-              <span>{catRemaining === 0 ? "✓ Fully Paid" : `₹${catRemaining.toLocaleString("en-IN")} remaining`}</span>
+              <span>
+                {catRemaining === 0
+                  ? "✓ Fully Paid"
+                  : `₹${catRemaining.toLocaleString("en-IN")} remaining`}
+              </span>
               <span>₹{catTotal.toLocaleString("en-IN")}</span>
             </div>
           </div>
@@ -800,12 +1025,27 @@ const handleFullPay = async () => {
           {useEmi === null && !fullDone && catRemaining > 0 && (
             <div className="pm-methods">
               <div className="pm-methods-title">
-                How would you like to pay <strong style={{ color: "#27435B" }}>₹{catRemaining.toLocaleString("en-IN")}</strong> for <strong style={{ color: "#27435B" }}>{activeCat.label}</strong>?
+                How would you like to pay{" "}
+                <strong style={{ color: "#27435B" }}>
+                  ₹{catRemaining.toLocaleString("en-IN")}
+                </strong>{" "}
+                for{" "}
+                <strong style={{ color: "#27435B" }}>{activeCat.label}</strong>?
               </div>
               <div className="pm-method-grid">
                 {[
-                  { icon: "💳", title: "Pay Full Amount", sub: `₹${catRemaining.toLocaleString("en-IN")} at once`, fn: () => setUseEmi(false) },
-                  { icon: "📅", title: "Pay in Instalments", sub: "Split into EMIs", fn: () => setUseEmi(true) },
+                  {
+                    icon: "💳",
+                    title: "Pay Full Amount",
+                    sub: `₹${catRemaining.toLocaleString("en-IN")} at once`,
+                    fn: () => setUseEmi(false),
+                  },
+                  {
+                    icon: "📅",
+                    title: "Pay in Instalments",
+                    sub: "Split into EMIs",
+                    fn: () => setUseEmi(true),
+                  },
                 ].map((opt, i) => (
                   <button key={i} className="pm-method-btn" onClick={opt.fn}>
                     <div className="pm-method-icon">{opt.icon}</div>
@@ -820,33 +1060,62 @@ const handleFullPay = async () => {
           {/* Full / Custom Pay Panel */}
           {useEmi === false && !fullDone && (
             <div className="pm-panel">
-              <div className="pm-panel-back"><button onClick={() => setUseEmi(null)}>← Back</button></div>
+              <div className="pm-panel-back">
+                <button onClick={() => setUseEmi(null)}>← Back</button>
+              </div>
               <div className="pm-panel-inner">
-                <div className="pm-panel-sec-lbl">Full Payment · {activeCat.label}</div>
+                <div className="pm-panel-sec-lbl">
+                  Full Payment · {activeCat.label}
+                </div>
                 <div className="pm-fullpay-row">
                   <div>
                     <div className="pm-amount-sub">Amount to pay</div>
-                    <div className="pm-amount-big">₹{catRemaining.toLocaleString("en-IN")}</div>
+                    <div className="pm-amount-big">
+                      ₹{catRemaining.toLocaleString("en-IN")}
+                    </div>
                   </div>
                   <div className="pm-mode-row">
                     <span className="pm-mode-lbl">Mode</span>
-                    <select className="pm-select" value={fullMode} onChange={e => setFullMode(e.target.value)}>
-                      {MODES.map(m => <option key={m}>{m}</option>)}
+                    <select
+                      className="pm-select"
+                      value={fullMode}
+                      onChange={(e) => setFullMode(e.target.value)}
+                    >
+                      {MODES.map((m) => (
+                        <option key={m}>{m}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
                 <div style={{ marginBottom: 4 }}>
-                  <span className="pm-custom-lbl">Or enter a custom amount</span>
+                  <span className="pm-custom-lbl">
+                    Or enter a custom amount
+                  </span>
                   <input
-                    className="pm-custom-inp" type="number" inputMode="numeric"
+                    className="pm-custom-inp"
+                    type="number"
+                    inputMode="numeric"
                     placeholder={`Max ₹${catRemaining.toLocaleString("en-IN")}`}
-                    value={customAmt} onChange={e => setCustomAmt(e.target.value)}
+                    value={customAmt}
+                    onChange={(e) => setCustomAmt(e.target.value)}
                   />
                 </div>
-                <button className="pm-confirm-btn" disabled={loading} onClick={() => customAmt ? handleCustomPay() : handleFullPay()}>
-                  {loading ? "Processing…" : customAmt
-                    ? `Confirm ₹${Number(customAmt).toLocaleString("en-IN")} · ${activeCat.label}`
-                    : `Confirm Full Payment — ₹${catRemaining.toLocaleString("en-IN")}`}
+                <button
+                  className="pm-confirm-btn"
+                  disabled={loading}
+                  onClick={() =>
+                    customAmt ? handleCustomPay() : handleFullPay()
+                  }
+                >
+                  {loading
+                    ? "Processing…"
+                    : customAmt
+                    ? `Confirm ₹${Number(customAmt).toLocaleString(
+                        "en-IN",
+                      )} · ${activeCat.label}`
+                    : `Confirm Full Payment — ₹${catRemaining.toLocaleString(
+                        "en-IN",
+                      )}`}
                 </button>
                 {error && <div className="pm-err">{error}</div>}
               </div>
@@ -860,7 +1129,19 @@ const handleFullPay = async () => {
               <div>
                 <div className="pm-success-text">Payment Confirmed!</div>
                 <div className="pm-success-sub">
-                  {customAmt ? `₹${Number(customAmt).toLocaleString("en-IN")} paid` : `₹${catRemaining.toLocaleString("en-IN")} paid`} via {fullMode} · {activeCat.label} · {new Date(paymentDate + "T00:00:00+05:30").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}
+                  {customAmt
+                    ? `₹${Number(customAmt).toLocaleString("en-IN")} paid`
+                    : `₹${catRemaining.toLocaleString("en-IN")} paid`}{" "}
+                  via {fullMode} · {activeCat.label} ·{" "}
+                  {new Date(paymentDate + "T00:00:00+05:30").toLocaleDateString(
+                    "en-IN",
+                    {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                      timeZone: "Asia/Kolkata",
+                    },
+                  )}
                 </div>
               </div>
             </div>
@@ -870,48 +1151,146 @@ const handleFullPay = async () => {
           {useEmi === true && (
             <>
               <div className="pm-emi-controls">
-                <button onClick={() => setUseEmi(null)} style={{ background: "none", border: "none", color: "#4A6B80", fontSize: 12, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", padding: 0 }}>← Back</button>
+                <button
+                  onClick={() => setUseEmi(null)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#4A6B80",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    fontFamily: "'DM Sans',sans-serif",
+                    padding: 0,
+                  }}
+                >
+                  ← Back
+                </button>
                 <div className="pm-emi-count-row">
                   <span className="pm-emi-lbl">Instalments:</span>
-                  {[2, 3, 4, 6].map(n => (
-                    <button key={n} className={`pm-emi-chip${emiCount === n ? " active" : ""}`} onClick={() => setEmiCount(n)}>{n}</button>
+                  {[2, 3, 4, 6].map((n) => (
+                    <button
+                      key={n}
+                      className={`pm-emi-chip${
+                        emiCount === n ? " active" : ""
+                      }`}
+                      onClick={() => setEmiCount(n)}
+                    >
+                      {n}
+                    </button>
                   ))}
                 </div>
               </div>
 
-              <div style={{ fontSize: 11.5, color: "#4A6B80", background: "#f0f7fc", borderRadius: 8, padding: "8px 12px", border: "1px solid #d0e2ee" }}>
-                <strong style={{ color: "#27435B" }}>EMI for: {activeCat.label}</strong> — ₹{catRemaining.toLocaleString("en-IN")} split into {emiCount} instalments.
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: "#4A6B80",
+                  background: "#f0f7fc",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  border: "1px solid #d0e2ee",
+                }}
+              >
+                <strong style={{ color: "#27435B" }}>
+                  EMI for: {activeCat.label}
+                </strong>{" "}
+                — ₹{catRemaining.toLocaleString("en-IN")} split into {emiCount}{" "}
+                instalments.
               </div>
 
               <div className="pm-emi-table-wrap">
                 <table className="pm-emi-tbl">
                   <thead>
-                    <tr>{["Instalment", "Amount", "Date", "Mode", "Status", "Action"].map(h => <th key={h}>{h}</th>)}</tr>
+                    <tr>
+                      {[
+                        "Instalment",
+                        "Amount",
+                        "Date",
+                        "Mode",
+                        "Status",
+                        "Action",
+                      ].map((h) => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
                   </thead>
                   <tbody>
                     {emiList.map((emi, i) => (
-                      <tr key={emi.id} style={{ background: i % 2 === 0 ? "#f8fafc" : "#fff" }}>
+                      <tr
+                        key={emi.id}
+                        style={{ background: i % 2 === 0 ? "#f8fafc" : "#fff" }}
+                      >
                         <td style={{ fontWeight: 600 }}>{emi.label}</td>
-                        <td style={{ fontWeight: 700, color: "#27435B" }}>₹{emi.amount.toLocaleString("en-IN")}</td>
-                        <td style={{ color: "#4A6B80", fontSize: 11 }}>{emi.date || "—"}</td>
-                        <td>{emi.mode ? <span className="pm-badge pm-badge-mode" style={{ fontSize: 10.5 }}>{emi.mode}</span> : <span style={{ color: "#A0B8C8", fontSize: 11 }}>—</span>}</td>
-                        <td>
-                          {emi.status === "paid"
-                            ? <span className="pm-badge pm-badge-paid"><CheckCircle size={10} /> Paid</span>
-                            : <span className="pm-badge pm-badge-pend"><Clock size={10} /> Pending</span>}
+                        <td style={{ fontWeight: 700, color: "#27435B" }}>
+                          ₹{emi.amount.toLocaleString("en-IN")}
+                        </td>
+                        <td style={{ color: "#4A6B80", fontSize: 11 }}>
+                          {emi.date || "—"}
                         </td>
                         <td>
-                          {emi.status === "paid" && <span style={{ color: "#A0B8C8", fontSize: 11 }}>—</span>}
+                          {emi.mode ? (
+                            <span
+                              className="pm-badge pm-badge-mode"
+                              style={{ fontSize: 10.5 }}
+                            >
+                              {emi.mode}
+                            </span>
+                          ) : (
+                            <span style={{ color: "#A0B8C8", fontSize: 11 }}>
+                              —
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {emi.status === "paid" ? (
+                            <span className="pm-badge pm-badge-paid">
+                              <CheckCircle size={10} /> Paid
+                            </span>
+                          ) : (
+                            <span className="pm-badge pm-badge-pend">
+                              <Clock size={10} /> Pending
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {emi.status === "paid" && (
+                            <span style={{ color: "#A0B8C8", fontSize: 11 }}>
+                              —
+                            </span>
+                          )}
                           {emi.status === "pending" && confirmId !== emi.id && (
-                            <button className="pm-emi-pay-btn" onClick={() => setConfirmId(emi.id)}>Pay</button>
+                            <button
+                              className="pm-emi-pay-btn"
+                              onClick={() => setConfirmId(emi.id)}
+                            >
+                              Pay
+                            </button>
                           )}
                           {emi.status === "pending" && confirmId === emi.id && (
                             <div className="pm-emi-confirm-row">
-                              <select className="pm-select" style={{ fontSize: 11.5, padding: "4px 7px" }} value={modeInput} onChange={e => setModeInput(e.target.value)}>
-                                {MODES.map(m => <option key={m}>{m}</option>)}
+                              <select
+                                className="pm-select"
+                                style={{ fontSize: 11.5, padding: "4px 7px" }}
+                                value={modeInput}
+                                onChange={(e) => setModeInput(e.target.value)}
+                              >
+                                {MODES.map((m) => (
+                                  <option key={m}>{m}</option>
+                                ))}
                               </select>
-                              <button className="pm-emi-ok-btn" disabled={loading} onClick={() => handleConfirmEmi(emi)}>✓</button>
-                              <button className="pm-emi-x-btn" onClick={() => setConfirmId(null)}>✕</button>
+                              <button
+                                className="pm-emi-ok-btn"
+                                disabled={loading}
+                                onClick={() => handleConfirmEmi(emi)}
+                              >
+                                ✓
+                              </button>
+                              <button
+                                className="pm-emi-x-btn"
+                                onClick={() => setConfirmId(null)}
+                              >
+                                ✕
+                              </button>
                             </div>
                           )}
                         </td>
@@ -922,9 +1301,22 @@ const handleFullPay = async () => {
                     <tr>
                       <td>Total</td>
                       <td>₹{catRemaining.toLocaleString("en-IN")}</td>
-                      <td colSpan={2} style={{ color: "#1a6e3e", fontSize: 11.5 }}>Paid: ₹{emiPaid.toLocaleString("en-IN")}</td>
-                      <td colSpan={2} style={{ color: emiPending > 0 ? "#a33030" : "#1a6e3e", fontSize: 11.5 }}>
-                        {emiPending > 0 ? `Pending: ₹${emiPending.toLocaleString("en-IN")}` : "✓ Fully Paid"}
+                      <td
+                        colSpan={2}
+                        style={{ color: "#1a6e3e", fontSize: 11.5 }}
+                      >
+                        Paid: ₹{emiPaid.toLocaleString("en-IN")}
+                      </td>
+                      <td
+                        colSpan={2}
+                        style={{
+                          color: emiPending > 0 ? "#a33030" : "#1a6e3e",
+                          fontSize: 11.5,
+                        }}
+                      >
+                        {emiPending > 0
+                          ? `Pending: ₹${emiPending.toLocaleString("en-IN")}`
+                          : "✓ Fully Paid"}
                       </td>
                     </tr>
                   </tfoot>
@@ -934,15 +1326,15 @@ const handleFullPay = async () => {
               {error && <div className="pm-err">{error}</div>}
             </>
           )}
-
-
-        </div>{/* end pm-body */}
+        </div>
+        {/* end pm-body */}
 
         {/* Footer — pinned outside scroll area */}
         <div className="pm-footer">
-          <button className="pm-close-btn" onClick={onClose}>Close</button>
+          <button className="pm-close-btn" onClick={onClose}>
+            Close
+          </button>
         </div>
-
       </div>
     </div>
   );
