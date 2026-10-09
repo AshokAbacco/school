@@ -1,8 +1,29 @@
-// server\src\busHead\busHead.service.js
+// server\src\busHead\busHead.service.js  (UPDATED)
+// ═══════════════════════════════════════════════════════════════════════════════
+// WHY THE BUS HEAD PAGE SHOWED NO DATA
+//   1. live-all returned the raw latest VehicleLocation row (`location`), but the
+//      shared map (VehicleMap → LiveBusMap) only draws vehicles that have
+//      `point` — so the map was always empty.
+//   2. Only VehicleLocation was read. Buses that report through a direct GPS
+//      device (DeviceLocation, linked by SchoolVehicle.deviceId) never showed.
+//   3. The latest row could have null lat/lng (provider gaps) → "no data".
+//   4. The page swallowed every error (`.catch(() => {})`), so a 401/403 just
+//      looked like an empty fleet.
+// Now the Bus Head uses exactly the same live pipeline as the admin dashboard
+// (getLatestPoint / trails / SSE stream) plus stop-by-stop ETA, scoped to the
+// schools the Bus Head is allowed to see.
+// ═══════════════════════════════════════════════════════════════════════════════
 import bcrypt from "bcrypt";
 import { prisma } from "../config/db.js";
 import { generateToken } from "../modules/auth/auth.utils.js";
 import { sendSmsOtp, normalizePhone } from "../modules/auth/sms.js";
+import {
+  buildLiveRows,
+  subscribeSchool,
+  openSseStream,
+} from "../vehicle/liveTracking.service.js";
+import { computeEtaForVehicles } from "../vehicle/routeEta.service.js";
+import { routeGeometryForVehicle } from "../vehicle/vehicle.controller.js";
 
 const stripCountryCode = (phone) => {
   let p = String(phone || "")
@@ -332,33 +353,124 @@ export const verifyBusHeadLoginOtpService = async ({
   return loginData;
 };
 
-// ── Live vehicle data scoped to the logged-in BusHead ──────────────────────
-export const getBusHeadLiveVehiclesService = async ({
-  schoolId,
-  universityId,
-  accessType,
-}) => {
-  const schoolWhere =
-    accessType === "ALL_SCHOOLS"
-      ? { universityId }
-      : { id: schoolId, universityId };
+// ═══════════════════════════════════════════════════════════════════════════
+// Bus Head portal — scope helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Schools this Bus Head may see. Re-checks the account on every call so a
+ * deactivated Bus Head loses access immediately (the JWT alone would not).
+ */
+export const getBusHeadSchoolsService = async ({ busHeadId, universityId }) => {
+  const busHead = await prisma.busHead.findFirst({
+    where: { id: busHeadId, universityId },
+    select: { id: true, isActive: true, accessType: true, schoolId: true },
+  });
+  if (!busHead) throw { status: 401, message: "Bus Head account not found" };
+  if (!busHead.isActive)
+    throw {
+      status: 403,
+      message: "Your account is inactive. Contact your administrator.",
+    };
+
+  const where =
+    busHead.accessType === "ALL_SCHOOLS"
+      ? { universityId, deletedAt: null, isDeactivated: false }
+      : { id: busHead.schoolId || "__none__", universityId };
+
+  const schools = await prisma.school.findMany({
+    where,
+    select: { id: true, name: true, code: true },
+    orderBy: { name: "asc" },
+  });
+  return { accessType: busHead.accessType, schools };
+};
+
+/** School ids to query: all in scope, or just `requested` if it is in scope. */
+async function resolveSchoolIds(user, requested) {
+  const { schools } = await getBusHeadSchoolsService({
+    busHeadId: user.id,
+    universityId: user.universityId,
+  });
+  const ids = schools.map((s) => s.id);
+  if (requested) {
+    if (!ids.includes(requested))
+      throw { status: 403, message: "You do not have access to this school" };
+    return [requested];
+  }
+  return ids;
+}
+
+const VEHICLE_SELECT = {
+  id: true,
+  regNo: true,
+  vehicleName: true,
+  vehicleType: true,
+  schoolId: true,
+  deviceId: true,
+  school: { select: { name: true } },
+};
+
+// ── GET /api/bus-head/vehicles/live-all?schoolId=&trail=1 ──────────────────
+// Same response shape as /api/vehicles/live-all (admin) so the same UI works.
+export const getBusHeadLiveVehiclesService = async (
+  user,
+  { schoolId, trail } = {},
+) => {
+  const schoolIds = await resolveSchoolIds(user, schoolId);
+  if (!schoolIds.length)
+    return { data: [], serverTime: new Date().toISOString() };
 
   const vehicles = await prisma.schoolVehicle.findMany({
-    where: { school: schoolWhere, isActive: true },
-    include: {
-      locations: { orderBy: { recordedAt: "desc" }, take: 1 },
-      school: { select: { id: true, name: true, code: true } },
-    },
+    where: { schoolId: { in: schoolIds }, isActive: true },
+    select: VEHICLE_SELECT,
+    orderBy: [{ schoolId: "asc" }, { regNo: "asc" }],
   });
+  const data = await buildLiveRows(vehicles, { withTrail: trail === "1" });
+  return { data, serverTime: new Date().toISOString() };
+};
 
-  return {
-    data: vehicles.map((v) => ({
-      id: v.id,
-      regNo: v.regNo,
-      vehicleName: v.vehicleName,
-      vehicleType: v.vehicleType,
-      school: v.school,
-      location: v.locations[0] || null,
-    })),
-  };
+// ── GET /api/bus-head/vehicles/eta?schoolId= ───────────────────────────────
+export const getBusHeadVehiclesEtaService = async (user, { schoolId } = {}) => {
+  const schoolIds = await resolveSchoolIds(user, schoolId);
+  if (!schoolIds.length)
+    return { data: [], serverTime: new Date().toISOString() };
+
+  const vehicles = await prisma.schoolVehicle.findMany({
+    where: { schoolId: { in: schoolIds }, isActive: true },
+    select: { id: true, regNo: true, schoolId: true, deviceId: true },
+  });
+  const data = await computeEtaForVehicles(vehicles);
+  return { data, serverTime: new Date().toISOString() };
+};
+
+// ── GET /api/bus-head/vehicles/live-stream?schoolId=   (SSE) ────────────────
+// Validation errors are thrown before any SSE header is written, so the
+// controller can still answer with a normal JSON error.
+export const openBusHeadStreamService = async (req, res, { schoolId } = {}) => {
+  const schoolIds = await resolveSchoolIds(req.user, schoolId);
+  if (!schoolIds.length)
+    throw { status: 404, message: "No schools in your scope" };
+
+  openSseStream(req, res, {
+    subscribeFn: (fn) => {
+      const unsubs = schoolIds.map((id) => subscribeSchool(id, fn));
+      return () => unsubs.forEach((u) => u());
+    },
+    initialEvents: [
+      ["hello", { schoolIds, serverTime: new Date().toISOString() }],
+    ],
+  });
+};
+
+// ── GET /api/bus-head/vehicles/:id/route-geometry ──────────────────────────
+// Road-following route line + validated stops for the map (scoped).
+export const getBusHeadRouteGeometryService = async (user, vehicleId) => {
+  const schoolIds = await resolveSchoolIds(user, null);
+  const vehicle = await prisma.schoolVehicle.findFirst({
+    where: { id: vehicleId, schoolId: { in: schoolIds } },
+    select: { id: true, regNo: true, schoolId: true, deviceId: true },
+  });
+  if (!vehicle) throw { status: 404, message: "Vehicle not found" };
+  return { data: await routeGeometryForVehicle(vehicle) };
 };

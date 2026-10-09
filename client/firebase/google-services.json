@@ -1,0 +1,86 @@
+{
+  "project_info": {
+    "project_number": "774996593249",
+    "project_id": "abacco-school-erp",
+    "storage_bucket": "abacco-school-erp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:774996593249:android:cbb357b38ce1abec7a3820",
+        "android_client_info": {
+          "package_name": "com.abacco.edu"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApnKt7E9T3OGPKMLimDIe1ptxrk_sDkb0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:774996593249:android:daf039c87006b9487a3820",
+        "android_client_info": {
+          "package_name": "com.abacco.schoolapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApnKt7E9T3OGPKMLimDIe1ptxrk_sDkb0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:774996593249:android:0f709c236ecbce327a3820",
+        "android_client_info": {
+          "package_name": "com.fazeelah.edu"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApnKt7E9T3OGPKMLimDIe1ptxrk_sDkb0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:774996593249:android:8282014d888b782f7a3820",
+        "android_client_info": {
+          "package_name": "com.waseela.edu"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApnKt7E9T3OGPKMLimDIe1ptxrk_sDkb0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

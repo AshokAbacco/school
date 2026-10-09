@@ -31,13 +31,20 @@ import {
 
 import schoolConfig from "../config/schoolConfig";
 
+// NOTE: universityId is NOT passed from this page any more.
+// api.js adds it automatically for foundation apps, and leaves it out
+// for the master CRM app ("global" build) so users of ALL
+// universities can log in.
+
 const FOUNDATION_LOGOS = {
   abacco: "/Logo/abacco.png",
   waseela: "/Logo/waseela.png",
   fazeelah: "/Logo/fazeelah.png",
+  global: "/Logo/abacco.png", // master CRM app
 };
 
-const foundationLogo = FOUNDATION_LOGOS[schoolConfig.foundationKey];
+const foundationLogo =
+  FOUNDATION_LOGOS[schoolConfig.foundationKey] || FOUNDATION_LOGOS.abacco;
 
 const foundationShortName =
   schoolConfig.foundationName?.replace(/\s+Education Foundation$/i, "") ||
@@ -147,7 +154,6 @@ export default function AndroidLogin() {
         const result = await sendBusHeadLoginOtp({
           phone,
           password,
-          universityId: schoolConfig.universityId,
         });
 
         if (result?.otpRequired) {
@@ -166,7 +172,6 @@ export default function AndroidLogin() {
         phone,
         password,
         selectedRole: resolveRole(),
-        universityId: schoolConfig.universityId,
       });
 
       if (result?.otpRequired) {
@@ -209,7 +214,6 @@ export default function AndroidLogin() {
         const result = await verifyBusHeadLoginOtp({
           phone: resolvedPhone || phone,
           otp,
-          universityId: schoolConfig.universityId,
         });
 
         saveAuth(result);
@@ -220,7 +224,6 @@ export default function AndroidLogin() {
       const result = await verifyLoginOtp({
         phone: resolvedPhone || phone,
         otp,
-        universityId: schoolConfig.universityId,
       });
 
       saveAuth(result);

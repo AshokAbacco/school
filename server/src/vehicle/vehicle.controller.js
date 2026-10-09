@@ -1,143 +1,102 @@
 // server/src/vehicle/vehicle.controller.js
 // ═══════════════════════════════════════════════════════════════════════════════
-// VEHICLE CONTROLLER  — performance-fixed
-//
-// WHAT CHANGED AND WHY
-// ────────────────────
-// The old code loaded the newest location like this:
-//
-//     include: { locations: { orderBy: { recordedAt: "desc" }, take: 1 } }
-//
-// Prisma compiles a nested `take` into a ROW_NUMBER() OVER (PARTITION BY ...)
-// subquery. Postgres cannot satisfy a window function from an index, so it
-// reads and sorts EVERY location row belonging to those vehicles before
-// throwing away all but the newest one. Your @@index([schoolVehicleId,
-// recordedAt]) is correct — it just cannot be used by that query shape.
-//
-// At one GPS poll per 30s per vehicle you write ~8,600 rows/day, each carrying
-// a `rawData Json` blob, so that scan gets measurably slower every single day.
-//
-// The replacement issues one `findFirst` per vehicle. Each one is
-//   WHERE "schoolVehicleId" = $1 ORDER BY "recordedAt" DESC LIMIT 1
-// which is a backward index scan that stops on the first row it touches:
-// O(log n) instead of O(n), and it stays fast no matter how big the table gets.
-//
-// The JSON response shape is byte-for-byte identical to before — no frontend
-// changes are required for this file.
+// VEHICLE CONTROLLER (UPDATED)
+// ─ Add / list / update / toggle school vehicles
+// ─ Latest location per vehicle (best of provider + direct device)
+// ─ Location history
+// ─ NEW: live SSE stream of all vehicles in a school
+// ─ FIX: every :id endpoint now checks the vehicle belongs to the caller's
+//        university (previously any logged-in user could read/toggle any bus)
+// ─ NEW: stop-by-stop ETA  (GET /eta?schoolId=  and  GET /:id/eta)
+// ─ NEW: vehicle list shows which transport route the bus is linked to
+// ─ NEW: GET /:id/route-geometry   road-following route line for the map
+// ─ NEW: GET /routes, PUT /routes/:routeId/stops   stop priority (order),
+//        pickup/drop times and on/off per stop — used by the Route Stops tab
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { prisma } from "../config/db.js";
+import {
+  normalizeRegNo,
+  getLatestPoint,
+  subscribeSchool,
+  openSseStream,
+  buildLiveRows,
+} from "./liveTracking.service.js";
+import {
+  computeVehicleEta,
+  computeEtaForVehicles,
+  routeSummaryForVehicle,
+  findRouteForVehicle,
+  getRouteStopsForMap,
+  getSchoolLocation,
+  validateStopCoords,
+  schoolForRoute,
+  parseClock,
+  invalidateRouteEta,
+} from "./routeEta.service.js";
+import { getRoadGeometry } from "./roadRouting.service.js";
 
-// Never select rawData in a list endpoint — it is TOASTed and can be KBs per row.
-const LOCATION_SELECT = {
-  latitude: true,
-  longitude: true,
-  speed: true,
-  bearing: true,
-  status: true,
-  ignitionStatus: true,
-  vehicleStatus: true,
-  address: true,
-  gpsTimestamp: true,
-  recordedAt: true,
-};
+const getUniversityId = (req) => req.user?.universityId || null;
 
-// Hard ceilings so a bad query string can never pin the database.
-const MAX_HISTORY_LIMIT = 1000;
-const LOOKUP_CONCURRENCY = 8; // stay well under the Prisma connection pool
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Run `fn` over `items` with bounded concurrency. Keeps result order.
-// Prevents Promise.all() from grabbing the entire connection pool at once
-// if the fleet grows from 3 vehicles to 300.
-// ─────────────────────────────────────────────────────────────────────────────
-async function mapLimit(items, limit, fn) {
-  const out = new Array(items.length);
-  let cursor = 0;
-
-  const worker = async () => {
-    for (;;) {
-      const i = cursor++;
-      if (i >= items.length) return;
-      out[i] = await fn(items[i], i);
-    }
-  };
-
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, worker),
-  );
-  return out;
+async function findOwnedVehicle(req, id) {
+  const universityId = getUniversityId(req);
+  if (!universityId) return null;
+  return prisma.schoolVehicle.findFirst({
+    where: { id, school: { universityId } },
+  });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Latest location for each vehicle id → Map<vehicleId, location|null>
-// This is the single hot path that was causing the multi-minute page loads.
-// ─────────────────────────────────────────────────────────────────────────────
-async function getLatestLocations(vehicleIds) {
-  if (!vehicleIds.length) return new Map();
-
-  const rows = await mapLimit(vehicleIds, LOOKUP_CONCURRENCY, (id) =>
-    prisma.vehicleLocation.findFirst({
-      where: { schoolVehicleId: id },
-      orderBy: { recordedAt: "desc" },
-      select: LOCATION_SELECT,
-    }),
-  );
-
-  const map = new Map();
-  vehicleIds.forEach((id, i) => map.set(id, rows[i] || null));
-  return map;
+async function schoolBelongsToUser(req, schoolId) {
+  const universityId = getUniversityId(req);
+  if (!universityId || !schoolId) return false;
+  const school = await prisma.school.findFirst({
+    where: { id: schoolId, universityId },
+    select: { id: true },
+  });
+  return !!school;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/vehicles?schoolId=&includeInactive=
-// List all vehicles for a school
 // ─────────────────────────────────────────────────────────────────────────────
 export const getVehicles = async (req, res) => {
   try {
     const { schoolId, includeInactive } = req.query;
-    const universityId = req.user?.universityId;
-
-    if (!universityId) {
+    const universityId = getUniversityId(req);
+    if (!universityId)
       return res
         .status(400)
         .json({ success: false, message: "universityId missing" });
-    }
 
     const where = { school: { universityId } };
     if (schoolId) where.schoolId = schoolId;
     if (includeInactive !== "true") where.isActive = true;
 
-    // `select` rather than `include`, and NO nested locations.
     const vehicles = await prisma.schoolVehicle.findMany({
       where,
-      select: {
-        id: true,
-        schoolId: true,
-        regNo: true,
-        vehicleName: true,
-        vehicleType: true,
-        deviceId: true,
-        isActive: true,
-        createdAt: true,
-        school: { select: { id: true, name: true, code: true } },
-      },
+      include: { school: { select: { id: true, name: true, code: true } } },
       orderBy: { createdAt: "desc" },
     });
 
-    const latest = await getLatestLocations(vehicles.map((v) => v.id));
+    const [latest, routes] = await Promise.all([
+      Promise.all(vehicles.map((v) => getLatestPoint(v).catch(() => null))),
+      Promise.all(
+        vehicles.map((v) => routeSummaryForVehicle(v).catch(() => null)),
+      ),
+    ]);
 
-    const data = vehicles.map((v) => ({
-      id:          v.id,
-      schoolId:    v.schoolId,
-      schoolName:  v.school.name,
-      regNo:       v.regNo,
+    const data = vehicles.map((v, i) => ({
+      id: v.id,
+      schoolId: v.schoolId,
+      schoolName: v.school.name,
+      regNo: v.regNo,
       vehicleName: v.vehicleName,
       vehicleType: v.vehicleType,
-      deviceId:    v.deviceId,
-      isActive:    v.isActive,
-      createdAt:   v.createdAt,
-      latestLocation: latest.get(v.id) || null,
+      deviceId: v.deviceId,
+      isActive: v.isActive,
+      createdAt: v.createdAt,
+      latestLocation: latest[i],
+      route: routes[i], // { id, name, code, stopCount, stopsWithLocation } | null
     }));
 
     return res.json({ success: true, data });
@@ -148,79 +107,35 @@ export const getVehicles = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/vehicles/live-all?schoolId=
-// Latest location for ALL active vehicles of a school (dashboard map view)
-// ─────────────────────────────────────────────────────────────────────────────
-export const getAllVehiclesLive = async (req, res) => {
-  try {
-    const { schoolId } = req.query;
-    const universityId = req.user?.universityId;
-
-    if (!universityId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "universityId missing" });
-    }
-
-    const where = { school: { universityId }, isActive: true };
-    if (schoolId) where.schoolId = schoolId;
-
-    const vehicles = await prisma.schoolVehicle.findMany({
-      where,
-      select: {
-        id: true,
-        regNo: true,
-        vehicleName: true,
-        vehicleType: true,
-        schoolId: true,
-        school: { select: { name: true } },
-      },
-      orderBy: { regNo: "asc" },
-    });
-
-    const latest = await getLatestLocations(vehicles.map((v) => v.id));
-
-    const data = vehicles.map((v) => ({
-      id:          v.id,
-      regNo:       v.regNo,
-      vehicleName: v.vehicleName,
-      vehicleType: v.vehicleType,
-      schoolId:    v.schoolId,
-      schoolName:  v.school.name,
-      location:    latest.get(v.id) || null,
-    }));
-
-    // Tell the browser not to re-use a stale live view.
-    res.set("Cache-Control", "no-store");
-    return res.json({ success: true, data });
-  } catch (err) {
-    console.error("[getAllVehiclesLive]", err);
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/vehicles
-// Body: { schoolId, regNo, vehicleName, vehicleType }
+// Body: { schoolId, regNo, vehicleName, vehicleType, deviceId? }
 // ─────────────────────────────────────────────────────────────────────────────
 export const addVehicle = async (req, res) => {
   try {
-    let { schoolId, regNo, vehicleName, vehicleType } = req.body;
+    let { schoolId, regNo, vehicleName, vehicleType, deviceId } = req.body;
 
     if (!schoolId || !regNo) {
       return res
         .status(400)
         .json({ success: false, message: "schoolId and regNo are required" });
     }
+    if (!(await schoolBelongsToUser(req, schoolId))) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have access to this school",
+      });
+    }
 
-    regNo = String(regNo).toUpperCase().replace(/\s+/g, "").trim();
+    // Stored as letters+digits only ("KA 01-AB 1234" → "KA01AB1234")
+    regNo = normalizeRegNo(regNo);
+    if (!regNo)
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid registration number" });
 
-    // Uses the @@unique([schoolId, regNo]) index.
-    const existing = await prisma.schoolVehicle.findUnique({
-      where: { schoolId_regNo: { schoolId, regNo } },
-      select: { id: true },
+    const existing = await prisma.schoolVehicle.findFirst({
+      where: { schoolId, regNo },
     });
-
     if (existing) {
       return res.status(409).json({
         success: false,
@@ -229,18 +144,49 @@ export const addVehicle = async (req, res) => {
     }
 
     const vehicle = await prisma.schoolVehicle.create({
-      data: { schoolId, regNo, vehicleName, vehicleType, isActive: true },
+      data: {
+        schoolId,
+        regNo,
+        vehicleName,
+        vehicleType,
+        deviceId: deviceId ? String(deviceId).trim() : null,
+        isActive: true,
+      },
     });
 
     return res.status(201).json({ success: true, data: vehicle });
   } catch (err) {
-    // Race on the unique constraint
-    if (err.code === "P2002") {
-      return res
-        .status(409)
-        .json({ success: false, message: "Vehicle already registered for this school" });
-    }
     console.error("[addVehicle]", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/vehicles/:id
+// Body: { vehicleName?, vehicleType?, deviceId? }   (deviceId = GPS IMEI)
+// ─────────────────────────────────────────────────────────────────────────────
+export const updateVehicle = async (req, res) => {
+  try {
+    const vehicle = await findOwnedVehicle(req, req.params.id);
+    if (!vehicle)
+      return res
+        .status(404)
+        .json({ success: false, message: "Vehicle not found" });
+
+    const { vehicleName, vehicleType, deviceId } = req.body;
+    const data = {};
+    if (vehicleName !== undefined) data.vehicleName = vehicleName || null;
+    if (vehicleType !== undefined) data.vehicleType = vehicleType || null;
+    if (deviceId !== undefined)
+      data.deviceId = deviceId ? String(deviceId).trim() : null;
+
+    const updated = await prisma.schoolVehicle.update({
+      where: { id: vehicle.id },
+      data,
+    });
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error("[updateVehicle]", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -250,23 +196,16 @@ export const addVehicle = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const toggleVehicle = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const vehicle = await prisma.schoolVehicle.findUnique({
-      where: { id },
-      select: { id: true, isActive: true },
-    });
-    if (!vehicle) {
+    const vehicle = await findOwnedVehicle(req, req.params.id);
+    if (!vehicle)
       return res
         .status(404)
         .json({ success: false, message: "Vehicle not found" });
-    }
 
     const updated = await prisma.schoolVehicle.update({
-      where: { id },
+      where: { id: vehicle.id },
       data: { isActive: !vehicle.isActive },
     });
-
     return res.json({ success: true, data: updated });
   } catch (err) {
     console.error("[toggleVehicle]", err);
@@ -279,23 +218,19 @@ export const toggleVehicle = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const getVehicleLiveLocation = async (req, res) => {
   try {
-    const { id } = req.params;
+    const vehicle = await findOwnedVehicle(req, req.params.id);
+    if (!vehicle)
+      return res
+        .status(404)
+        .json({ success: false, message: "Vehicle not found" });
 
-    const location = await prisma.vehicleLocation.findFirst({
-      where: { schoolVehicleId: id },
-      orderBy: { recordedAt: "desc" },
-      select: { id: true, ...LOCATION_SELECT },
-    });
-
-    if (!location) {
+    const location = await getLatestPoint(vehicle);
+    if (!location)
       return res.json({
         success: true,
         data: null,
         message: "No location data yet",
       });
-    }
-
-    res.set("Cache-Control", "no-store");
     return res.json({ success: true, data: location });
   } catch (err) {
     console.error("[getVehicleLiveLocation]", err);
@@ -308,37 +243,420 @@ export const getVehicleLiveLocation = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const getVehicleHistory = async (req, res) => {
   try {
-    const { id } = req.params;
+    const vehicle = await findOwnedVehicle(req, req.params.id);
+    if (!vehicle)
+      return res
+        .status(404)
+        .json({ success: false, message: "Vehicle not found" });
+
     const { from, to } = req.query;
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit, 10) || 100, 1),
+      2000,
+    );
 
-    // Cap the limit — the old code would happily accept limit=1000000.
-    const parsed = parseInt(req.query.limit ?? "100", 10);
-    const limit = Number.isFinite(parsed)
-      ? Math.min(Math.max(parsed, 1), MAX_HISTORY_LIMIT)
-      : 100;
-
-    const where = { schoolVehicleId: id };
+    const where = { schoolVehicleId: vehicle.id };
     if (from || to) {
       where.recordedAt = {};
       if (from) where.recordedAt.gte = new Date(from);
-      if (to)   where.recordedAt.lte = new Date(to);
+      if (to) where.recordedAt.lte = new Date(to);
     }
 
     const locations = await prisma.vehicleLocation.findMany({
       where,
       orderBy: { recordedAt: "desc" },
       take: limit,
-      select: { id: true, ...LOCATION_SELECT },
+      select: {
+        id: true,
+        latitude: true,
+        longitude: true,
+        speed: true,
+        bearing: true,
+        status: true,
+        ignitionStatus: true,
+        address: true,
+        gpsTimestamp: true,
+        recordedAt: true,
+      },
     });
 
     return res.json({
       success: true,
       data: locations,
       total: locations.length,
-      limit,
     });
   } catch (err) {
     console.error("[getVehicleHistory]", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/vehicles/live-all?schoolId=&trail=1
+// Snapshot of every active vehicle in a school (map dashboard)
+// ─────────────────────────────────────────────────────────────────────────────
+export const getAllVehiclesLive = async (req, res) => {
+  try {
+    const { schoolId } = req.query;
+    const universityId = getUniversityId(req);
+    if (!universityId)
+      return res
+        .status(400)
+        .json({ success: false, message: "universityId missing" });
+
+    const where = { school: { universityId }, isActive: true };
+    if (schoolId) where.schoolId = schoolId;
+
+    const vehicles = await prisma.schoolVehicle.findMany({
+      where,
+      select: {
+        id: true,
+        regNo: true,
+        vehicleName: true,
+        vehicleType: true,
+        schoolId: true,
+        deviceId: true,
+        school: { select: { name: true } },
+      },
+    });
+
+    const rows = await buildLiveRows(vehicles, {
+      withTrail: req.query.trail === "1",
+    });
+
+    return res.json({
+      success: true,
+      data: rows,
+      serverTime: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("[getAllVehiclesLive]", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/vehicles/live-stream?schoolId=      (Server-Sent Events)
+// Pushes { vehicleId, latest, path[] } for any vehicle of the school
+// ─────────────────────────────────────────────────────────────────────────────
+export const streamSchoolVehicles = async (req, res) => {
+  try {
+    const { schoolId } = req.query;
+    if (!schoolId)
+      return res
+        .status(400)
+        .json({ success: false, message: "schoolId is required" });
+    if (!(await schoolBelongsToUser(req, schoolId))) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have access to this school",
+      });
+    }
+
+    openSseStream(req, res, {
+      subscribeFn: (fn) => subscribeSchool(schoolId, fn),
+      initialEvents: [
+        ["hello", { schoolId, serverTime: new Date().toISOString() }],
+      ],
+    });
+  } catch (err) {
+    console.error("[streamSchoolVehicles]", err);
+    if (!res.headersSent)
+      res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/vehicles/eta?schoolId=
+// Stop-by-stop ETA for every active vehicle of a school
+// ─────────────────────────────────────────────────────────────────────────────
+export const getSchoolVehiclesEta = async (req, res) => {
+  try {
+    const { schoolId } = req.query;
+    if (!schoolId)
+      return res
+        .status(400)
+        .json({ success: false, message: "schoolId is required" });
+    if (!(await schoolBelongsToUser(req, schoolId)))
+      return res.status(403).json({
+        success: false,
+        message: "You do not have access to this school",
+      });
+
+    const vehicles = await prisma.schoolVehicle.findMany({
+      where: { schoolId, isActive: true },
+      select: { id: true, regNo: true, schoolId: true, deviceId: true },
+    });
+    const data = await computeEtaForVehicles(vehicles);
+    return res.json({
+      success: true,
+      data,
+      serverTime: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("[getSchoolVehiclesEta]", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/vehicles/:id/eta
+// ─────────────────────────────────────────────────────────────────────────────
+export const getVehicleEta = async (req, res) => {
+  try {
+    const vehicle = await findOwnedVehicle(req, req.params.id);
+    if (!vehicle)
+      return res
+        .status(404)
+        .json({ success: false, message: "Vehicle not found" });
+    const data = await computeVehicleEta(vehicle);
+    return res.json({
+      success: true,
+      data,
+      serverTime: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("[getVehicleEta]", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared: road line + stops for one bus (also used by the Bus Head portal)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function routeGeometryForVehicle(vehicle) {
+  const route = await findRouteForVehicle(vehicle);
+  if (!route) return { routeId: null, routeGeometry: null, stops: [] };
+  const stops = (await getRouteStopsForMap(vehicle, route.id)).filter(
+    (s) => s.latitude != null && s.longitude != null,
+  );
+  const routeGeometry = await Promise.race([
+    getRoadGeometry(stops),
+    new Promise((r) => setTimeout(() => r(null), 7000)),
+  ]);
+  return { routeId: route.id, routeGeometry, stops };
+}
+
+// GET /api/vehicles/:id/route-geometry
+export const getVehicleRouteGeometry = async (req, res) => {
+  try {
+    const vehicle = await findOwnedVehicle(req, req.params.id);
+    if (!vehicle)
+      return res
+        .status(404)
+        .json({ success: false, message: "Vehicle not found" });
+    const data = await routeGeometryForVehicle(vehicle);
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error("[getVehicleRouteGeometry]", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STOP PRIORITY (order of stops on a route)
+// ─────────────────────────────────────────────────────────────────────────────
+const ROUTE_STOP_SELECT = {
+  id: true,
+  stopOrder: true,
+  pickupTime: true,
+  dropTime: true,
+  isActive: true,
+  stop: {
+    select: {
+      id: true,
+      name: true,
+      landmark: true,
+      area: true,
+      latitude: true,
+      longitude: true,
+      isActive: true,
+      deletedAt: true,
+    },
+  },
+};
+
+async function routeForEditor(route, schoolLoc) {
+  const routeStops = route.routeStops.filter(
+    (rs) => rs.stop && !rs.stop.deletedAt,
+  );
+  const school = schoolForRoute(routeStops, schoolLoc);
+  const coords = validateStopCoords(routeStops, school);
+  return {
+    id: route.id,
+    name: route.name,
+    code: route.code,
+    vehicleNumber: route.vehicleNumber,
+    isActive: route.isActive,
+    school: school?.hasLocation
+      ? { name: school.name, latitude: school.lat, longitude: school.lng }
+      : { name: school?.name || "School", latitude: null, longitude: null },
+    stops: routeStops
+      .sort((a, b) => a.stopOrder - b.stopOrder)
+      .map((rs, i) => {
+        const c = coords.get(rs.id) || {};
+        return {
+          routeStopId: rs.id,
+          stopId: rs.stop.id,
+          priority: i + 1,
+          name: rs.stop.name,
+          landmark: rs.stop.landmark || rs.stop.area || null,
+          pickupTime: rs.pickupTime || "",
+          dropTime: rs.dropTime || "",
+          isActive: rs.isActive,
+          stopIsActive: rs.stop.isActive,
+          latitude: c.hasLocation ? c.lat : null,
+          longitude: c.hasLocation ? c.lng : null,
+          rawLatitude: rs.stop.latitude,
+          rawLongitude: rs.stop.longitude,
+          locationIssue: c.invalid || c.fixed || null,
+        };
+      }),
+  };
+}
+
+// GET /api/vehicles/routes?schoolId=
+export const getRoutesForStopPriority = async (req, res) => {
+  try {
+    const { schoolId } = req.query;
+    if (!schoolId)
+      return res
+        .status(400)
+        .json({ success: false, message: "schoolId is required" });
+    if (!(await schoolBelongsToUser(req, schoolId)))
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "You do not have access to this school",
+        });
+
+    const [routes, school] = await Promise.all([
+      prisma.transportRoute.findMany({
+        where: { schoolId, deletedAt: null },
+        orderBy: [{ isActive: "desc" }, { name: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          vehicleNumber: true,
+          isActive: true,
+          routeStops: { select: ROUTE_STOP_SELECT },
+        },
+      }),
+      getSchoolLocation(schoolId),
+    ]);
+    const data = await Promise.all(
+      routes.map((r) => routeForEditor(r, school)),
+    );
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error("[getRoutesForStopPriority]", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// PUT /api/vehicles/routes/:routeId/stops
+// Body: { stops: [{ routeStopId, pickupTime?, dropTime?, isActive? }] }
+// The array order IS the priority: first = stop 1 of the morning pickup.
+export const saveRouteStopPriority = async (req, res) => {
+  try {
+    const universityId = getUniversityId(req);
+    const route = await prisma.transportRoute.findFirst({
+      where: {
+        id: req.params.routeId,
+        deletedAt: null,
+        school: { universityId },
+      },
+      select: {
+        id: true,
+        schoolId: true,
+        routeStops: { select: { id: true } },
+      },
+    });
+    if (!route)
+      return res
+        .status(404)
+        .json({ success: false, message: "Route not found" });
+
+    const list = Array.isArray(req.body?.stops) ? req.body.stops : null;
+    if (!list?.length)
+      return res
+        .status(400)
+        .json({ success: false, message: "stops array is required" });
+
+    const known = new Set(route.routeStops.map((r) => r.id));
+    const ids = list.map((x) => x.routeStopId);
+    if (
+      new Set(ids).size !== ids.length ||
+      ids.some((id) => !known.has(id)) ||
+      ids.length !== known.size
+    )
+      return res.status(400).json({
+        success: false,
+        message: "Send every stop of this route exactly once, in the new order",
+      });
+
+    for (const x of list) {
+      for (const k of ["pickupTime", "dropTime"]) {
+        if (x[k] && parseClock(x[k]) == null)
+          return res
+            .status(400)
+            .json({
+              success: false,
+              message: `Invalid ${k} "${x[k]}" — use HH:MM`,
+            });
+      }
+    }
+
+    await prisma.$transaction([
+      // 1) move out of the way (stopOrder is unique per route)
+      ...list.map((x, i) =>
+        prisma.transportRouteStop.update({
+          where: { id: x.routeStopId },
+          data: { stopOrder: -100000 - i },
+        }),
+      ),
+      // 2) final order + times + on/off
+      ...list.map((x, i) =>
+        prisma.transportRouteStop.update({
+          where: { id: x.routeStopId },
+          data: {
+            stopOrder: i,
+            ...(x.pickupTime !== undefined
+              ? { pickupTime: x.pickupTime || null }
+              : {}),
+            ...(x.dropTime !== undefined
+              ? { dropTime: x.dropTime || null }
+              : {}),
+            ...(x.isActive !== undefined ? { isActive: !!x.isActive } : {}),
+          },
+        }),
+      ),
+    ]);
+
+    invalidateRouteEta(route.schoolId);
+
+    const [fresh, school] = await Promise.all([
+      prisma.transportRoute.findUnique({
+        where: { id: route.id },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          vehicleNumber: true,
+          isActive: true,
+          routeStops: { select: ROUTE_STOP_SELECT },
+        },
+      }),
+      getSchoolLocation(route.schoolId),
+    ]);
+    return res.json({
+      success: true,
+      data: await routeForEditor(fresh, school),
+    });
+  } catch (err) {
+    console.error("[saveRouteStopPriority]", err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
