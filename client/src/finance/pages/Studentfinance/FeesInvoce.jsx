@@ -31,6 +31,7 @@ import {
   Files,
   Layers,
   Loader2,
+  Mail,
   Printer,
   Receipt,
   X,
@@ -160,34 +161,110 @@ function ensureJsPdf() {
 
 // ── Load logo → base64 for jsPDF (cached per URL) ────────────────────────────
 const logoCache = new Map();
+
+const blobToDataUrl = (blob) =>
+  new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onloadend = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+
+// Re-encode any image the browser can display (PNG, JPEG, WEBP, SVG, GIF…)
+// to PNG on a white background — jsPDF only understands PNG/JPEG, and logos
+// uploaded as WEBP/SVG used to silently disappear from the receipt.
+function rasterize(src) {
+  return new Promise((resolve, reject) => {
+    if (typeof document === "undefined") return reject(new Error("no DOM"));
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const max = 600; // plenty for a 26 mm logo, keeps the PDF small
+        const scale = Math.min(
+          1,
+          max / Math.max(img.naturalWidth || 1, img.naturalHeight || 1),
+        );
+        const w = Math.max(1, Math.round((img.naturalWidth || 300) * scale));
+        const h = Math.max(1, Math.round((img.naturalHeight || 300) * scale));
+        const c = document.createElement("canvas");
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve({ dataUrl: c.toDataURL("image/png"), format: "PNG", w, h });
+      } catch (e) {
+        reject(e); // canvas tainted (no CORS) etc.
+      }
+    };
+    img.onerror = () => reject(new Error("image failed to load"));
+    img.src = src;
+  });
+}
+
+async function logoFromBlob(blob) {
+  if (!blob || blob.size === 0) throw new Error("empty image");
+  const dataUrl = await blobToDataUrl(blob);
+  try {
+    return await rasterize(dataUrl);
+  } catch {
+    const mime = blob.type || "image/png";
+    if (!/png|jpe?g/.test(mime))
+      throw new Error(`unsupported logo type ${mime}`);
+    return { dataUrl, format: /jpe?g/.test(mime) ? "JPEG" : "PNG" };
+  }
+}
+
+// Load the school logo for the PDF. Tries, in order:
+//   1. our /api/image-proxy (avoids CORS)   2. the URL directly
+//   3. an <img crossOrigin> → canvas
+// Successful results are cached; failures are NOT, so a temporary network
+// hiccup doesn't remove the logo for the rest of the session.
 async function loadLogoForPDF(logoUrl) {
   if (!logoUrl) return null;
   if (logoCache.has(logoUrl)) return logoCache.get(logoUrl);
-  try {
-    const proxyUrl = `${API_URL}/api/image-proxy?url=${encodeURIComponent(
-      logoUrl,
-    )}`;
-    const res = await fetch(proxyUrl);
-    if (!res.ok) throw new Error(`proxy ${res.status}`);
-    const blob = await res.blob();
-    if (!blob || blob.size === 0) throw new Error("empty response");
-    const dataUrl = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
+
+  const attempts = [];
+  if (/^data:image\//.test(logoUrl)) {
+    attempts.push(() =>
+      fetch(logoUrl)
+        .then((r) => r.blob())
+        .then(logoFromBlob),
+    );
+  } else {
+    attempts.push(async () => {
+      const r = await fetch(
+        `${API_URL}/api/image-proxy?url=${encodeURIComponent(logoUrl)}`,
+      );
+      if (!r.ok) throw new Error(`proxy ${r.status}`);
+      return logoFromBlob(await r.blob());
     });
-    const base64 = String(dataUrl).split(",")[1];
-    if (!base64) throw new Error("base64 split failed");
-    const mime = blob.type || "image/png";
-    const result = { base64, format: /jpe?g/.test(mime) ? "JPEG" : "PNG" };
-    logoCache.set(logoUrl, result);
-    return result;
-  } catch (err) {
-    console.warn("[PDF Logo] proxy failed:", err.message);
-    logoCache.set(logoUrl, null);
-    return null;
+    attempts.push(async () => {
+      const r = await fetch(logoUrl, { mode: "cors" });
+      if (!r.ok) throw new Error(`direct ${r.status}`);
+      return logoFromBlob(await r.blob());
+    });
+    attempts.push(() => rasterize(logoUrl));
   }
+
+  for (const attempt of attempts) {
+    try {
+      const result = await attempt();
+      if (result?.dataUrl) {
+        logoCache.set(logoUrl, result);
+        return result;
+      }
+    } catch (err) {
+      console.warn("[PDF Logo]", err.message);
+    }
+  }
+  console.warn(
+    "[PDF Logo] could not load logo — receipt will be generated without it:",
+    logoUrl,
+  );
+  return null;
 }
 
 // ── Build category rows (ALL-TIME / fallback view) ───────────────────────────
@@ -468,54 +545,161 @@ function setFont(doc, size, style = "normal", color = COL.text) {
   doc.setTextColor(...color);
 }
 
-function drawHeader(doc, ctx, { title, docNo, bandLeft, bandMid, bandRight }) {
-  const H = 36;
-  doc.setFillColor(...COL.navy);
-  doc.rect(0, 0, PAGE_W, H, "F");
+// Draw the logo inside a box, keeping its aspect ratio. Returns true if drawn.
+function drawLogo(doc, logo, x, y, box) {
+  if (!logo?.dataUrl) return false;
+  try {
+    let w = logo.w;
+    let h = logo.h;
+    if (!w || !h) {
+      const p = doc.getImageProperties(logo.dataUrl);
+      w = p.width;
+      h = p.height;
+    }
+    const s = Math.min(box / w, box / h);
+    const dw = w * s;
+    const dh = h * s;
+    doc.addImage(
+      logo.dataUrl,
+      logo.format || "PNG",
+      x + (box - dw) / 2,
+      y + (box - dh) / 2,
+      dw,
+      dh,
+      undefined,
+      "FAST",
+    );
+    return true;
+  } catch (e) {
+    console.warn("addImage failed:", e);
+    return false;
+  }
+}
 
-  let tx = M;
-  if (ctx.logo) {
-    try {
-      doc.setFillColor(...COL.white);
-      doc.roundedRect(M, 6, 24, 24, 3, 3, "F");
-      doc.addImage(
-        `data:image/${ctx.logo.format.toLowerCase()};base64,${ctx.logo.base64}`,
-        ctx.logo.format,
-        M + 1.5,
-        7.5,
-        21,
-        21,
-      );
-      tx = M + 29;
-    } catch (e) {
-      console.warn("addImage failed:", e);
+/**
+ * Letterhead + document title + key details.
+ *   ┌────────────────────────────────────────────────────┐
+ *   │ [LOGO]      SCHOOL NAME (full, centred)             │
+ *   │             Address                                  │
+ *   │             Phone · Email                            │
+ *   ├════════════════════════════════════════════════════┤
+ *   │                 FEE RECEIPT                          │  ← navy bar
+ *   │ Receipt No │ Date │ Instalment │ Status             │  ← detail cells
+ *   └────────────────────────────────────────────────────┘
+ * meta: [[label, value, colour?], …]  (up to 4)
+ */
+function drawHeader(doc, ctx, { title, meta = [] }) {
+  const TOP = 9;
+  const LOGO = 26;
+  const logoOk = !!ctx.logo?.dataUrl;
+  // reserve the logo's width on BOTH sides so the name is truly centred
+  const side = logoOk ? LOGO + 5 : 0;
+  const textW = CW - side * 2;
+  const cx = PAGE_W / 2;
+
+  // school name: largest size 20→13pt that fits one line, else 2 lines
+  const name = (ctx.school.name || "School").trim().toUpperCase();
+  doc.setFont("helvetica", "bold");
+  let size = 20;
+  doc.setFontSize(size);
+  while (size > 13 && doc.getTextWidth(name) > textW) {
+    size -= 0.5;
+    doc.setFontSize(size);
+  }
+  let nameLines = [name];
+  if (doc.getTextWidth(name) > textW) {
+    size = 14;
+    doc.setFontSize(size);
+    nameLines = doc.splitTextToSize(name, textW);
+    if (nameLines.length > 2) {
+      size = 12;
+      doc.setFontSize(size);
+      nameLines = doc.splitTextToSize(name, textW).slice(0, 3);
     }
   }
+  const nameLH = size * 0.4;
 
-  const textW = PAGE_W - M - 62 - tx;
-  setFont(doc, 15, "bold", COL.white);
-  doc.text(fit(doc, ctx.school.name || "School", textW), tx, 14);
-  setFont(doc, 8, "normal", [180, 205, 220]);
-  if (ctx.school.address) doc.text(fit(doc, ctx.school.address, textW), tx, 21);
-  if (ctx.school.phone)
-    doc.text(fit(doc, `Phone: ${ctx.school.phone}`, textW), tx, 27);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.8);
+  const sub = [];
+  if (ctx.school.address)
+    sub.push(...doc.splitTextToSize(ctx.school.address, textW).slice(0, 2));
+  const contact = [
+    ctx.school.phone && `Phone: ${ctx.school.phone}`,
+    ctx.school.email && `Email: ${ctx.school.email}`,
+  ]
+    .filter(Boolean)
+    .join("   |   ");
+  if (contact) sub.push(...doc.splitTextToSize(contact, textW).slice(0, 1));
+  const subLH = 4.3;
 
-  const bx = PAGE_W - M - 58;
-  doc.setFillColor(...COL.white);
-  doc.roundedRect(bx, 7, 58, 22, 3, 3, "F");
-  setFont(doc, 10, "bold", COL.navy);
-  doc.text(title, bx + 29, 15, { align: "center" });
-  setFont(doc, 8.5, "bold", COL.navy2);
-  doc.text(fit(doc, docNo, 54), bx + 29, 23, { align: "center" });
+  const textH =
+    nameLines.length * nameLH + (sub.length ? 2.5 + sub.length * subLH : 0);
+  const bodyH = Math.max(logoOk ? LOGO : 0, textH);
 
-  doc.setFillColor(...COL.navy2);
-  doc.rect(0, H, PAGE_W, 8, "F");
-  setFont(doc, 8.5, "normal", [200, 220, 232]);
-  if (bandLeft) doc.text(bandLeft, M, H + 5.5);
-  if (bandMid) doc.text(bandMid, PAGE_W / 2, H + 5.5, { align: "center" });
-  if (bandRight) doc.text(bandRight, PAGE_W - M, H + 5.5, { align: "right" });
-  return H + 8;
+  // logo (vertically centred against the text block)
+  if (logoOk) drawLogo(doc, ctx.logo, M, TOP + (bodyH - LOGO) / 2, LOGO);
+
+  // text block
+  let ty = TOP + (bodyH - textH) / 2 + nameLH * 0.78;
+  setFont(doc, size, "bold", COL.navy);
+  nameLines.forEach((ln) => {
+    doc.text(ln, cx, ty, { align: "center" });
+    ty += nameLH;
+  });
+  if (sub.length) {
+    ty += 2.5 - nameLH * 0.22;
+    setFont(doc, 8.8, "normal", COL.muted);
+    sub.forEach((ln) => {
+      doc.text(ln, cx, ty, { align: "center" });
+      ty += subLH;
+    });
+  }
+
+  // double rule
+  let y = TOP + bodyH + 4;
+  doc.setDrawColor(...COL.navy);
+  doc.setLineWidth(0.9);
+  doc.line(M, y, PAGE_W - M, y);
+  doc.setLineWidth(0.25);
+  doc.line(M, y + 1.4, PAGE_W - M, y + 1.4);
+  y += 4.5;
+
+  // title bar
+  doc.setFillColor(...COL.navy);
+  doc.rect(M, y, CW, 9, "F");
+  setFont(doc, 12, "bold", COL.white);
+  doc.text(title.split("").join(" "), cx, y + 6.2, { align: "center" });
+  y += 9;
+
+  // detail cells
+  const cells = meta.slice(0, 4);
+  if (cells.length) {
+    const H = 13;
+    const cw = CW / cells.length;
+    doc.setFillColor(...COL.light);
+    doc.setDrawColor(...COL.line);
+    doc.setLineWidth(0.3);
+    doc.rect(M, y, CW, H, "FD");
+    cells.forEach(([label, value, colour], i) => {
+      const x = M + i * cw;
+      if (i > 0) doc.line(x, y + 2, x, y + H - 2);
+      setFont(doc, 7, "bold", COL.muted);
+      doc.text(String(label).toUpperCase(), x + cw / 2, y + 4.8, {
+        align: "center",
+      });
+      setFont(doc, 9.5, "bold", colour || COL.navy);
+      doc.text(fit(doc, String(value ?? "—"), cw - 4), x + cw / 2, y + 10, {
+        align: "center",
+      });
+    });
+    y += H;
+  }
+  return y;
 }
+
+const statusColour = (balance, paid) =>
+  balance <= 0 ? COL.green : paid > 0 ? [180, 100, 10] : COL.red;
 
 function drawStudentBox(doc, y, student, rightExtra) {
   const h = 25;
@@ -565,8 +749,18 @@ function ensureSpace(doc, y, need) {
 
 // cols: [{ label, x, align }] — x is the left edge (align left) or right edge
 // rows: [{ cells: [{ text, color, bold }], fill }]
-function drawTable(doc, y, cols, rows, footer) {
-  const RH = 7.2;
+// opts.rh   → base row height (default 7.2 mm)
+// cell.lines → array of strings drawn on several lines (row grows to fit)
+const LINE_H = 3.6;
+function rowHeight(r, RH) {
+  const n = Math.max(
+    1,
+    ...r.cells.map((c) => (Array.isArray(c.lines) ? c.lines.length : 1)),
+  );
+  return n > 1 ? Math.max(RH, n * LINE_H + 2.8) : RH;
+}
+function drawTable(doc, y, cols, rows, footer, opts = {}) {
+  const RH = opts.rh || 7.2;
   const header = () => {
     doc.setFillColor(...COL.navy);
     doc.rect(M, y, CW, 8, "F");
@@ -580,27 +774,43 @@ function drawTable(doc, y, cols, rows, footer) {
   header();
 
   rows.forEach((r, i) => {
-    if (y + RH > BOTTOM) {
+    const h = rowHeight(r, RH);
+    if (y + h > BOTTOM) {
       doc.addPage();
       y = 16;
       header();
     }
     const fill = r.fill || (i % 2 === 0 ? COL.stripe : COL.white);
     doc.setFillColor(...fill);
-    doc.rect(M, y, CW, RH, "F");
+    doc.rect(M, y, CW, h, "F");
+    const textY = y + RH / 2 + 1.3; // first baseline, centred for 1-line rows
     r.cells.forEach((cell, ci) => {
       const c = cols[ci];
+      if (Array.isArray(cell.lines)) {
+        setFont(
+          doc,
+          cell.size || 7.8,
+          cell.bold ? "bold" : "normal",
+          cell.color || COL.text,
+        );
+        const n = cell.lines.length;
+        const top = n > 1 ? y + 4.2 : textY - 0.3;
+        cell.lines.forEach((ln, li) =>
+          doc.text(String(ln), c.x, top + li * LINE_H, {
+            align: c.align || "left",
+          }),
+        );
+        return;
+      }
       setFont(doc, 8.5, cell.bold ? "bold" : "normal", cell.color || COL.text);
       doc.text(
         cell.maxW ? fit(doc, cell.text, cell.maxW) : String(cell.text ?? ""),
         c.x,
-        y + 4.9,
-        {
-          align: c.align || "left",
-        },
+        textY,
+        { align: c.align || "left" },
       );
     });
-    y += RH;
+    y += h;
   });
 
   if (footer) {
@@ -727,20 +937,22 @@ function drawHistoryTable(doc, y, history, highlightId, student, prefix) {
   ]);
 }
 
-function drawSignatures(doc, y) {
+function drawSignatures(doc, y, { compact = false } = {}) {
   // may use the space down to the footer band (signatures are short)
-  y += 4;
-  if (y + 20 > PAGE_H - 15) {
+  y += compact ? 2 : 4;
+  if (y + (compact ? 13 : 18) > PAGE_H - 14) {
     doc.addPage();
     y = 16;
   }
-  setFont(doc, 7.5, "normal", COL.muted);
-  doc.text(
-    "Note: Fees once paid are not refundable. Please keep this receipt for future reference.",
-    M,
-    y,
-  );
-  y += 13;
+  if (!compact) {
+    setFont(doc, 7.5, "normal", COL.muted);
+    doc.text(
+      "Note: Fees once paid are not refundable. Please keep this receipt for future reference.",
+      M,
+      y,
+    );
+  }
+  y += compact ? 9 : 11;
   doc.setDrawColor(...COL.muted);
   doc.setLineWidth(0.3);
   doc.line(M, y, M + 55, y);
@@ -759,9 +971,13 @@ function drawFooters(doc, schoolName) {
     doc.rect(0, PAGE_H - 12, PAGE_W, 12, "F");
     setFont(doc, 7.5, "normal", [180, 205, 220]);
     doc.text(
-      `${
-        schoolName || "School"
-      } · Computer-generated document — no signature required if issued online.`,
+      fit(
+        doc,
+        `${
+          schoolName || "School"
+        } · Computer-generated document — no signature required if issued online.`,
+        CW - 24,
+      ),
       M,
       PAGE_H - 5,
     );
@@ -786,10 +1002,16 @@ function drawReceiptPage(doc, ctx, txn, hidden) {
 
   let y = drawHeader(doc, ctx, {
     title: "FEE RECEIPT",
-    docNo: receiptNumber(txn, ctx.student, ctx.prefix),
-    bandLeft: `Receipt Date: ${fmtDate(txn.date)}`,
-    bandMid: `Instalment ${txn.installmentNo || 1} of ${totalInst}`,
-    bandRight: `Status: ${statusText(t.balance, t.paid)}`,
+    meta: [
+      ["Receipt No", receiptNumber(txn, ctx.student, ctx.prefix)],
+      ["Receipt Date", fmtDate(txn.date)],
+      ["Instalment", `${txn.installmentNo || 1} of ${totalInst}`],
+      [
+        "Status",
+        statusText(t.balance, t.paid),
+        statusColour(t.balance, t.paid),
+      ],
+    ],
   });
   y = drawStudentBox(doc, y + 6, ctx.student, [
     "Payment Mode",
@@ -880,10 +1102,16 @@ function drawStatementPage(doc, ctx, hidden) {
 
   let y = drawHeader(doc, ctx, {
     title: "FEE STATEMENT",
-    docNo: statementNumber(ctx.student, ctx.prefix),
-    bandLeft: `Statement Date: ${todayLabel()}`,
-    bandMid: `${ctx.history.length} payment(s) recorded`,
-    bandRight: `Status: ${statusText(t.balance, t.paid)}`,
+    meta: [
+      ["Statement No", statementNumber(ctx.student, ctx.prefix)],
+      ["Statement Date", todayLabel()],
+      ["Payments", `${ctx.history.length} recorded`],
+      [
+        "Status",
+        statusText(t.balance, t.paid),
+        statusColour(t.balance, t.paid),
+      ],
+    ],
   });
   const lastPay = ctx.history[0] ? fmtDate(ctx.history[0].date) : "—";
   y = drawStudentBox(doc, y + 6, ctx.student, ["Last Payment", lastPay]);
@@ -959,15 +1187,68 @@ function drawFinalInvoicePage(doc, ctx, hidden) {
 
   let y = drawHeader(doc, ctx, {
     title: isFull ? "FINAL INVOICE" : "FEE INVOICE",
-    docNo: finalInvoiceNumber(ctx.student, ctx.prefix),
-    bandLeft: `Invoice Date: ${todayLabel()}`,
-    bandMid: `${ctx.history.length} payment(s) received`,
-    bandRight: `Status: ${statusText(t.balance, t.paid)}`,
+    meta: [
+      ["Invoice No", finalInvoiceNumber(ctx.student, ctx.prefix)],
+      ["Invoice Date", todayLabel()],
+      ["Payments", `${ctx.history.length} received`],
+      [
+        "Status",
+        statusText(t.balance, t.paid),
+        statusColour(t.balance, t.paid),
+      ],
+    ],
   });
   y = drawStudentBox(doc, y + 6, ctx.student, [
     "Payment Period",
     paymentPeriod(ctx.history),
   ]);
+
+  const PAID_FOR_W = 50;
+  setFont(doc, 7.4, "normal");
+  const payRows = groups.map((g, gi) => ({
+    cells: [
+      { text: g.txn.installmentNo || gi + 1 },
+      { text: fmtDate(g.txn.date), bold: true },
+      { text: receiptNumber(g.txn, ctx.student, ctx.prefix), maxW: 34 },
+      {
+        text: g.txn.paymentMode || g.txn.items?.[0]?.paymentMode || "—",
+        maxW: 18,
+      },
+      {
+        lines: doc.splitTextToSize(
+          g.lines.map((ln) => `${ln.name} ${fmt(ln.amount)}`).join(", "),
+          PAID_FOR_W,
+        ),
+        color: COL.text,
+        size: 7.4,
+      },
+      { text: rs(g.s.paidNow), color: COL.green, bold: true },
+      { text: rs(g.s.balance), color: g.s.balance > 0 ? COL.red : COL.green },
+    ],
+  }));
+
+  // ── Keep the invoice on ONE page ──────────────────────────────────────────
+  // Try layouts from roomiest to most compact and use the first that fits:
+  //   0: normal rows + totals box   1: tighter rows + totals box
+  //   2: tight rows + one-line totals strip
+  // (Only students with very many payments, roughly 10+, still need page 2;
+  //  tables then continue on the next page with their headers repeated.)
+  const LIMIT = 252; // last y where the totals may end so banner + signatures still fit
+  const layouts = [
+    { rh: 7.2, compactTotals: false },
+    { rh: 6, compactTotals: false },
+    { rh: 5.4, compactTotals: true },
+    { rh: 4.9, compactTotals: true },
+  ];
+  const tableH = (rowsH) => 3 + 8 + rowsH + 8 + 5; // title + header + rows + footer + gap
+  const fits = (L) =>
+    y +
+      tableH(rows.length * L.rh) +
+      tableH(payRows.reduce((a, r) => a + rowHeight(r, L.rh), 0)) +
+      (L.compactTotals ? 18 : 32) <=
+    (L.compactTotals ? LIMIT + 9 : LIMIT); // compact: slimmer banner + signatures
+  const layout = layouts.find(fits) || layouts[layouts.length - 1];
+  const rh = layout.rh;
 
   // 1. Category summary with the dates each category was paid
   y = sectionTitle(doc, y, "FEE SUMMARY BY CATEGORY");
@@ -1014,104 +1295,107 @@ function drawFinalInvoicePage(doc, ctx, hidden) {
       },
       null,
     ],
+
+    { rh },
   );
 
-  // 2. Every payment with date, receipt, mode and what it paid for
+  // 2. One row per payment; the fees it covered are listed inside the row
   y = ensureSpace(doc, y, 30);
   y = sectionTitle(doc, y, "PAYMENT-WISE DETAILS");
   const payCols = [
     { label: "#", x: M + 3 },
-    { label: "Paid On", x: M + 10 },
-    { label: "Receipt No", x: M + 35 },
-    { label: "Mode", x: M + 79 },
-    { label: "Fee Category", x: M + 101 },
+    { label: "Paid On", x: M + 9 },
+    { label: "Receipt No", x: M + 31 },
+    { label: "Mode", x: M + 67 },
+    { label: "Paid For", x: M + 87 },
     { label: "Amount", x: M + 155, align: "right" },
     { label: "Balance After", x: M + CW - 3, align: "right" },
   ];
-  const payRows = [];
-  groups.forEach((g, gi) => {
-    const fill = gi % 2 === 0 ? COL.stripe : COL.white;
-    g.lines.forEach((ln, li) => {
-      const first = li === 0;
-      payRows.push({
-        fill,
-        cells: [
-          { text: first ? g.txn.installmentNo || gi + 1 : "" },
-          { text: first ? fmtDate(g.txn.date) : "", bold: true },
-          {
-            text: first ? receiptNumber(g.txn, ctx.student, ctx.prefix) : "",
-            maxW: 42,
-          },
-          {
-            text: first
-              ? g.txn.paymentMode || g.txn.items?.[0]?.paymentMode || "—"
-              : "",
-            maxW: 20,
-          },
-          { text: ln.name, maxW: 40 },
-          { text: rs(ln.amount), color: COL.green },
-          {
-            text: first ? rs(g.s.balance) : "",
-            color: g.s.balance > 0 ? COL.red : COL.green,
-          },
-        ],
-      });
-    });
-    if (g.lines.length > 1) {
-      payRows.push({
-        fill,
-        cells: [
-          { text: "" },
-          { text: "" },
-          { text: "" },
-          { text: "" },
-          { text: "Payment total", bold: true, color: COL.muted },
-          { text: rs(g.s.paidNow), bold: true, color: COL.green },
-          { text: "" },
-        ],
-      });
-    }
-  });
-  const totalPaid = groups.reduce((a, g) => a + g.s.paidNow, 0);
-  y = drawTable(doc, y, payCols, payRows, [
-    null,
-    { text: "TOTAL" },
-    { text: `${groups.length} payment(s)` },
-    null,
-    null,
-    { text: rs(totalPaid), color: [125, 223, 176] },
-    {
-      text: rs(t.balance),
-      color: t.balance > 0 ? [249, 168, 168] : [125, 223, 176],
-    },
-  ]);
 
-  // 3. Totals + words
-  y = drawSummaryBlock(
+  const totalPaid = groups.reduce((a, g) => a + g.s.paidNow, 0);
+  y = drawTable(
     doc,
     y,
+    payCols,
+    payRows,
     [
-      { label: "Total Fees", value: t.total },
-      { label: "Total Paid", value: t.paid, color: COL.green },
+      null,
+      { text: "TOTAL" },
+      { text: `${groups.length} payment(s)` },
+      null,
+      null,
+      { text: rs(totalPaid), color: [125, 223, 176] },
       {
-        label: "Balance Due",
-        value: t.balance,
-        color: t.balance > 0 ? COL.red : COL.green,
-        strong: true,
-        divider: true,
+        text: rs(t.balance),
+        color: t.balance > 0 ? [249, 168, 168] : [125, 223, 176],
       },
     ],
-    "Total amount received (in words)",
-    t.paid,
+    { rh },
   );
 
+  // 3. Totals + words (compact one-line strip when space is tight)
+  if (layout.compactTotals) {
+    y = ensureSpace(doc, y, 16);
+    doc.setFillColor(...COL.light);
+    doc.setDrawColor(...COL.line);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(M, y, CW, 13, 2, 2, "FD");
+    const parts = [
+      ["Total Fees", t.total, COL.navy],
+      ["Total Paid", t.paid, COL.green],
+      ["Balance Due", t.balance, t.balance > 0 ? COL.red : COL.green],
+    ];
+    const pw = CW / 3;
+    parts.forEach(([l, v, c], i) => {
+      const x = M + i * pw + pw / 2;
+      setFont(doc, 8, "normal", COL.muted);
+      const lw = doc.getTextWidth(`${l}: `);
+      setFont(doc, 10, "bold", c);
+      const vw = doc.getTextWidth(rs(v));
+      const sx = x - (lw + vw) / 2;
+      setFont(doc, 8, "normal", COL.muted);
+      doc.text(`${l}: `, sx, y + 5.5);
+      setFont(doc, 10, "bold", c);
+      doc.text(rs(v), sx + lw, y + 5.5);
+    });
+    setFont(doc, 8, "italic", COL.muted);
+    doc.text(`Total received: ${amountInWords(t.paid)}`, PAGE_W / 2, y + 10.5, {
+      align: "center",
+    });
+    y += 18;
+  } else {
+    y = drawSummaryBlock(
+      doc,
+      y,
+      [
+        { label: "Total Fees", value: t.total },
+        { label: "Total Paid", value: t.paid, color: COL.green },
+        {
+          label: "Balance Due",
+          value: t.balance,
+          color: t.balance > 0 ? COL.red : COL.green,
+          strong: true,
+          divider: true,
+        },
+      ],
+      "Total amount received (in words)",
+      t.paid,
+    );
+  }
+
   // 4. Status banner
-  y = ensureSpace(doc, y, 14);
+  const BH = layout.compactTotals ? 7.5 : 9;
+  y = ensureSpace(doc, y - 2, BH + 3);
   doc.setFillColor(...(isFull ? [237, 247, 241] : [253, 240, 240]));
   doc.setDrawColor(...(isFull ? COL.green : COL.red));
   doc.setLineWidth(0.5);
-  doc.roundedRect(M, y, CW, 11, 2, 2, "FD");
-  setFont(doc, 10, "bold", isFull ? COL.green : COL.red);
+  doc.roundedRect(M, y, CW, BH, 2, 2, "FD");
+  setFont(
+    doc,
+    layout.compactTotals ? 9 : 10,
+    "bold",
+    isFull ? COL.green : COL.red,
+  );
   doc.text(
     isFull
       ? "ALL FEES PAID IN FULL — NO DUES PENDING"
@@ -1119,10 +1403,289 @@ function drawFinalInvoicePage(doc, ctx, hidden) {
           t.balance,
         )}. Final invoice is issued once fully paid.`,
     PAGE_W / 2,
-    y + 7,
+    y + BH / 2 + 1.5,
     { align: "center" },
   );
-  drawSignatures(doc, y + 14);
+  drawSignatures(doc, y + BH + (layout.compactTotals ? -1 : 1.5), {
+    compact: layout.compactTotals,
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SCHOOL-SPECIFIC FORMATS
+// A school listed here gets an extra "Fee Letter" option (parent fee-due
+// letter, printed black & white on school letterhead). Other schools are
+// unaffected. Add more schools by adding entries to this list.
+// ═════════════════════════════════════════════════════════════════════════════
+export const SCHOOL_FORMATS = [
+  {
+    id: "fazeelah",
+    match: ({ name, prefix }) =>
+      /fazeelah/i.test(name || "") || /^FAZEEL/i.test(prefix || ""),
+    // Printed under the school name, underlined — e.g.
+    // "(Affiliated to CBSE, New Delhi – Affiliation No. 123456)".
+    // Leave "" to hide the line.
+    affiliation: "",
+    logoBothSides: true,
+  },
+];
+
+export function getSchoolFormat(school, prefix) {
+  return (
+    SCHOOL_FORMATS.find((f) => f.match({ name: school?.name, prefix })) || null
+  );
+}
+
+export function academicYearLabel(d = new Date()) {
+  // Indian academic year starts in June
+  const y = d.getFullYear();
+  const start = d.getMonth() >= 5 ? y : y - 1;
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}
+
+export const DEFAULT_LETTER_INTRO =
+  "I hope this message finds you well. We would like to bring to your attention an important matter related to school fees for the academic year {AY}. As you are aware, your support in ensuring the timely payment of fee due related to your child is crucial to the smooth operation of our school. We greatly appreciate your continued commitment to your child's education.";
+
+// Letter page (plain black & white, like the printed school letter)
+function drawFeeLetterPage(doc, ctx, L) {
+  const BLACK = [0, 0, 0];
+  const GREY = [70, 70, 70];
+  const LM = 16; // letter margin
+  const LW = PAGE_W - LM * 2;
+  const fmtMoney = (n) => (n === "" || n == null ? "" : fmt(n));
+  const fmtD = (iso) => {
+    if (!iso) return "";
+    const [y, m, d] = String(iso).split("-");
+    return d && m && y ? `${d}-${m}-${y}` : iso;
+  };
+
+  // ── Letterhead ────────────────────────────────────────────────────────────
+  const LOGO = 27;
+  const top = 10;
+  const hasLogo = !!ctx.logo?.dataUrl;
+  if (hasLogo) {
+    drawLogo(doc, ctx.logo, LM, top, LOGO);
+    if (ctx.format?.logoBothSides)
+      drawLogo(doc, ctx.logo, PAGE_W - LM - LOGO, top, LOGO);
+  }
+  const reserve = hasLogo ? LOGO + 4 : 0;
+  const textW = LW - reserve * 2;
+  const cx = PAGE_W / 2;
+
+  const name = (ctx.school.name || "School").toUpperCase();
+  doc.setFont("helvetica", "bold");
+  let size = 22;
+  doc.setFontSize(size);
+  while (size > 13 && doc.getTextWidth(name) > textW) {
+    size -= 0.5;
+    doc.setFontSize(size);
+  }
+  const nameLines =
+    doc.getTextWidth(name) > textW
+      ? doc.splitTextToSize(name, textW).slice(0, 2)
+      : [name];
+  let y = top + 8;
+  setFont(doc, size, "bold", BLACK);
+  nameLines.forEach((ln) => {
+    doc.text(ln, cx, y, { align: "center" });
+    y += size * 0.42;
+  });
+  y += 0.5;
+
+  setFont(doc, 9.5, "normal", GREY);
+  if (ctx.format?.affiliation) {
+    const a = ctx.format.affiliation;
+    doc.text(a, cx, y, { align: "center" });
+    const w = doc.getTextWidth(a);
+    doc.setDrawColor(...GREY);
+    doc.setLineWidth(0.2);
+    doc.line(cx - w / 2, y + 0.8, cx + w / 2, y + 0.8);
+    y += 4.8;
+  }
+  if (ctx.school.address) {
+    doc
+      .splitTextToSize(ctx.school.address, textW)
+      .slice(0, 2)
+      .forEach((ln) => {
+        doc.text(ln, cx, y, { align: "center" });
+        y += 4.6;
+      });
+  }
+  const contact = [
+    ctx.school.email && `E-mail Id: ${ctx.school.email}`,
+    ctx.school.phone && `Ph.No: ${ctx.school.phone}`,
+  ]
+    .filter(Boolean)
+    .join("   ");
+  if (contact) {
+    doc.text(fit(doc, contact, textW), cx, y, { align: "center" });
+    y += 4.6;
+  }
+  y = Math.max(y, top + (hasLogo ? LOGO : 0)) + 2;
+  doc.setDrawColor(...BLACK);
+  doc.setLineWidth(0.9);
+  doc.line(LM - 4, y, PAGE_W - LM + 4, y);
+  y += 9;
+
+  // ── Salutation + S.No ─────────────────────────────────────────────────────
+  setFont(doc, 11.5, "normal", BLACK);
+  doc.text("Dear Parent,", LM + 4, y);
+  if (L.serialNo) {
+    setFont(doc, 11.5, "bold", BLACK);
+    const val = ` ${L.serialNo}`;
+    const vw = doc.getTextWidth(val);
+    doc.text(val, PAGE_W - LM - 4, y, { align: "right" });
+    const lbl = "S.No:";
+    const lw = doc.getTextWidth(lbl);
+    const lx = PAGE_W - LM - 4 - vw - lw;
+    doc.text(lbl, lx, y);
+    doc.setLineWidth(0.25);
+    doc.line(lx, y + 0.9, lx + lw, y + 0.9);
+  }
+  y += 8;
+
+  // ── Intro paragraph (justified) ───────────────────────────────────────────
+  const intro = (L.intro || DEFAULT_LETTER_INTRO).replace(
+    /\{AY\}/g,
+    L.academicYear || academicYearLabel(),
+  );
+  setFont(doc, 10, "normal", BLACK);
+  doc.setFont("times", "normal");
+  doc.setFontSize(11);
+  const introLines = doc.splitTextToSize(intro, LW - 4);
+  doc.text(introLines, LM + 2, y, {
+    maxWidth: LW - 4,
+    align: "justify",
+    lineHeightFactor: 1.25,
+  });
+  y += introLines.length * 11 * 0.3528 * 1.25 + 2;
+
+  // ── Grid table helper (black borders) ─────────────────────────────────────
+  const grid = (x, w, labelW, rows, rh = 7) => {
+    doc.setDrawColor(...BLACK);
+    doc.setLineWidth(0.3);
+    rows.forEach(([label, value, bold]) => {
+      doc.rect(x, y, labelW, rh);
+      doc.rect(x + labelW, y, w - labelW, rh);
+      setFont(doc, 10, bold ? "bold" : "normal", BLACK);
+      doc.text(fit(doc, label, labelW - 4), x + 2.5, y + rh / 2 + 1.4);
+      setFont(doc, 10, bold ? "bold" : "normal", BLACK);
+      doc.text(
+        fit(doc, String(value ?? ""), w - labelW - 5),
+        x + labelW + 3,
+        y + rh / 2 + 1.4,
+      );
+      y += rh;
+    });
+  };
+
+  // ── Student particulars ───────────────────────────────────────────────────
+  setFont(doc, 10, "bold", BLACK);
+  doc.text("Student Particulars: -", LM + 2, y + 1);
+  y += 3;
+  const P = L.particulars || {};
+  grid(LM + 2, 158, 52, [
+    ["Admission Number:", P.admissionNumber || ""],
+    ["Student Name:", (ctx.student.name || "").toUpperCase()],
+    ["Class:", (P.className || ctx.student.course || "").toUpperCase()],
+    ["Father Name:", (P.fatherName || "").toUpperCase()],
+    ["Phone Number:", P.phones || ctx.student.phone || ""],
+  ]);
+  y += 7;
+
+  // ── Fee particulars ───────────────────────────────────────────────────────
+  setFont(doc, 10, "bold", BLACK);
+  doc.text(`${L.termLabel || "Fee"} Particulars: -`, LM, y + 1);
+  y += 3;
+  const past = Number(L.pastDues || 0);
+  const fee = Number(L.feeAmount || 0);
+  const paid = Number(L.paidAmount || 0);
+  const due = Math.max(0, past + fee - paid);
+  grid(LM, 120, 54, [
+    ["Past Year Due's:", past ? fmtMoney(past) : ""],
+    [`${L.installmentLabel || "Installment Fee"}:`, fmtMoney(fee)],
+    ["Paid:", fmtMoney(paid)],
+    ["Installment Due:", fmtMoney(due), true],
+  ]);
+  y += 7;
+
+  // ── Note + bullets ────────────────────────────────────────────────────────
+  if (L.note) {
+    setFont(doc, 10, "normal", BLACK);
+    const lbl = "Note:";
+    doc.text(lbl, LM - 2, y);
+    const lw = doc.getTextWidth(lbl);
+    doc.setLineWidth(0.25);
+    doc.line(LM - 2, y + 0.9, LM - 2 + lw, y + 0.9);
+    const lines = doc.splitTextToSize(L.note, LW - lw - 2);
+    doc.text(lines, LM - 2 + lw + 1.5, y);
+    y += lines.length * 4.6 + 3.5;
+  }
+  const bullets = String(L.bullets || "")
+    .split("\n")
+    .map((b) => b.trim())
+    .filter(Boolean);
+  bullets.forEach((b) => {
+    const bold = b.startsWith("*");
+    const text = bold ? b.replace(/^\*+\s*/, "") : b;
+    setFont(doc, 10.5, bold ? "bold" : "normal", BLACK);
+    doc.circle(LM + 9, y - 1.2, 0.7, "F");
+    const lines = doc.splitTextToSize(text, LW - 18);
+    doc.text(lines, LM + 14, y);
+    y += lines.length * 4.8 + 0.6;
+  });
+
+  // ── Tear-off slip (optional) ──────────────────────────────────────────────
+  const S = L.slip || {};
+  if (S.enabled) {
+    y += 6;
+    doc.setLineWidth(0.6);
+    doc.setLineDashPattern([2, 1.2], 0);
+    doc.line(LM - 2, y, PAGE_W - LM + 2, y);
+    doc.setLineDashPattern([], 0);
+    y += 10;
+    const title = (S.title || "STUDENT MOVEMENT INTIMATION SLIP").toUpperCase();
+    setFont(doc, 10.5, "bold", BLACK);
+    doc.text(title, cx, y, { align: "center" });
+    const tw = doc.getTextWidth(title);
+    doc.setLineWidth(0.25);
+    doc.line(cx - tw / 2, y + 0.9, cx + tw / 2, y + 0.9);
+    y += 9;
+    if (S.subtitle) {
+      setFont(doc, 11, "bold", BLACK);
+      doc.text(S.subtitle, LM - 2, y);
+      y += 5;
+    }
+    y += 2;
+    const rows = [
+      ["Student Name:", (ctx.student.name || "").toUpperCase()],
+      ["Class", (P.className || ctx.student.course || "").toUpperCase()],
+      ["Father Name:", (P.fatherName || "").toUpperCase()],
+      ["Phone No:", P.phones || ctx.student.phone || ""],
+    ];
+    if (S.leaveDate) rows.push(["Date of Leaving:", fmtD(S.leaveDate)]);
+    if (S.returnDate) rows.push(["Date of Return:", fmtD(S.returnDate)]);
+    grid(LM - 2, LW + 4, 50, rows, 7.6);
+    y += 12;
+    setFont(doc, 10.5, "normal", BLACK);
+    [
+      ["Signature of Parent/ Guardian", LM - 2, "left"],
+      ["Signature of Student", cx, "center"],
+      ["Signature of Desk Incharge", PAGE_W - LM + 2, "right"],
+    ].forEach(([t, x, align]) => {
+      doc.text(t, x, y, { align });
+      const w = doc.getTextWidth(t);
+      const x0 = align === "left" ? x : align === "center" ? x - w / 2 : x - w;
+      doc.setLineWidth(0.25);
+      doc.line(x0, y + 0.9, x0 + w, y + 0.9);
+    });
+  } else {
+    // signatures when there is no slip
+    y = Math.max(y + 22, 245);
+    setFont(doc, 10.5, "normal", BLACK);
+    doc.text("Signature of Accountant", LM, y);
+    doc.text("Signature of Principal", PAGE_W - LM, y, { align: "right" });
+  }
 }
 
 /**
@@ -1162,6 +1725,10 @@ export async function generateFeeReceiptPdf(o) {
     });
     filename = `Fee_Receipts_All_${safeName}.pdf`;
     title = `All receipts (${history.length})`;
+  } else if (o.mode === "letter") {
+    drawFeeLetterPage(doc, { ...ctx, format: o.format }, o.letter || {});
+    filename = `Fee_Letter_${safeName}.pdf`;
+    title = "Fee letter";
   } else if (o.mode === "final" && history.length > 0) {
     drawFinalInvoicePage(doc, ctx, o.hiddenRows);
     const no = finalInvoiceNumber(o.student, o.invoicePrefix);
@@ -1179,7 +1746,7 @@ export async function generateFeeReceiptPdf(o) {
     title = "Fee statement";
   }
 
-  drawFooters(doc, ctx.school.name);
+  if (o.mode !== "letter") drawFooters(doc, ctx.school.name);
   doc.setProperties({
     title: filename.replace(/\.pdf$/, ""),
     subject: "Fee receipt",
@@ -1409,6 +1976,467 @@ function FinalPaymentsTable({ history, student, invoicePrefix }) {
   );
 }
 
+// ── Live on-screen preview of a generated PDF ───────────────────────────────
+// Renders the PDF pages as images with pdf.js, so the letter is visible right
+// inside the window on every device (phones can't show PDFs in an <iframe>).
+let pdfJsPromise = null;
+function ensurePdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (!pdfJsPromise) {
+    const base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174";
+    pdfJsPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = `${base}/pdf.min.js`;
+      s.async = true;
+      s.onload = () => {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = `${base}/pdf.worker.min.js`;
+        resolve(window.pdfjsLib);
+      };
+      s.onerror = () => {
+        pdfJsPromise = null;
+        reject(new Error("Could not load the PDF viewer"));
+      };
+      document.head.appendChild(s);
+    });
+  }
+  return pdfJsPromise;
+}
+
+function LivePdfPreview({ makePdf, deps, onOpen }) {
+  const wrapRef = useRef(null);
+  const [pages, setPages] = useState([]); // [{src, w, h}]
+  const [status, setStatus] = useState("loading"); // loading | ready | updating | error
+  const [fallbackUrl, setFallbackUrl] = useState(null);
+  const jobRef = useRef(0);
+
+  useEffect(() => {
+    const job = ++jobRef.current;
+    setStatus((st) => (st === "ready" ? "updating" : st));
+    const t = setTimeout(async () => {
+      try {
+        const { doc } = await makePdf();
+        if (job !== jobRef.current) return;
+        let lib = null;
+        try {
+          lib = await ensurePdfJs();
+        } catch {
+          lib = null;
+        }
+        if (!lib) {
+          // pdf.js unavailable → show the PDF in a frame instead
+          const url = doc.output("bloburl");
+          setFallbackUrl((old) => {
+            if (old) URL.revokeObjectURL(old);
+            return url;
+          });
+          setStatus("ready");
+          return;
+        }
+        const pdf = await lib.getDocument({ data: doc.output("arraybuffer") })
+          .promise;
+        const width = Math.max(320, wrapRef.current?.clientWidth || 600);
+        const out = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const base = page.getViewport({ scale: 1 });
+          const scale =
+            (width / base.width) * Math.min(2, window.devicePixelRatio || 1);
+          const vp = page.getViewport({ scale });
+          const canvas = document.createElement("canvas");
+          canvas.width = vp.width;
+          canvas.height = vp.height;
+          await page.render({
+            canvasContext: canvas.getContext("2d"),
+            viewport: vp,
+          }).promise;
+          out.push({
+            src: canvas.toDataURL("image/png"),
+            w: vp.width,
+            h: vp.height,
+          });
+        }
+        if (job !== jobRef.current) return;
+        setPages(out);
+        setStatus("ready");
+      } catch (e) {
+        console.error("[LivePdfPreview]", e);
+        if (job === jobRef.current) setStatus("error");
+      }
+    }, 450); // wait until typing pauses
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  useEffect(
+    () => () => fallbackUrl && URL.revokeObjectURL(fallbackUrl),
+    [fallbackUrl],
+  );
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10.5px] font-bold uppercase tracking-wider text-[#1C3044]">
+          Letter preview
+        </div>
+        <div className="flex items-center gap-2">
+          {status === "updating" && (
+            <span className="flex items-center gap-1 text-[10.5px] text-[#4A6B80]">
+              <Loader2 size={11} className="animate-spin" /> updating…
+            </span>
+          )}
+          {onOpen && (
+            <button
+              onClick={onOpen}
+              className="flex items-center gap-1 text-[11px] font-semibold text-[#27435B] hover:underline"
+            >
+              <Eye size={12} /> Full screen
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="rounded-xl border border-[#d0e2ee] bg-[#e9eef2] p-2 sm:p-3 space-y-3">
+        {status === "loading" && (
+          <div className="aspect-[210/297] bg-white rounded-md flex items-center justify-center text-[12px] text-[#4A6B80] gap-2">
+            <Loader2 size={14} className="animate-spin" /> Preparing letter…
+          </div>
+        )}
+        {status === "error" && (
+          <div className="aspect-[210/297] bg-white rounded-md flex items-center justify-center text-[12px] text-[#a33030] px-6 text-center">
+            Couldn't draw the preview here. Use Preview or Download above.
+          </div>
+        )}
+        {fallbackUrl ? (
+          <iframe
+            title="Letter preview"
+            src={`${fallbackUrl}#toolbar=0&view=FitH`}
+            className="w-full aspect-[210/297] bg-white rounded-md"
+          />
+        ) : (
+          pages.map((pg, i) => (
+            <img
+              key={i}
+              src={pg.src}
+              alt={`Letter page ${i + 1}`}
+              className={`w-full bg-white rounded-md shadow-sm transition-opacity ${
+                status === "updating" ? "opacity-60" : ""
+              }`}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Fee Letter form (school-specific format) ────────────────────────────────
+const LETTER_SETTINGS_KEYS = [
+  "termLabel",
+  "installmentLabel",
+  "intro",
+  "note",
+  "bullets",
+  "slip",
+];
+const letterStoreKey = (prefix) => `feeLetterSettings:${cleanPrefix(prefix)}`;
+
+function loadLetterSettings(prefix) {
+  try {
+    return (
+      JSON.parse(localStorage.getItem(letterStoreKey(prefix)) || "{}") || {}
+    );
+  } catch {
+    return {};
+  }
+}
+function saveLetterSettings(prefix, letter) {
+  try {
+    const keep = {};
+    LETTER_SETTINGS_KEYS.forEach((k) => (keep[k] = letter[k]));
+    localStorage.setItem(letterStoreKey(prefix), JSON.stringify(keep));
+  } catch {}
+}
+
+function LField({ label, children, wide }) {
+  return (
+    <label className={`block ${wide ? "sm:col-span-2" : ""}`}>
+      <span className="block text-[10px] font-bold uppercase tracking-wider text-[#4A6B80] mb-1">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+const inputCls =
+  "w-full border border-[#c8dff0] rounded-lg px-2.5 py-1.5 text-[12.5px] text-[#1C3044] outline-none focus:border-[#27435B] bg-white";
+
+function FeeLetterForm({
+  letter,
+  setLetter,
+  particularsLoading,
+  particularsInfo: info,
+}) {
+  const set = (k, v) => setLetter((L) => ({ ...L, [k]: v }));
+  const setP = (k, v) =>
+    setLetter((L) => ({ ...L, particulars: { ...L.particulars, [k]: v } }));
+  const setS = (k, v) =>
+    setLetter((L) => ({ ...L, slip: { ...L.slip, [k]: v } }));
+  const due = Math.max(
+    0,
+    Number(letter.pastDues || 0) +
+      Number(letter.feeAmount || 0) -
+      Number(letter.paidAmount || 0),
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="text-[11.5px] text-[#4A6B80] bg-[#f0f7fc] border border-[#d6e7f3] rounded-lg px-3 py-2">
+        Parent fee letter in your school's printed format. Check the details —
+        the letter on screen updates as you type. Use <b>Preview</b>,{" "}
+        <b>Print</b> or <b>Download</b>. Term, notes and slip settings are
+        remembered for the next letter.
+      </div>
+
+      <div className="border border-[#e0eef6] rounded-xl p-3.5">
+        <div className="text-[10.5px] font-bold uppercase tracking-wider text-[#1C3044] mb-2.5">
+          Student particulars{" "}
+          {particularsLoading && (
+            <span className="font-normal text-[#4A6B80]">· loading…</span>
+          )}
+        </div>
+        {info?.error && (
+          <div className="mb-2.5 text-[11.5px] text-[#a33030] bg-[#fdf0f0] border border-[#f5c2c2] rounded-lg px-3 py-1.5">
+            Couldn't load student details ({info.error}). Make sure the updated
+            server file is deployed — or type the details below.
+          </div>
+        )}
+        {info && !info.error && !info.found && (
+          <div className="mb-2.5 text-[11.5px] text-[#92400e] bg-[#fef6e7] border border-[#fde68a] rounded-lg px-3 py-1.5">
+            This fee record isn't linked to a student profile (no match by link,
+            email or name). Type the details below.
+          </div>
+        )}
+        {info?.found && (
+          <div className="mb-2.5 text-[11.5px] text-[#1a6e3e] bg-[#edf7f1] border border-[#b2dfc6] rounded-lg px-3 py-1.5">
+            Filled from the student's profile
+            {info.matchedBy && info.matchedBy !== "link"
+              ? ` (matched by ${info.matchedBy})`
+              : ""}
+            .
+            {!info.fatherName &&
+              !info.guardianName &&
+              " Father's name is empty in the profile."}
+          </div>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <LField label="S.No">
+            <input
+              className={inputCls}
+              value={letter.serialNo}
+              onChange={(e) => set("serialNo", e.target.value)}
+            />
+          </LField>
+          <LField label="Admission Number">
+            <input
+              className={inputCls}
+              value={letter.particulars.admissionNumber}
+              onChange={(e) => setP("admissionNumber", e.target.value)}
+            />
+            {info?.found &&
+              info.admissionNumber &&
+              info.studentCode &&
+              info.admissionNumber !== info.studentCode && (
+                <span className="flex flex-wrap gap-1.5 mt-1.5">
+                  {[
+                    ["Admission No", info.admissionNumber],
+                    ["Student ID", info.studentCode],
+                  ].map(([l, v]) => (
+                    <button
+                      type="button"
+                      key={l}
+                      onClick={() => setP("admissionNumber", v)}
+                      className={`text-[10.5px] px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                        letter.particulars.admissionNumber === v
+                          ? "bg-[#1C3044] text-white border-[#1C3044]"
+                          : "bg-white text-[#27435B] border-[#c8dff0]"
+                      }`}
+                    >
+                      {l}: {v}
+                    </button>
+                  ))}
+                </span>
+              )}
+          </LField>
+          <LField label="Class">
+            <input
+              className={inputCls}
+              value={letter.particulars.className}
+              onChange={(e) => setP("className", e.target.value)}
+            />
+          </LField>
+          <LField label="Father Name">
+            <input
+              className={inputCls}
+              value={letter.particulars.fatherName}
+              onChange={(e) => setP("fatherName", e.target.value)}
+            />
+          </LField>
+          <LField label="Phone Number(s)" wide>
+            <input
+              className={inputCls}
+              value={letter.particulars.phones}
+              onChange={(e) => setP("phones", e.target.value)}
+            />
+          </LField>
+        </div>
+      </div>
+
+      <div className="border border-[#e0eef6] rounded-xl p-3.5">
+        <div className="text-[10.5px] font-bold uppercase tracking-wider text-[#1C3044] mb-2.5">
+          Fee particulars
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <LField label="Academic year">
+            <input
+              className={inputCls}
+              value={letter.academicYear}
+              onChange={(e) => set("academicYear", e.target.value)}
+            />
+          </LField>
+          <LField label="Term title">
+            <input
+              className={inputCls}
+              placeholder="I TERM"
+              value={letter.termLabel}
+              onChange={(e) => set("termLabel", e.target.value)}
+            />
+          </LField>
+          <LField label="Instalment label">
+            <input
+              className={inputCls}
+              placeholder="1st & 2nd Installment Fee"
+              value={letter.installmentLabel}
+              onChange={(e) => set("installmentLabel", e.target.value)}
+            />
+          </LField>
+          <LField label="Past year dues (₹)">
+            <input
+              type="number"
+              min="0"
+              className={inputCls}
+              value={letter.pastDues}
+              onChange={(e) => set("pastDues", e.target.value)}
+            />
+          </LField>
+          <LField label="Instalment fee (₹)">
+            <input
+              type="number"
+              min="0"
+              className={inputCls}
+              value={letter.feeAmount}
+              onChange={(e) => set("feeAmount", e.target.value)}
+            />
+          </LField>
+          <LField label="Paid (₹)">
+            <input
+              type="number"
+              min="0"
+              className={inputCls}
+              value={letter.paidAmount}
+              onChange={(e) => set("paidAmount", e.target.value)}
+            />
+          </LField>
+        </div>
+        <div className="mt-3 flex items-center justify-between bg-[#fdf6f6] border border-[#f5c2c2] rounded-lg px-3 py-2">
+          <span className="text-[11.5px] font-bold text-[#a33030] uppercase tracking-wide">
+            Instalment due
+          </span>
+          <span className="text-[15px] font-bold text-[#a33030]">
+            ₹{fmt(due)}
+          </span>
+        </div>
+      </div>
+
+      <div className="border border-[#e0eef6] rounded-xl p-3.5 space-y-3">
+        <div className="text-[10.5px] font-bold uppercase tracking-wider text-[#1C3044]">
+          Message & notes
+        </div>
+        <LField label="Letter text ({AY} = academic year)">
+          <textarea
+            rows={4}
+            className={inputCls}
+            value={letter.intro}
+            onChange={(e) => set("intro", e.target.value)}
+          />
+        </LField>
+        <LField label="Note">
+          <input
+            className={inputCls}
+            value={letter.note}
+            onChange={(e) => set("note", e.target.value)}
+          />
+        </LField>
+        <LField label="Bullet points — one per line, start with * for bold">
+          <textarea
+            rows={4}
+            className={inputCls}
+            placeholder={
+              "*Dusshra Holidays from 10-10-2026 to 21-10-2026\n*School Reopens Date: 22-10-2026\nAttendance is Mandatory"
+            }
+            value={letter.bullets}
+            onChange={(e) => set("bullets", e.target.value)}
+          />
+        </LField>
+      </div>
+
+      <div className="border border-[#e0eef6] rounded-xl p-3.5 space-y-3">
+        <label className="flex items-center gap-2 text-[12.5px] font-semibold text-[#1C3044] cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!letter.slip.enabled}
+            onChange={(e) => setS("enabled", e.target.checked)}
+          />
+          Add tear-off slip (e.g. Student Movement Intimation Slip)
+        </label>
+        {letter.slip.enabled && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <LField label="Slip title">
+              <input
+                className={inputCls}
+                value={letter.slip.title}
+                onChange={(e) => setS("title", e.target.value)}
+              />
+            </LField>
+            <LField label="Slip heading">
+              <input
+                className={inputCls}
+                placeholder="Dusshra Holidays from 10-10-2026 to 21-10-2026"
+                value={letter.slip.subtitle}
+                onChange={(e) => setS("subtitle", e.target.value)}
+              />
+            </LField>
+            <LField label="Date of leaving">
+              <input
+                type="date"
+                className={inputCls}
+                value={letter.slip.leaveDate}
+                onChange={(e) => setS("leaveDate", e.target.value)}
+              />
+            </LField>
+            <LField label="Date of return">
+              <input
+                type="date"
+                className={inputCls}
+                value={letter.slip.returnDate}
+                onChange={(e) => setS("returnDate", e.target.value)}
+              />
+            </LField>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export function InvoiceModal({
   student,
@@ -1416,10 +2444,12 @@ export function InvoiceModal({
   schoolName,
   schoolAddress,
   schoolPhone,
+  schoolEmail,
   schoolLogoUrl,
   invoicePrefix,
 }) {
   const [logoUrl, setLogoUrl] = useState(schoolLogoUrl || null);
+  const [schoolExtra, setSchoolExtra] = useState({}); // filled from /mySchool if props are missing
   const [fallbackRows, setFallbackRows] = useState(() =>
     buildCategoryRows(student),
   );
@@ -1431,26 +2461,89 @@ export function InvoiceModal({
   const [busy, setBusy] = useState(""); // which action is generating
   const [preview, setPreview] = useState(null);
 
+  // School-specific Fee Letter (only for schools listed in SCHOOL_FORMATS)
+  const [letter, setLetter] = useState(() => ({
+    serialNo: String(student.id || ""),
+    academicYear: academicYearLabel(),
+    termLabel: "I TERM",
+    installmentLabel: "1st & 2nd Installment Fee",
+    pastDues: "",
+    feeAmount: "",
+    paidAmount: "",
+    intro: DEFAULT_LETTER_INTRO,
+    note: "Please ensure that all payments are made by the specified due dates. Thanks for your cooperation.",
+    bullets: "",
+    particulars: {
+      admissionNumber: "",
+      className: student.course || "",
+      fatherName: "",
+      phones: student.phone || "",
+    },
+    ...loadLetterSettings(invoicePrefix),
+    slip: {
+      enabled: false,
+      title: "Student Movement Intimation Slip",
+      subtitle: "",
+      leaveDate: "",
+      returnDate: "",
+      ...(loadLetterSettings(invoicePrefix).slip || {}),
+    },
+  }));
+  const [particularsLoading, setParticularsLoading] = useState(false);
+  const [particularsInfo, setParticularsInfo] = useState(null); // { found, matchedBy, admissionNumber, studentCode } | { error }
+
   const school = {
-    name: schoolName,
-    address: schoolAddress,
-    phone: schoolPhone,
+    name: schoolName || schoolExtra.name,
+    address: schoolAddress || schoolExtra.address,
+    phone: schoolPhone || schoolExtra.phone,
+    email: schoolEmail || schoolExtra.email,
   };
 
-  // ── Logo ──
+  const schoolFormat = getSchoolFormat(school, invoicePrefix);
+
+  // ── Logo + school details ──
+  // Uses the props when given; otherwise asks /api/school/logo and then
+  // /api/finance/mySchool, so the receipt always gets the logo if one exists.
   useEffect(() => {
-    if (logoUrl) return;
+    if (schoolLogoUrl) setLogoUrl(schoolLogoUrl);
+  }, [schoolLogoUrl]);
+
+  useEffect(() => {
+    let alive = true;
+    const headers = { Authorization: `Bearer ${getToken()}` };
     (async () => {
+      let found = schoolLogoUrl || null;
+      if (!found) {
+        try {
+          const res = await fetch(`${API_URL}/api/school/logo`, { headers });
+          if (res.ok) found = (await res.json())?.logoUrl || null;
+        } catch {}
+      }
       try {
-        const res = await fetch(`${API_URL}/api/school/logo`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.logoUrl) setLogoUrl(data.logoUrl);
+        if (!found || !schoolPhone || !schoolEmail || !schoolAddress) {
+          const res = await fetch(`${API_URL}/api/finance/mySchool`, {
+            headers,
+          });
+          if (res.ok) {
+            const d = await res.json();
+            found = found || d?.logoUrl || null;
+            if (alive)
+              setSchoolExtra({
+                name: d?.name,
+                address: [d?.address, d?.city].filter(Boolean).join(", "),
+                phone: d?.phone,
+                email: d?.email,
+              });
+          }
         }
       } catch {}
+      if (alive && found) setLogoUrl(found);
+      // warm the PDF logo cache so the first Preview/Download already has it
+      if (found) loadLogoForPDF(found);
     })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // ── Payment history (+ category fallback for students with no payments) ──
@@ -1507,6 +2600,68 @@ export function InvoiceModal({
     history.find((t) => t.id === selectedId) || history[0] || null;
   const isReceipt = view === "receipt" && !!selectedTxn;
   const isFinal = view === "final" && history.length > 0;
+  const isLetter = view === "letter" && !!schoolFormat;
+
+  // Fill fee totals once payments are loaded (user can still edit them)
+  useEffect(() => {
+    if (loading) return;
+    const t = sumRows(statementRowsFrom(history, fallbackRows));
+    setLetter((L) => ({
+      ...L,
+      feeAmount: L.feeAmount === "" ? t.total : L.feeAmount,
+      paidAmount: L.paidAmount === "" ? t.paid : L.paidAmount,
+    }));
+  }, [loading]);
+
+  // Load admission no. / father name / phones the first time the tab opens
+  const particularsLoaded = useRef(false);
+  useEffect(() => {
+    if (!isLetter || particularsLoaded.current) return;
+    particularsLoaded.current = true;
+    setParticularsLoading(true);
+    fetch(`${API_URL}/api/finance/studentParticulars/${student.id}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => {
+        setParticularsInfo(d);
+        if (!d?.found) return;
+        setLetter((L) => ({
+          ...L,
+          particulars: {
+            admissionNumber:
+              L.particulars.admissionNumber ||
+              d.admissionNumber ||
+              d.studentCode ||
+              "",
+            className: d.className || L.particulars.className,
+            fatherName:
+              L.particulars.fatherName || d.fatherName || d.guardianName || "",
+            phones: (d.phones || []).join(" ") || L.particulars.phones,
+          },
+        }));
+      })
+      .catch((e) => {
+        console.error("[FeeLetter] studentParticulars failed:", e.message);
+        setParticularsInfo({ error: e.message });
+      })
+      .finally(() => setParticularsLoading(false));
+  }, [isLetter]);
+
+  // Remember term / notes / slip settings for the next letter
+  useEffect(() => {
+    if (schoolFormat) saveLetterSettings(invoicePrefix, letter);
+  }, [
+    letter.termLabel,
+    letter.installmentLabel,
+    letter.intro,
+    letter.note,
+    letter.bullets,
+    letter.slip,
+  ]);
   const paidDates = useMemo(() => categoryPaidDates(history), [history]);
 
   const baseRows = useMemo(
@@ -1520,7 +2675,9 @@ export function InvoiceModal({
   const tot = sumRows(visibleRows);
   const paidPct =
     tot.total > 0 ? Math.min(100, Math.round((tot.paid / tot.total) * 100)) : 0;
-  const docNo = isReceipt
+  const docNo = isLetter
+    ? `Fee Letter · S.No ${letter.serialNo || "—"}`
+    : isReceipt
     ? receiptNumber(selectedTxn, student, invoicePrefix)
     : isFinal
     ? finalInvoiceNumber(student, invoicePrefix)
@@ -1546,6 +2703,13 @@ export function InvoiceModal({
       invoicePrefix,
       fallbackRows,
       hiddenRows: useHidden ? hiddenRows : null,
+      format: schoolFormat,
+      letter: {
+        ...letter,
+        particulars: {
+          ...letter.particulars,
+        },
+      },
     });
 
   const run = async (key, fn) => {
@@ -1586,7 +2750,9 @@ export function InvoiceModal({
     });
   };
 
-  const current = isReceipt
+  const current = isLetter
+    ? { mode: "letter" }
+    : isReceipt
     ? { mode: "receipt", txnId: selectedTxn.id, useHidden: true }
     : { mode: isFinal ? "final" : "statement", useHidden: true };
 
@@ -1597,7 +2763,9 @@ export function InvoiceModal({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-3xl max-h-[94vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden"
+        className={`relative w-full ${
+          isLetter ? "max-w-6xl" : "max-w-3xl"
+        } max-h-[94vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden transition-[max-width] duration-300`}
         onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'DM Sans', sans-serif" }}
       >
@@ -1618,7 +2786,7 @@ export function InvoiceModal({
             )}
             <div className="min-w-0">
               <div className="text-white font-bold text-sm truncate">
-                {schoolName || "Fee Receipts"}
+                {school.name || "Fee Receipts"}
               </div>
               <div className="text-blue-200 text-xs truncate">
                 {student.name} · {student.course || "—"} · {docNo}
@@ -1650,6 +2818,9 @@ export function InvoiceModal({
                 disabled: history.length === 0,
               },
               { k: "statement", label: "Fee Statement", icon: Layers },
+              ...(schoolFormat
+                ? [{ k: "letter", label: "Fee Letter", icon: Mail }]
+                : []),
             ].map((t) => (
               <button
                 key={t.k}
@@ -1689,7 +2860,9 @@ export function InvoiceModal({
               onClick={() => doDownload(current, "dl")}
               disabled={loading || !!busy}
             >
-              {isReceipt
+              {isLetter
+                ? "Download Letter"
+                : isReceipt
                 ? "Download Receipt"
                 : isFinal
                 ? "Download Final Invoice"
@@ -1716,8 +2889,81 @@ export function InvoiceModal({
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-[#4A6B80]">
               <Loader2 size={16} className="animate-spin" /> Loading payments…
             </div>
+          ) : isLetter ? (
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-5 items-start">
+              {/* Letter on screen (first on phones) */}
+              <div className="lg:sticky lg:top-0 lg:order-2">
+                <LivePdfPreview
+                  makePdf={() => build("letter")}
+                  deps={[
+                    letter,
+                    logoUrl,
+                    school.name,
+                    school.address,
+                    school.phone,
+                    school.email,
+                  ]}
+                  onOpen={() => doPreview(current, "pv")}
+                />
+              </div>
+              <div className="lg:order-1">
+                <FeeLetterForm
+                  letter={letter}
+                  setLetter={setLetter}
+                  particularsLoading={particularsLoading}
+                  particularsInfo={particularsInfo}
+                />
+              </div>
+            </div>
           ) : (
             <>
+              {/* School letterhead — same as the PDF */}
+              <div className="border border-[#e0eef6] rounded-xl px-4 py-3 bg-white">
+                <div className="flex items-center gap-3">
+                  {logoUrl && (
+                    <img
+                      src={logoUrl}
+                      alt="School logo"
+                      className="w-14 h-14 sm:w-16 sm:h-16 object-contain flex-shrink-0"
+                      onError={(e) => (e.target.style.display = "none")}
+                    />
+                  )}
+                  <div className="flex-1 min-w-0 text-center">
+                    <div className="text-[15px] sm:text-[18px] font-extrabold tracking-wide text-[#1C3044] uppercase leading-tight">
+                      {school.name || "School"}
+                    </div>
+                    {school.address && (
+                      <div className="text-[11.5px] text-[#4A6B80] mt-0.5">
+                        {school.address}
+                      </div>
+                    )}
+                    {(school.phone || school.email) && (
+                      <div className="text-[11.5px] text-[#4A6B80]">
+                        {[
+                          school.phone && `Phone: ${school.phone}`,
+                          school.email && `Email: ${school.email}`,
+                        ]
+                          .filter(Boolean)
+                          .join("  |  ")}
+                      </div>
+                    )}
+                  </div>
+                  {logoUrl && (
+                    <div className="w-14 sm:w-16 flex-shrink-0 hidden sm:block" />
+                  )}
+                </div>
+                <div className="mt-2.5 border-t-[3px] border-double border-[#1C3044]" />
+                <div className="mt-2 bg-[#1C3044] text-white text-center text-[12px] font-bold tracking-[0.3em] py-1.5 rounded">
+                  {isReceipt
+                    ? "FEE RECEIPT"
+                    : isFinal
+                    ? isFullyPaid
+                      ? "FINAL INVOICE"
+                      : "FEE INVOICE"
+                    : "FEE STATEMENT"}
+                </div>
+              </div>
+
               {/* Student details */}
               <div className="border border-[#e0eef6] rounded-xl p-3.5 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2.5 bg-[#fbfdfe]">
                 {[

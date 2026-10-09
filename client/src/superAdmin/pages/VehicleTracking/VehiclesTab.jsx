@@ -7,6 +7,10 @@
 //   2. there was no timeout, so a request that never returns left `loading`
 //      true forever — the `.finally()` simply never ran.
 // This version aborts after 20s, shows the real error, and offers a retry.
+// UPDATED: new "Route" column — shows the transport route linked to the bus
+// (route vehicle number = reg no) and how many of its stops have a map
+// location. Stop ETAs need both. Also flags stops with wrong / swapped
+// coordinates and a missing school location.
 // The heavy lifting is on the server (vehicle.controller.js) — this file just
 // stops the UI from lying about what is happening.
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -68,6 +72,45 @@ function VehicleStatusBadge({ status }) {
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.dot, display: "inline-block" }} />
       {status === "NODATA" ? "No signal" : (status || "No Data")}
     </span>
+  );
+}
+
+function RouteCell({ route, regNo }) {
+  if (!route) {
+    return (
+      <span
+        title={`No active route has vehicle number ${regNo}. Set it on the route under Transport → Routes to get stop ETAs.`}
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#B45309", fontSize: 12, fontWeight: 600 }}
+      >
+        <AlertTriangle size={12} /> Not linked
+      </span>
+    );
+  }
+  const missing = route.stopCount - route.stopsWithLocation;
+  return (
+    <div style={{ lineHeight: 1.35 }}>
+      <div style={{ fontWeight: 600, fontSize: 13 }}>
+        {route.name}
+        {route.code ? <span style={{ color: "#9CA3AF", fontWeight: 500 }}> ({route.code})</span> : null}
+      </div>
+      <div style={{ fontSize: 11, color: missing ? "#B45309" : "#6B7280" }}>
+        {route.stopCount} stop{route.stopCount === 1 ? "" : "s"}
+        {missing ? ` · ${missing} without location` : " · all mapped"}
+      </div>
+      {route.stopsTooFar > 0 && (
+        <div style={{ fontSize: 11, color: "#B91C1C" }}>
+          {route.stopsTooFar} stop{route.stopsTooFar > 1 ? "s" : ""} with wrong location (ignored)
+        </div>
+      )}
+      {route.stopsSwapped > 0 && (
+        <div style={{ fontSize: 11, color: "#B45309" }}>
+          {route.stopsSwapped} with lat/lng swapped (auto-fixed)
+        </div>
+      )}
+      {route.schoolLocationSet === false && (
+        <div style={{ fontSize: 11, color: "#B45309" }}>School location not set</div>
+      )}
+    </div>
   );
 }
 
@@ -264,19 +307,19 @@ export default function VehiclesTab({ schoolId, schools = [] }) {
       {/* Table */}
       <div style={card}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 600 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 760 }}>
             <thead>
               <tr>
-                {["Reg No", "Vehicle Name", "Type", "GPS Status", "Last Seen", "Status", "Action"].map((h) => (
+                {["Reg No", "Vehicle Name", "Type", "Route", "GPS Status", "Last Seen", "Status", "Action"].map((h) => (
                   <th key={h} style={thS}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", padding: "40px 0" }}><Spinner size={20} /></td></tr>
+                <tr><td colSpan={8} style={{ textAlign: "center", padding: "40px 0" }}><Spinner size={20} /></td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", padding: "40px 0", color: "#9CA3AF" }}>
+                <tr><td colSpan={8} style={{ textAlign: "center", padding: "40px 0", color: "#9CA3AF" }}>
                   {loadError ? "Could not load vehicles." : "No vehicles found. Add one above."}
                 </td></tr>
               ) : filtered.map((v) => (
@@ -291,6 +334,9 @@ export default function VehiclesTab({ schoolId, schools = [] }) {
                     <span style={{ background: "#EEF2FF", color: "#4338CA", padding: "2px 9px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
                       {v.vehicleType || "—"}
                     </span>
+                  </td>
+                  <td style={tdS}>
+                    <RouteCell route={v.route} regNo={v.regNo} />
                   </td>
                   <td style={tdS}>
                     {v.latestLocation

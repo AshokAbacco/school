@@ -6,13 +6,13 @@ android {
     compileSdk = rootProject.ext.compileSdkVersion
 
     defaultConfig {
-        applicationId "com.fazeelah.edu"
+        applicationId "com.abacco.schoolapp"
 
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
 
-        versionCode 5
-        versionName "1.0.4"
+        versionCode 7
+        versionName "1.0.6"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -38,6 +38,10 @@ repositories {
 }
 
 dependencies {
+    // Bus alerts: BusAlertMessagingService extends the push plugin's Firebase service.
+    // The plugin keeps firebase-messaging private, so the app declares it too (same version).
+    implementation "com.google.firebase:firebase-messaging:${rootProject.ext.has('firebaseMessagingVersion') ? rootProject.ext.firebaseMessagingVersion : '25.0.1'}" // bus alerts
+
     implementation fileTree(include: ['*.jar'], dir: 'libs')
 
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"

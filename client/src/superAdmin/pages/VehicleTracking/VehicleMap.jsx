@@ -1,4 +1,4 @@
-// client/src/superAdmin/pages/VehicleTracking/VehicleMap.jsx  (UPDATED)
+// client/src/superAdmin/pages/VehicleTracking/VehicleMap.jsx  (UPDATED: route stops + next-stop ETA in popup)
 // Thin wrapper over the shared animated LiveBusMap so the admin dashboard gets
 // the same smooth, real-time markers as the parent app.
 
@@ -27,6 +27,16 @@ const popupFor = (v) => {
       <div>Type: <b>${esc(v.vehicleType || "—")}</b></div>
       <div>Speed: <b>${p.speed != null ? Math.round(p.speed) : 0} km/h</b></div>
       ${
+        v.schoolName
+          ? `<div style="color:#9CA3AF;font-size:12px">${esc(v.schoolName)}</div>`
+          : ""
+      }
+      ${
+        v.nextStopText
+          ? `<div style="margin-top:4px;color:#4338CA"><b>Next:</b> ${esc(v.nextStopText)}</div>`
+          : ""
+      }
+      ${
         p.address
           ? `<div style="color:#166534;margin-top:4px">${esc(p.address)}</div>`
           : ""
@@ -35,10 +45,15 @@ const popupFor = (v) => {
 };
 
 /**
- * @param vehicles  [{ id, regNo, vehicleName, vehicleType, point, motion, initialTrail }]
+ * @param vehicles  [{ id, regNo, vehicleName, vehicleType, point, motion, initialTrail,
+ *                    schoolName?, nextStopText? }]
+ * @param stops     route stops of the selected bus (see LiveBusMap)
  */
 export default function VehicleMap({
   vehicles = [],
+  stops = [],
+  routeGeometry = null,
+  legend = false,
   fitKey = "init",
   onSelect,
   height,
@@ -46,6 +61,9 @@ export default function VehicleMap({
   return (
     <LiveBusMap
       vehicles={vehicles}
+      stops={stops}
+      routeGeometry={routeGeometry}
+      legend={legend}
       fitKey={fitKey}
       showLabels
       onSelect={onSelect}

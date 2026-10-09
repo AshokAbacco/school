@@ -1,4 +1,8 @@
-// client/src/shared/liveTracking/LiveBusMap.jsx  (NEW FILE)
+// client/src/shared/liveTracking/LiveBusMap.jsx  (UPDATED)
+//   • numbered stop markers coloured by trip state + rich tooltips (hover / tap)
+//   • always-visible labels for "Your stop" and the next stop
+//   • route line follows the roads (routeGeometry) or a smooth curve — never straight
+//   • optional legend
 // ═══════════════════════════════════════════════════════════════════════════════
 // Live map used by BOTH the parent page and the admin dashboard.
 //
@@ -11,7 +15,15 @@
 //
 // Props
 //   vehicles    [{ id, regNo, vehicleName, vehicleType, point, motion, initialTrail }]
-//   stops       [{ id, name, latitude, longitude, isMyStop }]  (route stops, ordered)
+//   stops       [{ id, name, latitude, longitude,                 (route stops, travel order)
+//                 number?, state?, isMine?, landmark?,
+//                 lines?: [{ text, color? }],   tooltip detail lines
+//                 flag?: "short permanent label" }]
+//                 state: PASSED|SKIPPED|AT_STOP|NEXT|UPCOMING|MISSED
+//   routeGeometry [[lat,lng],...] road path for the route line (else smooth curve)
+//   myStop      { name, latitude, longitude, label? }            (green pin)
+//   legend      true → show a small legend
+//   showMyStopPin false → myStop only used for fitting (stop drawn as a numbered marker)
 //   myStop      { name, latitude, longitude }                    (highlighted pin)
 //   followId    vehicle id to keep in view (parent view)
 //   fitKey      change this to re-fit the map to vehicles + stop
@@ -20,12 +32,17 @@
 //   onSelect    (vehicleId) => void
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   MapContainer,
   TileLayer,
   useMap,
-  CircleMarker,
   Polyline,
   Marker,
   Tooltip,
@@ -33,6 +50,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { distanceMeters, bearingDeg, tsOf } from "./liveTracking";
+import { curveThrough, cleanPath } from "./geoSmooth";
 
 const DEFAULT_CENTER = [12.9716, 77.5946];
 const MAX_GAP_MS = 150 * 1000; // longer gap → snap
@@ -287,7 +305,7 @@ function MapBridge({ onReady }) {
   return null;
 }
 
-function FitOnKey({ fitKey, vehicles, myStop }) {
+function FitOnKey({ fitKey, vehicles, myStop, stops = [] }) {
   const map = useMap();
   const done = useRef(null);
   useEffect(() => {
@@ -297,6 +315,9 @@ function FitOnKey({ fitKey, vehicles, myStop }) {
       .map((v) => [v.point.latitude, v.point.longitude]);
     if (myStop?.latitude != null && myStop?.longitude != null)
       pts.push([Number(myStop.latitude), Number(myStop.longitude)]);
+    for (const s of stops)
+      if (s.latitude != null && s.longitude != null)
+        pts.push([Number(s.latitude), Number(s.longitude)]);
     if (!pts.length) return;
     done.current = fitKey;
     if (pts.length === 1) map.setView(pts[0], 15, { animate: false });
@@ -305,8 +326,183 @@ function FitOnKey({ fitKey, vehicles, myStop }) {
         maxZoom: 16,
         animate: false,
       });
-  }, [fitKey, vehicles, myStop, map]);
+  }, [fitKey, vehicles, myStop, stops, map]);
   return null;
+}
+
+const STOP_STYLE = {
+  PASSED: { fill: "#16A34A", border: "#fff", text: "#fff", size: 22 },
+  SKIPPED: { fill: "#E5E7EB", border: "#fff", text: "#6B7280", size: 20 },
+  MISSED: { fill: "#FEE2E2", border: "#fff", text: "#B91C1C", size: 20 },
+  AT_STOP: { fill: "#F59E0B", border: "#fff", text: "#fff", size: 28 },
+  NEXT: { fill: "#4F46E5", border: "#fff", text: "#fff", size: 28 },
+  UPCOMING: { fill: "#fff", border: "#475569", text: "#1E293B", size: 22 },
+};
+
+const iconCache = new Map();
+const SCHOOL_SVG =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M12 3 1 9l11 6 9-4.91V17h2V9L12 3Zm-7 9.18v4L12 20l7-3.82v-4L12 16l-7-3.82Z"/></svg>';
+
+export function stopNumberIcon(number, state, mine, isSchool = false) {
+  const key = `${number}|${state}|${mine ? 1 : 0}|${isSchool ? 1 : 0}`;
+  if (iconCache.has(key)) return iconCache.get(key);
+  if (isSchool) {
+    const done = state === "PASSED";
+    const icon = L.divIcon({
+      className: "lb-stopnum-wrap",
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      tooltipAnchor: [0, -16],
+      html: `<div class="lb-school${
+        state === "NEXT" ? " is-next" : ""
+      }" style="background:${
+        done ? "#16A34A" : "#1E1B4B"
+      }">${SCHOOL_SVG}</div>`,
+    });
+    iconCache.set(key, icon);
+    return icon;
+  }
+  const st = STOP_STYLE[state] || STOP_STYLE.UPCOMING;
+  const size = mine ? Math.max(st.size, 26) : st.size;
+  const ring = mine
+    ? "box-shadow:0 0 0 3px #16A34A,0 2px 6px rgba(15,23,42,.35);"
+    : "";
+  const icon = L.divIcon({
+    className: "lb-stopnum-wrap",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    tooltipAnchor: [0, -size / 2],
+    html: `<div class="lb-stopnum${
+      state === "NEXT" || state === "AT_STOP" ? " is-next" : ""
+    }" style="width:${size}px;height:${size}px;background:${
+      st.fill
+    };border-color:${st.border};color:${st.text};${ring}">${
+      number ?? ""
+    }</div>`,
+  });
+  iconCache.set(key, icon);
+  return icon;
+}
+
+export function flagIcon(text, tone) {
+  const key = `flag|${text}|${tone}`;
+  if (iconCache.has(key)) return iconCache.get(key);
+  const icon = L.divIcon({
+    className: "lb-flag-wrap",
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    html: `<div class="lb-flag lb-flag-${tone}">${String(text)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")}</div>`,
+  });
+  iconCache.set(key, icon);
+  return icon;
+}
+
+export function StopTooltipBody({ s }) {
+  return (
+    <div style={{ minWidth: 150, maxWidth: 240 }}>
+      <div style={{ fontWeight: 800, fontSize: 13, whiteSpace: "normal" }}>
+        {s.isSchool ? "🏫 " : s.number != null ? `${s.number}. ` : ""}
+        {s.name}
+        {s.isMine ? (
+          <span style={{ color: "#16A34A" }}> · Your stop</span>
+        ) : null}
+      </div>
+      {s.landmark && (
+        <div style={{ color: "#6B7280", fontSize: 11.5, whiteSpace: "normal" }}>
+          {s.landmark}
+        </div>
+      )}
+      {(s.lines || []).map((l, i) => (
+        <div
+          key={i}
+          style={{
+            fontSize: 12,
+            color: l.color || "#374151",
+            marginTop: i === 0 ? 4 : 1,
+            whiteSpace: "normal",
+          }}
+        >
+          {l.text}
+        </div>
+      ))}
+      {!s.lines?.length && (s.label || s.pickupTime) && (
+        <div style={{ fontSize: 12, marginTop: 4 }}>
+          {s.label || s.pickupTime}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MapLegend() {
+  const item = (el, label) => (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+      {el}
+      {label}
+    </span>
+  );
+  const dot = (bg, border = "#fff") => (
+    <span
+      style={{
+        width: 11,
+        height: 11,
+        borderRadius: "50%",
+        background: bg,
+        border: `2px solid ${border}`,
+        boxShadow: "0 0 0 1px #CBD5E1",
+      }}
+    />
+  );
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 10,
+        bottom: 10,
+        zIndex: 500,
+        background: "rgba(255,255,255,.94)",
+        borderRadius: 10,
+        padding: "6px 10px",
+        display: "flex",
+        flexWrap: "wrap",
+        gap: "4px 12px",
+        fontSize: 11,
+        fontWeight: 600,
+        color: "#374151",
+        boxShadow: "0 2px 8px rgba(15,23,42,.15)",
+        maxWidth: "calc(100% - 140px)",
+      }}
+    >
+      {item(dot("#16A34A"), "Passed")}
+      {item(dot("#4F46E5"), "Next")}
+      {item(dot("#fff", "#475569"), "Upcoming")}
+      {item(
+        <span
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: 3,
+            background: "#1E1B4B",
+          }}
+        />,
+        "School",
+      )}
+      {item(
+        <span
+          style={{
+            width: 16,
+            height: 4,
+            borderRadius: 2,
+            background: "#6366F1",
+            opacity: 0.6,
+          }}
+        />,
+        "Route",
+      )}
+    </div>
+  );
 }
 
 const PALETTE = [
@@ -331,6 +527,9 @@ export default function LiveBusMap({
   showLabels = false,
   onSelect,
   popupFor,
+  routeGeometry = null,
+  legend = false,
+  showMyStopPin = true,
 }) {
   const [map, setMap] = useState(null);
   const [following, setFollowing] = useState(!!followId);
@@ -385,7 +584,15 @@ export default function LiveBusMap({
     ? [Number(myStop.latitude), Number(myStop.longitude)]
     : DEFAULT_CENTER;
 
-  const routeLine = stops.map((s) => [Number(s.latitude), Number(s.longitude)]);
+  const stopPts = stops
+    .filter((s) => s.latitude != null && s.longitude != null)
+    .map((s) => [Number(s.latitude), Number(s.longitude)]);
+  const stopKey = stopPts.map((p) => p.join(",")).join(";");
+  const hasRoad = Array.isArray(routeGeometry) && routeGeometry.length > 1;
+  const routeLine = useMemo(
+    () => (hasRoad ? cleanPath(routeGeometry) : curveThrough(stopPts)),
+    [hasRoad, routeGeometry, stopKey], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   return (
     <div
@@ -419,6 +626,25 @@ export default function LiveBusMap({
         .is-stale .lb-pulse { animation: none !important; }
         @keyframes lbPulse { 0% { transform: scale(1); opacity: .45 } 100% { transform: scale(2.3); opacity: 0 } }
         .lb-label { font: 700 11px system-ui, sans-serif; padding: 2px 6px; border-radius: 6px; }
+        .lb-stopnum-wrap, .lb-flag-wrap { background: transparent; border: 0; }
+        .lb-stopnum { box-sizing: border-box; border: 2.5px solid; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center;
+          font: 800 11px/1 system-ui, sans-serif; box-shadow: 0 2px 6px rgba(15,23,42,.35); cursor: pointer; }
+        .lb-school { width: 32px; height: 32px; border-radius: 9px; border: 2.5px solid #fff; box-sizing: border-box;
+          display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(15,23,42,.4); cursor: pointer; }
+        .lb-school.is-next { animation: lbStopPulse 1.8s ease-in-out infinite; }
+        .lb-flag-school { background: #1E1B4B; color: #fff; border-color: #1E1B4B; bottom: 22px; }
+        .lb-stopnum.is-next { animation: lbStopPulse 1.8s ease-in-out infinite; }
+        @keyframes lbStopPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(79,70,229,.45), 0 2px 6px rgba(15,23,42,.35) } 50% { box-shadow: 0 0 0 8px rgba(79,70,229,0), 0 2px 6px rgba(15,23,42,.35) } }
+        .lb-flag { position: absolute; left: 0; bottom: 16px; transform: translateX(-50%); white-space: nowrap;
+          font: 700 11px system-ui, sans-serif; padding: 3px 8px; border-radius: 8px; pointer-events: none;
+          box-shadow: 0 2px 6px rgba(15,23,42,.25); }
+        .lb-flag::after { content: ""; position: absolute; left: 50%; top: 100%; margin-left: -5px;
+          border: 5px solid transparent; border-top-color: inherit; }
+        .lb-flag-next { background: #4F46E5; color: #fff; border-color: #4F46E5; }
+        .lb-flag-mine { background: #16A34A; color: #fff; border-color: #16A34A; bottom: 22px; }
+        .lb-flag-at { background: #F59E0B; color: #fff; border-color: #F59E0B; }
+        .leaflet-tooltip.lb-stop-tip { border-radius: 10px; padding: 8px 10px; border: 0; box-shadow: 0 4px 16px rgba(15,23,42,.2); }
         @media (prefers-reduced-motion: reduce) { .lb-pulse { animation: none !important; } .lb-heading { transition: none; } }
       `}</style>
 
@@ -433,52 +659,102 @@ export default function LiveBusMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapBridge onReady={setMap} />
-        <FitOnKey fitKey={fitKey} vehicles={vehicles} myStop={myStop} />
+        <FitOnKey
+          fitKey={fitKey}
+          vehicles={vehicles}
+          myStop={myStop}
+          stops={stops}
+        />
 
-        {/* Route stops (straight dashed line between stops, in route order) */}
+        {/* Route line: along the roads when available, otherwise a smooth curve */}
         {routeLine.length > 1 && (
-          <Polyline
-            positions={routeLine}
-            pathOptions={{
-              color: "#94A3B8",
-              weight: 3,
-              dashArray: "6 8",
-              opacity: 0.8,
-            }}
-          />
-        )}
-        {stops
-          .filter((s) => !s.isMyStop)
-          .map((s) => (
-            <CircleMarker
-              key={s.id}
-              center={[Number(s.latitude), Number(s.longitude)]}
-              radius={5}
+          <>
+            <Polyline
+              positions={routeLine}
               pathOptions={{
                 color: "#fff",
-                weight: 2,
-                fillColor: "#64748B",
-                fillOpacity: 1,
+                weight: 8,
+                opacity: 0.85,
+                lineCap: "round",
+                lineJoin: "round",
+                interactive: false,
               }}
+            />
+            <Polyline
+              positions={routeLine}
+              pathOptions={{
+                color: "#6366F1",
+                weight: 4,
+                opacity: 0.6,
+                lineCap: "round",
+                lineJoin: "round",
+                dashArray: hasRoad ? null : "8 8",
+                interactive: false,
+              }}
+            />
+          </>
+        )}
+
+        {/* Numbered stops */}
+        {stops
+          .filter(
+            (s) => !s.isMyStop && s.latitude != null && s.longitude != null,
+          )
+          .map((s, i) => (
+            <Marker
+              key={`stop-${s.id}`}
+              position={[Number(s.latitude), Number(s.longitude)]}
+              icon={stopNumberIcon(
+                s.number ?? i + 1,
+                s.state || "UPCOMING",
+                !!s.isMine,
+                !!s.isSchool,
+              )}
+              zIndexOffset={s.state === "NEXT" || s.isMine ? 600 : 300}
+              keyboard={false}
             >
-              <Tooltip direction="top" offset={[0, -4]}>
-                {s.name}
-                {s.pickupTime ? ` · ${s.pickupTime}` : ""}
+              <Tooltip direction="top" className="lb-stop-tip" opacity={1}>
+                <StopTooltipBody s={s} />
               </Tooltip>
-            </CircleMarker>
+            </Marker>
           ))}
 
-        {myStop?.latitude != null && myStop?.longitude != null && (
-          <Marker
-            position={[Number(myStop.latitude), Number(myStop.longitude)]}
-            icon={stopIcon}
-            zIndexOffset={500}
-          >
-            <Tooltip direction="top" offset={[0, -36]} permanent>
-              Your stop
-            </Tooltip>
-          </Marker>
-        )}
+        {/* Always-visible labels (next stop / your stop) */}
+        {stops
+          .filter((s) => s.flag && s.latitude != null && s.longitude != null)
+          .map((s) => (
+            <Marker
+              key={`flag-${s.id}`}
+              position={[Number(s.latitude), Number(s.longitude)]}
+              icon={flagIcon(
+                s.flag,
+                s.isMine
+                  ? "mine"
+                  : s.isSchool
+                  ? "school"
+                  : s.state === "AT_STOP"
+                  ? "at"
+                  : "next",
+              )}
+              interactive={false}
+              keyboard={false}
+              zIndexOffset={700}
+            />
+          ))}
+
+        {showMyStopPin &&
+          myStop?.latitude != null &&
+          myStop?.longitude != null && (
+            <Marker
+              position={[Number(myStop.latitude), Number(myStop.longitude)]}
+              icon={stopIcon}
+              zIndexOffset={500}
+            >
+              <Tooltip direction="top" offset={[0, -36]} permanent>
+                {myStop.label || "Your stop"}
+              </Tooltip>
+            </Marker>
+          )}
 
         {vehicles
           .filter((v) => v.point)
@@ -494,6 +770,8 @@ export default function LiveBusMap({
             />
           ))}
       </MapContainer>
+
+      {legend && <MapLegend />}
 
       {followId && !following && (
         <button

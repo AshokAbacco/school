@@ -94,6 +94,23 @@ window.fetch = async (input, init = {}) => {
 };
 
 // ============================================================
+// FOUNDATION SCOPE
+// ============================================================
+//
+// Foundation apps (Waseela / Fazeelah / Abacco) are built with a
+// universityId → only users of that foundation can log in.
+//
+// The master CRM app ("global" build) and the web app have NO
+// universityId → nothing is sent → users of ALL universities
+// can log in (server skips the foundation check).
+// ============================================================
+
+const foundationScope = () =>
+  Capacitor.isNativePlatform() && schoolConfig.universityId
+    ? { universityId: schoolConfig.universityId }
+    : {};
+
+// ============================================================
 // POST HELPER
 // ============================================================
 
@@ -165,7 +182,7 @@ export const loginRequest = async (type, credentials) => {
       }
     : credentials;
 
-  return post(`/api/auth/${route}/login`, body);
+  return post(`/api/auth/${route}/login`, { ...body, ...foundationScope() });
 };
 
 // ============================================================
@@ -173,7 +190,10 @@ export const loginRequest = async (type, credentials) => {
 // ============================================================
 
 export const loginSuperAdmin = (credentials) =>
-  post("/api/auth/super-admin/login", credentials);
+  post("/api/auth/super-admin/login", {
+    ...credentials,
+    ...foundationScope(),
+  });
 
 // ============================================================
 // SUPER ADMIN REGISTER
@@ -186,15 +206,10 @@ export const registerSuperAdmin = (data) =>
 // LOGIN OTP
 // ============================================================
 
-// export const sendLoginOtp = (credentials) =>
-//   post("/api/auth/login-with-otp", credentials);
-
 export const sendLoginOtp = (credentials) =>
   post("/api/auth/login-with-otp", {
     ...credentials,
-    ...(Capacitor.isNativePlatform()
-      ? { universityId: schoolConfig.universityId }
-      : {}),
+    ...foundationScope(),
   });
 
 // ============================================================
@@ -202,21 +217,19 @@ export const sendLoginOtp = (credentials) =>
 // ============================================================
 
 export const verifyLoginOtp = (data) =>
-  post("/api/auth/verify-login-otp", data);
+  post("/api/auth/verify-login-otp", {
+    ...data,
+    ...foundationScope(),
+  });
 
 // ============================================================
 // BUS HEAD LOGIN OTP
 // ============================================================
 
-// export const sendBusHeadLoginOtp = (credentials) =>
-//   post("/api/auth/bus-head/login", credentials);
-
 export const sendBusHeadLoginOtp = (credentials) =>
   post("/api/auth/bus-head/login", {
     ...credentials,
-    ...(Capacitor.isNativePlatform()
-      ? { universityId: schoolConfig.universityId }
-      : {}),
+    ...foundationScope(),
   });
 
 // ============================================================
@@ -224,4 +237,7 @@ export const sendBusHeadLoginOtp = (credentials) =>
 // ============================================================
 
 export const verifyBusHeadLoginOtp = (data) =>
-  post("/api/auth/bus-head/verify-otp", data);
+  post("/api/auth/bus-head/verify-otp", {
+    ...data,
+    ...foundationScope(),
+  });

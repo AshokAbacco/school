@@ -299,6 +299,11 @@ model School {
   certificatePrefix     String?  @db.VarChar(10) // e.g. "TC", falls back to `code`
   certificateSeq        Int      @default(0)
   motto                 String?
+
+  // School location — start/end point of every bus route (live ETA + map)
+  latitude              Float?
+  longitude             Float?
+
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -4323,4 +4328,56 @@ model BusHead {
 enum BusHeadAccessType {
   SINGLE_SCHOOL
   ALL_SCHOOLS
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BUS ALERTS — messages sent to parents ("bus started", "arriving in 5 min")
+// dedupeKey makes every alert go out only once per trip.
+// ─────────────────────────────────────────────────────────────────────────────
+model BusNotification {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  parentId  String
+  studentId String?
+  schoolId  String
+  vehicleId String?
+  routeId   String?
+  stopId    String?
+  type      String // TRIP_STARTED | APPROACHING | ARRIVED | TEST
+  session   String? // PICKUP | DROP
+  title     String
+  message   String
+  etaMin    Int?
+  dedupeKey String    @unique
+  readAt    DateTime?
+
+  @@index([parentId, createdAt])
+  @@index([schoolId, createdAt])
+  @@map("bus_notifications")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Firebase push: one row per parent phone (token from the Capacitor app)
+// ─────────────────────────────────────────────────────────────────────────────
+model ParentPushToken {
+  id         String   @id @default(uuid())
+  parentId   String
+  token      String   @unique
+  platform   String   @default("android") // android | ios | web
+  appVersion String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([parentId])
+  @@map("parent_push_tokens")
+}
+
+// Parent's bus-alert preferences (language of messages + voice)
+model ParentNotifySetting {
+  id        String   @id @default(uuid())
+  parentId  String   @unique
+  language  String   @default("en") // en | hi | te
+  updatedAt DateTime @updatedAt
+
+  @@map("parent_notify_settings")
 }

@@ -1,10 +1,21 @@
 // client/src/superAdmin/pages/VehicleTracking/LiveTrackingTab.jsx  (UPDATED)
 // ═══════════════════════════════════════════════════════════════════════════════
-// Admin live dashboard
-//   • Real-time push for all buses of the school (SSE) — no 30 s refresh cycle
+// Live dashboard — shared by the Super Admin page AND the Bus Head portal
+//   • Real-time push for all buses (SSE), 15 s polling fallback
 //   • Smooth animated markers + recent paths
-//   • Falls back to 15 s polling when the stream is unavailable
-//   • Click a bus on the map to highlight its card
+//   • NEW: stop-by-stop ETA per bus — next stop + countdown, expected
+//          arrival/departure for every stop, early / on-time / late, average
+//          travel time between stops (from the stops added under Transport)
+//   • NEW: click a bus (card or map) to draw its route stops with ETA on the map
+//   • NEW: errors are shown with a Retry button instead of an empty page
+//   • FIX: route line follows the roads (server road geometry); the fallback
+//          curve no longer shoots off the map when two stops share a spot
+//
+// Props
+//   schoolId         school to show ("" = all schools in scope, Bus Head only)
+//   api              endpoint builders (defaults to the admin /api/vehicles API)
+//   showSchoolName   print the school on each card (multi-school views)
+//   emptyHint        text under "No vehicles" (admin: "Add one in Manage Vehicles")
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import React, {
@@ -22,21 +33,53 @@ import {
   Zap,
   Radio,
   WifiOff,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Route,
 } from "lucide-react";
 import VehicleMap from "./VehicleMap";
+import StopEtaTimeline, {
+  buildMapStops,
+} from "../../../shared/liveTracking/StopEtaTimeline";
+import useRouteEta from "../../../shared/liveTracking/useRouteEta";
 import {
   API_URL,
-  authHeaders,
+  fetchJson,
   openLiveStream,
   applyLivePoints,
   tsOf,
   formatAge,
+  formatClock,
+  formatEtaMin,
+  punctualityStyle,
 } from "../../../shared/liveTracking/liveTracking";
 
 const BASE = `${API_URL}/api/vehicles`;
 const FALLBACK_POLL_MS = 15 * 1000;
 const STALE_SEC = 180;
 
+const qs = (params) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) p.set(k, v);
+  const s = p.toString();
+  return s ? `?${s}` : "";
+};
+
+/** Admin endpoints — a school must be selected. */
+export const ADMIN_TRACKING_API = {
+  liveAll: (schoolId, full) =>
+    schoolId
+      ? `${BASE}/live-all${qs({ schoolId, trail: full ? "1" : "" })}`
+      : null,
+  stream: (schoolId) =>
+    schoolId ? `${BASE}/live-stream${qs({ schoolId })}` : null,
+  eta: (schoolId) => (schoolId ? `${BASE}/eta${qs({ schoolId })}` : null),
+  routeGeometry: (vehicleId) =>
+    `${BASE}/${encodeURIComponent(vehicleId)}/route-geometry`,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 function StatusBadge({ status, stale }) {
   const key = stale ? "STALE" : (status || "").toUpperCase();
   const cfg = {
@@ -96,11 +139,96 @@ function StatusBadge({ status, stale }) {
   );
 }
 
-function VehicleCard({ vehicle, ageSec, stale, selected, cardRef }) {
+/** One-line next-stop summary shown on every card. */
+function NextStopLine({ eta, nowMs }) {
+  if (!eta) return null;
+  if (eta.reason === "NO_ROUTE")
+    return (
+      <div style={{ fontSize: 12, color: "#9CA3AF" }}>
+        No route linked — stop ETAs unavailable
+      </div>
+    );
+  if (eta.tripState === "COMPLETED")
+    return (
+      <div style={{ fontSize: 12, color: "#4338CA", fontWeight: 600 }}>
+        Trip completed · {eta.route?.name}
+      </div>
+    );
+  if (eta.tripState === "NOT_STARTED") {
+    const first = eta.stops?.find((s) => s.scheduledTime);
+    return (
+      <div style={{ fontSize: 12, color: "#6B7280" }}>
+        Trip not started{first ? ` · first stop ${first.name}` : ""}
+      </div>
+    );
+  }
+  const n = eta.nextStop;
+  if (!n) return null;
+  const stop = eta.stops?.find((s) => s.routeStopId === n.routeStopId);
+  const mins =
+    stop?.expectedArrival != null
+      ? Math.max(0, (Date.parse(stop.expectedArrival) - nowMs) / 60000)
+      : null;
+  const p = punctualityStyle(n.punctuality, n.delayMin);
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        flexWrap: "wrap",
+        fontSize: 12.5,
+      }}
+    >
+      <MapPin size={12} color="#4F46E5" />
+      <span style={{ color: "#374151" }}>
+        {n.state === "AT_STOP" ? "At" : "Next:"} <b>{n.name}</b>
+      </span>
+      {n.state !== "AT_STOP" && mins != null && (
+        <span style={{ color: "#4338CA", fontWeight: 700 }}>
+          in {formatEtaMin(mins)} ({formatClock(stop.expectedArrival)})
+        </span>
+      )}
+      {p && (
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: p.color,
+            background: p.bg,
+            padding: "1px 7px",
+            borderRadius: 99,
+          }}
+        >
+          {p.label}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function VehicleCard({
+  vehicle,
+  ageSec,
+  stale,
+  selected,
+  cardRef,
+  eta,
+  nowMs,
+  showSchoolName,
+  onPick,
+}) {
   const loc = vehicle.point;
+  const [showStops, setShowStops] = useState(false);
+
+  useEffect(() => {
+    if (selected) setShowStops(true);
+  }, [selected]);
+
   return (
     <div
       ref={cardRef}
+      onClick={() => onPick(vehicle.id)}
       style={{
         background: "#fff",
         borderRadius: 12,
@@ -110,6 +238,7 @@ function VehicleCard({ vehicle, ageSec, stale, selected, cardRef }) {
         gap: 10,
         border: selected ? "2px solid #4F46E5" : "1px solid #E5E7EB",
         boxShadow: selected ? "0 0 0 4px #EEF2FF" : "none",
+        cursor: "pointer",
       }}
     >
       <div
@@ -127,6 +256,11 @@ function VehicleCard({ vehicle, ageSec, stale, selected, cardRef }) {
           {vehicle.vehicleName && (
             <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
               {vehicle.vehicleName}
+            </div>
+          )}
+          {showSchoolName && vehicle.schoolName && (
+            <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+              {vehicle.schoolName}
             </div>
           )}
         </div>
@@ -170,6 +304,8 @@ function VehicleCard({ vehicle, ageSec, stale, selected, cardRef }) {
           </span>
         )}
       </div>
+
+      <NextStopLine eta={eta} nowMs={nowMs} />
 
       {loc ? (
         <>
@@ -245,11 +381,35 @@ function VehicleCard({ vehicle, ageSec, stale, selected, cardRef }) {
               </span>
             </div>
           )}
+        </>
+      ) : (
+        <div
+          style={{
+            padding: "8px 0",
+            textAlign: "center",
+            color: "#9CA3AF",
+            fontSize: 13,
+          }}
+        >
+          No location yet. Waiting for the first GPS signal.
+        </div>
+      )}
 
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        {loc ? (
           <a
             href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -262,27 +422,67 @@ function VehicleCard({ vehicle, ageSec, stale, selected, cardRef }) {
           >
             <Navigation size={13} /> Open in Google Maps
           </a>
-        </>
-      ) : (
+        ) : (
+          <span />
+        )}
+        {eta && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowStops((v) => !v);
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              border: "1px solid #E0E7FF",
+              background: "#F5F7FF",
+              color: "#4338CA",
+              borderRadius: 8,
+              padding: "4px 10px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            <Route size={12} /> Stops & ETA{" "}
+            {showStops ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+        )}
+      </div>
+
+      {showStops && eta && (
         <div
+          onClick={(e) => e.stopPropagation()}
           style={{
-            padding: "12px 0",
-            textAlign: "center",
-            color: "#9CA3AF",
-            fontSize: 13,
+            borderTop: "1px solid #F3F4F6",
+            paddingTop: 10,
+            cursor: "default",
           }}
         >
-          No location yet. Waiting for the first GPS signal.
+          <StopEtaTimeline eta={eta} nowMs={nowMs} compact />
         </div>
       )}
     </div>
   );
 }
 
-export default function LiveTrackingTab({ schoolId }) {
-  const [byId, setById] = useState({}); // id → vehicle state
-  const [order, setOrder] = useState([]); // stable card order
+// ─────────────────────────────────────────────────────────────────────────────
+export default function LiveTrackingTab({
+  schoolId,
+  api = ADMIN_TRACKING_API,
+  showSchoolName = false,
+  emptyHint = (
+    <>
+      Add one in the <b>Manage Vehicles</b> tab.
+    </>
+  ),
+}) {
+  const [byId, setById] = useState({});
+  const [order, setOrder] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [stream, setStream] = useState("connecting");
   const [visible, setVisible] = useState(
     () => document.visibilityState !== "hidden",
@@ -292,6 +492,21 @@ export default function LiveTrackingTab({ schoolId }) {
   const [fitKey, setFitKey] = useState("init");
   const skewRef = useRef(0);
   const cardRefs = useRef({});
+  const resyncTimer = useRef(null);
+  const knownIdsRef = useRef(new Set());
+  const [geometryById, setGeometryById] = useState({}); // vehicleId → [[lat,lng]] road line
+
+  const liveAllUrl = api.liveAll(schoolId, false);
+  const liveAllFullUrl = api.liveAll(schoolId, true);
+  const streamUrl = api.stream(schoolId);
+  const etaUrl = api.eta(schoolId);
+  const scopeKey = liveAllUrl || "";
+
+  const {
+    etaByVehicle,
+    error: etaError,
+    bump: bumpEta,
+  } = useRouteEta({ url: etaUrl });
 
   const updateSkew = (serverTime) => {
     const t = Date.parse(serverTime);
@@ -312,48 +527,41 @@ export default function LiveTrackingTab({ schoolId }) {
   // Snapshot: full=true rebuilds everything (with trails), otherwise merges
   const loadLive = useCallback(
     async ({ full = false } = {}) => {
-      if (!schoolId) return;
+      const url = full ? liveAllFullUrl : liveAllUrl;
+      if (!url) return;
       setLoading(true);
       try {
-        const res = await fetch(
-          `${BASE}/live-all?schoolId=${encodeURIComponent(schoolId)}${
-            full ? "&trail=1" : ""
-          }`,
-          { headers: authHeaders() },
-        );
-        const d = await res.json();
-        if (!d.success) return;
+        const d = await fetchJson(url);
         if (d.serverTime) updateSkew(d.serverTime);
-
+        setLoadError("");
         const list = d.data || [];
+        const meta = (v) => ({
+          id: v.id,
+          regNo: v.regNo,
+          vehicleName: v.vehicleName,
+          vehicleType: v.vehicleType,
+          schoolId: v.schoolId,
+          schoolName: v.schoolName,
+        });
+
         if (full) {
           const next = {};
           for (const v of list) {
             next[v.id] = applyLivePoints(
-              {
-                id: v.id,
-                regNo: v.regNo,
-                vehicleName: v.vehicleName,
-                vehicleType: v.vehicleType,
-                initialTrail: v.trail || [],
-                point: null,
-              },
+              { ...meta(v), initialTrail: v.trail || [], point: null },
               v.location ? [v.location] : [],
               { latestExtra: v.location, jump: true },
             );
           }
           setById(next);
           setOrder(list.map((v) => v.id));
-          setFitKey(`${schoolId}-${Date.now()}`);
+          setFitKey(`${url}-${Date.now()}`);
         } else {
           setById((prev) => {
             const next = { ...prev };
             for (const v of list) {
               const base = next[v.id] || {
-                id: v.id,
-                regNo: v.regNo,
-                vehicleName: v.vehicleName,
-                vehicleType: v.vehicleType,
+                ...meta(v),
                 initialTrail: [],
                 point: null,
               };
@@ -370,71 +578,114 @@ export default function LiveTrackingTab({ schoolId }) {
             ...list.map((v) => v.id).filter((id) => !prev.includes(id)),
           ]);
         }
-      } catch {
-        /* keep last data; fallback poll will retry */
+      } catch (e) {
+        setLoadError(e.message || "Could not load vehicles.");
       } finally {
         setLoading(false);
+        setLoadedOnce(true);
       }
     },
-    [schoolId],
+    [liveAllUrl, liveAllFullUrl],
   );
 
-  // Full load on school change
+  // Full load when the scope changes
   useEffect(() => {
     setById({});
     setOrder([]);
     setSelected(null);
+    setGeometryById({});
+    setLoadError("");
+    setLoadedOnce(false);
     loadLive({ full: true });
-  }, [schoolId, loadLive]);
+  }, [scopeKey, loadLive]);
 
   // Live stream
   useEffect(() => {
-    if (!schoolId || !visible) {
+    if (!streamUrl || !visible) {
       setStream(visible ? "connecting" : "paused");
       return;
     }
     const close = openLiveStream({
-      url: `${BASE}/live-stream?schoolId=${encodeURIComponent(schoolId)}`,
+      url: streamUrl,
       onStatus: (s) => setStream(s === "unavailable" ? "polling" : s),
       onEvent: (event, payload) => {
         if (payload?.serverTime) updateSkew(payload.serverTime);
         if (event !== "location" || !payload?.vehicleId) return;
+        // a bus we don't know yet (just added / just activated) → resync snapshot
+        const unknown = !knownIdsRef.current.has(payload.vehicleId);
         setById((prev) => {
           const cur = prev[payload.vehicleId];
-          if (!cur) return prev; // unknown/new vehicle – picked up by next snapshot
+          if (!cur) return prev;
           return {
             ...prev,
             [payload.vehicleId]: applyLivePoints(
               cur,
               payload.path || [payload.latest],
-              { latestExtra: payload.latest },
+              {
+                latestExtra: payload.latest,
+              },
             ),
           };
         });
+        if (unknown) {
+          clearTimeout(resyncTimer.current);
+          resyncTimer.current = setTimeout(() => loadLive(), 1500);
+        }
+        bumpEta();
       },
     });
-    return close;
-  }, [schoolId, visible]);
+    return () => {
+      clearTimeout(resyncTimer.current);
+      close();
+    };
+  }, [streamUrl, visible, loadLive, bumpEta]);
 
   // Catch up on return to foreground
   useEffect(() => {
-    if (visible) loadLive();
+    if (visible && loadedOnce) loadLive();
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fallback polling while stream isn't live
   useEffect(() => {
-    if (!schoolId || !visible || stream === "live") return;
+    if (!liveAllUrl || !visible || stream === "live") return;
     const id = setInterval(() => loadLive(), FALLBACK_POLL_MS);
     return () => clearInterval(id);
-  }, [schoolId, visible, stream, loadLive]);
+  }, [liveAllUrl, visible, stream, loadLive]);
+
+  // ── Road-following route line for the focused bus (fetched once per bus) ──
+  const focusForGeometry = selected || (order.length === 1 ? order[0] : null);
+  useEffect(() => {
+    if (
+      !focusForGeometry ||
+      !api.routeGeometry ||
+      geometryById[focusForGeometry] !== undefined
+    )
+      return;
+    let cancelled = false;
+    fetchJson(api.routeGeometry(focusForGeometry), { timeoutMs: 15000 })
+      .then((d) => {
+        if (!cancelled)
+          setGeometryById((m) => ({
+            ...m,
+            [focusForGeometry]: d.data?.routeGeometry || null,
+          }));
+      })
+      .catch(() => {
+        if (!cancelled)
+          setGeometryById((m) => ({ ...m, [focusForGeometry]: null }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [focusForGeometry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived ───────────────────────────────────────────────────────────────
+  const nowMs = now + skewRef.current;
   const ageOf = (v) =>
-    v.point?.ts
-      ? Math.max(0, (now + skewRef.current - tsOf(v.point)) / 1000)
-      : null;
+    v.point?.ts ? Math.max(0, (nowMs - tsOf(v.point)) / 1000) : null;
 
   const vehicles = order.map((id) => byId[id]).filter(Boolean);
+  knownIdsRef.current = new Set(order);
   const staleIds = new Set(
     vehicles
       .filter((v) => {
@@ -445,14 +696,39 @@ export default function LiveTrackingTab({ schoolId }) {
   );
   const staleKey = [...staleIds].sort().join(",");
 
+  const focusId = selected || (vehicles.length === 1 ? vehicles[0].id : null);
+  const focusEta = focusId ? etaByVehicle[focusId] : null;
+  const routeGeometry = focusId ? geometryById[focusId] || null : null;
+
+  const mapStops = useMemo(
+    () => buildMapStops(focusEta?.stops, { session: focusEta?.session }),
+    [focusEta],
+  );
+
   const mapVehicles = useMemo(
     () =>
-      vehicles.map((v) =>
-        v.point
-          ? { ...v, point: { ...v.point, isStale: staleIds.has(v.id) } }
-          : v,
-      ),
-    [byId, order, staleKey], // eslint-disable-line react-hooks/exhaustive-deps
+      vehicles.map((v) => {
+        const e = etaByVehicle[v.id];
+        const n = e?.nextStop;
+        const p = n ? punctualityStyle(n.punctuality, n.delayMin) : null;
+        const nextStopText = n
+          ? `${n.name}${
+              n.expectedArrival ? ` · ${formatClock(n.expectedArrival)}` : ""
+            }${p ? ` · ${p.label}` : ""}`
+          : null;
+        const extra = {
+          nextStopText,
+          schoolName: showSchoolName ? v.schoolName : null,
+        };
+        return v.point
+          ? {
+              ...v,
+              ...extra,
+              point: { ...v.point, isStale: staleIds.has(v.id) },
+            }
+          : { ...v, ...extra };
+      }),
+    [byId, order, staleKey, etaByVehicle, showSchoolName], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const isMoving = (v) =>
@@ -463,8 +739,17 @@ export default function LiveTrackingTab({ schoolId }) {
     (v) => v.point && !staleIds.has(v.id) && !isMoving(v),
   );
   const noData = vehicles.filter((v) => !v.point || staleIds.has(v.id));
+  const delayed = vehicles.filter((v) => {
+    const e = etaByVehicle[v.id];
+    return (
+      e?.tripState === "IN_PROGRESS" && e?.currentPunctuality === "DELAYED"
+    );
+  });
 
-  const onSelect = (id) => {
+  const pickVehicle = (id) => {
+    setSelected((cur) => (cur === id ? null : id));
+  };
+  const onMapSelect = (id) => {
     setSelected(id);
     cardRefs.current[id]?.scrollIntoView({
       behavior: "smooth",
@@ -495,6 +780,21 @@ export default function LiveTrackingTab({ schoolId }) {
     paused: { label: "Paused", color: "#6B7280", bg: "#F3F4F6", icon: Clock },
   }[stream] || { label: stream, color: "#6B7280", bg: "#F3F4F6", icon: Clock };
   const PillIcon = pill.icon;
+
+  if (!liveAllUrl) {
+    return (
+      <div
+        style={{
+          textAlign: "center",
+          padding: "40px 0",
+          color: "#9CA3AF",
+          fontSize: 14,
+        }}
+      >
+        Select a school to see its vehicles.
+      </div>
+    );
+  }
 
   return (
     <div
@@ -549,6 +849,16 @@ export default function LiveTrackingTab({ schoolId }) {
               color: "#6B7280",
               bg: "#F9FAFB",
             },
+            ...(delayed.length
+              ? [
+                  {
+                    label: "Running late",
+                    value: delayed.length,
+                    color: "#B91C1C",
+                    bg: "#FEF2F2",
+                  },
+                ]
+              : []),
           ].map(({ label, value, color, bg }) => (
             <div
               key={label}
@@ -618,17 +928,75 @@ export default function LiveTrackingTab({ schoolId }) {
         </div>
       </div>
 
-      {!loading && vehicles.length === 0 && (
+      {loadError && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+            padding: "10px 14px",
+            background: "#FEF2F2",
+            border: "1px solid #FECACA",
+            color: "#991B1B",
+            borderRadius: 8,
+            marginBottom: 14,
+            fontSize: 13,
+          }}
+        >
+          <span style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1 }} />{" "}
+            {loadError}
+          </span>
+          <button
+            onClick={() => loadLive({ full: true })}
+            style={{
+              padding: "5px 12px",
+              background: "#fff",
+              color: "#991B1B",
+              border: "1px solid #FECACA",
+              borderRadius: 6,
+              fontWeight: 600,
+              fontSize: 12,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {etaError && vehicles.length > 0 && (
+        <div style={{ fontSize: 12, color: "#B45309", marginBottom: 10 }}>
+          Stop ETAs unavailable: {etaError}
+        </div>
+      )}
+
+      {loadedOnce && !loading && !loadError && vehicles.length === 0 && (
         <div
           style={{ textAlign: "center", padding: "48px 0", color: "#9CA3AF" }}
         >
           <MapPin size={32} color="#E5E7EB" style={{ marginBottom: 12 }} />
           <p style={{ fontSize: 14, margin: 0 }}>
-            No vehicles registered for this school.
+            No active vehicles registered.
           </p>
-          <p style={{ fontSize: 12, margin: "4px 0 0" }}>
-            Add one in the <b>Manage Vehicles</b> tab.
-          </p>
+          {emptyHint && (
+            <p style={{ fontSize: 12, margin: "4px 0 0" }}>{emptyHint}</p>
+          )}
+        </div>
+      )}
+
+      {!loadedOnce && loading && (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "48px 0",
+            color: "#9CA3AF",
+            fontSize: 13,
+          }}
+        >
+          Loading vehicles…
         </div>
       )}
 
@@ -647,7 +1015,7 @@ export default function LiveTrackingTab({ schoolId }) {
               flexDirection: "column",
               gap: 12,
               minWidth: 0,
-              maxHeight: "clamp(320px, 50vw, 620px)",
+              maxHeight: "clamp(420px, 60vw, 760px)",
               overflowY: "auto",
               paddingRight: 4,
             }}
@@ -659,6 +1027,10 @@ export default function LiveTrackingTab({ schoolId }) {
                 ageSec={ageOf(v)}
                 stale={staleIds.has(v.id)}
                 selected={selected === v.id}
+                eta={etaByVehicle[v.id]}
+                nowMs={nowMs}
+                showSchoolName={showSchoolName}
+                onPick={pickVehicle}
                 cardRef={(el) => {
                   cardRefs.current[v.id] = el;
                 }}
@@ -668,9 +1040,19 @@ export default function LiveTrackingTab({ schoolId }) {
           <div style={{ minWidth: 0 }}>
             <VehicleMap
               vehicles={mapVehicles}
+              stops={mapStops}
+              routeGeometry={routeGeometry}
               fitKey={fitKey}
-              onSelect={onSelect}
+              onSelect={onMapSelect}
+              legend={mapStops.length > 0}
             />
+            <p
+              style={{ margin: "8px 2px 0", fontSize: 11.5, color: "#9CA3AF" }}
+            >
+              {focusEta?.route
+                ? `Showing stops of ${focusEta.route.name} for ${byId[focusId]?.regNo}. Click the bus again to clear.`
+                : "Click a bus to show its route stops and ETAs on the map."}
+            </p>
           </div>
         </div>
       )}
