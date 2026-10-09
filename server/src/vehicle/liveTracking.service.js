@@ -1,4 +1,8 @@
-// server/src/vehicle/liveTracking.service.js
+// server/src/vehicle/liveTracking.service.js  (UPDATED)
+// CHANGES: + getPointsBetween() (time-range read used by the stop-ETA engine)
+//          + buildLiveRows()    (one snapshot builder shared by admin + Bus Head)
+//          deviceUuidForVehicle is now exported
+//          openSseStream(…, { eventName }) — used by the parent bus-alert stream
 // ═══════════════════════════════════════════════════════════════════════════════
 // LIVE TRACKING HUB  (NEW FILE)
 // ─ One in-process pub/sub that pushes every new GPS point to connected clients
@@ -169,7 +173,7 @@ async function refreshMapping(force = false) {
   return mappingPromise;
 }
 
-async function deviceUuidForVehicle(vehicle) {
+export async function deviceUuidForVehicle(vehicle) {
   const imei = normalizeImei(vehicle?.deviceId);
   if (!imei) return null;
   const m = await refreshMapping();
@@ -247,20 +251,38 @@ export async function getLatestPoint(vehicle) {
   return withFreshness(best);
 }
 
-/** Recent path for drawing the trail on the map (oldest → newest). */
-export async function getTrail(vehicle, { minutes = 30, limit = 300 } = {}) {
-  const since = new Date(Date.now() - minutes * 60 * 1000);
+const DEVICE_LOC_SELECT = {
+  latitude: true,
+  longitude: true,
+  speed: true,
+  heading: true,
+  timestamp: true,
+  createdAt: true,
+};
+
+/**
+ * All valid points of a vehicle between two dates (both sources merged,
+ * oldest → newest, exact duplicates removed).
+ * newest=true keeps the most recent `limit` points when the range has more.
+ */
+export async function getPointsBetween(
+  vehicle,
+  from,
+  to = new Date(),
+  { limit = 2000, newest = true } = {},
+) {
   const deviceUuid = await deviceUuidForVehicle(vehicle);
+  const dir = newest ? "desc" : "asc";
 
   const [vl, dl] = await Promise.all([
     prisma.vehicleLocation.findMany({
       where: {
         schoolVehicleId: vehicle.id,
-        recordedAt: { gte: since },
+        recordedAt: { gte: from, lte: to },
         latitude: { not: null },
         longitude: { not: null },
       },
-      orderBy: { recordedAt: "desc" },
+      orderBy: { recordedAt: dir },
       take: limit,
       select: VEHICLE_LOC_SELECT,
     }),
@@ -268,20 +290,13 @@ export async function getTrail(vehicle, { minutes = 30, limit = 300 } = {}) {
       ? prisma.deviceLocation.findMany({
           where: {
             deviceId: deviceUuid,
-            timestamp: { gte: since },
+            timestamp: { gte: from, lte: to },
             latitude: { not: null },
             longitude: { not: null },
           },
-          orderBy: { timestamp: "desc" },
+          orderBy: { timestamp: dir },
           take: limit,
-          select: {
-            latitude: true,
-            longitude: true,
-            speed: true,
-            heading: true,
-            timestamp: true,
-            createdAt: true,
-          },
+          select: DEVICE_LOC_SELECT,
         })
       : [],
   ]);
@@ -290,7 +305,6 @@ export async function getTrail(vehicle, { minutes = 30, limit = 300 } = {}) {
     .filter(Boolean)
     .sort((x, y) => tsMs(x) - tsMs(y));
 
-  // drop exact duplicates (same time + position)
   const out = [];
   for (const p of points) {
     const last = out[out.length - 1];
@@ -303,7 +317,41 @@ export async function getTrail(vehicle, { minutes = 30, limit = 300 } = {}) {
       continue;
     out.push(p);
   }
-  return out.slice(-limit);
+  return newest ? out.slice(-limit) : out.slice(0, limit);
+}
+
+/** Recent path for drawing the trail on the map (oldest → newest). */
+export async function getTrail(vehicle, { minutes = 30, limit = 300 } = {}) {
+  const since = new Date(Date.now() - minutes * 60 * 1000);
+  return getPointsBetween(vehicle, since, new Date(), { limit, newest: true });
+}
+
+/**
+ * Snapshot rows for the live map. `vehicles` need
+ * { id, regNo, vehicleName, vehicleType, schoolId, deviceId, school:{name} }.
+ * Same shape is returned to the admin dashboard and the Bus Head portal.
+ */
+export async function buildLiveRows(vehicles, { withTrail = false } = {}) {
+  return Promise.all(
+    vehicles.map(async (v) => {
+      const [location, trail] = await Promise.all([
+        getLatestPoint(v).catch(() => null),
+        withTrail
+          ? getTrail(v, { minutes: 20, limit: 150 }).catch(() => [])
+          : Promise.resolve(undefined),
+      ]);
+      return {
+        id: v.id,
+        regNo: v.regNo,
+        vehicleName: v.vehicleName,
+        vehicleType: v.vehicleType,
+        schoolId: v.schoolId,
+        schoolName: v.school?.name || null,
+        location,
+        ...(withTrail ? { trail } : {}),
+      };
+    }),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -489,7 +537,11 @@ export const subscribeSchool = (schoolId, fn) =>
 const MAX_STREAM_MS = 30 * 60 * 1000; // close after 30 min → client reconnects (re-auth + re-resolve)
 const HEARTBEAT_MS = 20 * 1000;
 
-export function openSseStream(req, res, { subscribeFn, initialEvents = [] }) {
+export function openSseStream(
+  req,
+  res,
+  { subscribeFn, initialEvents = [], eventName = "location" },
+) {
   res.status(200);
   res.set({
     "Content-Type": "text/event-stream; charset=utf-8",
@@ -514,7 +566,7 @@ export function openSseStream(req, res, { subscribeFn, initialEvents = [] }) {
   write(`retry: 3000\n\n`);
   for (const [event, data] of initialEvents) send(event, data);
 
-  const unsubscribe = subscribeFn((payload) => send("location", payload));
+  const unsubscribe = subscribeFn((payload) => send(eventName, payload));
   const heartbeat = setInterval(
     () => write(`: ping ${Date.now()}\n\n`),
     HEARTBEAT_MS,

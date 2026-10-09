@@ -1,4 +1,4 @@
-// client/src/shared/liveTracking/liveTracking.js  (NEW FILE)
+// client/src/shared/liveTracking/liveTracking.js  (UPDATED: + fetchJson, time/ETA formatters)
 // ═══════════════════════════════════════════════════════════════════════════════
 // • openLiveStream  – Server-Sent Events over fetch() so we can send the
 //                     Authorization header (native EventSource cannot).
@@ -22,6 +22,93 @@ export const authHeaders = () => ({
   "Content-Type": "application/json",
   Authorization: `Bearer ${getToken()}`,
 });
+
+/**
+ * fetch → JSON that always settles and never hides a failure.
+ * Throws an Error whose message is human readable ("Session expired (401)…").
+ */
+export async function fetchJson(url, { timeoutMs = 20000, ...options } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetch(url, {
+      headers: authHeaders(),
+      ...options,
+      signal: controller.signal,
+    });
+  } catch (e) {
+    throw new Error(
+      e.name === "AbortError"
+        ? `No response in ${Math.round(timeoutMs / 1000)}s — server not responding.`
+        : "Network error — check your connection.",
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    /* non-JSON */
+  }
+  if (!res.ok || body?.success === false) {
+    const msg = body?.message || `Server responded ${res.status}`;
+    const err = new Error(
+      res.status === 401
+        ? `Session expired or not authorised (401). Please log in again. ${body?.message ? `— ${body.message}` : ""}`
+        : `${msg}${res.ok ? "" : ` (${res.status})`}`,
+    );
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+
+/** ISO → "7:42 am" in IST */
+export function formatClock(isoStr) {
+  if (!isoStr) return "—";
+  const d = new Date(isoStr);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+/** "HH:MM" (24h, from the route) → "7:35 am" */
+export function formatScheduled(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ""));
+  if (!m) return hhmm || "—";
+  const h = Number(m[1]);
+  const ap = h >= 12 ? "pm" : "am";
+  return `${h % 12 || 12}:${m[2]} ${ap}`;
+}
+
+/** minutes → "now" | "4 min" | "1 h 12 min" */
+export function formatEtaMin(min) {
+  if (min === null || min === undefined || !Number.isFinite(min)) return "—";
+  if (min <= 0) return "now";
+  if (min < 60) return `${Math.round(min)} min`;
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+/** delay minutes → { label, color, bg } */
+export function punctualityStyle(punctuality, delayMin) {
+  const d = Math.round(Math.abs(delayMin ?? 0));
+  if (punctuality === "EARLY")
+    return { label: `${d} min early`, color: "#1D4ED8", bg: "#EFF6FF" };
+  if (punctuality === "DELAYED")
+    return { label: `${d} min late`, color: "#B91C1C", bg: "#FEF2F2" };
+  if (punctuality === "ON_TIME")
+    return { label: "On time", color: "#166534", bg: "#F0FDF4" };
+  return null;
+}
 
 const BACKOFF = [1000, 2000, 4000, 8000, 15000];
 

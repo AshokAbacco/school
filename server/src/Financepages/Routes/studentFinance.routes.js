@@ -1860,6 +1860,153 @@ router.get(
   },
 );
 
+// ── STUDENT PARTICULARS (for the parent Fee Letter) ──────────────────────────
+// GET /api/finance/studentParticulars/:studentListId
+// Used only by the school-specific Fee Letter (currently Fazeelah). Read-only —
+// it never changes any record.
+//
+// Finds the main Student record for a fee record:
+//   1. StudentList.studentId (the link)          → matchedBy "link"
+//   2. same school + same email                   → matchedBy "email"
+//   3. same school + same name (only if unique)   → matchedBy "name"
+// Then returns admission no., Student ID (studentCode), class, father/mother/
+// guardian names and phones — from personal info OR linked Parent accounts.
+router.get(
+  "/studentParticulars/:studentListId",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const id = parseInt(req.params.studentListId);
+      const sl = await prisma.studentList.findUnique({ where: { id } });
+      if (!sl) return res.status(404).json({ message: "Student not found" });
+      if (req.user?.schoolId && sl.schoolId !== req.user.schoolId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const include = {
+        personalInfo: true,
+        enrollments: {
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          include: {
+            classSection: {
+              select: { name: true, grade: true, section: true },
+            },
+          },
+        },
+        parentLinks: {
+          include: { parent: { select: { name: true, phone: true } } },
+        },
+      };
+      const baseWhere = { schoolId: sl.schoolId, deletedAt: null };
+
+      let st = null;
+      let matchedBy = null;
+      if (sl.studentId) {
+        st = await prisma.student.findFirst({
+          where: { id: sl.studentId },
+          include,
+        });
+        if (st) matchedBy = "link";
+      }
+      if (!st && sl.email) {
+        st = await prisma.student.findFirst({
+          where: {
+            ...baseWhere,
+            email: { equals: sl.email.trim(), mode: "insensitive" },
+          },
+          include,
+        });
+        if (st) matchedBy = "email";
+      }
+      if (!st && sl.name) {
+        const byName = await prisma.student.findMany({
+          where: {
+            ...baseWhere,
+            name: { equals: sl.name.trim(), mode: "insensitive" },
+          },
+          include,
+          take: 2,
+        });
+        if (byName.length === 1) {
+          st = byName[0];
+          matchedBy = "name";
+        }
+      }
+
+      if (!st) {
+        return res.json({
+          found: false,
+          matchedBy: null,
+          admissionNumber: "",
+          studentCode: "",
+          className: sl.course || "",
+          fatherName: "",
+          motherName: "",
+          guardianName: "",
+          phones: sl.phone ? [sl.phone] : [],
+        });
+      }
+
+      const pi = st.personalInfo || {};
+      const link = (rel) =>
+        st.parentLinks.find((l) => l.relation === rel)?.parent || null;
+      const father = link("FATHER");
+      const mother = link("MOTHER");
+      const guardian = link("GUARDIAN");
+      const primary =
+        st.parentLinks.find((l) => l.isPrimary)?.parent ||
+        st.parentLinks[0]?.parent ||
+        null;
+
+      const en =
+        st.enrollments.find((e) => e.status === "ACTIVE") ||
+        st.enrollments[0] ||
+        null;
+      const cs = en?.classSection;
+      const className =
+        cs?.name ||
+        [cs?.grade, cs?.section].filter(Boolean).join(" - ") ||
+        sl.course ||
+        "";
+
+      const phones = [];
+      for (const ph of [
+        pi.parentPhone,
+        father?.phone,
+        pi.motherPhone,
+        mother?.phone,
+        pi.guardianPhone,
+        guardian?.phone,
+        sl.phone,
+        pi.phone,
+      ]) {
+        const v = String(ph || "").trim();
+        if (v && !phones.includes(v)) phones.push(v);
+      }
+
+      res.json({
+        found: true,
+        matchedBy,
+        admissionNumber: en?.admissionNumber || "",
+        studentCode: st.studentCode || "",
+        rollNumber: en?.rollNumber || "",
+        className,
+        fatherName: pi.parentName || father?.name || "",
+        motherName: pi.motherName || mother?.name || "",
+        guardianName:
+          pi.guardianName ||
+          guardian?.name ||
+          (!father && !mother ? primary?.name || "" : ""),
+        phones: phones.slice(0, 2),
+      });
+    } catch (error) {
+      console.error("[studentParticulars] error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  },
+);
+
 // ── EDIT / UPDATE A PAYMENT LOG ENTRY ─────────────────────────────────────────
 // PUT /api/finance/updatePaymentLog/:logId
 // Lets a school edit a payment they already recorded — change the amount
