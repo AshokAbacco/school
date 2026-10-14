@@ -1,4 +1,4 @@
-// server/src/staffControlls/teacherController.js
+// server/src/staffControlls/teacherController.js  (UPDATED: + setTeacherLogin)
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import cacheService from "../utils/cacheService.js";
@@ -32,14 +32,16 @@ async function checkTeacherLimit(schoolId, countToAdd = 1) {
   // null = unlimited
   if (payment.teacherCount === null) return { allowed: true };
 
-  const currentCount = await prisma.teacherProfile.count({ where: { schoolId } });
+  const currentCount = await prisma.teacherProfile.count({
+    where: { schoolId },
+  });
   const limit = payment.teacherCount;
 
   if (currentCount + countToAdd > limit) {
     return {
       allowed: false,
       message: `Teacher limit reached. Your plan allows ${limit} teachers and you currently have ${currentCount}.`,
-      used:  currentCount,
+      used: currentCount,
       limit,
       code: "TEACHER_LIMIT_REACHED",
     };
@@ -68,10 +70,12 @@ export async function getTeacherLimitStatus(req, res) {
       select: { teacherCount: true },
     });
 
-    const currentCount = await prisma.teacherProfile.count({ where: { schoolId } });
+    const currentCount = await prisma.teacherProfile.count({
+      where: { schoolId },
+    });
 
     return res.json({
-      used:  currentCount,
+      used: currentCount,
       limit: payment?.teacherCount ?? null, // null = unlimited
     });
   } catch (err) {
@@ -92,7 +96,7 @@ export async function uploadProfileImage(req, res) {
       where: { id, schoolId },
       select: { id: true },
     });
-    
+
     if (!teacher) return res.status(404).json({ error: "Teacher not found" });
 
     const key = `schools/${schoolId}/teachers/${id}/profile/${Date.now()}-${req.file.originalname}`;
@@ -412,10 +416,10 @@ export async function createTeacher(req, res) {
     const limitCheck = await checkTeacherLimit(schoolId, 1);
     if (!limitCheck.allowed) {
       return res.status(403).json({
-        error:   limitCheck.message,
-        code:    "TEACHER_LIMIT_REACHED",
-        used:    limitCheck.used  ?? null,
-        limit:   limitCheck.limit ?? null,
+        error: limitCheck.message,
+        code: "TEACHER_LIMIT_REACHED",
+        used: limitCheck.used ?? null,
+        limit: limitCheck.limit ?? null,
       });
     }
     // ──────────────────────────────────────────────────────────────────────────
@@ -542,6 +546,103 @@ export async function updateTeacher(req, res) {
   }
 }
 
+// ── PATCH /api/teachers/:id/login ─────────────────────────────  (NEW)
+// Create a login for an existing teacher, or change email / reset password.
+// body: { email, password? }
+//   • teacher has no user  → creates User (role TEACHER) and links it (password required)
+//   • teacher has a user   → updates email and/or password
+export async function setTeacherLogin(req, res) {
+  try {
+    const { id } = req.params;
+    const schoolId = req.user?.schoolId;
+    if (!schoolId)
+      return res.status(400).json({ error: "schoolId missing from token" });
+
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
+    const password = req.body.password ? String(req.body.password) : "";
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return res.status(400).json({ error: "A valid email is required" });
+    if (password && password.length < 6)
+      return res
+        .status(400)
+        .json({ error: "Password must be at least 6 characters" });
+
+    // Only teachers of the admin's own school
+    const teacher = await prisma.teacherProfile.findFirst({
+      where: { id, schoolId },
+      include: { user: { select: { id: true, email: true } } },
+    });
+    if (!teacher) return res.status(404).json({ error: "Teacher not found" });
+
+    // Email must not belong to another account
+    const emailOwner = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (emailOwner && emailOwner.id !== teacher.user?.id)
+      return res
+        .status(409)
+        .json({ error: "This email is already used by another account" });
+
+    // ── No login yet → create one and link it ────────────────────────────
+    if (!teacher.user) {
+      if (!password)
+        return res
+          .status(400)
+          .json({ error: "Password is required to create a login" });
+
+      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+      await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            name: `${teacher.firstName} ${teacher.lastName}`.trim(),
+            email,
+            password: hashedPassword,
+            role: "TEACHER",
+            schoolId,
+          },
+        });
+        await tx.teacherProfile.update({
+          where: { id: teacher.id },
+          data: { userId: user.id },
+        });
+      });
+
+      await cacheService.invalidateSchool(schoolId);
+      return res.json({ success: true, message: "Login created", email });
+    }
+
+    // ── Has a login → update email and/or reset password ─────────────────
+    const data = {};
+    if (email !== (teacher.user.email || "").toLowerCase()) data.email = email;
+    if (password) data.password = await bcrypt.hash(password, SALT_ROUNDS);
+
+    if (!Object.keys(data).length)
+      return res.status(400).json({ error: "Nothing to change" });
+
+    await prisma.user.update({ where: { id: teacher.user.id }, data });
+
+    await cacheService.invalidateSchool(schoolId);
+    return res.json({
+      success: true,
+      message: password
+        ? "Login updated and password reset"
+        : "Login email updated",
+      email,
+    });
+  } catch (err) {
+    if (err.code === "P2002")
+      return res
+        .status(409)
+        .json({ error: "This email is already used by another account" });
+    console.error("[setTeacherLogin]", err);
+    res.status(500).json({ error: "Failed to save teacher login" });
+  }
+}
+
 // ── DELETE /api/teachers/:id (soft delete) ────────────────────
 export async function deleteTeacher(req, res) {
   try {
@@ -573,15 +674,20 @@ export async function deleteTeacherPermanently(req, res) {
       return res.status(404).json({ error: "Teacher not found" });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.teacherAssignment.deleteMany({ where: { teacherId: id } });
-      await tx.teacherDocument.deleteMany({ where: { teacherId: id } });
-      await tx.teacherTutorialProfile.deleteMany({ where: { teacherId: id } });
-      await tx.teacherProfile.delete({ where: { id } });
-      if (teacher.userId) {
-        await tx.user.delete({ where: { id: teacher.userId } });
-      }
-    }, { timeout: 20000, maxWait: 10000 });
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.teacherAssignment.deleteMany({ where: { teacherId: id } });
+        await tx.teacherDocument.deleteMany({ where: { teacherId: id } });
+        await tx.teacherTutorialProfile.deleteMany({
+          where: { teacherId: id },
+        });
+        await tx.teacherProfile.delete({ where: { id } });
+        if (teacher.userId) {
+          await tx.user.delete({ where: { id: teacher.userId } });
+        }
+      },
+      { timeout: 20000, maxWait: 10000 },
+    );
 
     await cacheService.invalidateSchool(schoolId);
     res.json({ message: "Teacher permanently deleted" });
@@ -590,7 +696,6 @@ export async function deleteTeacherPermanently(req, res) {
     res.status(500).json({ error: "Failed to permanently delete teacher" });
   }
 }
-
 
 // ── POST /api/teachers/:id/assignments ────────────────────────
 export async function addAssignment(req, res) {
@@ -641,7 +746,6 @@ export async function removeAssignment(req, res) {
     res.status(500).json({ error: "Failed to remove assignment" });
   }
 }
-
 
 export async function getTeacherDocumentUrl(req, res) {
   try {
@@ -696,20 +800,22 @@ export async function bulkImportTeachers(req, res) {
     if (!limitCheck.allowed) {
       // Check how many we can actually still add
       const currentCount = limitCheck.used ?? 0;
-      const maxAllowed   = limitCheck.limit ?? 0;
-      const canAdd       = Math.max(0, maxAllowed - currentCount);
+      const maxAllowed = limitCheck.limit ?? 0;
+      const canAdd = Math.max(0, maxAllowed - currentCount);
 
       if (canAdd === 0) {
         return res.status(403).json({
           error: limitCheck.message,
-          code:  "TEACHER_LIMIT_REACHED",
-          used:  currentCount,
+          code: "TEACHER_LIMIT_REACHED",
+          used: currentCount,
           limit: maxAllowed,
         });
       }
       // Partially allow — trim the list to how many slots remain
       teachers = teachers.slice(0, canAdd);
-      console.log(`[bulkImportTeachers] Limit: only importing first ${canAdd} of requested teachers`);
+      console.log(
+        `[bulkImportTeachers] Limit: only importing first ${canAdd} of requested teachers`,
+      );
     }
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -733,9 +839,13 @@ export async function bulkImportTeachers(req, res) {
         let joiningDate = new Date();
         if (t.joiningDate) {
           // Handle DD-MM-YYYY format from Excel template
-          const ddmmyyyy = t.joiningDate.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+          const ddmmyyyy = t.joiningDate.match(
+            /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/,
+          );
           if (ddmmyyyy) {
-            joiningDate = new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(2,"0")}-${ddmmyyyy[1].padStart(2,"0")}`);
+            joiningDate = new Date(
+              `${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(2, "0")}-${ddmmyyyy[1].padStart(2, "0")}`,
+            );
           } else {
             const parsed = new Date(t.joiningDate);
             if (!isNaN(parsed.getTime())) joiningDate = parsed;
@@ -745,9 +855,13 @@ export async function bulkImportTeachers(req, res) {
         // Parse date of birth
         let dateOfBirth = null;
         if (t.dateOfBirth) {
-          const ddmmyyyy = t.dateOfBirth.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+          const ddmmyyyy = t.dateOfBirth.match(
+            /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/,
+          );
           if (ddmmyyyy) {
-            dateOfBirth = new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(2,"0")}-${ddmmyyyy[1].padStart(2,"0")}`);
+            dateOfBirth = new Date(
+              `${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(2, "0")}-${ddmmyyyy[1].padStart(2, "0")}`,
+            );
           } else {
             const parsed = new Date(t.dateOfBirth);
             if (!isNaN(parsed.getTime())) dateOfBirth = parsed;
@@ -759,14 +873,14 @@ export async function bulkImportTeachers(req, res) {
           if (!v) return "FULL_TIME";
           const map = {
             "full time": "FULL_TIME",
-            "fulltime": "FULL_TIME",
-            "full_time": "FULL_TIME",
+            fulltime: "FULL_TIME",
+            full_time: "FULL_TIME",
             "part time": "PART_TIME",
-            "parttime": "PART_TIME",
-            "part_time": "PART_TIME",
-            "contract": "CONTRACT",
-            "temporary": "TEMPORARY",
-            "temp": "TEMPORARY",
+            parttime: "PART_TIME",
+            part_time: "PART_TIME",
+            contract: "CONTRACT",
+            temporary: "TEMPORARY",
+            temp: "TEMPORARY",
           };
           const lower = v.toString().toLowerCase().trim();
           return map[lower] || "FULL_TIME";
@@ -776,11 +890,11 @@ export async function bulkImportTeachers(req, res) {
         const normalizeStatus = (v) => {
           if (!v) return "ACTIVE";
           const map = {
-            "active": "ACTIVE",
+            active: "ACTIVE",
             "on leave": "ON_LEAVE",
-            "on_leave": "ON_LEAVE",
-            "resigned": "RESIGNED",
-            "terminated": "TERMINATED",
+            on_leave: "ON_LEAVE",
+            resigned: "RESIGNED",
+            terminated: "TERMINATED",
           };
           return map[v.toString().toLowerCase().trim()] || "ACTIVE";
         };
@@ -798,11 +912,23 @@ export async function bulkImportTeachers(req, res) {
         // Normalize blood group
         const normalizeBlood = (v) => {
           if (!v) return null;
-          const cleaned = v.toString().toUpperCase().trim()
+          const cleaned = v
+            .toString()
+            .toUpperCase()
+            .trim()
             .replace(/\+/, "_POS")
             .replace(/-/, "_NEG")
             .replace(/\s/g, "");
-          const valid = ["A_POS","A_NEG","B_POS","B_NEG","O_POS","O_NEG","AB_POS","AB_NEG"];
+          const valid = [
+            "A_POS",
+            "A_NEG",
+            "B_POS",
+            "B_NEG",
+            "O_POS",
+            "O_NEG",
+            "AB_POS",
+            "AB_NEG",
+          ];
           return valid.includes(cleaned) ? cleaned : null;
         };
 
@@ -821,50 +947,55 @@ export async function bulkImportTeachers(req, res) {
 
           await tx.teacherProfile.create({
             data: {
-              userId:           user.id,
+              userId: user.id,
               schoolId,
-              employeeCode:     t.employeeCode?.trim() || null,
-              firstName:        t.firstName.trim(),
-              lastName:         t.lastName.trim(),
+              employeeCode: t.employeeCode?.trim() || null,
+              firstName: t.firstName.trim(),
+              lastName: t.lastName.trim(),
               dateOfBirth,
-              gender:           normalizeGender(t.gender),
-              phone:            t.phone?.trim() || null,
-              address:          t.address?.trim() || null,
-              city:             t.city?.trim() || null,
-              state:            t.state?.trim() || null,
-              zipCode:          t.zipCode?.trim() || null,
-              aadhaarNumber:    t.aadhaarNumber?.trim() || null,
-              panNumber:        t.panNumber?.trim() || null,
-              bloodGroup:       normalizeBlood(t.bloodGroup),
+              gender: normalizeGender(t.gender),
+              phone: t.phone?.trim() || null,
+              address: t.address?.trim() || null,
+              city: t.city?.trim() || null,
+              state: t.state?.trim() || null,
+              zipCode: t.zipCode?.trim() || null,
+              aadhaarNumber: t.aadhaarNumber?.trim() || null,
+              panNumber: t.panNumber?.trim() || null,
+              bloodGroup: normalizeBlood(t.bloodGroup),
               emergencyContact: t.emergencyContact?.trim() || null,
-              medicalConditions:t.medicalConditions?.trim() || null,
-              allergies:        t.allergies?.trim() || null,
-              department:       t.department?.trim() || null,
-              designation:      t.designation?.trim() || null,
-              qualification:    t.qualification?.trim() || null,
-              experienceYears:  t.experienceYears ? Number(t.experienceYears) || null : null,
+              medicalConditions: t.medicalConditions?.trim() || null,
+              allergies: t.allergies?.trim() || null,
+              department: t.department?.trim() || null,
+              designation: t.designation?.trim() || null,
+              qualification: t.qualification?.trim() || null,
+              experienceYears: t.experienceYears
+                ? Number(t.experienceYears) || null
+                : null,
               joiningDate,
-              employmentType:   normalizeEmploymentType(t.employmentType),
-              status:           normalizeStatus(t.status),
-              salary:           t.salary ? Number(t.salary) || null : null,
-              bankAccountNo:    t.bankAccountNo?.trim() || null,
-              bankName:         t.bankName?.trim() || null,
-              ifscCode:         t.ifscCode?.trim() || null,
+              employmentType: normalizeEmploymentType(t.employmentType),
+              status: normalizeStatus(t.status),
+              salary: t.salary ? Number(t.salary) || null : null,
+              bankAccountNo: t.bankAccountNo?.trim() || null,
+              bankName: t.bankName?.trim() || null,
+              ifscCode: t.ifscCode?.trim() || null,
             },
           });
         });
 
         console.log(`[bulkImportTeachers] Row ${i + 1} SUCCESS`);
         results.push({ row: i + 1, success: true });
-
       } catch (err) {
-        console.error(`[bulkImportTeachers] Row ${i + 1} FAILED:`, err.message, err.code);
+        console.error(
+          `[bulkImportTeachers] Row ${i + 1} FAILED:`,
+          err.message,
+          err.code,
+        );
         const msg =
           err.code === "P2002"
             ? "Email or employee code already exists"
             : err.code === "P2003"
-            ? "Invalid reference (check schoolId or userId)"
-            : err.message || "Failed to create teacher";
+              ? "Invalid reference (check schoolId or userId)"
+              : err.message || "Failed to create teacher";
         results.push({ row: i + 1, success: false, error: msg });
       }
     }
@@ -872,7 +1003,9 @@ export async function bulkImportTeachers(req, res) {
     await cacheService.invalidateSchool(schoolId);
 
     const successCount = results.filter((r) => r.success).length;
-    console.log(`[bulkImportTeachers] Done — ${successCount}/${teachers.length} succeeded`);
+    console.log(
+      `[bulkImportTeachers] Done — ${successCount}/${teachers.length} succeeded`,
+    );
 
     res.status(207).json({ results });
   } catch (err) {
@@ -919,7 +1052,7 @@ export async function getMyTeacherProfile(req, res) {
     if (teacher.profileImage) {
       teacher.profileImage = await generateSignedUrl(
         teacher.profileImage,
-        86400
+        86400,
       );
     }
 
