@@ -1,6 +1,6 @@
 {
-  "appId": "com.abacco.schoolapp",
-  "appName": "Abacco School App",
+  "appId": "com.waseela.edu",
+  "appName": "WASEELA EMS",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"
