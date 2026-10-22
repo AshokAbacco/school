@@ -1,3 +1,4 @@
+// client/src/admin/pages/teachers/api/teachersApi.js  (UPDATED: + setTeacherLogin)
 import { getToken } from "../../../../auth/storage";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -68,6 +69,24 @@ export const updateTeacher = (id, data) =>
   }).then(async (r) => {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || "Failed to update teacher");
+    return j;
+  });
+
+/* ───────────────────────────── */
+/* LOGIN ACCESS  ← NEW           */
+/* Create login for an existing  */
+/* teacher, or change email /    */
+/* reset password.               */
+/* body: { email, password? }    */
+/* ───────────────────────────── */
+export const setTeacherLogin = (id, data) =>
+  fetch(`${BASE}/${id}/login`, {
+    method: "PATCH",
+    headers: authHeaders(true),
+    body: JSON.stringify(data),
+  }).then(async (r) => {
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || j.message || "Failed to save login");
     return j;
   });
 
@@ -150,7 +169,7 @@ export const fetchTeacherProfileImage = (teacherId) =>
   });
 
 /* ───────────────────────────── */
-/* DOCUMENTS  ← NEW             */
+/* DOCUMENTS                     */
 /* ───────────────────────────── */
 export const uploadTeacherDocument = (
   teacherId,

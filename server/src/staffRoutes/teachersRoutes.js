@@ -20,6 +20,7 @@ import {
   getTeacherDocumentUrl,
   bulkImportTeachers,
   getTeacherLimitStatus,
+  setTeacherLogin,
 } from "../staffControlls/teacherController.js";
 
 const router = express.Router();
@@ -155,4 +156,5 @@ router.get(
   getTeacherDocumentUrl
 );
 
+router.patch("/:id/login", authMiddleware, setTeacherLogin);
 export default router;

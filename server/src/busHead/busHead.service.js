@@ -1,4 +1,4 @@
-// server\src\busHead\busHead.service.js  (UPDATED)
+// server\src\busHead\busHead.service.js  (UPDATED: + MASTER_OTP support in login STEP 2)
 // ═══════════════════════════════════════════════════════════════════════════════
 // WHY THE BUS HEAD PAGE SHOWED NO DATA
 //   1. live-all returned the raw latest VehicleLocation row (`location`), but the
@@ -12,6 +12,12 @@
 // Now the Bus Head uses exactly the same live pipeline as the admin dashboard
 // (getLatestPoint / trails / SSE stream) plus stop-by-stop ETA, scoped to the
 // schools the Bus Head is allowed to see.
+//
+// MASTER OTP
+//   Set MASTER_OTP=969696 in .env. In STEP 2 (verify-otp), entering the master
+//   OTP logs the user in without the real SMS OTP. STEP 1 still checks the
+//   password, so the master OTP only works after a correct phone + password.
+//   Leave MASTER_OTP empty / remove it to disable.
 // ═══════════════════════════════════════════════════════════════════════════════
 import bcrypt from "bcrypt";
 import { prisma } from "../config/db.js";
@@ -41,6 +47,14 @@ const phoneVariants = (phone) => {
 
 const generateOtp = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
+
+// Master OTP from .env (MASTER_OTP=969696). Empty → disabled.
+// Read at call time so it works even if dotenv loads after this module.
+const getMasterOtp = () => String(process.env.MASTER_OTP || "").trim();
+const isMasterOtp = (otp) => {
+  const master = getMasterOtp();
+  return master.length > 0 && String(otp || "").trim() === master;
+};
 
 // ── Create BusHead (SuperAdmin action) ─────────────────────────────────────
 // No OTP step here — account is created and active immediately.
@@ -276,7 +290,7 @@ export const sendBusHeadLoginOtpService = async ({
   };
 };
 
-// ── BusHead Login — STEP 2: verify OTP, return token + user ────────────────
+// ── BusHead Login — STEP 2: verify OTP (or MASTER_OTP), return token + user ─
 export const verifyBusHeadLoginOtpService = async ({
   phone,
   otp,
@@ -290,25 +304,26 @@ export const verifyBusHeadLoginOtpService = async ({
   }
 
   const normalizedPhone = normalizePhone(phone);
-  const variants = [normalizedPhone, ...phoneVariants(phone)];
+  const variants = [...new Set([normalizedPhone, ...phoneVariants(phone)])];
+  const enteredOtp = String(otp).trim();
+  const usingMasterOtp = isMasterOtp(enteredOtp);
 
-  let record = null;
-
-  for (const v of variants) {
-    record = await prisma.loginOtp.findFirst({
-      where: {
-        identifier: v,
-        otp,
-      },
-    });
-
-    if (record) break;
-  }
+  // Real OTP   → must match phone + otp.
+  // Master OTP → newest pending login for this phone (created in STEP 1,
+  //              so the password has already been verified).
+  const record = await prisma.loginOtp.findFirst({
+    where: usingMasterOtp
+      ? { identifier: { in: variants } }
+      : { identifier: { in: variants }, otp: enteredOtp },
+    orderBy: { expiresAt: "desc" },
+  });
 
   if (!record) {
     throw {
       status: 400,
-      message: "Invalid OTP",
+      message: usingMasterOtp
+        ? "Please log in with your mobile number and password first"
+        : "Invalid OTP",
     };
   }
 
@@ -335,9 +350,10 @@ export const verifyBusHeadLoginOtpService = async ({
     }
   }
 
-  await prisma.loginOtp.delete({
+  // Clear every pending OTP for this phone so nothing stale is left behind
+  await prisma.loginOtp.deleteMany({
     where: {
-      id: record.id,
+      identifier: record.identifier,
     },
   });
 
@@ -349,6 +365,10 @@ export const verifyBusHeadLoginOtpService = async ({
       lastLoginAt: new Date(),
     },
   });
+
+  if (usingMasterOtp) {
+    console.warn(`[BusHead login] MASTER_OTP used for ${normalizedPhone}`);
+  }
 
   return loginData;
 };
