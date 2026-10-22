@@ -296,16 +296,16 @@ model School {
   principalName         String?
   principalSignatureKey String? // R2 object key (image)
   schoolSealKey         String? // R2 object key (image)
-  certificatePrefix     String?  @db.VarChar(10) // e.g. "TC", falls back to `code`
-  certificateSeq        Int      @default(0)
+  certificatePrefix     String? @db.VarChar(10) // e.g. "TC", falls back to `code`
+  certificateSeq        Int     @default(0)
   motto                 String?
 
   // School location — start/end point of every bus route (live ETA + map)
-  latitude              Float?
-  longitude             Float?
+  latitude  Float?
+  longitude Float?
 
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   universityId String
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
