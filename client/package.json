@@ -12,7 +12,7 @@
     "build:fazeelah": "node scripts/build-foundation.js fazeelah",
     "build:abacco": "node scripts/build-foundation.js abacco",
     "build:all": "npm run build:waseela && npm run build:fazeelah && npm run build:abacco",
-       "build:global": "node scripts/build-foundation.js global"
+    "build:global": "node scripts/build-foundation.js global"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",

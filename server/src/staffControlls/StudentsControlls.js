@@ -297,6 +297,32 @@ export const createParentLogin = async (req, res) => {
   }
 };
 
+// ── syncLinkedParents ─────────────────────────────────────────────────────────
+// Pushes father/mother details edited on the student form onto the linked
+// Parent records. Email is NOT touched — it is the parent's login identifier.
+// undefined = field not submitted (leave alone); "" = clear (except name).
+const syncLinkedParents = async (studentId, byRelation) => {
+  const links = await prisma.studentParent.findMany({
+    where: { studentId, relation: { in: Object.keys(byRelation) } },
+    select: { parentId: true, relation: true },
+  });
+
+  for (const link of links) {
+    const v = byRelation[link.relation];
+    if (!v) continue;
+
+    const upd = {};
+    if (typeof v.name === "string" && v.name.trim()) upd.name = v.name.trim();
+    if (v.phone !== undefined) upd.phone = normalizePhone(v.phone) || null;
+    if (v.occupation !== undefined) upd.occupation = strOrNull(v.occupation);
+    if (v.anniversaryDate !== undefined) upd.anniversaryDate = dateOrNull(v.anniversaryDate);
+
+    if (Object.keys(upd).length) {
+      await prisma.parent.update({ where: { id: link.parentId }, data: upd });
+    }
+  }
+};
+
 // ── savePersonalInfo ──────────────────────────────────────────────────────────
 export const savePersonalInfo = async (req, res) => {
   try {
@@ -397,7 +423,8 @@ export const savePersonalInfo = async (req, res) => {
       parentName, parentEmail,
       parentPhone: normalizePhone(parentPhone),
       parentOccupation: strOrNull(parentOccupation),
-      parentAnniversaryDate: dateOrNull(parentAnniversaryDate),
+      // NOTE: father's anniversary is not a StudentPersonalInfo column — it is
+      // stored on the linked Parent record (see syncLinkedParents below).
       fatherAadhaarNumber: strOrNull(fatherAadhaarNumber),
       emergencyContact,
 
@@ -482,6 +509,24 @@ export const savePersonalInfo = async (req, res) => {
       where: { studentId },
       create: { studentId, ...data },
       update: data,
+    });
+
+    // ── Keep linked Parent accounts (FATHER / MOTHER) in sync ──
+    // The edit form reads parent details from the linked Parent record first,
+    // so if we only update StudentPersonalInfo the old values come back on reload.
+    await syncLinkedParents(studentId, {
+      FATHER: {
+        name: parentName,
+        phone: parentPhone,
+        occupation: parentOccupation,
+        anniversaryDate: parentAnniversaryDate,
+      },
+      MOTHER: {
+        name: motherName,
+        phone: motherPhone,
+        occupation: motherOccupation,
+        anniversaryDate: motherAnniversaryDate,
+      },
     });
 
     let enrollment = null;
@@ -638,6 +683,7 @@ export const getStudent = async (req, res) => {
                 email: true,
                 phone: true,
                 occupation: true,
+                anniversaryDate: true,
                 isActive: true,
               },
             },

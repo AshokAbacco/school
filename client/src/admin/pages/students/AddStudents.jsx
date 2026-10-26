@@ -450,10 +450,12 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           udiseCode: enroll?.udiseCode || "",
           lateralEntry: enroll?.lateralEntry || false,
           // Parent — Father
-          pNm: fatherLink?.parent?.name || pi.parentName || "",
-          pPh: fatherLink?.parent?.phone || pi.parentPhone || "",
-          pEm: fatherLink?.parent?.email || pi.parentEmail || "",
-          pOc: fatherLink?.parent?.occupation || "",
+          // Prefer the values saved from this form (personalInfo); fall back
+          // to the linked Parent account only when personalInfo is empty.
+          pNm: pi.parentName || fatherLink?.parent?.name || "",
+          pPh: pi.parentPhone || fatherLink?.parent?.phone || "",
+          pEm: pi.parentEmail || fatherLink?.parent?.email || "",
+          pOc: pi.parentOccupation || fatherLink?.parent?.occupation || "",
           pAnniversary: fatherLink?.parent?.anniversaryDate
             ? fatherLink.parent.anniversaryDate.slice(0, 10)
             : "",
@@ -461,21 +463,20 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           pLoginEmail: null,
           pLoginPw: "",
           // Parent — Mother
-          mNm: motherLink?.parent?.name || "",
-          mPh: motherLink?.parent?.phone || "",
-          mEm: motherLink?.parent?.email || "",
-          mOc: motherLink?.parent?.occupation || "",
-          mAnniversary: motherLink?.parent?.anniversaryDate
-            ? motherLink.parent.anniversaryDate.slice(0, 10)
-            : "",
+          mNm: pi.motherName || motherLink?.parent?.name || "",
+          mPh: pi.motherPhone || motherLink?.parent?.phone || "",
+          mEm: pi.motherEmail || motherLink?.parent?.email || "",
+          mOc: pi.motherOccupation || motherLink?.parent?.occupation || "",
+          mAnniversary: (pi.motherAnniversaryDate || motherLink?.parent?.anniversaryDate || "")
+            .slice(0, 10),
           mLoginEmail: null,
           mLoginPw: "",
           // Guardian
-          gNm: "",
-          gPh: "",
-          gEm: "",
-          gOc: "",
-          gRl: "",
+          gNm: pi.guardianName || "",
+          gPh: pi.guardianPhone || "",
+          gEm: pi.guardianEmail || "",
+          gOc: pi.guardianOccupation || "",
+          gRl: pi.guardianRelation || "",
           emg: pi.emergencyContact || "",
           // Health
           blood: frBlood(pi.bloodGroup),
@@ -911,12 +912,14 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       parentPhone: normalizePhone(f.pPh),
       parentEmail: f.pEm,
       parentOccupation: f.pOc,
+      parentAnniversaryDate: f.pAnniversary,
       emergencyContact: f.emg,
       // Mother
       motherName: f.mNm,
       motherPhone: normalizePhone(f.mPh),
       motherEmail: f.mEm,
       motherOccupation: f.mOc,
+      motherAnniversaryDate: f.mAnniversary,
       // Guardian
       guardianName: f.gNm,
       guardianRelation: f.gRl,
