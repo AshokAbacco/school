@@ -849,9 +849,68 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const tabHasError = (tabId) =>
     !!(err._tabErrors && err._tabErrors[tabId]?.length);
 
+  // ── Duplicate phone handling ──────────────────────────────────────────────
+  // Server returns 409 { code: "PHONE_DUPLICATE", conflicts: [{ field, message }] }
+  const PHONE_FIELD_TO_FORM = {
+    phone: "phone",
+    parentPhone: "pPh",
+    motherPhone: "mPh",
+    guardianPhone: "gPh",
+  };
+  const PHONE_FIELD_TO_PTAB = {
+    parentPhone: "father",
+    motherPhone: "mother",
+    guardianPhone: "guardian",
+  };
+
+  const throwPhoneConflicts = (d) => {
+    const fieldErrors = {};
+    const tabErrors = {};
+    (d.conflicts || []).forEach((c) => {
+      const key = PHONE_FIELD_TO_FORM[c.field];
+      if (!key) return;
+      fieldErrors[key] = c.message;
+      const tabId = c.field === "phone" ? "contact" : "parent";
+      (tabErrors[tabId] = tabErrors[tabId] || []).push(c.message);
+    });
+    const first = d.conflicts?.[0];
+    if (first) {
+      if (first.field === "phone") {
+        setTab("contact");
+      } else {
+        setTab("parent");
+        if (PHONE_FIELD_TO_PTAB[first.field]) setPtab(PHONE_FIELD_TO_PTAB[first.field]);
+      }
+    }
+    const e = new Error(d.message || "Phone number already used by another student");
+    e.fieldErrors = { ...fieldErrors, _tabErrors: tabErrors };
+    throw e;
+  };
+
+  const checkPhones = async (studentId) => {
+    const r = await fetch(`${API}/api/students/check-phones`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...auth() },
+      body: JSON.stringify({
+        studentId: studentId || undefined,
+        phone: normalizePhone(f.phone),
+        parentPhone: normalizePhone(f.pPh),
+        motherPhone: normalizePhone(f.mPh),
+        guardianPhone: normalizePhone(f.gPh),
+      }),
+    });
+    if (r.status === 409) throwPhoneConflicts(await r.json());
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.message || "Could not verify phone numbers");
+    }
+  };
+
   // ── Save core ─────────────────────────────────────────────────────────────
   const saveCore = async () => {
     let id = sid;
+    // Check BEFORE registering, so a duplicate never leaves a half-created student
+    await checkPhones(id);
     if (!isEdit) {
       const r = await fetch(`${API}/api/students/register`, {
         method: "POST",
@@ -962,6 +1021,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       body: fd,
     });
     const pd = await pr.json();
+    if (pr.status === 409 && pd.code === "PHONE_DUPLICATE") throwPhoneConflicts(pd);
     if (!pr.ok) throw new Error(pd.message || "Save failed");
 
     // Create Father login if provided
@@ -1026,7 +1086,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       if (onSuccess) onSuccess();
       setTimeout(() => doClose(), 1200);
     } catch (e) {
-      setErr({ _g: e.message });
+      setErr({ _g: e.message, ...(e.fieldErrors || {}) });
       showToast("error", e.message || "Something went wrong.");
     } finally {
       setBusy(false);
@@ -1080,6 +1140,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       if (onSuccess) onSuccess();
       setTimeout(() => doClose(), 1200);
     } catch (e) {
+      if (e.fieldErrors) setErr({ _g: e.message, ...e.fieldErrors });
       setDocErr(e.message);
       showToast("error", e.message || "Something went wrong.");
     } finally {
@@ -2263,6 +2324,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                       type="tel"
                       value={f.pPh}
                       onChange={set("pPh")}
+                      error={err.pPh}
                       placeholder="+91 98765-43210"
                     />
                     <InputField
@@ -2328,6 +2390,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                       type="tel"
                       value={f.mPh}
                       onChange={set("mPh")}
+                      error={err.mPh}
                       placeholder="+91 98765-43210"
                     />
                     <InputField
@@ -2394,6 +2457,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                     type="tel"
                     value={f.gPh}
                     onChange={set("gPh")}
+                    error={err.gPh}
                     placeholder="+91 98765-43210"
                   />
                   <InputField

@@ -323,6 +323,121 @@ const syncLinkedParents = async (studentId, byRelation) => {
   }
 };
 
+// ── Duplicate phone check ─────────────────────────────────────────────────────
+// A phone number used on one student (student / father / mother / guardian)
+// must not be used on any OTHER student of the same school. Re-using a number
+// inside the same student (e.g. father phone = student phone) is allowed.
+const PHONE_FIELDS = {
+  phone: "Student phone",
+  parentPhone: "Father's phone",
+  motherPhone: "Mother's phone",
+  guardianPhone: "Guardian phone",
+};
+
+// All stored spellings of a number: "9876543210", "919876543210", "+919876543210"
+const phoneVariants = (v) => {
+  if (v === undefined || v === null) return [];
+  const digits = String(v).replace(/\D/g, "");
+  if (!digits) return [];
+  const last10 = digits.slice(-10);
+  if (digits.length >= 10 && /^\d{10}$/.test(last10)) {
+    return [last10, `91${last10}`, `+91${last10}`];
+  }
+  return [digits];
+};
+
+/**
+ * @param {string} schoolId
+ * @param {string|null} excludeStudentId  current student (null for a new one)
+ * @param {{phone?, parentPhone?, motherPhone?, guardianPhone?}} phones
+ * @returns {Promise<Array<{field, label, number, studentName, admissionNumber, usedAs}>>}
+ */
+const findPhoneConflicts = async (schoolId, excludeStudentId, phones) => {
+  const entries = Object.keys(PHONE_FIELDS)
+    .map((field) => ({ field, variants: phoneVariants(phones?.[field]) }))
+    .filter((e) => e.variants.length);
+  if (!entries.length) return [];
+
+  const allVariants = [...new Set(entries.flatMap((e) => e.variants))];
+
+  const matches = await prisma.studentPersonalInfo.findMany({
+    where: {
+      student: {
+        schoolId,
+        deletedAt: null,
+        ...(excludeStudentId ? { NOT: { id: excludeStudentId } } : {}),
+      },
+      OR: Object.keys(PHONE_FIELDS).map((f) => ({ [f]: { in: allVariants } })),
+    },
+    select: {
+      phone: true,
+      parentPhone: true,
+      motherPhone: true,
+      guardianPhone: true,
+      student: {
+        select: {
+          name: true,
+          enrollments: {
+            select: { admissionNumber: true },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
+
+  const conflicts = [];
+  for (const { field, variants } of entries) {
+    for (const m of matches) {
+      const usedField = Object.keys(PHONE_FIELDS).find(
+        (f) => m[f] && variants.includes(phoneVariants(m[f])[0]),
+      );
+      if (usedField) {
+        conflicts.push({
+          field,
+          label: PHONE_FIELDS[field],
+          number: variants[0],
+          studentName: m.student?.name || "another student",
+          admissionNumber: m.student?.enrollments?.[0]?.admissionNumber || null,
+          usedAs: PHONE_FIELDS[usedField],
+        });
+        break; // one conflict per field is enough
+      }
+    }
+  }
+  return conflicts;
+};
+
+const conflictMessage = (c) =>
+  `${c.label} ${c.number} is already used as ${c.usedAs} for ${c.studentName}` +
+  (c.admissionNumber ? ` (Adm No: ${c.admissionNumber})` : "");
+
+// ── checkPhoneDuplicates (pre-save check used by the Add/Edit form) ───────────
+export const checkPhoneDuplicates = async (req, res) => {
+  try {
+    const schoolId = req.user?.schoolId;
+    if (!schoolId) return res.status(400).json({ message: "schoolId missing from token" });
+
+    const { studentId, phone, parentPhone, motherPhone, guardianPhone } = req.body || {};
+    const conflicts = await findPhoneConflicts(schoolId, studentId || null, {
+      phone, parentPhone, motherPhone, guardianPhone,
+    });
+
+    if (conflicts.length) {
+      return res.status(409).json({
+        code: "PHONE_DUPLICATE",
+        message: conflictMessage(conflicts[0]),
+        conflicts: conflicts.map((c) => ({ ...c, message: conflictMessage(c) })),
+      });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("[checkPhoneDuplicates]", err);
+    return res.status(500).json({ message: "Server error", detail: err.message });
+  }
+};
+
 // ── savePersonalInfo ──────────────────────────────────────────────────────────
 export const savePersonalInfo = async (req, res) => {
   try {
@@ -380,6 +495,18 @@ export const savePersonalInfo = async (req, res) => {
         return res.status(409).json({
           message: "A student with this admission number already exists for this academic year",
         });
+    }
+
+    // ── Block phone numbers already used by another student ──
+    const phoneConflicts = await findPhoneConflicts(student.schoolId, studentId, {
+      phone, parentPhone, motherPhone, guardianPhone,
+    });
+    if (phoneConflicts.length) {
+      return res.status(409).json({
+        code: "PHONE_DUPLICATE",
+        message: conflictMessage(phoneConflicts[0]),
+        conflicts: phoneConflicts.map((c) => ({ ...c, message: conflictMessage(c) })),
+      });
     }
 
     let profileImageUrl;
@@ -1271,6 +1398,12 @@ async function createStudentFull(row, schoolId) {
     emergencyContact,
     bloodGroup, heightCm, weightKg, identifyingMarks, medicalConditions, allergies,
   } = row;
+
+  // ── Block phone numbers already used by another student ──
+  const phoneConflicts = await findPhoneConflicts(schoolId, null, {
+    phone, parentPhone, motherPhone, guardianPhone,
+  });
+  if (phoneConflicts.length) throw new Error(conflictMessage(phoneConflicts[0]));
 
   const studentEmail = (row.loginEmail || email)?.toLowerCase().trim() ||
     `student.${(admissionNumber || "").toString().toLowerCase().replace(/[^a-z0-9]/g,"")}.${schoolId.slice(0,6)}@noemail.local`;

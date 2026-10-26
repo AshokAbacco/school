@@ -18,6 +18,7 @@ import {
   bulkImportStudents,  
   exportStudentsExcel,
   getStudentLimitStatus,
+  checkPhoneDuplicates,
   bulkDeleteStudents
 } from "../staffControlls/StudentsControlls.js";
 
@@ -60,6 +61,9 @@ router.get("/my-students", authMiddleware, getMyParentStudents);        // Paren
 
 // Register student (ADMIN / STAFF only)
 router.post("/register", authMiddleware, registerStudent);
+
+// Check phone numbers are not already used by another student
+router.post("/check-phones", authMiddleware, checkPhoneDuplicates);
 
 // Create parent login for student
 router.post("/:id/parent-login", authMiddleware, createParentLogin);
