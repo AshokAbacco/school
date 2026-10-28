@@ -334,9 +334,9 @@ const PHONE_FIELDS = {
   guardianPhone: "Guardian phone",
 };
 
-// Parent-side numbers MAY be shared between students (siblings), but only
-// after the user explicitly confirms. The student's own phone stays unique.
-const SHAREABLE_PHONE_FIELDS = new Set(["parentPhone", "motherPhone", "guardianPhone"]);
+// Any of these numbers MAY be shared between students (siblings, family phone),
+// but only after the user explicitly confirms.
+const SHAREABLE_PHONE_FIELDS = new Set(["phone", "parentPhone", "motherPhone", "guardianPhone"]);
 const isConfirmed = (v) => v === true || v === "true"; // JSON body or multipart form
 
 // All stored spellings of a number: "9876543210", "919876543210", "+919876543210"
@@ -438,8 +438,9 @@ const parentPhoneConfirmMessage = (c) => {
   const who = `${first.name}${first.className ? ` – ${first.className}` : ""}`;
   const extra = c.students.length - 1;
   const more = extra > 0 ? ` (and ${extra} other student${extra > 1 ? "s" : ""})` : "";
+  const owner = c.field === "phone" ? "This student's" : "This parent's";
   return (
-    `This parent's phone number is already registered for ${who}${more}. ` +
+    `${owner} phone number is already registered for ${who}${more}. ` +
     `Do you still want to save this student with the same phone number?`
   );
 };
@@ -458,7 +459,7 @@ const evaluatePhoneCheck = async ({ schoolId, studentId, phones, confirmed }) =>
   if (studentId && conflicts.some((c) => c.shareable)) {
     const saved = await prisma.studentPersonalInfo.findUnique({
       where: { studentId },
-      select: { parentPhone: true, motherPhone: true, guardianPhone: true },
+      select: { phone: true, parentPhone: true, motherPhone: true, guardianPhone: true },
     });
     if (saved) {
       conflicts = conflicts.filter(
