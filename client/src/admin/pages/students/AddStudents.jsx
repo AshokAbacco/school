@@ -308,6 +308,9 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const [showMotherPw, setShowMotherPw] = useState(false);
   const [toast, setToast] = useState(null);
   const [limitError, setLimitError] = useState(null);
+  // Set when a parent phone number is already registered for another student.
+  // { data: <server 409 body>, source: "save" | "doc" }
+  const [phoneConfirm, setPhoneConfirm] = useState(null);
   const [limitStatus, setLimitStatus] = useState(null); // { used, limit }
   const [showCamera, setShowCamera] = useState(false);
 
@@ -887,19 +890,33 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     throw e;
   };
 
-  const checkPhones = async (studentId) => {
+  // Server answers 409 PARENT_PHONE_EXISTS when a father/mother/guardian number
+  // is already registered for another student. We surface that as an error
+  // carrying `parentPhoneConfirm` so the caller can ask the user to confirm.
+  const throwIfParentPhoneExists = (d) => {
+    if (d?.code === "PARENT_PHONE_EXISTS") {
+      throw Object.assign(new Error(d.message), { parentPhoneConfirm: d });
+    }
+  };
+
+  const checkPhones = async (studentId, confirmed = false) => {
     const r = await fetch(`${API}/api/students/check-phones`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...auth() },
       body: JSON.stringify({
         studentId: studentId || undefined,
+        confirmDuplicateParentPhone: confirmed || undefined,
         phone: normalizePhone(f.phone),
         parentPhone: normalizePhone(f.pPh),
         motherPhone: normalizePhone(f.mPh),
         guardianPhone: normalizePhone(f.gPh),
       }),
     });
-    if (r.status === 409) throwPhoneConflicts(await r.json());
+    if (r.status === 409) {
+      const d = await r.json();
+      throwIfParentPhoneExists(d);
+      throwPhoneConflicts(d);
+    }
     if (!r.ok) {
       const d = await r.json().catch(() => ({}));
       throw new Error(d.message || "Could not verify phone numbers");
@@ -907,10 +924,13 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   };
 
   // ── Save core ─────────────────────────────────────────────────────────────
-  const saveCore = async () => {
+  const saveCore = async (confirmDup = false) => {
+    // `confirmDup` is strictly `true` only when the user clicked "Yes, Save"
+    // (handlers can be called with a click event, so don't trust truthiness).
+    const confirmed = confirmDup === true;
     let id = sid;
     // Check BEFORE registering, so a duplicate never leaves a half-created student
-    await checkPhones(id);
+    await checkPhones(id, confirmed);
     if (!isEdit) {
       const r = await fetch(`${API}/api/students/register`, {
         method: "POST",
@@ -946,6 +966,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       lastName: f.ln,
       email: f.lemail?.trim() || f.email?.trim() || "",
       phone: normalizePhone(f.phone),
+      confirmDuplicateParentPhone: confirmed ? "true" : undefined,
       dateOfBirth: f.dob,
       gender: f.gender,
       zipCode: f.zip,
@@ -1021,6 +1042,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       body: fd,
     });
     const pd = await pr.json();
+    if (pr.status === 409) throwIfParentPhoneExists(pd);
     if (pr.status === 409 && pd.code === "PHONE_DUPLICATE") throwPhoneConflicts(pd);
     if (!pr.ok) throw new Error(pd.message || "Save failed");
 
@@ -1067,7 +1089,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     return id;
   };
 
-  const handleSave = async () => {
+  const handleSave = async (confirmDup = false) => {
+    const confirmed = confirmDup === true;
     const valid = validate();
     if (!valid) {
       setTab("documents");
@@ -1076,7 +1099,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     setBusy(true);
     setErr({});
     try {
-      await saveCore();
+      await saveCore(confirmed);
       showToast(
         "success",
         isEdit
@@ -1086,6 +1109,11 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       if (onSuccess) onSuccess();
       setTimeout(() => doClose(), 1200);
     } catch (e) {
+      if (e.parentPhoneConfirm) {
+        // Not an error: ask the user whether to reuse the parent's number
+        setPhoneConfirm({ data: e.parentPhoneConfirm, source: "save" });
+        return;
+      }
       setErr({ _g: e.message, ...(e.fieldErrors || {}) });
       showToast("error", e.message || "Something went wrong.");
     } finally {
@@ -1093,7 +1121,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     }
   };
 
-  const handleDocSave = async () => {
+  const handleDocSave = async (confirmDup = false) => {
+    const confirmed = confirmDup === true;
     setBusy(true);
     setDocErr("");
     try {
@@ -1104,7 +1133,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
           setBusy(false);
           return;
         }
-        id = await saveCore();
+        id = await saveCore(confirmed);
       }
 
       // ── NEW: unified docs array ───────────────────────────────────────────
@@ -1140,6 +1169,10 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       if (onSuccess) onSuccess();
       setTimeout(() => doClose(), 1200);
     } catch (e) {
+      if (e.parentPhoneConfirm) {
+        setPhoneConfirm({ data: e.parentPhoneConfirm, source: "doc" });
+        return;
+      }
       if (e.fieldErrors) setErr({ _g: e.message, ...e.fieldErrors });
       setDocErr(e.message);
       showToast("error", e.message || "Something went wrong.");
@@ -2704,6 +2737,80 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
             )}
           </div>
         </div>
+      {/* ── Parent phone already registered: confirm before saving ── */}
+      {phoneConfirm && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dup-phone-title"
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-5"
+            style={{ border: "1px solid #fde68a" }}
+          >
+            <div className="flex items-start gap-3">
+              <AlertCircle size={22} className="shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+              <div className="flex-1">
+                <h3 id="dup-phone-title" className="text-base font-bold" style={{ color: "#1f2937" }}>
+                  Phone number already registered
+                </h3>
+                <p className="text-sm mt-1.5" style={{ color: "#4b5563" }}>
+                  {phoneConfirm.data.conflicts?.[0]?.message || phoneConfirm.data.message}
+                </p>
+
+                {(phoneConfirm.data.conflicts || []).length > 0 && (
+                  <ul className="mt-3 space-y-1.5">
+                    {phoneConfirm.data.conflicts.map((c) => (
+                      <li
+                        key={c.field}
+                        className="text-xs rounded-lg px-3 py-2"
+                        style={{ background: "#fffbeb", color: "#92400e" }}
+                      >
+                        <span className="font-semibold">
+                          {c.label} {c.number}
+                        </span>
+                        {" — "}
+                        {c.students
+                          .map(
+                            (st) =>
+                              `${st.name}${st.className ? ` – ${st.className}` : ""}` +
+                              (st.admissionNumber ? ` (Adm No: ${st.admissionNumber})` : ""),
+                          )
+                          .join(", ")}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end mt-5">
+              <button
+                type="button"
+                onClick={() => setPhoneConfirm(null)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold border transition-colors hover:bg-gray-50"
+                style={{ borderColor: "#e5e7eb", color: "#374151" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const source = phoneConfirm.source;
+                  setPhoneConfirm(null);
+                  if (source === "doc") handleDocSave(true);
+                  else handleSave(true);
+                }}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-white shadow-md transition-all active:scale-95"
+                style={{ background: COLORS.primary }}
+              >
+                Yes, Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 

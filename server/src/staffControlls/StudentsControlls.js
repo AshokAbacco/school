@@ -334,6 +334,11 @@ const PHONE_FIELDS = {
   guardianPhone: "Guardian phone",
 };
 
+// Parent-side numbers MAY be shared between students (siblings), but only
+// after the user explicitly confirms. The student's own phone stays unique.
+const SHAREABLE_PHONE_FIELDS = new Set(["parentPhone", "motherPhone", "guardianPhone"]);
+const isConfirmed = (v) => v === true || v === "true"; // JSON body or multipart form
+
 // All stored spellings of a number: "9876543210", "919876543210", "+919876543210"
 const phoneVariants = (v) => {
   if (v === undefined || v === null) return [];
@@ -378,7 +383,10 @@ const findPhoneConflicts = async (schoolId, excludeStudentId, phones) => {
         select: {
           name: true,
           enrollments: {
-            select: { admissionNumber: true },
+            select: {
+              admissionNumber: true,
+              classSection: { select: { name: true } },
+            },
             orderBy: { createdAt: "desc" },
             take: 1,
           },
@@ -389,21 +397,33 @@ const findPhoneConflicts = async (schoolId, excludeStudentId, phones) => {
 
   const conflicts = [];
   for (const { field, variants } of entries) {
+    const students = [];
     for (const m of matches) {
       const usedField = Object.keys(PHONE_FIELDS).find(
         (f) => m[f] && variants.includes(phoneVariants(m[f])[0]),
       );
       if (usedField) {
-        conflicts.push({
-          field,
-          label: PHONE_FIELDS[field],
-          number: variants[0],
-          studentName: m.student?.name || "another student",
+        students.push({
+          name: m.student?.name || "another student",
           admissionNumber: m.student?.enrollments?.[0]?.admissionNumber || null,
+          className: m.student?.enrollments?.[0]?.classSection?.name || null,
           usedAs: PHONE_FIELDS[usedField],
         });
-        break; // one conflict per field is enough
       }
+    }
+    if (students.length) {
+      const first = students[0];
+      conflicts.push({
+        field,
+        label: PHONE_FIELDS[field],
+        number: variants[0],
+        studentName: first.name,
+        admissionNumber: first.admissionNumber,
+        className: first.className,
+        usedAs: first.usedAs,
+        shareable: SHAREABLE_PHONE_FIELDS.has(field),
+        students,
+      });
     }
   }
   return conflicts;
@@ -413,24 +433,83 @@ const conflictMessage = (c) =>
   `${c.label} ${c.number} is already used as ${c.usedAs} for ${c.studentName}` +
   (c.admissionNumber ? ` (Adm No: ${c.admissionNumber})` : "");
 
+const parentPhoneConfirmMessage = (c) => {
+  const first = c.students[0];
+  const who = `${first.name}${first.className ? ` – ${first.className}` : ""}`;
+  const extra = c.students.length - 1;
+  const more = extra > 0 ? ` (and ${extra} other student${extra > 1 ? "s" : ""})` : "";
+  return (
+    `This parent's phone number is already registered for ${who}${more}. ` +
+    `Do you still want to save this student with the same phone number?`
+  );
+};
+
+/**
+ * Shared by the pre-save check and the actual save.
+ * Returns null when it is OK to continue, otherwise { status, body } to send.
+ *  - student's own phone used elsewhere        → 409 PHONE_DUPLICATE (blocked)
+ *  - father/mother/guardian phone used elsewhere → 409 PARENT_PHONE_EXISTS
+ *    (needs confirmation; skipped when the caller sends the confirm flag)
+ */
+const evaluatePhoneCheck = async ({ schoolId, studentId, phones, confirmed }) => {
+  let conflicts = await findPhoneConflicts(schoolId, studentId || null, phones);
+
+  // Editing: don't re-ask about parent numbers this student already has saved.
+  if (studentId && conflicts.some((c) => c.shareable)) {
+    const saved = await prisma.studentPersonalInfo.findUnique({
+      where: { studentId },
+      select: { parentPhone: true, motherPhone: true, guardianPhone: true },
+    });
+    if (saved) {
+      conflicts = conflicts.filter(
+        (c) => !(c.shareable && saved[c.field] && phoneVariants(saved[c.field])[0] === c.number),
+      );
+    }
+  }
+
+  const hard = conflicts.filter((c) => !c.shareable);
+  if (hard.length) {
+    return {
+      status: 409,
+      body: {
+        code: "PHONE_DUPLICATE",
+        message: conflictMessage(hard[0]),
+        conflicts: hard.map((c) => ({ ...c, message: conflictMessage(c) })),
+      },
+    };
+  }
+
+  const soft = conflicts.filter((c) => c.shareable);
+  if (soft.length && !confirmed) {
+    return {
+      status: 409,
+      body: {
+        code: "PARENT_PHONE_EXISTS",
+        message: parentPhoneConfirmMessage(soft[0]),
+        conflicts: soft.map((c) => ({ ...c, message: parentPhoneConfirmMessage(c) })),
+      },
+    };
+  }
+  return null;
+};
+
 // ── checkPhoneDuplicates (pre-save check used by the Add/Edit form) ───────────
 export const checkPhoneDuplicates = async (req, res) => {
   try {
     const schoolId = req.user?.schoolId;
     if (!schoolId) return res.status(400).json({ message: "schoolId missing from token" });
 
-    const { studentId, phone, parentPhone, motherPhone, guardianPhone } = req.body || {};
-    const conflicts = await findPhoneConflicts(schoolId, studentId || null, {
-      phone, parentPhone, motherPhone, guardianPhone,
-    });
+    const { studentId, phone, parentPhone, motherPhone, guardianPhone, confirmDuplicateParentPhone } =
+      req.body || {};
 
-    if (conflicts.length) {
-      return res.status(409).json({
-        code: "PHONE_DUPLICATE",
-        message: conflictMessage(conflicts[0]),
-        conflicts: conflicts.map((c) => ({ ...c, message: conflictMessage(c) })),
-      });
-    }
+    const blocked = await evaluatePhoneCheck({
+      schoolId,
+      studentId,
+      phones: { phone, parentPhone, motherPhone, guardianPhone },
+      confirmed: isConfirmed(confirmDuplicateParentPhone),
+    });
+    if (blocked) return res.status(blocked.status).json(blocked.body);
+
     return res.json({ ok: true });
   } catch (err) {
     console.error("[checkPhoneDuplicates]", err);
@@ -497,17 +576,14 @@ export const savePersonalInfo = async (req, res) => {
         });
     }
 
-    // ── Block phone numbers already used by another student ──
-    const phoneConflicts = await findPhoneConflicts(student.schoolId, studentId, {
-      phone, parentPhone, motherPhone, guardianPhone,
+    // ── Student phone must be unique; parent phones need explicit confirmation ──
+    const phoneBlocked = await evaluatePhoneCheck({
+      schoolId: student.schoolId,
+      studentId,
+      phones: { phone, parentPhone, motherPhone, guardianPhone },
+      confirmed: isConfirmed(req.body.confirmDuplicateParentPhone),
     });
-    if (phoneConflicts.length) {
-      return res.status(409).json({
-        code: "PHONE_DUPLICATE",
-        message: conflictMessage(phoneConflicts[0]),
-        conflicts: phoneConflicts.map((c) => ({ ...c, message: conflictMessage(c) })),
-      });
-    }
+    if (phoneBlocked) return res.status(phoneBlocked.status).json(phoneBlocked.body);
 
     let profileImageUrl;
     if (req.file) {
