@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import studentFinanceRoutes from "./Financepages/Routes/studentFinance.routes.js";
+import studentFeeBulkRoutes from "./Financepages/Routes/studentFeeBulk.routes.js"; // bulk Excel fee upload
 import expenseRoutes from "./Financepages/Routes/expenseRoutes.js";
 import groupBRoutes from "./Financepages/Routes/groupBRoutes.js";
 import groupCRoutes from "./Financepages/Routes/groupCRoutes.js";
@@ -58,6 +59,7 @@ finance.use(express.urlencoded({
 // existing routes
 finance.use("/api/finance", expenseRoutes);
 finance.use("/api/finance", studentFinanceRoutes);
+finance.use("/api/finance", studentFeeBulkRoutes); // bulk Excel fee upload
 finance.use("/api/groupb", groupBRoutes);
 finance.use("/api/groupc", groupCRoutes);
 finance.use("/api/groupd/salary", groupDRoutes);

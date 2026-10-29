@@ -3,8 +3,9 @@ import React, { useState, useEffect } from "react";
 import {
   X, ChevronDown, User, Mail, Phone, BookOpen,
   DollarSign, Plus, Minus, GraduationCap, Building2,
-  AlertCircle, Calendar, Tag, Percent, Edit2, Check
+  AlertCircle, Calendar, Tag, Percent, Edit2, Check, FileSpreadsheet
 } from "lucide-react";
+import BulkFeeUpload from "./components/BulkFeeUpload";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -38,10 +39,13 @@ const getAuthSchool = () => {
 const todayISO = () => new Date().toISOString().split("T")[0];
 
 // ── Component ─────────────────────────────────────────────────────────────────
-const Addstudent = ({ open, handleClose, addStudentData, editData }) => {
+const Addstudent = ({ open, handleClose, addStudentData, editData, onBulkUploaded }) => {
 
   // school — re-read from localStorage every time modal opens
   const [authSchool, setAuthSchool] = useState({ schoolId: "", schoolName: "Your School" });
+
+  // entry mode: "single" (existing form) | "bulk" (Excel upload)
+  const [entryMode, setEntryMode] = useState("single");
 
   // cascade selects
   const [classes, setClasses] = useState([]);
@@ -112,6 +116,7 @@ const Addstudent = ({ open, handleClose, addStudentData, editData }) => {
   useEffect(() => {
     if (!open) return;
     resetForm();
+    setEntryMode("single");
 
     const school = getAuthSchool();
     setAuthSchool(school);
@@ -495,6 +500,15 @@ if (editData) {
 
         .as-div{height:1px;background:var(--bf)}
 
+        /* Single / Bulk mode switch */
+        .as-mode{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--bm);
+          border:1.5px solid var(--bf);border-radius:12px;padding:4px}
+        .as-mode button{display:flex;align-items:center;justify-content:center;gap:7px;border:none;
+          background:transparent;padding:9px 10px;border-radius:9px;font-size:12.5px;font-weight:600;
+          font-family:'Sora',sans-serif;color:var(--brl);cursor:pointer;transition:all .2s}
+        .as-mode button.on{background:linear-gradient(135deg,var(--br),var(--brd));color:#fff;
+          box-shadow:0 4px 12px rgba(63,85,108,.3)}
+
         /* ── Fee list ── */
         .as-fee-list{border:1.5px solid var(--bf);border-radius:16px;overflow:hidden;}
 
@@ -633,12 +647,24 @@ if (editData) {
           <div className="as-hd">
             <div>
               <h2 className="as-ttl">{editData ? "Edit Student Fees" : "Add Student Fees"}</h2>
-              <p className="as-sub">{editData ? "Edit existing fee record" : "School auto-detected • Select class then student"}</p>
+              <p className="as-sub">{editData ? "Edit existing fee record" : entryMode === "bulk" ? "School auto-detected • Upload fees for a whole class via Excel" : "School auto-detected • Select class then student"}</p>
             </div>
             <button className="as-cx" onClick={handleClose}><X size={15} /></button>
           </div>
 
           <div className="as-bd">
+
+            {/* Entry mode switch — add mode only */}
+            {!editData && (
+              <div className="as-mode">
+                <button type="button" className={entryMode === "single" ? "on" : ""} onClick={() => setEntryMode("single")}>
+                  <User size={14} /> Single Student
+                </button>
+                <button type="button" className={entryMode === "bulk" ? "on" : ""} onClick={() => setEntryMode("bulk")}>
+                  <FileSpreadsheet size={14} /> Bulk Upload (Excel)
+                </button>
+              </div>
+            )}
 
             {/* School */}
             <div>
@@ -659,7 +685,7 @@ if (editData) {
                 <div className="as-date-icon"><Calendar size={16} color="#fff" /></div>
                 <div style={{ flex: 1 }}>
                   <div className="as-date-label">Payment Date</div>
-                  <div className="as-date-hint">Select the date the fee was actually received</div>
+                  <div className="as-date-hint">{entryMode === "bulk" && !editData ? "Used for rows where the Excel Fee Entry Date is empty" : "Select the date the fee was actually received"}</div>
                 </div>
                 <input
                   type="date"
@@ -670,6 +696,16 @@ if (editData) {
                 />
               </div>
             </div>
+
+            {/* ── Bulk Excel upload ── */}
+            {!editData && entryMode === "bulk" ? (
+              <BulkFeeUpload
+                classes={classes}
+                defaultFeeDate={feeDate}
+                onClose={handleClose}
+                onUploaded={(res) => onBulkUploaded?.(res)}
+              />
+            ) : (<>
 
             {/* Class + Student — only for adding new student, hidden in edit mode */}
             {!editData && (<>
@@ -1031,6 +1067,8 @@ if (editData) {
               </button>
               <button className="as-bs" onClick={handleClose}>Cancel</button>
             </div>
+
+            </>)}
 
           </div>
         </div>
