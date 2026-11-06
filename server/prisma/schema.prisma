@@ -1710,6 +1710,9 @@ model StaffProfile {
   phone String?
   email String?
 
+  // 🖼️ Profile photo — Cloudflare R2 object key (signed URL generated on read)
+  profileImage String?
+
   // 🧑‍🔧 Dynamic Role (NO ENUM)
   role      String // Example: "Plumber", "Peon", "Watchman"
   deletedAt DateTime?

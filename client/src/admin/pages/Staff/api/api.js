@@ -1,3 +1,5 @@
+// src/admin/pages/Staff/api/api.js
+
 import { getToken } from "../../../../auth/storage";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -36,20 +38,43 @@ export const fetchStaff = (filters) =>
     headers: authHeaders(),
   }).then(handleResponse);
 
-// ✅ CREATE STAFF
-export const createStaff = (data) =>
+// Builds the request body: plain JSON when no photo change is involved
+// (keeps Bulk Import and other callers exactly as before), multipart
+// FormData when a profile photo is being uploaded or removed.
+const buildBody = (data, { photo, removePhoto } = {}) => {
+  if (!photo && !removePhoto) {
+    return { headers: authHeaders(true), body: JSON.stringify(data) };
+  }
+  const fd = new FormData();
+  Object.entries(data).forEach(([k, v]) => {
+    if (v === undefined) return;
+    fd.append(k, v === null ? "" : String(v)); // null → "" so the server clears it
+  });
+  if (photo) fd.append("profileImage", photo);
+  if (removePhoto && !photo) fd.append("removeProfileImage", "true");
+  // No Content-Type header — the browser sets the multipart boundary itself
+  return { headers: authHeaders(), body: fd };
+};
+
+// ✅ CREATE STAFF  — options: { photo: File }
+export const createStaff = (data, options) =>
   fetch(BASE, {
     method: "POST",
-    headers: authHeaders(true),
-    body: JSON.stringify(data),
+    ...buildBody(data, options),
   }).then(handleResponse);
 
-// ✅ UPDATE
-export const updateStaff = (id, data) =>
+// ✅ UPDATE  — options: { photo: File, removePhoto: boolean }
+export const updateStaff = (id, data, options) =>
   fetch(`${BASE}/${id}`, {
     method: "PATCH",
-    headers: authHeaders(true),
-    body: JSON.stringify(data),
+    ...buildBody(data, options),
+  }).then(handleResponse);
+
+// ✅ REMOVE PROFILE PHOTO ONLY
+export const deleteStaffPhoto = (id) =>
+  fetch(`${BASE}/${id}/profile-image`, {
+    method: "DELETE",
+    headers: authHeaders(),
   }).then(handleResponse);
 
 // ✅ DELETE

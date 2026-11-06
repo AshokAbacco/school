@@ -11,6 +11,7 @@ import {
 import { fetchStaff, deleteStaff } from "./api/api";
 import StaffAdd from "./components/StaffAdd";
 import BulkImportStaff from "./components/BulkImportStaff";
+import StaffAvatar from "./components/StaffAvatar";
 import { downloadStaffExcel } from "../../../utils/downloadStaffExcel";
 
 /* ── Design tokens — Stormy Morning (single source of truth) ── */
@@ -339,9 +340,7 @@ export default function StaffList() {
                     <tr key={s.id} className="staff-row">
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, background: `linear-gradient(135deg, ${C.sky}, ${C.deep})`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700, boxShadow: `0 3px 8px ${C.sky}44` }}>
-                            {s.firstName?.[0]}{s.lastName?.[0] || ""}
-                          </div>
+                          <StaffAvatar staff={s} size={34} />
                           <div>
                             <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: C.text }}>{s.firstName} {s.lastName}</p>
                             <p style={{ margin: 0, fontSize: 10, color: C.textLight }}>{s.employeeCode ? `#${s.employeeCode}` : (s.email || "—")}</p>
@@ -422,9 +421,10 @@ function ViewModal({ staff: s, onClose, onEdit }) {
             <X size={14} />
           </button>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 14 }}>
-            <div style={{ width: 60, height: 60, borderRadius: 18, background: "rgba(255,255,255,0.18)", border: "2px solid rgba(255,255,255,0.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 20, fontWeight: 800, fontFamily: "'Inter', sans-serif", flexShrink: 0 }}>
-              {s.firstName?.[0]}{s.lastName?.[0] || ""}
-            </div>
+            <StaffAvatar
+              staff={s} size={60} radius={18} fontSize={20}
+              style={{ background: "rgba(255,255,255,0.18)", border: "2px solid rgba(255,255,255,0.35)", boxShadow: "none", fontWeight: 800, fontFamily: "'Inter', sans-serif" }}
+            />
             <div style={{ paddingBottom: 2 }}>
               <p style={{ margin: 0, color: "#fff", fontWeight: 700, fontSize: 16, fontFamily: "'Inter', sans-serif" }}>{s.firstName} {s.lastName}</p>
               <p style={{ margin: "3px 0 8px", color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "'Inter', sans-serif" }}>{s.role}</p>

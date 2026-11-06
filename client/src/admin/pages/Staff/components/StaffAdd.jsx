@@ -1,8 +1,8 @@
 // client/src/admin/pages/Staff/components/StaffAdd.jsx
 // Stormy Morning palette — matches Dashboard / ActivitiesPage design language
 
-import { useState, useEffect } from "react";
-import { X, UserPlus, FlaskConical, Home, KeyRound, Info, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, UserPlus, FlaskConical, Home, KeyRound, Info, Loader2, Camera, Upload, Trash2, RotateCcw } from "lucide-react";
 import { createStaff, updateStaff } from "../api/api";
 
 /* ── Design tokens ── */
@@ -85,6 +85,84 @@ function SectionTitle({ children, sub }) {
   );
 }
 
+/* ── Profile photo picker ── */
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const PHOTO_MAX_MB = 5;
+
+function PhotoPicker({ preview, initials, onPick, onRemove, onUndo, canUndo, hasPhoto }) {
+  const inputRef = useRef(null);
+  const [drag, setDrag] = useState(false);
+
+  const handleFiles = (files) => {
+    const file = files?.[0];
+    if (file) onPick(file);
+    if (inputRef.current) inputRef.current.value = ""; // allow re-picking the same file
+  };
+
+  const btn = (primary) => ({
+    display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 10,
+    fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "all 0.15s",
+    border: primary ? "none" : `1.5px solid ${C.border}`,
+    background: primary ? `linear-gradient(135deg, ${C.slate}, ${C.deep})` : C.white,
+    color: primary ? "#fff" : C.textMid,
+    boxShadow: primary ? "0 3px 10px rgba(56,73,89,0.18)" : "none",
+  });
+
+  return (
+    <div
+      className="staff-photo"
+      onDragOver={e => { e.preventDefault(); setDrag(true); }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={e => { e.preventDefault(); setDrag(false); handleFiles(e.dataTransfer.files); }}
+      style={{ display: "flex", alignItems: "center", gap: 16, borderRadius: 14, border: `1.5px dashed ${drag ? C.sky : C.border}`, background: drag ? `${C.sky}12` : C.bg, padding: "14px 16px", transition: "all 0.15s" }}
+    >
+      {/* Preview circle — click to choose */}
+      <button type="button" onClick={() => inputRef.current?.click()} title="Choose photo"
+        style={{ position: "relative", width: 76, height: 76, borderRadius: "50%", flexShrink: 0, padding: 0, border: `2px solid ${C.white}`, boxShadow: `0 4px 14px ${C.sky}55`, cursor: "pointer", overflow: "hidden", background: `linear-gradient(135deg, ${C.sky}, ${C.deep})` }}>
+        {preview ? (
+          <img src={preview} alt="Profile preview" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        ) : initials ? (
+          <span style={{ color: "#fff", fontSize: 22, fontWeight: 800, fontFamily: "'Inter', sans-serif" }}>{initials}</span>
+        ) : (
+          <Camera size={24} color="#fff" style={{ opacity: 0.9 }} />
+        )}
+        <span style={{ position: "absolute", right: 2, bottom: 2, width: 24, height: 24, borderRadius: "50%", background: C.white, border: `1.5px solid ${C.borderLight}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Camera size={12} color={C.deep} />
+        </span>
+      </button>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: C.text }}>Profile Photo</p>
+        <p style={{ margin: "2px 0 10px", fontSize: 11, color: C.textLight, lineHeight: 1.4 }}>
+          JPG, PNG or WEBP · max {PHOTO_MAX_MB} MB · click or drag &amp; drop
+        </p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+          <button type="button" style={btn(true)} onClick={() => inputRef.current?.click()}>
+            <Upload size={12} /> {hasPhoto ? "Change Photo" : "Upload Photo"}
+          </button>
+          {hasPhoto && (
+            <button type="button" style={{ ...btn(false), color: "#D95C5C" }} onClick={onRemove}
+              onMouseEnter={e => e.currentTarget.style.borderColor = "#D95C5C"}
+              onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+              <Trash2 size={12} /> Remove
+            </button>
+          )}
+          {canUndo && (
+            <button type="button" style={btn(false)} onClick={onUndo}
+              onMouseEnter={e => e.currentTarget.style.borderColor = C.sky}
+              onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+              <RotateCcw size={12} /> Undo
+            </button>
+          )}
+        </div>
+      </div>
+
+      <input ref={inputRef} type="file" accept={PHOTO_TYPES.join(",")} style={{ display: "none" }}
+        onChange={e => handleFiles(e.target.files)} />
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════
    STAFFADD — modal
 ══════════════════════════════════════════ */
@@ -99,6 +177,38 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
   });
   const [loading, setLoading]     = useState(false);
   const [giveLogin, setGiveLogin] = useState(false);
+
+  // Profile photo state
+  const existingPhoto = editData?.profileImage || null;   // signed URL from API
+  const [photoFile, setPhotoFile]       = useState(null);   // newly picked File
+  const [photoPreview, setPhotoPreview] = useState(null);   // object URL for preview
+  const [removePhoto, setRemovePhoto]   = useState(false);  // clear existing photo
+
+  // Free the object URL when it changes / modal closes
+  useEffect(() => () => { if (photoPreview) URL.revokeObjectURL(photoPreview); }, [photoPreview]);
+
+  const pickPhoto = (file) => {
+    if (!PHOTO_TYPES.includes(file.type))
+      return alert("Please choose a JPG, PNG or WEBP image");
+    if (file.size > PHOTO_MAX_MB * 1024 * 1024)
+      return alert(`Photo must be ${PHOTO_MAX_MB} MB or smaller`);
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    setRemovePhoto(false);
+  };
+  const clearPhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setRemovePhoto(!!existingPhoto);
+  };
+  const undoPhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setRemovePhoto(false);
+  };
+
+  const shownPhoto = photoPreview || (!removePhoto ? existingPhoto : null);
+  const photoInitials = `${form.firstName?.[0] || ""}${form.lastName?.[0] || ""}`.toUpperCase();
 
   useEffect(() => {
     if (editData) {
@@ -145,7 +255,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
           joiningDate: form.joiningDate,
           bankAccountNo: form.bankAccountNo || null,
           bankName: form.bankName || null, ifscCode: form.ifscCode || null,
-        });
+        }, { photo: photoFile, removePhoto });
       } else {
         await createStaff({
           firstName: form.firstName, lastName: form.lastName || "",
@@ -157,7 +267,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
           bankAccountNo: form.bankAccountNo || undefined,
           bankName: form.bankName || undefined, ifscCode: form.ifscCode || undefined,
           ...(giveLogin && { password: form.password }),
-        });
+        }, { photo: photoFile });
       }
       onSuccess(); onClose();
     } catch (err) {
@@ -176,6 +286,7 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
         * { box-sizing: border-box; }
         .staff-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 480px) { .staff-2col { grid-template-columns: 1fr; } }
+        @media (max-width: 400px) { .staff-photo { flex-direction: column; text-align: center; } .staff-photo > div > div { justify-content: center; } }
       `}</style>
 
       {/* Backdrop */}
@@ -204,6 +315,20 @@ export default function StaffAdd({ onClose, onSuccess, editData = null }) {
 
           {/* ── Body ── */}
           <div style={{ padding: "22px 22px", display: "flex", flexDirection: "column", gap: 22 }}>
+
+            {/* ── Profile Photo ── */}
+            <div>
+              <SectionTitle>Profile Photo <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(optional)</span></SectionTitle>
+              <PhotoPicker
+                preview={shownPhoto}
+                initials={photoInitials}
+                hasPhoto={!!shownPhoto}
+                canUndo={isEdit && !!existingPhoto && (!!photoFile || removePhoto)}
+                onPick={pickPhoto}
+                onRemove={clearPhoto}
+                onUndo={undoPhoto}
+              />
+            </div>
 
             {/* ── Group Toggle ── */}
             <div>

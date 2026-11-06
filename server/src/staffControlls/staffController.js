@@ -1,10 +1,54 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import cacheService from "../utils/cacheService.js";
+import { randomUUID } from "crypto";
+import { uploadToR2, deleteFromR2, generateSignedUrl } from "../lib/r2.js";
 
 
 import { prisma } from "../config/db.js"; 
 const SALT_ROUNDS = 10;
+
+/* ─────────────────────────────────────────────────────────────
+   Profile photo helpers (Cloudflare R2)
+   • The DB stores only the R2 object key (staffProfile.profileImage)
+   • Every read swaps the key for a short-lived signed URL
+   • Uploads come from multer memoryStorage — nothing touches local disk
+───────────────────────────────────────────────────────────── */
+const PHOTO_URL_TTL = 60 * 60 * 24; // 24h signed URL
+const EXT_BY_MIME = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+
+const buildPhotoKey = (schoolId, staffId, mimetype) =>
+  `schools/${schoolId}/staff/${staffId}/profile/${Date.now()}-${randomUUID().slice(0, 8)}.${EXT_BY_MIME[mimetype] || "jpg"}`;
+
+const uploadStaffPhoto = async (schoolId, staffId, file) => {
+  const key = buildPhotoKey(schoolId, staffId, file.mimetype);
+  await uploadToR2(key, file.buffer, file.mimetype);
+  return key;
+};
+
+// Best-effort delete — a failed cleanup must never fail the user's request
+export const removeStaffPhotoFromR2 = async (key) => {
+  if (!key || /^https?:\/\//i.test(key)) return;
+  try {
+    await deleteFromR2(key);
+  } catch (err) {
+    console.error("[staffPhoto] R2 delete failed:", key, err.message);
+  }
+};
+
+// Returns a copy of the staff record with profileImage as a signed URL
+const withSignedPhoto = async (staff) => {
+  if (!staff?.profileImage) return staff;
+  if (/^https?:\/\//i.test(staff.profileImage)) return staff;
+  try {
+    return { ...staff, profileImage: await generateSignedUrl(staff.profileImage, PHOTO_URL_TTL) };
+  } catch (err) {
+    console.error("[staffPhoto] sign failed:", err.message);
+    return { ...staff, profileImage: null };
+  }
+};
+
+const isTrue = (v) => v === true || v === "true" || v === "1";
 
 // ➤ Create Staff
 export async function createStaff(req, res) {
@@ -18,7 +62,20 @@ export async function createStaff(req, res) {
     const schoolId = req.user?.schoolId;
     if (!schoolId) return res.status(400).json({ error: "schoolId missing from token" });
 
+    // Pre-generate the id so the R2 key can live under this staff's folder
+    const staffId = randomUUID();
+    let photoKey = null;
+    if (req.file) {
+      try {
+        photoKey = await uploadStaffPhoto(schoolId, staffId, req.file);
+      } catch (err) {
+        console.error("[createStaff] photo upload failed", err);
+        return res.status(502).json({ error: "Failed to upload profile photo" });
+      }
+    }
+
     let staff;
+    try {
 
     if (email && password) {
       staff = await prisma.$transaction(async (tx) => {
@@ -36,8 +93,10 @@ export async function createStaff(req, res) {
 
         return tx.staffProfile.create({
           data: {
+            id: staffId,
             schoolId,
             userId: user.id,
+            profileImage: photoKey,
             firstName,
             lastName: lastName || "",
             employeeCode: employeeCode || null,
@@ -58,7 +117,9 @@ export async function createStaff(req, res) {
     } else {
       staff = await prisma.staffProfile.create({
         data: {
+          id: staffId,
           schoolId,
+          profileImage: photoKey,
           firstName,
           lastName: lastName || "",
           employeeCode: employeeCode || null,
@@ -76,10 +137,16 @@ export async function createStaff(req, res) {
  
     }
 
+    } catch (dbErr) {
+      // DB insert failed → don't leave an orphaned photo in R2
+      await removeStaffPhotoFromR2(photoKey);
+      throw dbErr;
+    }
+
     // ✅ Bust the cache so next GET reflects the new staff immediately
     await cacheService.invalidateSchool(schoolId);
 
-    res.status(201).json({ data: staff });
+    res.status(201).json({ data: await withSignedPhoto(staff) });
   } catch (err) {
     if (err.code === "P2002") {
       return res.status(409).json({ error: "Email already exists in this school" });
@@ -100,7 +167,8 @@ export async function getStaff(req, res) {
 
     const cached = await cacheService.get(cacheKey);
     if (cached) {
-      return res.json({ data: JSON.parse(cached), fromCache: true });
+      const list = await Promise.all(JSON.parse(cached).map(withSignedPhoto));
+      return res.json({ data: list, fromCache: true });
     }
 
     const staff = await prisma.staffProfile.findMany({
@@ -114,10 +182,11 @@ export async function getStaff(req, res) {
       },
     });
 
-    // ✅ Cache the fresh result
+    // ✅ Cache the raw result (R2 keys, not expiring signed URLs)
     await cacheService.set(cacheKey, staff);
 
-    res.json({ data: staff, fromCache: false });
+    const signed = await Promise.all(staff.map(withSignedPhoto));
+    res.json({ data: signed, fromCache: false });
   } catch (err) {
     console.error("[getStaff]", err);
     res.status(500).json({ error: "Failed to fetch staff" });
@@ -136,7 +205,7 @@ export async function getStaffById(req, res) {
 
     const cached = await cacheService.get(cacheKey);
     if (cached) {
-      return res.json({ data: JSON.parse(cached), fromCache: true });
+      return res.json({ data: await withSignedPhoto(JSON.parse(cached)), fromCache: true });
     }
 
     const staff = await prisma.staffProfile.findFirst({
@@ -151,7 +220,7 @@ export async function getStaffById(req, res) {
     // ✅ Cache individual record
     await cacheService.set(cacheKey, staff);
 
-    res.json({ data: staff, fromCache: false });
+    res.json({ data: await withSignedPhoto(staff), fromCache: false });
   } catch (err) {
     console.error("[getStaffById]", err);
     res.status(500).json({ error: "Failed to fetch staff member" });
@@ -171,12 +240,31 @@ export async function updateStaff(req, res) {
       firstName, lastName, employeeCode, phone, email,
       role, groupType, basicSalary, joiningDate,
       bankAccountNo, bankName, ifscCode,
+      removeProfileImage,
     } = req.body;
 
-    const updated = await prisma.staffProfile.update({
+    // ── Photo: replace (new file) / remove (flag) / untouched (neither)
+    let newPhotoKey;            // undefined → leave column as is
+    let oldPhotoKeyToDelete = null;
+    if (req.file) {
+      try {
+        newPhotoKey = await uploadStaffPhoto(schoolId, id, req.file);
+      } catch (err) {
+        console.error("[updateStaff] photo upload failed", err);
+        return res.status(502).json({ error: "Failed to upload profile photo" });
+      }
+      oldPhotoKeyToDelete = existing.profileImage;
+    } else if (isTrue(removeProfileImage)) {
+      newPhotoKey = null;
+      oldPhotoKeyToDelete = existing.profileImage;
+    }
+
+    let updated;
+    try {
+    updated = await prisma.staffProfile.update({
       where: { id },
       data: {
-  
+        ...(newPhotoKey !== undefined && { profileImage: newPhotoKey }),
         firstName,
         lastName: lastName || "",
         employeeCode: employeeCode || null,
@@ -191,11 +279,21 @@ export async function updateStaff(req, res) {
         ifscCode: ifscCode || null,
       },
     });
+    } catch (dbErr) {
+      // DB update failed → drop the freshly uploaded photo, keep the old one
+      if (newPhotoKey) await removeStaffPhotoFromR2(newPhotoKey);
+      throw dbErr;
+    }
+
+    // Only now that the DB points at the new photo, remove the old object
+    if (oldPhotoKeyToDelete && oldPhotoKeyToDelete !== newPhotoKey) {
+      await removeStaffPhotoFromR2(oldPhotoKeyToDelete);
+    }
 
     // ✅ Bust entire school cache — list + individual record both go stale
     await cacheService.invalidateSchool(schoolId);
 
-    res.json({ data: updated });
+    res.json({ data: await withSignedPhoto(updated) });
   } catch (err) {
     console.error("[updateStaff]", err);
     res.status(500).json({ error: "Failed to update staff" });
@@ -230,6 +328,8 @@ export async function deleteStaff(req, res) {
     }
 
     // ✅ SOFT DELETE STAFF
+    // Profile photo is intentionally kept in R2 so a restore from the
+    // recycle bin brings it back; it is removed on permanent delete.
     await prisma.staffProfile.update({
 
       where: { id },
@@ -285,5 +385,30 @@ export async function deleteStaff(req, res) {
         "Failed to delete staff",
     });
 
+  }
+}
+
+// ➤ Remove profile photo only  (DELETE /api/staff/profiles/:id/profile-image)
+export async function deleteStaffProfileImage(req, res) {
+  try {
+    const { id } = req.params;
+    const schoolId = req.user?.schoolId;
+
+    const existing = await prisma.staffProfile.findFirst({
+      where: { id, schoolId },
+      select: { id: true, profileImage: true },
+    });
+    if (!existing) return res.status(404).json({ error: "Staff not found" });
+
+    if (existing.profileImage) {
+      await prisma.staffProfile.update({ where: { id }, data: { profileImage: null } });
+      await removeStaffPhotoFromR2(existing.profileImage);
+      await cacheService.invalidateSchool(schoolId);
+    }
+
+    res.json({ message: "Profile photo removed" });
+  } catch (err) {
+    console.error("[deleteStaffProfileImage]", err);
+    res.status(500).json({ error: "Failed to remove profile photo" });
   }
 }

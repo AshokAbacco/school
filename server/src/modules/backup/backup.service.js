@@ -9,6 +9,7 @@ import {
 import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
+import { removeStaffPhotoFromR2 } from "../../staffControlls/staffController.js";
 /* =========================================================
    LIST DELETED RECORDS
 ========================================================= */
@@ -331,6 +332,11 @@ export const permanentlyDeleteRecord = async ({
           .catch((err) =>
             console.log("⚠️ Could not delete linked user:", err.message)
           );
+      }
+
+      // 🖼️ Remove the staff profile photo from Cloudflare R2
+      if (staff.profileImage) {
+        await removeStaffPhotoFromR2(staff.profileImage);
       }
 
       return deletedStaff;
