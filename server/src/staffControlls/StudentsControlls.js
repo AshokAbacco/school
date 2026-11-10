@@ -187,7 +187,7 @@ export const registerStudent = async (req, res) => {
     }
 
     if (email) {
-      const exists = await prisma.student.findFirst({ where: { email, schoolId } });
+      const exists = await prisma.student.findFirst({ where: { email, schoolId, deletedAt: null } });
       if (exists)
         return res.status(409).json({
           message: "A student with this email already exists in this school",
@@ -301,8 +301,10 @@ export const createParentLogin = async (req, res) => {
 // Pushes father/mother details edited on the student form onto the linked
 // Parent records. Email is NOT touched — it is the parent's login identifier.
 // undefined = field not submitted (leave alone); "" = clear (except name).
-const syncLinkedParents = async (studentId, byRelation) => {
-  const links = await prisma.studentParent.findMany({
+// `db` lets the caller pass a transaction client so the sync is atomic with
+// the rest of the student save (defaults to the shared client).
+const syncLinkedParents = async (studentId, byRelation, db = prisma) => {
+  const links = await db.studentParent.findMany({
     where: { studentId, relation: { in: Object.keys(byRelation) } },
     select: { parentId: true, relation: true },
   });
@@ -318,7 +320,7 @@ const syncLinkedParents = async (studentId, byRelation) => {
     if (v.anniversaryDate !== undefined) upd.anniversaryDate = dateOrNull(v.anniversaryDate);
 
     if (Object.keys(upd).length) {
-      await prisma.parent.update({ where: { id: link.parentId }, data: upd });
+      await db.parent.update({ where: { id: link.parentId }, data: upd });
     }
   }
 };
@@ -542,11 +544,24 @@ export const savePersonalInfo = async (req, res) => {
       previousSchoolName, previousSchoolBoard, udiseCode, lateralEntry,
     } = req.body;
 
-    if (!firstName )
-      return res.status(400).json({ message: "firstName is required" });
-
-    if (!admissionDate)
-      return res.status(400).json({ message: "admissionDate is required" });
+    // ── Required fields ──────────────────────────────────────────────────────
+    // A student must never be saved without a class assignment: the enrollment
+    // (class + academic year + admission number, status ACTIVE) is what makes a
+    // student appear in the Active count and in the class lists. Validate
+    // everything BEFORE any write so an incomplete form saves nothing.
+    const missing = [];
+    if (!firstName?.trim()) missing.push("First name");
+    if (!admissionDate) missing.push("Admission date");
+    if (!classSectionId) missing.push("Class / section");
+    if (!academicYearId) missing.push("Academic year");
+    if (!admissionNumber?.trim()) missing.push("Admission number");
+    if (missing.length) {
+      return res.status(400).json({
+        code: "MISSING_REQUIRED_FIELDS",
+        message: `Please fill the required field(s): ${missing.join(", ")}`,
+        fields: missing,
+      });
+    }
 
     // Allow predefined categories OR any custom value
     if (casteCategory && casteCategory.trim().length > 100) {
@@ -686,6 +701,7 @@ export const savePersonalInfo = async (req, res) => {
       const existingStudent = await prisma.student.findFirst({
         where: {
           email: trimmedEmail,
+          deletedAt: null, // a removed student must not block re-adding the email
           NOT: { id: studentId },
         },
       });
@@ -701,71 +717,91 @@ export const savePersonalInfo = async (req, res) => {
     // not only when an email was also provided — otherwise renaming a
     // student (e.g. clearing/changing lastName) without touching email
     // left the old combined name stuck on the parent Student record.
-    await prisma.student.update({
-      where: { id: studentId },
-      data: {
-        ...(trimmedEmail ? { email: trimmedEmail } : {}),
-        name: [firstName, lastName].filter(Boolean).join(" "),
-      },
-    });
+    //
+    // Everything below is ONE transaction: the student name, personal info,
+    // linked parents and the enrollment are saved together or not at all, so a
+    // failure (e.g. duplicate admission number) can never leave a student with
+    // details but no class (= "NO ENROLLMENT").
+    const enrollmentFields = {
+      admissionNumber: admissionNumber.trim(),
+      rollNumber: rollNumber?.trim() || null,
+      externalId: externalId?.trim() || null,
+      // A saved student is ACTIVE unless a status was explicitly chosen.
+      status: toEnum(status) || "ACTIVE",
+      previousSchoolName: previousSchoolName?.trim() || null,
+      previousSchoolBoard: previousSchoolBoard ? toEnum(previousSchoolBoard) : null,
+      udiseCode: udiseCode?.trim() || null,
+      lateralEntry: lateralEntry === true || lateralEntry === "true" || false,
+    };
 
-    const personalInfo = await prisma.studentPersonalInfo.upsert({
-      where: { studentId },
-      create: { studentId, ...data },
-      update: data,
-    });
-
-    // ── Keep linked Parent accounts (FATHER / MOTHER) in sync ──
-    // The edit form reads parent details from the linked Parent record first,
-    // so if we only update StudentPersonalInfo the old values come back on reload.
-    await syncLinkedParents(studentId, {
-      FATHER: {
-        name: parentName,
-        phone: parentPhone,
-        occupation: parentOccupation,
-        anniversaryDate: parentAnniversaryDate,
-      },
-      MOTHER: {
-        name: motherName,
-        phone: motherPhone,
-        occupation: motherOccupation,
-        anniversaryDate: motherAnniversaryDate,
-      },
-    });
-
-    let enrollment = null;
-    if (classSectionId && academicYearId) {
-      enrollment = await prisma.studentEnrollment.upsert({
-        where: { studentId_academicYearId: { studentId, academicYearId } },
-        create: {
-          studentId, classSectionId, academicYearId,
-          admissionNumber: admissionNumber?.trim() || null,
-          admissionDate: admissionDate ? new Date(admissionDate) : new Date(),
-          rollNumber: rollNumber?.trim() || null,
-          externalId: externalId?.trim() || null,
-          status: toEnum(status) || "ACTIVE",
-          previousSchoolName: previousSchoolName?.trim() || null,
-          previousSchoolBoard: previousSchoolBoard ? toEnum(previousSchoolBoard) : null,
-          udiseCode: udiseCode?.trim() || null,
-          lateralEntry: lateralEntry === true || lateralEntry === "true" || false,
-        },
-        update: {
-          classSectionId,
-          admissionNumber: admissionNumber?.trim() || null,
-          rollNumber: rollNumber?.trim() || null,
-          externalId: externalId?.trim() || null,
-          status: toEnum(status) || "ACTIVE",
-          previousSchoolName: previousSchoolName?.trim() || null,
-          previousSchoolBoard: previousSchoolBoard ? toEnum(previousSchoolBoard) : null,
-          udiseCode: udiseCode?.trim() || null,
-          lateralEntry: lateralEntry === true || lateralEntry === "true" || false,
+    const { personalInfo, enrollment } = await prisma.$transaction(async (tx) => {
+      await tx.student.update({
+        where: { id: studentId },
+        data: {
+          ...(trimmedEmail ? { email: trimmedEmail } : {}),
+          name: [firstName, lastName].filter(Boolean).join(" "),
         },
       });
-    }
+
+      const personalInfo = await tx.studentPersonalInfo.upsert({
+        where: { studentId },
+        create: { studentId, ...data },
+        update: data,
+      });
+
+      // ── Keep linked Parent accounts (FATHER / MOTHER) in sync ──
+      // The edit form reads parent details from the linked Parent record first,
+      // so if we only update StudentPersonalInfo the old values come back on reload.
+      await syncLinkedParents(
+        studentId,
+        {
+          FATHER: {
+            name: parentName,
+            phone: parentPhone,
+            occupation: parentOccupation,
+            anniversaryDate: parentAnniversaryDate,
+          },
+          MOTHER: {
+            name: motherName,
+            phone: motherPhone,
+            occupation: motherOccupation,
+            anniversaryDate: motherAnniversaryDate,
+          },
+        },
+        tx,
+      );
+
+      const enrollment = await tx.studentEnrollment.upsert({
+        where: { studentId_academicYearId: { studentId, academicYearId } },
+        create: {
+          studentId,
+          classSectionId,
+          academicYearId,
+          admissionDate: new Date(admissionDate),
+          ...enrollmentFields,
+        },
+        update: { classSectionId, ...enrollmentFields },
+      });
+
+      return { personalInfo, enrollment };
+    });
 
     return res.status(200).json({ personalInfo, enrollment });
   } catch (err) {
     console.error("[savePersonalInfo]", err);
+    // Prisma unique-constraint / foreign-key errors → readable messages.
+    // The transaction has already rolled back, so nothing was saved.
+    if (err?.code === "P2002") {
+      return res.status(409).json({
+        message:
+          "Admission number or roll number already exists for this class / academic year. Nothing was saved.",
+      });
+    }
+    if (err?.code === "P2003") {
+      return res.status(400).json({
+        message: "The selected class/section or academic year is invalid. Nothing was saved.",
+      });
+    }
     return res.status(500).json({ message: "Server error", detail: err.message });
   }
 };
@@ -1002,6 +1038,45 @@ export const listStudents = async (req, res) => {
 };
 
 // ── deleteStudent ─────────────────────────────────────────────────────────────
+// ── discardIncompleteStudent ──────────────────────────────────────────────────
+// Rollback helper for the Add Student form. When a student was registered but
+// saving the details/enrollment failed, the form calls this to remove the empty
+// student so no "no enrollment" record is left behind (and the plan's student
+// limit slot is freed — soft-deleted students still count toward it).
+// It only removes a student of the caller's own school that has NO enrollment
+// and was created in the last 30 minutes, so it cannot delete real students.
+export const discardIncompleteStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const schoolId = req.user?.schoolId;
+    if (!schoolId)
+      return res.status(400).json({ message: "schoolId missing from token" });
+
+    const student = await prisma.student.findFirst({
+      where: { id, schoolId, deletedAt: null },
+      select: {
+        id: true,
+        createdAt: true,
+        _count: { select: { enrollments: true } },
+      },
+    });
+    if (!student) return res.status(404).json({ message: "Student not found" });
+
+    if (student._count.enrollments > 0)
+      return res.status(409).json({ message: "Student already has an enrollment" });
+
+    const ageMs = Date.now() - new Date(student.createdAt).getTime();
+    if (ageMs > 30 * 60 * 1000)
+      return res.status(409).json({ message: "Student is too old to discard" });
+
+    await prisma.student.delete({ where: { id } });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[discardIncompleteStudent]", err);
+    return res.status(500).json({ message: "Server error", detail: err.message });
+  }
+};
+
 export const deleteStudent = async (req, res) => {
   try {
     const { id } = req.params;

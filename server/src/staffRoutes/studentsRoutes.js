@@ -9,6 +9,7 @@ import {
   getStudent,
   listStudents,
   deleteStudent,
+  discardIncompleteStudent,
   viewStudentDocument,
   getMyStudent,
   getMyParentStudents,
@@ -97,6 +98,8 @@ router.get("/:id/profile-image", authMiddleware, getProfileImage);
 
 // Delete student
 router.post("/bulk-delete", authMiddleware, bulkDeleteStudents);
+// Rollback of a just-registered student whose save failed (no enrollment only)
+router.delete("/:id/incomplete", authMiddleware, discardIncompleteStudent);
 router.delete("/:id", authMiddleware, deleteStudent);
 
 router.get("/export/excel", authMiddleware, exportStudentsExcel);

@@ -836,8 +836,12 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       if (!f.pw.trim()) e.pw = "Password is required";
       else if (f.pw.length < 6) e.pw = "Password must be at least 6 characters";
     }
+    // A student is only saved together with a class assignment (enrollment).
     if (!f.admissionNumber.trim())
       e.admissionNumber = "Admission Number is required";
+    if (!f.classSectionId) e.classSectionId = "Class / Section is required";
+    if (!f.academicYearId) e.academicYearId = "Academic Year is required";
+    if (!f.admDate) e.admDate = "Admission Date is required";
 
     const tabErrors = {};
     Object.entries(TAB_FIELD_MAP).forEach(([tabId, keys]) => {
@@ -846,7 +850,19 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     });
     e._tabErrors = tabErrors;
     setErr(e);
-    return !Object.keys(e).filter((k) => k !== "_tabErrors").length;
+
+    const ok = !Object.keys(e).filter((k) => k !== "_tabErrors").length;
+    if (!ok) {
+      // Jump to the first tab that has a problem, and say what is missing.
+      const firstTab = TABS.find((t) => tabErrors[t.id]?.length);
+      if (firstTab) setTab(firstTab.id);
+      const names = Object.values(tabErrors).flat();
+      showToast(
+        "error",
+        `Please fix the required field(s) before saving: ${names.join(", ")}`,
+      );
+    }
+    return ok;
   };
 
   const tabHasError = (tabId) =>
@@ -923,15 +939,33 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     }
   };
 
+  // Best-effort rollback of a student that was registered but whose details /
+  // enrollment could not be saved. The server only deletes students that have
+  // no enrollment and were created moments ago, so it can't remove real data.
+  const discardIncomplete = async (studentId) => {
+    try {
+      await fetch(`${API}/api/students/${studentId}/incomplete`, {
+        method: "DELETE",
+        headers: auth(),
+      });
+    } catch {
+      /* non-critical */
+    }
+    fetchLimitStatus();
+  };
+
   // ── Save core ─────────────────────────────────────────────────────────────
   const saveCore = async (confirmDup = false) => {
     // `confirmDup` is strictly `true` only when the user clicked "Yes, Save"
     // (handlers can be called with a click event, so don't trust truthiness).
     const confirmed = confirmDup === true;
     let id = sid;
+    let createdNow = false;
     // Check BEFORE registering, so a duplicate never leaves a half-created student
     await checkPhones(id, confirmed);
-    if (!isEdit) {
+    // Register only when no student exists yet for this form. (Previously this
+    // was `!isEdit`, so every retry after a failed save created ANOTHER student.)
+    if (!id) {
       const r = await fetch(`${API}/api/students/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth() },
@@ -955,6 +989,7 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
       if (!r.ok) throw new Error(d.message || "Registration failed");
       id = d.student?.id || d.id;
       if (!id) throw new Error("No ID returned");
+      createdNow = true;
       setSid(id);
       fetchLimitStatus(); // refresh live counter after adding
     }
@@ -1036,15 +1071,26 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
     });
     if (photo) fd.append("profileImage", photo);
 
-    const pr = await fetch(`${API}/api/students/${id}/personal-info`, {
-      method: "POST",
-      headers: auth(),
-      body: fd,
-    });
-    const pd = await pr.json();
-    if (pr.status === 409) throwIfParentPhoneExists(pd);
-    if (pr.status === 409 && pd.code === "PHONE_DUPLICATE") throwPhoneConflicts(pd);
-    if (!pr.ok) throw new Error(pd.message || "Save failed");
+    try {
+      const pr = await fetch(`${API}/api/students/${id}/personal-info`, {
+        method: "POST",
+        headers: auth(),
+        body: fd,
+      });
+      const pd = await pr.json();
+      if (pr.status === 409) throwIfParentPhoneExists(pd);
+      if (pr.status === 409 && pd.code === "PHONE_DUPLICATE") throwPhoneConflicts(pd);
+      if (!pr.ok) throw new Error(pd.message || "Save failed");
+    } catch (e) {
+      // The student row was created a moment ago but the save (details +
+      // enrollment, one transaction on the server) failed: remove it so no
+      // "no enrollment" student is left behind, and start clean on retry.
+      if (createdNow) {
+        await discardIncomplete(id);
+        setSid(null);
+      }
+      throw e;
+    }
 
     // Create Father login if provided
     if (f.pLoginEmail !== null && f.pLoginEmail?.trim() && f.pLoginPw?.trim()) {
@@ -1092,10 +1138,8 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
   const handleSave = async (confirmDup = false) => {
     const confirmed = confirmDup === true;
     const valid = validate();
-    if (!valid) {
-      setTab("documents");
-      return;
-    }
+    if (!valid) return; // validate() already shows the message and opens the tab
+    if (busy) return; // ignore double-clicks while a save is running
     setBusy(true);
     setErr({});
     try {
@@ -2201,12 +2245,18 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
                 }}
               >
                 {renderAcademicCascade()}
+                {err.classSectionId && (
+                  <p className="text-[10px] text-red-500 ml-1 font-medium">
+                    {err.classSectionId}
+                  </p>
+                )}
               </div>
 
               <StyledSelect
-                label="Academic Year"
+                label="Academic Year *"
                 value={f.academicYearId}
                 onChange={set("academicYearId")}
+                error={err.academicYearId}
               >
                 <option value="">
                   {loadingDropdowns ? "Loading…" : "Select academic year"}
@@ -2238,10 +2288,11 @@ export default function AddStudent({ onClose, closeModal, onSuccess }) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InputField
-                  label="Admission Date"
+                  label="Admission Date *"
                   type="date"
                   value={f.admDate}
                   onChange={set("admDate")}
+                  error={err.admDate}
                 />
                 <StyledSelect
                   label="Status"
