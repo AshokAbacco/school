@@ -16,30 +16,47 @@ const C = {
   border: "#C8DCF0", borderLight: "#DDE9F5", text: "#243340", textLight: "#6A89A7",
 };
 
+/* ── Fetch every page of /api/students (server caps each page at 100) ── */
+async function fetchAllPages(baseParams) {
+  const PAGE_SIZE = 100;
+  let page = 1;
+  let totalPages = 1;
+  const all = [];
+
+  do {
+    const params = new URLSearchParams(baseParams);
+    params.set("page", page);
+    params.set("limit", PAGE_SIZE);
+
+    const res = await fetch(`${API_URL}/api/students?${params}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to fetch students");
+
+    const data = await res.json();
+    all.push(...(data.students || []));
+    totalPages = data.pages || 1;
+    page++;
+  } while (page <= totalPages);
+
+  return all;
+}
+
 /* ── Fetch students for one or more section IDs ── */
 async function fetchStudentsForSections(sectionIds, academicYearId) {
   if (!sectionIds || sectionIds.length === 0) return [];
   const results = await Promise.all(
-    sectionIds.map(async (csId) => {
-      const params = new URLSearchParams({ page: 1, limit: 9999 });
-      params.set("classSectionId", csId);
-      if (academicYearId) params.set("academicYearId", academicYearId);
-      const res = await fetch(`${API_URL}/api/students?${params}`, { headers: authHeaders() });
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.students || [];
+    sectionIds.map((csId) => {
+      const params = { classSectionId: csId };
+      if (academicYearId) params.academicYearId = academicYearId;
+      return fetchAllPages(params);
     })
   );
   return results.flat();
 }
 
 async function fetchAllStudents(academicYearId) {
-  const params = new URLSearchParams({ page: 1, limit: 9999 });
-  if (academicYearId) params.set("academicYearId", academicYearId);
-  const res = await fetch(`${API_URL}/api/students?${params}`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("Failed to fetch students");
-  const data = await res.json();
-  return data.students || [];
+  const params = {};
+  if (academicYearId) params.academicYearId = academicYearId;
+  return fetchAllPages(params);
 }
 
 /* ── Row builder ── */

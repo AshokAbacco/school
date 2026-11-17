@@ -129,6 +129,8 @@ function App() {
             <Route path="/terms" element={<Terms />} />
 
             <Route path="/privacy" element={<PrivacyPolicy />} />
+             <Route path="/login" element={<Login />} />
+             
           </Route>
         )}
 
