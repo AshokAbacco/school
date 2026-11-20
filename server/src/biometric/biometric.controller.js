@@ -3,6 +3,39 @@ import {
   processPresent,
   processAbsent,
 } from "./biometric_attendance_service.js";
+import {
+  computeTodayStudentAttendance,
+  resolveAbsentTime,
+  getSetting,
+  getISTNow,
+  isValidTime,
+} from "./biometric_settings_service.js";
+import { rescheduleAbsentJobForSchool } from "./biometric_cron_scheduler.js";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCHOOL SCOPE HELPER
+// SUPER_ADMIN → any school of their university. Everyone else (ADMIN …) → only
+// their own school (from the JWT). Returns { schoolId } or { error, status }.
+// ─────────────────────────────────────────────────────────────────────────────
+async function resolveSchoolScope(req, requestedSchoolId) {
+  const { role, schoolId: ownSchoolId, universityId } = req.user || {};
+
+  if (role !== "SUPER_ADMIN") {
+    if (!ownSchoolId) return { status: 403, error: "No school linked to this account" };
+    if (requestedSchoolId && requestedSchoolId !== ownSchoolId) {
+      return { status: 403, error: "You can only access your own school" };
+    }
+    return { schoolId: ownSchoolId };
+  }
+
+  if (!requestedSchoolId) return { status: 400, error: "schoolId is required" };
+  const school = await prisma.school.findFirst({
+    where: { id: requestedSchoolId, universityId },
+    select: { id: true },
+  });
+  if (!school) return { status: 404, error: "School not found" };
+  return { schoolId: school.id };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIMEZONE HELPER
@@ -652,18 +685,29 @@ export const getStats = async (req, res) => {
         .status(400)
         .json({ success: false, message: "universityId missing in token" });
     }
-    const schools = await prisma.school.findMany({
-      where: { universityId },
-      select: { id: true },
-    });
-    const schoolIds = schools.map((s) => s.id);
+    // Scope: ?schoolId= (validated) → that school.
+    //        No schoolId → SUPER_ADMIN: all university schools; others: own school.
+    let schoolIds;
+    if (req.query.schoolId || req.user?.role !== "SUPER_ADMIN") {
+      const scope = await resolveSchoolScope(req, req.query.schoolId);
+      if (scope.error) {
+        return res.status(scope.status).json({ success: false, message: scope.error });
+      }
+      schoolIds = [scope.schoolId];
+    } else {
+      const schools = await prisma.school.findMany({
+        where: { universityId },
+        select: { id: true },
+      });
+      schoolIds = schools.map((s) => s.id);
+    }
 
     const now = new Date();
     const istNow = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
     const dateStr = istNow.toISOString().slice(0, 10);
     const todayStart = new Date(dateStr + "T00:00:00+05:30");
 
-    const [totalDevices, mappedUsers, todayPunches, unmappedPunches] =
+    const [totalDevices, mappedUsers, todayPunches, unmappedPunches, attendance] =
       await Promise.all([
         prisma.biometricDevice.count({
           where: { isActive: true, schoolId: { in: schoolIds } },
@@ -680,13 +724,86 @@ export const getStats = async (req, res) => {
         prisma.biometricLog.count({
           where: { schoolId: { in: schoolIds }, biometricUserMappingId: null },
         }),
+        // Today's present/absent — each school uses its own absent time.
+        // Only schools with an active biometric device are considered.
+        prisma.biometricDevice
+          .findMany({
+            where: { isActive: true, schoolId: { in: schoolIds } },
+            select: { schoolId: true },
+            distinct: ["schoolId"],
+          })
+          .then((rows) =>
+            Promise.all(rows.map((r) => computeTodayStudentAttendance(r.schoolId))),
+          )
+          // Never let the absent calculation break the existing cards
+          // (e.g. settings table not migrated yet).
+          .catch((err) => {
+            console.error("[getStats] absent calculation failed:", err.message);
+            return null;
+          }),
       ]);
+
+    if (attendance === null) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalDevices, mappedUsers, todayPunches, unmappedPunches,
+          todayAbsent: null, todayPresent: null,
+          absentSummary: { status: "ERROR" },
+        },
+      });
+    }
+
+    // Aggregate. Absent is only summed for schools whose absent time has passed.
+    const active = attendance.filter((a) => a.status === "ACTIVE");
+    const pending = attendance.filter((a) => a.status === "PENDING");
+    const todayAbsent = active.length
+      ? active.reduce((sum, a) => sum + a.absent, 0)
+      : null;
+    const todayPresent = attendance.reduce((sum, a) => sum + a.present, 0);
+
+    let absentStatus = "ACTIVE";
+    if (!attendance.length) absentStatus = "NOT_CONFIGURED";
+    else if (!active.length) {
+      absentStatus = pending.length
+        ? "PENDING"
+        : attendance.every((a) => a.status === "HOLIDAY")
+          ? "HOLIDAY"
+          : "NOT_CONFIGURED";
+    }
 
     return res
       .status(200)
       .json({
         success: true,
-        data: { totalDevices, mappedUsers, todayPunches, unmappedPunches },
+        data: {
+          totalDevices,
+          mappedUsers,
+          todayPunches,
+          unmappedPunches,
+          todayAbsent,
+          todayPresent,
+          absentSummary: {
+            status: absentStatus, // ACTIVE | PENDING | HOLIDAY | NOT_CONFIGURED
+            // Single-school view: that school's absent time; multi-school: null
+            absentTime: attendance.length === 1 ? attendance[0].absentTime : null,
+            absentTimeSource: attendance.length === 1 ? attendance[0].absentTimeSource : null,
+            reason: attendance.length === 1 ? attendance[0].reason : null,
+            mappedStudents: attendance.reduce((sum, a) => sum + a.mappedStudents, 0),
+            // Per person type: { STUDENT: { mapped, present, absent }, TEACHER: … }
+            byType: attendance.reduce((acc, a) => {
+              for (const [t, v] of Object.entries(a.byType || {})) {
+                acc[t] ||= { mapped: 0, present: 0, absent: null };
+                acc[t].mapped += v.mapped;
+                acc[t].present += v.present;
+                if (v.absent !== null) acc[t].absent = (acc[t].absent || 0) + v.absent;
+              }
+              return acc;
+            }, {}),
+            schoolsCounted: active.length,
+            schoolsPending: pending.length,
+          },
+        },
       });
   } catch (error) {
     console.error(error);
@@ -1567,5 +1684,86 @@ export const triggerBiometricAttendance = async (req, res) => {
   } catch (err) {
     console.error("[triggerBiometricAttendance]", err);
     return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/biometric/settings?schoolId=
+// Returns the school's absent-time setting (+ effective time if not configured)
+// ─────────────────────────────────────────────────────────────────────────────
+export const getAttendanceSettings = async (req, res) => {
+  try {
+    const scope = await resolveSchoolScope(req, req.query.schoolId);
+    if (scope.error) {
+      return res.status(scope.status).json({ success: false, message: scope.error });
+    }
+    const { dateStr } = getISTNow();
+    const [setting, effective] = await Promise.all([
+      getSetting(scope.schoolId),
+      resolveAbsentTime(scope.schoolId, dateStr),
+    ]);
+    return res.status(200).json({
+      success: true,
+      data: {
+        schoolId: scope.schoolId,
+        absentTime: setting?.absentTime || null, // configured value (null = not set)
+        isConfigured: !!setting,
+        effectiveAbsentTime: effective.absentTime, // what is applied today
+        effectiveSource: effective.source, // CONFIGURED | DEFAULT | null
+        schoolStartTime: effective.schoolStartTime,
+        updatedAt: setting?.updatedAt || null,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/biometric/settings   body: { schoolId, absentTime: "HH:MM" }
+// Saves the school's absent time and reschedules today's ABSENT job.
+// ─────────────────────────────────────────────────────────────────────────────
+export const updateAttendanceSettings = async (req, res) => {
+  try {
+    if (!["SUPER_ADMIN", "ADMIN"].includes(req.user?.role)) {
+      return res.status(403).json({ success: false, message: "Not allowed" });
+    }
+    const scope = await resolveSchoolScope(req, req.body?.schoolId);
+    if (scope.error) {
+      return res.status(scope.status).json({ success: false, message: scope.error });
+    }
+
+    const absentTime = String(req.body?.absentTime || "").trim();
+    if (!isValidTime(absentTime)) {
+      return res.status(400).json({
+        success: false,
+        message: "absentTime must be in 24-hour HH:MM format (e.g. 11:00)",
+      });
+    }
+
+    const setting = await prisma.biometricAttendanceSetting.upsert({
+      where: { schoolId: scope.schoolId },
+      update: { absentTime, updatedById: req.user?.id || null },
+      create: { schoolId: scope.schoolId, absentTime, updatedById: req.user?.id || null },
+    });
+
+    // Apply to today's run immediately (no server restart needed)
+    let nextRunAt = null;
+    try {
+      nextRunAt = await rescheduleAbsentJobForSchool(scope.schoolId);
+    } catch (err) {
+      console.error("[updateAttendanceSettings] reschedule failed:", err.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Absent time set to ${absentTime}`,
+      data: { ...setting, nextRunAt },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -5,7 +5,9 @@
 // Dynamically schedules two one-time jobs per school per day:
 //
 //   Job 1 → school start + 1 hr  → processPresent(schoolId)
-//   Job 2 → school start + 3 hrs → processAbsent(schoolId)
+//   Job 2 → school's configured absent time (BiometricAttendanceSetting)
+//           → processPresent(onlyUnmarked) + processAbsent(schoolId)
+//           Fallback when not configured: school start + 3 hrs
 //
 // School start time = first period's startTime from PeriodDefinition,
 // picked based on today's day type (WEEKDAY or SATURDAY).
@@ -27,6 +29,7 @@ import cron     from "node-cron";
 import schedule from "node-schedule";
 import { prisma }          from "../config/db.js";
 import { processPresent, processAbsent } from "./biometric_attendance_service.js";
+import { getNonWorkingReason, resolveAbsentTime } from "./biometric_settings_service.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -100,7 +103,7 @@ async function scheduleAllSchools() {
 
   for (const school of schools) {
     try {
-      await scheduleForSchool({ school, dateStr, dayType, istNow });
+      await scheduleForSchool({ school, dateStr });
     } catch (err) {
       console.error(`[BiometricScheduler] Failed to schedule for school ${school.name}:`, err.message);
     }
@@ -111,131 +114,107 @@ async function scheduleAllSchools() {
 // Schedule jobs for a single school
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function scheduleForSchool({ school, dateStr, dayType, istNow }) {
+/**
+ * ABSENT job body. First marks PRESENT any punched student who still has no
+ * record (e.g. punched after the PRESENT job but before the cut-off), then
+ * marks the remaining mapped students ABSENT.
+ */
+async function runAbsentJob(school) {
+  console.log(`[BiometricScheduler] Firing ABSENT job for ${school.name}`);
+  await processPresent(school.id, { onlyUnmarked: true });
+  await processAbsent(school.id);
+}
+
+const absentJobName = (schoolId, dateStr) => `absent_${schoolId}_${dateStr}`;
+
+/**
+ * Schedules (or runs immediately, if the time has passed) today's ABSENT job
+ * for a school, at its configured absent time (fallback: start + 3 hrs).
+ * Returns the Date the job was scheduled for, or null.
+ */
+function scheduleAbsentJob({ school, dateStr, absentTime, label }) {
+  const name = absentJobName(school.id, dateStr);
+  schedule.scheduledJobs[name]?.cancel();
+
+  const absentJobTime = buildScheduleDate(dateStr, absentTime, 0);
+  if (absentJobTime.getTime() > Date.now()) {
+    schedule.scheduleJob(name, absentJobTime, () => runAbsentJob(school).catch(console.error));
+    console.log(`${label} ABSENT job scheduled at ${absentJobTime.toISOString()} (IST ${absentTime})`);
+  } else {
+    console.log(`${label} ABSENT job time (IST ${absentTime}) already passed — running now.`);
+    runAbsentJob(school).catch(console.error);
+  }
+  return absentJobTime;
+}
+
+async function scheduleForSchool({ school, dateStr }) {
   const label = `[BiometricScheduler][${school.name}]`;
 
-  // ── 1. Check if today is a school holiday ──────────────────────────────────
-  // SchoolHoliday has two types:
-  //   GOVERNMENT → month + day (repeats every year, no date range)
-  //   SCHOOL     → startDate + endDate (academic year specific)
-  const todayStart = new Date(dateStr + "T00:00:00+05:30");
-  const todayEnd   = new Date(dateStr + "T23:59:59+05:30");
-
-  // Parse today's IST month (1-12) and day (1-31) for GOVERNMENT holiday check
-  const istParts  = dateStr.split("-").map(Number); // [YYYY, MM, DD]
-  const todayMonth = istParts[1]; // 1-12
-  const todayDay   = istParts[2]; // 1-31
-
-  const holiday = await prisma.schoolHoliday.findFirst({
-    where: {
-      schoolId:  school.id,
-      deletedAt: null,
-      OR: [
-        // SCHOOL holiday — falls within startDate..endDate range
-        {
-          type:      "SCHOOL",
-          startDate: { lte: todayEnd },
-          endDate:   { gte: todayStart },
-        },
-        // GOVERNMENT holiday — matches today's month and day (repeats yearly)
-        {
-          type:  "GOVERNMENT",
-          month: todayMonth,
-          day:   todayDay,
-        },
-      ],
-    },
-    select: { id: true, title: true, type: true },
-  });
-
-  if (holiday) {
-    console.log(`${label} Holiday today (${holiday.title} / ${holiday.type}) — skipping.`);
+  // ── 1. Sunday / school holiday ─────────────────────────────────────────────
+  const closed = await getNonWorkingReason(school.id, dateStr);
+  if (closed) {
+    console.log(`${label} Closed today (${closed}) — skipping.`);
     return;
   }
 
-  // ── 2. Get active academic year ────────────────────────────────────────────
-  const academicYear = await prisma.academicYear.findFirst({
-    where:  { schoolId: school.id, isActive: true },
-    select: { id: true },
-  });
-
-  if (!academicYear) {
-    console.log(`${label} No active academic year — skipping.`);
+  // ── 2. Resolve school start time + absent time ─────────────────────────────
+  //   absentTime = school's configured value, else first period + 3 hrs
+  const { absentTime, source, schoolStartTime } = await resolveAbsentTime(school.id, dateStr);
+  if (!absentTime) {
+    console.log(`${label} No absent time configured and no timetable — skipping.`);
     return;
   }
+  console.log(`${label} Start: ${schoolStartTime || "n/a"}, absent time: ${absentTime} (${source}).`);
 
-  // ── 3. Get TimetableConfig for this school + active year ───────────────────
-  const timetableConfig = await prisma.timetableConfig.findUnique({
-    where: {
-      schoolId_academicYearId: {
-        schoolId:      school.id,
-        academicYearId: academicYear.id,
-      },
-    },
-    select: { id: true },
-  });
+  const absentJobTime = buildScheduleDate(dateStr, absentTime, 0);
 
-  if (!timetableConfig) {
-    console.log(`${label} No TimetableConfig found — skipping.`);
-    return;
-  }
-
-  // ── 4. Get first period for today's day type (lowest order) ───────────────
-  const firstPeriod = await prisma.periodDefinition.findFirst({
-    where: {
-      configId: timetableConfig.id,
-      dayType,
-    },
-    orderBy: { order: "asc" },
-    select:  { startTime: true, order: true },
-  });
-
-  if (!firstPeriod) {
-    console.log(`${label} No period definitions for ${dayType} — skipping.`);
-    return;
-  }
-
-  const schoolStartTime = firstPeriod.startTime; // e.g. "08:30"
-  console.log(`${label} School starts at ${schoolStartTime} (${dayType}).`);
-
-  // ── 5. Compute schedule times ──────────────────────────────────────────────
-  const presentJobTime = buildScheduleDate(dateStr, schoolStartTime, 60);  // +1 hr
-  const absentJobTime  = buildScheduleDate(dateStr, schoolStartTime, 180); // +3 hrs
-
-  const nowMs = istNow.getTime();
-
-  // ── 6. Schedule Job 1 — PRESENT (start + 1 hr) ────────────────────────────
-  if (presentJobTime.getTime() > nowMs) {
-    schedule.scheduleJob(
-      `present_${school.id}_${dateStr}`,
-      presentJobTime,
-      async () => {
-        console.log(`[BiometricScheduler] Firing PRESENT job for ${school.name}`);
-        await processPresent(school.id);
+  // ── 3. PRESENT job — start + 1 hr (only if it falls before the absent job;
+  //       otherwise the ABSENT job marks punched students PRESENT itself) ─────
+  if (schoolStartTime) {
+    const presentJobTime = buildScheduleDate(dateStr, schoolStartTime, 60);
+    if (presentJobTime < absentJobTime) {
+      if (presentJobTime.getTime() > Date.now()) {
+        schedule.scheduleJob(`present_${school.id}_${dateStr}`, presentJobTime, async () => {
+          console.log(`[BiometricScheduler] Firing PRESENT job for ${school.name}`);
+          await processPresent(school.id);
+        });
+        console.log(`${label} PRESENT job scheduled at ${presentJobTime.toISOString()} (IST: +1hr from ${schoolStartTime})`);
+      } else {
+        // If server restarted after the scheduled time, run immediately
+        console.log(`${label} PRESENT job time already passed — running now.`);
+        processPresent(school.id).catch(console.error);
       }
-    );
-    console.log(`${label} PRESENT job scheduled at ${presentJobTime.toISOString()} (IST: +1hr from ${schoolStartTime})`);
-  } else {
-    // If server restarted after the scheduled time, run immediately
-    console.log(`${label} PRESENT job time already passed — running now.`);
-    processPresent(school.id).catch(console.error);
+    }
   }
 
-  // ── 7. Schedule Job 2 — ABSENT (start + 3 hrs) ────────────────────────────
-  if (absentJobTime.getTime() > nowMs) {
-    schedule.scheduleJob(
-      `absent_${school.id}_${dateStr}`,
-      absentJobTime,
-      async () => {
-        console.log(`[BiometricScheduler] Firing ABSENT job for ${school.name}`);
-        await processAbsent(school.id);
-      }
-    );
-    console.log(`${label} ABSENT job scheduled at ${absentJobTime.toISOString()} (IST: +3hrs from ${schoolStartTime})`);
-  } else {
-    console.log(`${label} ABSENT job time already passed — running now.`);
-    processAbsent(school.id).catch(console.error);
-  }
+  // ── 4. ABSENT job — configured absent time ────────────────────────────────
+  scheduleAbsentJob({ school, dateStr, absentTime, label });
+}
+
+/**
+ * Called after a school's absent time is changed — re-creates today's ABSENT
+ * job at the new time. Does NOT touch the PRESENT job (avoids re-notifying).
+ */
+export async function rescheduleAbsentJobForSchool(schoolId) {
+  const { dateStr } = getISTNow();
+  const school = await prisma.school.findUnique({
+    where: { id: schoolId },
+    select: {
+      id: true,
+      name: true,
+      biometricDevices: { where: { isActive: true }, select: { id: true }, take: 1 },
+    },
+  });
+  if (!school || !school.biometricDevices.length) return null;
+
+  const label = `[BiometricScheduler][${school.name}]`;
+  schedule.scheduledJobs[absentJobName(schoolId, dateStr)]?.cancel();
+
+  if (await getNonWorkingReason(schoolId, dateStr)) return null;
+  const { absentTime } = await resolveAbsentTime(schoolId, dateStr);
+  if (!absentTime) return null;
+
+  return scheduleAbsentJob({ school, dateStr, absentTime, label });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

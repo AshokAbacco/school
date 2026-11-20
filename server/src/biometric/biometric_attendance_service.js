@@ -7,7 +7,7 @@
 //   Cron 1 — school start + 1 hr  → processPresent()
 //             Marks students who punched as PRESENT, sends WhatsApp.
 //
-//   Cron 2 — school start + 3 hrs → processAbsent()
+//   Cron 2 — configured absent time (fallback: start + 3 hrs) → processAbsent()
 //             Any student still with NO AttendanceRecord → mark ABSENT, send WhatsApp.
 //
 // Zero changes to the existing manual attendance flow.
@@ -73,8 +73,12 @@ async function notifyParents({ student, status, schoolName }) {
 
 /**
  * @param {string} schoolId
+ * @param {{ onlyUnmarked?: boolean }} [options]
+ *   onlyUnmarked = true → only handle punched students who have NO attendance
+ *   record yet (used right before the ABSENT job so late-but-before-cut-off
+ *   punches are marked PRESENT without re-notifying already-marked students).
  */
-export async function processPresent(schoolId) {
+export async function processPresent(schoolId, { onlyUnmarked = false } = {}) {
   const label = `[BiometricPresent][${schoolId}]`;
   console.log(`${label} Starting PRESENT processing...`);
 
@@ -209,6 +213,12 @@ export async function processPresent(schoolId) {
 
       if (!classSectionId) continue;
 
+      // SKIP anyone already marked (biometric or teacher) when only filling gaps
+      if (onlyUnmarked && existing) {
+        skippedCount++;
+        continue;
+      }
+
       // SKIP if teacher already manually marked (markedById is not null)
       if (existing && existing.markedById !== null) {
         console.log(`${label} Skipping ${student.name} — teacher already marked.`);
@@ -341,6 +351,24 @@ export async function processAbsent(schoolId) {
     });
 
     const alreadyMarkedIds = new Set(existingRecords.map((r) => r.studentId));
+
+    // ── 5b. Never mark a student ABSENT if they punched today ────────────────
+    const todayStr = todayISTString();
+    const punchedToday = await prisma.biometricLog.findMany({
+      where: {
+        schoolId,
+        personType:    "STUDENT",
+        studentId:     { in: [...mappedStudentIds] },
+        punchDateTime: {
+          gte: new Date(todayStr + "T00:00:00+05:30"),
+          lte: new Date(todayStr + "T23:59:59+05:30"),
+        },
+        biometricUserMappingId: { not: null },
+      },
+      select:   { studentId: true },
+      distinct: ["studentId"],
+    });
+    for (const l of punchedToday) if (l.studentId) alreadyMarkedIds.add(l.studentId);
 
     // ── 6. Students with NO record = ABSENT ───────────────────────────────────
     const absentStudentIds = [...mappedStudentIds].filter(

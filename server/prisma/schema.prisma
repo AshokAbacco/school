@@ -376,6 +376,7 @@ model School {
   idCardTemplates    IdCardTemplate[]
 
   biometricStudentAttendances BiometricStudentAttendance[]
+  biometricAttendanceSetting  BiometricAttendanceSetting?
   ScheduledReminder           ScheduledReminder[]
   academicCertificates        AcademicCertificate[]
 
@@ -3923,6 +3924,25 @@ model TeacherMonthlyPayroll {
   @@unique([teacherId, month, year])
   @@index([schoolId, month, year])
   @@map("teacher_monthly_payrolls")
+}
+
+// Per-school biometric attendance settings.
+// absentTime = IST "HH:MM" (24h). Mapped students with no punch by this time
+// are counted / auto-marked ABSENT for the day.
+model BiometricAttendanceSetting {
+  id String @id @default(uuid())
+
+  schoolId String @unique
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  absentTime String // "HH:MM" IST, e.g. "11:00"
+
+  updatedById String? // User / SuperAdmin id who last changed it (no FK: can be either)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("biometric_attendance_settings")
 }
 
 model BiometricStudentAttendance {

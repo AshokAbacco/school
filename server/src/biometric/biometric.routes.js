@@ -19,6 +19,8 @@ import {
   getTeacherAttendanceReport,
   getBiometricAttendanceReport,
    triggerBiometricAttendance, 
+  getAttendanceSettings,
+  updateAttendanceSettings,
 } from "./biometric.controller.js";
 
 const router = express.Router();
@@ -31,7 +33,11 @@ router.post("/punch", receivePunch);
 router.use(requireAuth);
 router.post("/trigger-attendance", triggerBiometricAttendance);
 // ── Dashboard stats ───────────────────────────────────────────────────────────
-router.get("/stats", getStats);
+router.get("/stats", getStats);   // ?schoolId= (optional) — includes todayAbsent
+
+// ── Attendance settings (absent cut-off time, per school) ────────────────────
+router.get("/settings", getAttendanceSettings);     // ?schoolId=
+router.put("/settings", updateAttendanceSettings);  // { schoolId, absentTime: "HH:MM" }
 
 // ── Schools & Classes ─────────────────────────────────────────────────────────
 router.get("/schools", getSchools);   // scoped to req.user.universityId
